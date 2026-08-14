@@ -82,34 +82,37 @@ if menu == "Master Kontrak":
 
 elif menu == "Input Database & Invoice":
     
-    # --- KEMBALIKAN PANEL PANGGIL ULANG DI BAGIAN ATAS ---
+    # --- PANEL PANGGIL ULANG ---
     st.markdown("""
         <div class="dashboard-card">
-            <h4 style="margin-top:0; color:#065f46; font-size:15px;">🔍 Panggil Ulang Data / Nomor PI Tersimpan</h4>
+            <h4 style="margin-top:0; color:#065f46; font-size:15px;">🔍 Panggil Ulang Data Berdasarkan Nomor PI</h4>
         </div>
     """, unsafe_allow_html=True)
 
     if len(st.session_state["db_tersimpan"]) > 0:
         opsi_panggil = ["-- Buat Data Baru (Formulir Kosong) --"]
         for i, data in enumerate(st.session_state["db_tersimpan"]):
-            opsi_panggil.append(f"Data {i+1} | PI: {data.get('Proforma Invoice No.', '-')} | Kontrak: {data.get('Contract No.', '-')}")
+            pi_num = data.get('Proforma Invoice No.', '-')
+            kontrak_num = data.get('Contract No.', '-')
+            opsi_panggil.append(f"PI: {pi_num} | Kontrak: {kontrak_num} (Data {i+1})")
         
         col_pilih, col_btn_panggil = st.columns([3, 1])
         with col_pilih:
-            pilihan_edit = st.selectbox("Pilih nomor PI atau data untuk dipanggil:", opsi_panggil, label_visibility="collapsed")
+            pilihan_edit = st.selectbox("Pilih Nomor PI untuk dipanggil:", opsi_panggil, label_visibility="collapsed")
         with col_btn_panggil:
             if st.button("🔄 Panggil Ulang"):
                 if pilihan_edit == "-- Buat Data Baru (Formulir Kosong) --":
                     st.session_state["edit_index"] = None
                 else:
-                    idx_str = pilihan_edit.split(" ")[1]
-                    st.session_state["edit_index"] = int(idx_str) - 1
+                    # Mengambil indeks dari teks (Data X)
+                    idx_part = pilihan_edit.split("(Data ")[1].replace(")", "")
+                    st.session_state["edit_index"] = int(idx_part) - 1
                 st.rerun()
     else:
         st.info("📌 Belum ada data tersimpan. Silakan isi formulir di bawah ini untuk membuat data baru.")
 
     if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(st.session_state["db_tersimpan"]):
-        st.info(f"📋 **DATA DIPANGGIL (No. {st.session_state['edit_index'] + 1}):** Silakan ubah nomor PI atau isian lainnya, lalu gunakan tombol **'Save As (Buat PI Baru)'** di bawah.")
+        st.info(f"📋 **DATA DIPANGGIL:** Silakan ubah nomor PI atau isian lainnya, lalu gunakan tombol **'Save As (Buat PI Baru)'** di bawah.")
 
     # Mengambil data default untuk form
     def_data = {}
@@ -185,17 +188,32 @@ elif menu == "Input Database & Invoice":
         
         if submit_baru or submit_save_as or submit_update:
             data_terinput = {
-                "Contract No.": val_1, "Tender No": val_2, "Contract Title": val_3, 
-                "Tanggal Contract": val_4, "Contract Period": val_5, 
-                "Proforma Invoice No.": val_6, "Tanggal PI": val_7, 
-                "No PO": val_8, "Tanggal PO": val_9, "Keterangan PO": val_10,
-                "Pihak Pertama": val_11, "Alamat Pihak Pertama": val_12, 
-                "Diwakili Oleh (P1)": val_13, "Selaku (P1)": val_14,
-                "Pihak Kedua": val_15, "Alamat Pihak Kedua": val_16, 
-                "Diwakili Oleh (P2)": val_17, "Selaku (P2)": val_18,
-                "Period": val_19, "Certificate No.": val_20, "WCC Date": val_21, 
-                "WO No.": val_22, "WO Title": val_23, "CTR No.": val_24, 
-                "Prepared by Name": val_25, "Prepared by Title": val_26
+                "Proforma Invoice No.": val_6,
+                "Contract No.": val_1, 
+                "Tender No": val_2, 
+                "Keterangan PO": val_10,
+                "Contract Title": val_3, 
+                "Tanggal Contract": val_4, 
+                "Contract Period": val_5, 
+                "Tanggal PI": val_7, 
+                "No PO": val_8, 
+                "Tanggal PO": val_9, 
+                "Pihak Pertama": val_11, 
+                "Alamat Pihak Pertama": val_12, 
+                "Diwakili Oleh (P1)": val_13, 
+                "Selaku (P1)": val_14,
+                "Pihak Kedua": val_15, 
+                "Alamat Pihak Kedua": val_16, 
+                "Diwakili Oleh (P2)": val_17, 
+                "Selaku (P2)": val_18,
+                "Period": val_19, 
+                "Certificate No.": val_20, 
+                "WCC Date": val_21, 
+                "WO No.": val_22, 
+                "WO Title": val_23, 
+                "CTR No.": val_24, 
+                "Prepared by Name": val_25, 
+                "Prepared by Title": val_26
             }
 
             if submit_update:
@@ -217,12 +235,18 @@ elif menu == "Lihat Database Tersimpan":
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Database Identifikasi Tersimpan</h3>
-            <p style="color:#047857; font-size:13px; margin:0;">Berikut adalah rekapitulasi seluruh data identitas yang telah Anda masukkan.</p>
+            <p style="color:#047857; font-size:13px; margin:0;">Rekapitulasi data dengan urutan kolom: No. Proforma Invoice, No. Kontrak, No. Tender, dan Keterangan.</p>
         </div>
     """, unsafe_allow_html=True)
     
     if len(st.session_state["db_tersimpan"]) > 0:
         df_saved = pd.DataFrame(st.session_state["db_tersimpan"])
+        
+        # Memastikan urutan kolom di tabel sesuai permintaan (PI, Kontrak, Tender, Keterangan, diikuti kolom lainnya)
+        cols_prioritas = ["Proforma Invoice No.", "Contract No.", "Tender No", "Keterangan PO"]
+        sisa_cols = [c for c in df_saved.columns if c not in cols_prioritas]
+        df_saved = df_saved[cols_prioritas + sisa_cols]
+        
         st.dataframe(df_saved, use_container_width=True)
     else:
         st.info("Belum ada data yang tersimpan. Silakan isi formulir di menu *Input Database & Invoice* terlebih dahulu.")
