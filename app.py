@@ -2,38 +2,56 @@ import streamlit as st
 import pandas as pd
 
 # Konfigurasi Halaman
-st.set_page_config(page_title="Dashboard Proforma Invoice & Kontrak", layout="centered")
+st.set_page_config(page_title="Dashboard Proforma Invoice & Kontrak - PT. Banggai Sentral Sulawesi", layout="centered")
 
-# CSS Styling untuk Memperbaiki Posisi Sticky Header agar Tidak Tertutup Sidebar
+# CSS Styling Tema Gelap & Hijau Muda dengan Sticky Header Nama Perusahaan
 st.markdown("""
     <style>
+    /* Latar belakang utama */
     .main {
-        background-color: #f8f9fa;
+        background-color: #f1f5f9;
     }
     
-    /* Sticky Header yang menyesuaikan area tengah halaman utama */
-    .sticky-header {
+    /* Sticky Header Nama Perusahaan (Statis di atas, tidak ikut bergerak) */
+    .company-sticky-header {
         position: fixed;
         top: 0;
-        right: 5%;
-        left: 320px; /* Menyesuaikan lebar sidebar default Streamlit */
-        background-color: #ffffff;
-        z-index: 999;
-        padding: 15px 25px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
-        border-bottom: 2px solid #e5e7eb;
-        border-radius: 0 0 10px 10px;
+        right: 0;
+        left: 0;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); /* Warna Gelap Elegan */
+        color: #ffffff;
+        z-index: 9999;
+        padding: 12px 30px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-bottom: 3px solid #10b981; /* Aksen Hijau Muda */
     }
     
-    /* Jarak atas konten agar tidak tertutup header melayang */
+    /* Jarak agar konten di bawahnya tidak tertutup header statis */
     .content-spacer {
-        margin-top: 130px;
+        margin-top: 90px;
     }
     
+    /* Kartu Dashboard dengan nuansa hijau muda */
+    .dashboard-card {
+        background-color: #ecfdf5; /* Hijau muda yang lembut dan segar */
+        border: 1px solid #a7f3d0;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    
+    /* Tombol kustom */
     .stButton>button {
         width: 100%;
         border-radius: 6px;
         font-weight: 600;
+        background-color: #10b981;
+        color: white;
+    }
+    .stButton>button:hover {
+        background-color: #059669;
+        color: white;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -44,16 +62,30 @@ if "db_tersimpan" not in st.session_state:
 if "edit_index" not in st.session_state:
     st.session_state["edit_index"] = None
 
+# --- HEADER STATIS NAMA PERUSAHAAN (SELALU DI ATAS & TIDAK BERGERAK) ---
+st.markdown("""
+    <div class="company-sticky-header">
+        <h2 style="margin:0; font-size: 22px; font-weight: 700; letter-spacing: 0.5px;">PT. BANGGAI SENTRAL SULAWESI</h2>
+        <p style="margin:2px 0 0 0; font-size: 12px; color: #34d399; font-weight: 500;">General Contractor and Suppliers | Dashboard Proforma Invoice & Kontrak</p>
+    </div>
+""", unsafe_allow_html=True)
+
+# Spacer untuk konten bawah
+st.markdown('<div class="content-spacer"></div>', unsafe_allow_html=True)
+
 # Sidebar Navigasi Menu
 st.sidebar.markdown("### 🗂️ Navigasi Menu")
 menu = st.sidebar.selectbox("Pilih Menu Utama", ["Input Database & Invoice", "Lihat Database Tersimpan", "Master Kontrak"])
 st.sidebar.markdown("---")
-st.sidebar.info("💡 **Tips:** Gunakan menu *Panggil Ulang* di panel kontrol untuk mengoreksi data yang sudah pernah disimpan.")
+st.sidebar.info("💡 **Tips:** Gunakan panel panggil ulang untuk mengoreksi data kontrak yang sudah pernah disimpan.")
 
 if menu == "Master Kontrak":
-    st.title("📁 Data Master Kontrak")
-    st.markdown("---")
-    st.write("Daftar template item pekerjaan yang tersimpan dalam sistem.")
+    st.markdown("""
+        <div class="dashboard-card">
+            <h3 style="margin-top:0; color:#065f46;">📁 Data Master Kontrak</h3>
+            <p style="color:#047857; font-size:14px;">Daftar template item pekerjaan yang tersimpan dalam sistem.</p>
+        </div>
+    """, unsafe_allow_html=True)
     
     data_master = {
         "Contract No.": ["", "", ""],
@@ -69,19 +101,14 @@ if menu == "Master Kontrak":
 
 elif menu == "Input Database & Invoice":
     
-    # --- STICKY HEADER (Posisi di tengah, tidak tertutup sidebar) ---
+    # --- PANEL KONTROL & PANGGIL ULANG ---
     st.markdown("""
-        <div class="sticky-header">
-            <h3 style="margin:0; color:#1e293b; font-size: 20px;">📊 Dashboard Performa Invoice & Kontrak</h3>
-            <p style="margin:2px 0 0 0; color:#64748b; font-size: 12px;">Modul Pengelolaan & Koreksi Database Identifikasi Kontrak</p>
+        <div class="dashboard-card">
+            <h4 style="margin-top:0; color:#065f46;">🔍 Panel Kontrol & Panggil Ulang Data</h4>
+            <p style="color:#047857; font-size:13px; margin-bottom:10px;">Pilih data di bawah ini jika ingin melakukan koreksi atau edit.</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Spacer agar konten tidak tertutup header melayang
-    st.markdown('<div class="content-spacer"></div>', unsafe_allow_html=True)
-    
-    # --- PANEL KONTROL PANGGIL ULANG ---
-    st.markdown("### 🔍 Panel Kontrol Data")
     if len(st.session_state["db_tersimpan"]) > 0:
         opsi_panggil = ["-- Formulir Kosong (Buat Data Baru) --"]
         for i, data in enumerate(st.session_state["db_tersimpan"]):
@@ -89,7 +116,7 @@ elif menu == "Input Database & Invoice":
         
         col_pilih, col_btn_panggil = st.columns([3, 1])
         with col_pilih:
-            pilihan_edit = st.selectbox("Pilih data untuk diedit/dikoreksi:", opsi_panggil, label_visibility="collapsed")
+            pilihan_edit = st.selectbox("Pilih data untuk diedit:", opsi_panggil, label_visibility="collapsed")
         with col_btn_panggil:
             if st.button("🔄 Panggil Ulang"):
                 if pilihan_edit == "-- Formulir Kosong (Buat Data Baru) --":
@@ -99,7 +126,7 @@ elif menu == "Input Database & Invoice":
                     st.session_state["edit_index"] = int(idx_str) - 1
                 st.rerun()
     else:
-        st.info("📌 Belum ada data tersimpan. Silakan isi formulir di bawah untuk membuat data baru.")
+        st.info("📌 Belum ada data tersimpan. Silakan isi formulir di bawah ini untuk membuat data baru.")
 
     if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(st.session_state["db_tersimpan"]):
         st.warning(f"⚠️ **MODE EDIT AKTIF:** Sedang mengoreksi Data ke-{st.session_state['edit_index'] + 1}. Klik tombol *Simpan Kembali (Update)* di bagian bawah jika selesai.")
@@ -114,8 +141,13 @@ elif menu == "Input Database & Invoice":
     def get_val(key):
         return def_data.get(key, "")
 
-    # --- FORMULIR UTAMA INPUT / EDIT ---
-    st.markdown("### 📝 Lembar Kerja Input Database")
+    # --- LEMBAR KERJA UTAMA FORM INPUT ---
+    st.markdown("""
+        <div class="dashboard-card">
+            <h4 style="margin-top:0; color:#065f46;">📝 Lembar Kerja Input Database Identifikasi</h4>
+        </div>
+    """, unsafe_allow_html=True)
+
     with st.form("form_input_database"):
         
         col_no, col_item, col_input = st.columns([0.8, 3.5, 7])
@@ -197,9 +229,12 @@ elif menu == "Input Database & Invoice":
                 st.session_state["edit_index"] = None
 
 elif menu == "Lihat Database Tersimpan":
-    st.title("📂 Daftar Database Identifikasi Tersimpan")
-    st.markdown("---")
-    st.write("Berikut adalah rekapitulasi seluruh data identitas yang telah Anda masukkan.")
+    st.markdown("""
+        <div class="dashboard-card">
+            <h3 style="margin-top:0; color:#065f46;">📂 Daftar Database Identifikasi Tersimpan</h3>
+            <p style="color:#047857; font-size:14px;">Berikut adalah rekapitulasi seluruh data identitas yang telah Anda masukkan.</p>
+        </div>
+    """, unsafe_allow_html=True)
     
     if len(st.session_state["db_tersimpan"]) > 0:
         df_saved = pd.DataFrame(st.session_state["db_tersimpan"])
