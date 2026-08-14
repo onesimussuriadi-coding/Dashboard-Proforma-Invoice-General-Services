@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import glob
 
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Proforma Invoice & Kontrak - PT. Banggai Sentral Sulawesi", layout="centered")
@@ -44,7 +45,6 @@ st.markdown("""
 
 # --- SISTEM DATABASE EXCEL LOKAL ---
 EXCEL_INVOICE = "database_proforma_invoice.xlsx"
-EXCEL_MASTER = "master_kontrak.xlsx"  # File permanen untuk master kontrak
 
 def muat_data_invoice():
     if os.path.exists(EXCEL_INVOICE):
@@ -84,44 +84,34 @@ st.sidebar.success("📂 **Status Database:** Terhubung ke Excel Lokal")
 if menu == "Master Kontrak":
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📁 Rincian Master Kontrak (Permanen)</h3>
-            <p style="color:#047857; font-size:13px; margin:0;">Sistem membaca file <b>master_kontrak.xlsx</b> secara otomatis dari folder Anda.</p>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📁 Rincian Master Kontrak (Multi-File & Multi-Sheet)</h3>
+            <p style="color:#047857; font-size:13px; margin:0;">Sistem mendeteksi seluruh file Excel master kontrak di folder Anda secara otomatis.</p>
         </div>
     """, unsafe_allow_html=True)
     
-    # Cek apakah file master_kontrak.xlsx sudah ada di folder
-    if os.path.exists(EXCEL_MASTER):
-        try:
-            # Membaca daftar sheet dari file master lokal
-            xl_file = pd.ExcelFile(EXCEL_MASTER)
-            daftar_sheet = xl_file.sheet_names
-            
-            pilih_sheet = st.selectbox("Pilih nama sheet rincian kontrak:", daftar_sheet)
-            
-            if pilih_sheet:
-                df_raw = pd.read_excel(EXCEL_MASTER, sheet_name=pilih_sheet)
+    # Mencari semua file Excel di folder kecuali database invoice
+    semua_file_excel = [f for f in glob.glob("*.xlsx") if f != EXCEL_INVOICE]
+    
+    if len(semua_file_excel) > 0:
+        # Pilihan file master kontrak berdasarkan nama file yang Anda buat
+        pilih_file_master = st.selectbox("📂 Pilih File Master Kontrak Berdasarkan Nama / Nomor Kontrak:", semua_file_excel)
+        
+        if pilih_file_master:
+            try:
+                xl_file = pd.ExcelFile(pilih_file_master)
+                daftar_sheet = xl_file.sheet_names
                 
-                # Mencari kolom yang mereferensikan Nomor Kontrak
-                kolom_kontrak_opsi = [c for c in df_raw.columns if 'contract' in str(c).lower() or 'no kontrak' in str(c).lower() or 'kontrak' in str(c).lower()]
+                pilih_sheet = st.selectbox("Pilih Sheet di dalam file tersebut:", daftar_sheet)
                 
-                if kolom_kontrak_opsi:
-                    col_kontrak_pilihan = st.selectbox("Pilih Kolom Acuan Nomor Kontrak:", df_raw.columns, index=df_raw.columns.get_loc(kolom_kontrak_opsi[0]) if kolom_kontrak_opsi else 0)
-                    
-                    daftar_no_kontrak = df_raw[col_kontrak_pilihan].dropna().unique().tolist()
-                    
-                    selected_contract = st.selectbox("🔍 Pilih Nomor Kontrak untuk Ditampilkan Rinciannya:", daftar_no_kontrak)
-                    
-                    if selected_contract:
-                        df_filtered = df_raw[df_raw[col_kontrak_pilihan] == selected_contract]
-                        st.success(f"✨ Menampilkan rincian penawaran untuk Nomor Kontrak: **{selected_contract}**")
-                        st.dataframe(df_filtered, use_container_width=True)
-                else:
+                if pilih_sheet:
+                    df_raw = pd.read_excel(pilih_file_master, sheet_name=pilih_sheet)
+                    st.success(f"✨ Menampilkan rincian dari file: **{pilih_file_master}** (Sheet: {pilih_sheet})")
                     st.dataframe(df_raw, use_container_width=True)
-        except Exception as e:
-            st.error(f"Terjadi kesalahan saat membaca file master_kontrak.xlsx: {e}")
+            except Exception as e:
+                st.error(f"Terjadi kesalahan saat membaca file: {e}")
     else:
-        st.warning(f"⚠️ File **{EXCEL_MASTER}** belum ditemukan di dalam folder proyek Anda.")
-        st.info("💡 **Petunjuk:** Simpan file Excel master rincian kontrak Anda ke dalam folder utama tempat `app.py` berada, lalu beri nama file tersebut **`master_kontrak.xlsx`**. Setelah itu, *refresh* halaman ini.")
+        st.warning("⚠️ Belum ada file Excel master kontrak yang ditemukan di dalam folder proyek Anda.")
+        st.info("💡 **Petunjuk:** Anda bebas menamai file Excel master kontrak dengan nomor kontrak (seperti yang sudah Anda buat), simpan di folder ini, dan sistem akan langsung mengenalinya secara otomatis.")
 
 elif menu == "Input Database & Invoice":
     st.markdown("""
