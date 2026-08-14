@@ -56,9 +56,7 @@ elif menu == "Input Transaksi & Invoice":
     st.write("Pilih item dari kontrak dan masukkan kuantitas (Qty).")
     
     # Simulasi baris input interaktif
-    qty = st.number_input("Kuantitas (Qty)", min_value=1, value=1)
-     harga_satuan = 1600000 # Contoh dari master
-     total_harga = qty * harga_satuan
+    qty = st.number_input("Kuantitas (Qty)", min_value=1, value=1)harga_satuan = 1600000 # Contoh dari mastertotal_harga = qty * harga_satuan
     
     st.metric(label="Estimasi Total Nilai Baris Ini", value=f"Rp {total_harga:,.0f}")
     
