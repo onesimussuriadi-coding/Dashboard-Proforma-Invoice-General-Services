@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import os
 
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Proforma Invoice & Kontrak - PT. Banggai Sentral Sulawesi", layout="centered")
@@ -41,9 +42,30 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Inisialisasi Session State
+# --- SISTEM DATABASE BERBASIS FILE EXCEL LOKAL ---
+EXCEL_FILE = "database_proforma_invoice.xlsx"
+
+def muat_data_excel():
+    """Fungsi untuk membaca data secara otomatis dari file Excel jika ada"""
+    if os.path.exists(EXCEL_FILE):
+        try:
+            df = pd.read_excel(EXCEL_FILE)
+            return df.to_dict(orient="records")
+        except Exception as e:
+            return []
+    return []
+
+def simpan_data_excel(data_list):
+    """Fungsi untuk menyimpan seluruh data otomatis ke file Excel"""
+    df = pd.DataFrame(data_list)
+    cols_prioritas = ["Proforma Invoice No.", "Contract No.", "Tender No", "Keterangan PO"]
+    sisa_cols = [c for c in df.columns if c not in cols_prioritas]
+    df = df[cols_prioritas + sisa_cols]
+    df.to_excel(EXCEL_FILE, index=False)
+
+# Inisialisasi Session State dengan membaca dari file Excel (Auto-Load)
 if "db_tersimpan" not in st.session_state:
-    st.session_state["db_tersimpan"] = []
+    st.session_state["db_tersimpan"] = muat_data_excel()
 if "edit_index" not in st.session_state:
     st.session_state["edit_index"] = None
 
@@ -59,6 +81,7 @@ st.markdown("""
 st.sidebar.markdown("### 🗂️ Navigasi Menu")
 menu = st.sidebar.selectbox("Pilih Menu Utama", ["Input Database & Invoice", "Lihat Database Tersimpan", "Master Kontrak"])
 st.sidebar.markdown("---")
+st.sidebar.success("📂 **Status Database:** Terhubung ke Excel Lokal (Aman & Permanen)")
 
 if menu == "Master Kontrak":
     st.markdown("""
@@ -89,6 +112,9 @@ elif menu == "Input Database & Invoice":
         </div>
     """, unsafe_allow_html=True)
 
+    # Refresh data dari Excel setiap membuka menu
+    st.session_state["db_tersimpan"] = muat_data_excel()
+
     if len(st.session_state["db_tersimpan"]) > 0:
         opsi_panggil = ["-- Buat Data Baru (Formulir Kosong) --"]
         for i, data in enumerate(st.session_state["db_tersimpan"]):
@@ -104,12 +130,11 @@ elif menu == "Input Database & Invoice":
                 if pilihan_edit == "-- Buat Data Baru (Formulir Kosong) --":
                     st.session_state["edit_index"] = None
                 else:
-                    # Mengambil indeks dari teks (Data X)
                     idx_part = pilihan_edit.split("(Data ")[1].replace(")", "")
                     st.session_state["edit_index"] = int(idx_part) - 1
                 st.rerun()
     else:
-        st.info("📌 Belum ada data tersimpan. Silakan isi formulir di bawah ini untuk membuat data baru.")
+        st.info("📌 Belum ada data tersimpan di Excel. Silakan isi formulir di bawah ini untuk membuat data baru.")
 
     if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(st.session_state["db_tersimpan"]):
         st.info(f"📋 **DATA DIPANGGIL:** Silakan ubah nomor PI atau isian lainnya, lalu gunakan tombol **'Save As (Buat PI Baru)'** di bawah.")
@@ -177,7 +202,6 @@ elif menu == "Input Database & Invoice":
 
         st.markdown("---")
         
-        # Tiga Tombol Aksi di Bawah Form
         col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
             submit_baru = st.form_submit_button("💾 Simpan Data Baru")
@@ -216,37 +240,43 @@ elif menu == "Input Database & Invoice":
                 "Prepared by Title": val_26
             }
 
+            # Ambil data terbaru dari Excel sebelum dimanipulasi
+            current_data = muat_data_excel()
+
             if submit_update:
-                if st.session_state["edit_index"] is not None:
-                    st.session_state["db_tersimpan"][st.session_state["edit_index"]] = data_terinput
-                    st.success("✨ Data berhasil diperbarui (dikoreksi)!")
+                if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(current_data):
+                    current_data[st.session_state["edit_index"]] = data_terinput
+                    simpan_data_excel(current_data)
+                    st.success("✨ Data berhasil diperbarui dan disimpan permanen ke Excel!")
                 else:
-                    st.error("⚠️ Belum ada data yang dipanggil untuk diupdate!")
+                    st.error("⚠️ Belum ada data valid yang dipanggil untuk diupdate!")
             elif submit_save_as:
-                st.session_state["db_tersimpan"].append(data_terinput)
-                st.success(f"📥 Berhasil Save As! Proforma Invoice [{val_6}] tersimpan sebagai data baru.")
+                current_data.append(data_terinput)
+                simpan_data_excel(current_data)
+                st.success(f"📥 Berhasil Save As! Proforma Invoice [{val_6}] tersimpan sebagai data baru ke Excel.")
                 st.session_state["edit_index"] = None
             elif submit_baru:
-                st.session_state["db_tersimpan"].append(data_terinput)
-                st.success("🎉 Data baru berhasil disimpan!")
+                current_data.append(data_terinput)
+                simpan_data_excel(current_data)
+                st.success("🎉 Data baru berhasil disimpan permanen ke Excel!")
                 st.session_state["edit_index"] = None
 
 elif menu == "Lihat Database Tersimpan":
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Database Identifikasi Tersimpan</h3>
-            <p style="color:#047857; font-size:13px; margin:0;">Rekapitulasi data dengan urutan kolom: No. Proforma Invoice, No. Kontrak, No. Tender, dan Keterangan.</p>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Database Identifikasi Tersimpan (Excel)</h3>
+            <p style="color:#047857; font-size:13px; margin:0;">Data di bawah ini dimuat otomatis secara utuh langsung dari file Excel lokal Anda.</p>
         </div>
     """, unsafe_allow_html=True)
     
-    if len(st.session_state["db_tersimpan"]) > 0:
-        df_saved = pd.DataFrame(st.session_state["db_tersimpan"])
-        
-        # Memastikan urutan kolom di tabel sesuai permintaan (PI, Kontrak, Tender, Keterangan, diikuti kolom lainnya)
+    # Muat ulang data langsung dari Excel
+    saved_records = muat_data_excel()
+    if len(saved_records) > 0:
+        df_saved = pd.DataFrame(saved_records)
         cols_prioritas = ["Proforma Invoice No.", "Contract No.", "Tender No", "Keterangan PO"]
         sisa_cols = [c for c in df_saved.columns if c not in cols_prioritas]
         df_saved = df_saved[cols_prioritas + sisa_cols]
         
         st.dataframe(df_saved, use_container_width=True)
     else:
-        st.info("Belum ada data yang tersimpan. Silakan isi formulir di menu *Input Database & Invoice* terlebih dahulu.")
+        st.info("Belum ada data di dalam file Excel. Silakan lakukan penyimpanan data melalui menu *Input Database & Invoice*.")
