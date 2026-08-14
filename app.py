@@ -42,27 +42,28 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEM DATABASE EXCEL LOKAL UNTUK INVOICE ---
-EXCEL_FILE = "database_proforma_invoice.xlsx"
+# --- SISTEM DATABASE EXCEL LOKAL ---
+EXCEL_INVOICE = "database_proforma_invoice.xlsx"
+EXCEL_MASTER = "master_kontrak.xlsx"  # File permanen untuk master kontrak
 
-def muat_data_excel():
-    if os.path.exists(EXCEL_FILE):
+def muat_data_invoice():
+    if os.path.exists(EXCEL_INVOICE):
         try:
-            df = pd.read_excel(EXCEL_FILE)
+            df = pd.read_excel(EXCEL_INVOICE)
             return df.to_dict(orient="records")
         except:
             return []
     return []
 
-def simpan_data_excel(data_list):
+def simpan_data_invoice(data_list):
     df = pd.DataFrame(data_list)
     cols_prioritas = ["Proforma Invoice No.", "Contract No.", "Tender No", "Keterangan PO"]
     sisa_cols = [c for c in df.columns if c not in cols_prioritas]
     df = df[cols_prioritas + sisa_cols]
-    df.to_excel(EXCEL_FILE, index=False)
+    df.to_excel(EXCEL_INVOICE, index=False)
 
 if "db_tersimpan" not in st.session_state:
-    st.session_state["db_tersimpan"] = muat_data_excel()
+    st.session_state["db_tersimpan"] = muat_data_invoice()
 if "edit_index" not in st.session_state:
     st.session_state["edit_index"] = None
 
@@ -83,58 +84,44 @@ st.sidebar.success("📂 **Status Database:** Terhubung ke Excel Lokal")
 if menu == "Master Kontrak":
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📁 Upload & Rincian Master Kontrak (Sesuai Excel)</h3>
-            <p style="color:#047857; font-size:13px; margin:0;">Unggah file Excel master kontrak, pilih sheet, lalu pilih Nomor Kontrak untuk menampilkan rincian penawaran harganya.</p>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📁 Rincian Master Kontrak (Permanen)</h3>
+            <p style="color:#047857; font-size:13px; margin:0;">Sistem membaca file <b>master_kontrak.xlsx</b> secara otomatis dari folder Anda.</p>
         </div>
     """, unsafe_allow_html=True)
     
-    uploaded_master = st.file_uploader("Pilih file Excel Master Kontrak (.xlsx)", type=["xlsx"])
-    
-    if uploaded_master is not None:
+    # Cek apakah file master_kontrak.xlsx sudah ada di folder
+    if os.path.exists(EXCEL_MASTER):
         try:
-            xl_file = pd.ExcelFile(uploaded_master)
+            # Membaca daftar sheet dari file master lokal
+            xl_file = pd.ExcelFile(EXCEL_MASTER)
             daftar_sheet = xl_file.sheet_names
             
-            st.info(f"📂 File diunggah! Sheet yang tersedia: **{', '.join(daftar_sheet)}**")
-            pilih_sheet = st.selectbox("Pilih nama sheet:", daftar_sheet)
+            pilih_sheet = st.selectbox("Pilih nama sheet rincian kontrak:", daftar_sheet)
             
             if pilih_sheet:
-                df_raw = pd.read_excel(uploaded_master, sheet_name=pilih_sheet)
+                df_raw = pd.read_excel(EXCEL_MASTER, sheet_name=pilih_sheet)
                 
-                # Memeriksa apakah ada kolom 'Contract No.' di dalam Excel yang diupload
-                kolom_kontrak_opsi = [c for c in df_raw.columns if 'contract' in str(c).lower() or 'no' in str(c).lower()]
+                # Mencari kolom yang mereferensikan Nomor Kontrak
+                kolom_kontrak_opsi = [c for c in df_raw.columns if 'contract' in str(c).lower() or 'no kontrak' in str(c).lower() or 'kontrak' in str(c).lower()]
                 
                 if kolom_kontrak_opsi:
-                    col_kontrak_pilihan = st.selectbox("Pilih Kolom yang Menjadi Acuan Nomor Kontrak:", df_raw.columns)
+                    col_kontrak_pilihan = st.selectbox("Pilih Kolom Acuan Nomor Kontrak:", df_raw.columns, index=df_raw.columns.get_loc(kolom_kontrak_opsi[0]) if kolom_kontrak_opsi else 0)
                     
-                    # Ambil daftar nomor kontrak unik
                     daftar_no_kontrak = df_raw[col_kontrak_pilihan].dropna().unique().tolist()
                     
                     selected_contract = st.selectbox("🔍 Pilih Nomor Kontrak untuk Ditampilkan Rinciannya:", daftar_no_kontrak)
                     
                     if selected_contract:
-                        # Filter baris berdasarkan nomor kontrak yang dipilih
                         df_filtered = df_raw[df_raw[col_kontrak_pilihan] == selected_contract]
                         st.success(f"✨ Menampilkan rincian penawaran untuk Nomor Kontrak: **{selected_contract}**")
                         st.dataframe(df_filtered, use_container_width=True)
                 else:
-                    st.warning("⚠️ Kolom Nomor Kontrak tidak terdeteksi otomatis. Menampilkan seluruh data sheet:")
                     st.dataframe(df_raw, use_container_width=True)
         except Exception as e:
-            st.error(f"Terjadi kesalahan saat membaca file Excel: {e}")
+            st.error(f"Terjadi kesalahan saat membaca file master_kontrak.xlsx: {e}")
     else:
-        st.write("Silakan unggah file Excel Master Kontrak Anda di atas. Berikut adalah format kolom acuannya:")
-        format_kosong = {
-            "No": [1, 2],
-            "Kategori": ["", ""],
-            "Description": ["Jasa Sewa Alat Berat Pendukung Operasional Senoro", "Jasa Sewa Alat Berat Pendukung Operasional Tiaka"],
-            "Qty": [0, 0],
-            "Unit": ["", ""],
-            "Rate": [0, 0],
-            "Unit Price": [0, 0],
-            "Total Price": [0, 0]
-        }
-        st.dataframe(pd.DataFrame(format_kosong), use_container_width=True)
+        st.warning(f"⚠️ File **{EXCEL_MASTER}** belum ditemukan di dalam folder proyek Anda.")
+        st.info("💡 **Petunjuk:** Simpan file Excel master rincian kontrak Anda ke dalam folder utama tempat `app.py` berada, lalu beri nama file tersebut **`master_kontrak.xlsx`**. Setelah itu, *refresh* halaman ini.")
 
 elif menu == "Input Database & Invoice":
     st.markdown("""
@@ -143,7 +130,7 @@ elif menu == "Input Database & Invoice":
         </div>
     """, unsafe_allow_html=True)
 
-    st.session_state["db_tersimpan"] = muat_data_excel()
+    st.session_state["db_tersimpan"] = muat_data_invoice()
 
     if len(st.session_state["db_tersimpan"]) > 0:
         opsi_panggil = ["-- Buat Data Baru (Formulir Kosong) --"]
@@ -247,23 +234,23 @@ elif menu == "Input Database & Invoice":
                 "Prepared by Name": val_25, "Prepared by Title": val_26
             }
 
-            current_data = muat_data_excel()
+            current_data = muat_data_invoice()
 
             if submit_update:
                 if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(current_data):
                     current_data[st.session_state["edit_index"]] = data_terinput
-                    simpan_data_excel(current_data)
+                    simpan_data_invoice(current_data)
                     st.success("✨ Data berhasil diperbarui!")
                 else:
                     st.error("⚠️ Belum ada data valid yang dipanggil untuk diupdate!")
             elif submit_save_as:
                 current_data.append(data_terinput)
-                simpan_data_excel(current_data)
+                simpan_data_invoice(current_data)
                 st.success(f"📥 Berhasil Save As! Proforma Invoice [{val_6}] tersimpan sebagai data baru.")
                 st.session_state["edit_index"] = None
             elif submit_baru:
                 current_data.append(data_terinput)
-                simpan_data_excel(current_data)
+                simpan_data_invoice(current_data)
                 st.success("🎉 Data baru berhasil disimpan!")
                 st.session_state["edit_index"] = None
 
@@ -275,7 +262,7 @@ elif menu == "Lihat Database Tersimpan":
         </div>
     """, unsafe_allow_html=True)
     
-    saved_records = muat_data_excel()
+    saved_records = muat_data_invoice()
     if len(saved_records) > 0:
         df_saved = pd.DataFrame(saved_records)
         cols_prioritas = ["Proforma Invoice No.", "Contract No.", "Tender No", "Keterangan PO"]
