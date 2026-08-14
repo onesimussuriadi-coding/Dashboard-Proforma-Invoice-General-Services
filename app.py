@@ -14,7 +14,7 @@ if menu == "Master Kontrak":
     st.subheader("📁 Data Master Kontrak (Source of Truth)")
     st.write("Berikut adalah daftar item pekerjaan yang mengacu ke dalam kontrak utama.")
     
-    # Contoh Data Dummy Master Kontrak (Nanti bisa di-load dari file Excel Anda)
+    # Contoh Data Dummy Master Kontrak
     data_master = {
         "Kode Item": ["001", "002", "003"],
         "Kategori": ["SAFETY", "TRANSPORT", "EQUIPMENT"],
@@ -55,8 +55,10 @@ elif menu == "Input Transaksi & Invoice":
     st.markdown("### Rincian Item Pekerjaan")
     st.write("Pilih item dari kontrak dan masukkan kuantitas (Qty).")
     
-    # Simulasi baris input interaktif
-    qty = st.number_input("Kuantitas (Qty)", min_value=1, value=1)harga_satuan = 1600000 # Contoh dari mastertotal_harga = qty * harga_satuan
+    # Input interaktif
+    qty = st.number_input("Kuantitas (Qty)", min_value=1, value=1)
+    harga_satuan = 1600000 # Contoh dari master
+    total_harga = qty * harga_satuan
     
     st.metric(label="Estimasi Total Nilai Baris Ini", value=f"Rp {total_harga:,.0f}")
     
