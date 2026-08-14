@@ -83,39 +83,58 @@ st.sidebar.success("📂 **Status Database:** Terhubung ke Excel Lokal")
 if menu == "Master Kontrak":
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📁 Upload & Data Master Kontrak (Multi-Sheet)</h3>
-            <p style="color:#047857; font-size:13px; margin:0;">Unggah file Excel Anda yang berisi banyak sheet, lalu masukkan nama sheet khusus untuk master kontrak.</p>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📁 Upload & Rincian Master Kontrak (Sesuai Excel)</h3>
+            <p style="color:#047857; font-size:13px; margin:0;">Unggah file Excel master kontrak, pilih sheet, lalu pilih Nomor Kontrak untuk menampilkan rincian penawaran harganya.</p>
         </div>
     """, unsafe_allow_html=True)
     
-    # --- FITUR UPLOAD EXCEL MASTER KONTRAK ---
     uploaded_master = st.file_uploader("Pilih file Excel Master Kontrak (.xlsx)", type=["xlsx"])
     
     if uploaded_master is not None:
         try:
-            # Membaca daftar nama sheet yang ada di dalam file Excel tersebut
             xl_file = pd.ExcelFile(uploaded_master)
             daftar_sheet = xl_file.sheet_names
             
-            st.info(f"📂 File berhasil diunggah! Ditemukan sheet di dalam file: **{', '.join(daftar_sheet)}**")
-            
-            # Pilihan sheet yang ingin dibaca
-            pilih_sheet = st.selectbox("Pilih nama sheet yang berisi Data Master Kontrak:", daftar_sheet)
+            st.info(f"📂 File diunggah! Sheet yang tersedia: **{', '.join(daftar_sheet)}**")
+            pilih_sheet = st.selectbox("Pilih nama sheet:", daftar_sheet)
             
             if pilih_sheet:
-                df_master_uploaded = pd.read_excel(uploaded_master, sheet_name=pilih_sheet)
-                st.success(f"✨ Berhasil memuat data dari sheet **{pilih_sheet}**!")
-                st.dataframe(df_master_uploaded, use_container_width=True)
+                df_raw = pd.read_excel(uploaded_master, sheet_name=pilih_sheet)
+                
+                # Memeriksa apakah ada kolom 'Contract No.' di dalam Excel yang diupload
+                kolom_kontrak_opsi = [c for c in df_raw.columns if 'contract' in str(c).lower() or 'no' in str(c).lower()]
+                
+                if kolom_kontrak_opsi:
+                    col_kontrak_pilihan = st.selectbox("Pilih Kolom yang Menjadi Acuan Nomor Kontrak:", df_raw.columns)
+                    
+                    # Ambil daftar nomor kontrak unik
+                    daftar_no_kontrak = df_raw[col_kontrak_pilihan].dropna().unique().tolist()
+                    
+                    selected_contract = st.selectbox("🔍 Pilih Nomor Kontrak untuk Ditampilkan Rinciannya:", daftar_no_kontrak)
+                    
+                    if selected_contract:
+                        # Filter baris berdasarkan nomor kontrak yang dipilih
+                        df_filtered = df_raw[df_raw[col_kontrak_pilihan] == selected_contract]
+                        st.success(f"✨ Menampilkan rincian penawaran untuk Nomor Kontrak: **{selected_contract}**")
+                        st.dataframe(df_filtered, use_container_width=True)
+                else:
+                    st.warning("⚠️ Kolom Nomor Kontrak tidak terdeteksi otomatis. Menampilkan seluruh data sheet:")
+                    st.dataframe(df_raw, use_container_width=True)
         except Exception as e:
             st.error(f"Terjadi kesalahan saat membaca file Excel: {e}")
     else:
-        # Tampilan tabel kosong jika belum mengunggah file
-        st.write("Daftar template item pekerjaan akan muncul di sini setelah Anda mengunggah file Excel.")
-        data_master_default = {
-            "Contract No.": [""], "Tender No": [""], "Contract Title": [""], 
-            "Kode Item": ["001"], "Deskripsi": [""], "Satuan": [""], "Harga Satuan (IDR)": [0]
+        st.write("Silakan unggah file Excel Master Kontrak Anda di atas. Berikut adalah format kolom acuannya:")
+        format_kosong = {
+            "No": [1, 2],
+            "Kategori": ["", ""],
+            "Description": ["Jasa Sewa Alat Berat Pendukung Operasional Senoro", "Jasa Sewa Alat Berat Pendukung Operasional Tiaka"],
+            "Qty": [0, 0],
+            "Unit": ["", ""],
+            "Rate": [0, 0],
+            "Unit Price": [0, 0],
+            "Total Price": [0, 0]
         }
-        st.dataframe(pd.DataFrame(data_master_default), use_container_width=True)
+        st.dataframe(pd.DataFrame(format_kosong), use_container_width=True)
 
 elif menu == "Input Database & Invoice":
     st.markdown("""
