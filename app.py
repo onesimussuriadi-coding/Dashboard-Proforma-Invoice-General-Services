@@ -82,7 +82,13 @@ if menu == "Master Kontrak":
 
 elif menu == "Input Database & Invoice":
     
-    # Dropdown Panggil Ulang
+    # --- KEMBALIKAN PANEL PANGGIL ULANG DI BAGIAN ATAS ---
+    st.markdown("""
+        <div class="dashboard-card">
+            <h4 style="margin-top:0; color:#065f46; font-size:15px;">🔍 Panggil Ulang Data / Nomor PI Tersimpan</h4>
+        </div>
+    """, unsafe_allow_html=True)
+
     if len(st.session_state["db_tersimpan"]) > 0:
         opsi_panggil = ["-- Buat Data Baru (Formulir Kosong) --"]
         for i, data in enumerate(st.session_state["db_tersimpan"]):
@@ -90,7 +96,7 @@ elif menu == "Input Database & Invoice":
         
         col_pilih, col_btn_panggil = st.columns([3, 1])
         with col_pilih:
-            pilihan_edit = st.selectbox("Pilih data untuk dipanggil/diedit:", opsi_panggil, label_visibility="collapsed")
+            pilihan_edit = st.selectbox("Pilih nomor PI atau data untuk dipanggil:", opsi_panggil, label_visibility="collapsed")
         with col_btn_panggil:
             if st.button("🔄 Panggil Ulang"):
                 if pilihan_edit == "-- Buat Data Baru (Formulir Kosong) --":
@@ -99,9 +105,11 @@ elif menu == "Input Database & Invoice":
                     idx_str = pilihan_edit.split(" ")[1]
                     st.session_state["edit_index"] = int(idx_str) - 1
                 st.rerun()
+    else:
+        st.info("📌 Belum ada data tersimpan. Silakan isi formulir di bawah ini untuk membuat data baru.")
 
     if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(st.session_state["db_tersimpan"]):
-        st.info(f"📋 **DATA DIPANGGIL (No. {st.session_state['edit_index'] + 1}):** Anda bisa mengedit isinya, lalu pilih **'Save As (Buat PI Baru)'** di bawah agar data lama tidak tertimpa.")
+        st.info(f"📋 **DATA DIPANGGIL (No. {st.session_state['edit_index'] + 1}):** Silakan ubah nomor PI atau isian lainnya, lalu gunakan tombol **'Save As (Buat PI Baru)'** di bawah.")
 
     # Mengambil data default untuk form
     def_data = {}
@@ -114,7 +122,7 @@ elif menu == "Input Database & Invoice":
     # --- LEMBAR KERJA UTAMA FORM INPUT ---
     st.markdown("""
         <div class="dashboard-card" style="margin-top: 10px;">
-            <h4 style="margin:0; color:#065f46; font-size:16px;">📝 Lembar Kerja Input & Save As Database Identifikasi</h4>
+            <h4 style="margin:0; color:#065f46; font-size:16px;">📝 Lembar Kerja Input & Koreksi Database Identifikasi</h4>
         </div>
     """, unsafe_allow_html=True)
 
@@ -166,7 +174,7 @@ elif menu == "Input Database & Invoice":
 
         st.markdown("---")
         
-        # Tombol Aksi Diperbarui: Ada Simpan Baru, Save As, dan Update Koreksi
+        # Tiga Tombol Aksi di Bawah Form
         col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
             submit_baru = st.form_submit_button("💾 Simpan Data Baru")
@@ -197,7 +205,6 @@ elif menu == "Input Database & Invoice":
                 else:
                     st.error("⚠️ Belum ada data yang dipanggil untuk diupdate!")
             elif submit_save_as:
-                # Menambahkan sebagai data baru meskipun memanggil data lama (Fitur Save As)
                 st.session_state["db_tersimpan"].append(data_terinput)
                 st.success(f"📥 Berhasil Save As! Proforma Invoice [{val_6}] tersimpan sebagai data baru.")
                 st.session_state["edit_index"] = None
