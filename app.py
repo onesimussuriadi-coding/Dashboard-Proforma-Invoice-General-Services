@@ -1,36 +1,35 @@
 import streamlit as st
 import pandas as pd
 
-# Konfigurasi Halaman (Menggunakan layout centered/standar agar tidak terlalu melebar ke samping)
+# Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Proforma Invoice & Kontrak", layout="centered")
 
-# CSS Styling Tambahan untuk Mempercantik & Membuat Header Menempel (Sticky) Saat di-scroll
+# CSS Styling untuk Memperbaiki Posisi Sticky Header agar Tidak Tertutup Sidebar
 st.markdown("""
     <style>
-    /* Styling utama latar belakang dan card */
     .main {
         background-color: #f8f9fa;
     }
     
-    /* Sticky Header agar judul dan kontrol panggil ulang tetap di atas saat di-scroll */
+    /* Sticky Header yang menyesuaikan area tengah halaman utama */
     .sticky-header {
         position: fixed;
-        top: 45px;
-        left: 0;
-        width: 100%;
+        top: 0;
+        right: 5%;
+        left: 320px; /* Menyesuaikan lebar sidebar default Streamlit */
         background-color: #ffffff;
         z-index: 999;
-        padding: 15px 30px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        padding: 15px 25px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
         border-bottom: 2px solid #e5e7eb;
+        border-radius: 0 0 10px 10px;
     }
     
-    /* Memberi jarak atas agar konten tidak tertutup sticky header */
+    /* Jarak atas konten agar tidak tertutup header melayang */
     .content-spacer {
-        margin-top: 180px;
+        margin-top: 130px;
     }
     
-    /* Mempercantik tombol */
     .stButton>button {
         width: 100%;
         border-radius: 6px;
@@ -45,11 +44,11 @@ if "db_tersimpan" not in st.session_state:
 if "edit_index" not in st.session_state:
     st.session_state["edit_index"] = None
 
-# Sidebar untuk Navigasi Menu yang Elegan
+# Sidebar Navigasi Menu
 st.sidebar.markdown("### 🗂️ Navigasi Menu")
 menu = st.sidebar.selectbox("Pilih Menu Utama", ["Input Database & Invoice", "Lihat Database Tersimpan", "Master Kontrak"])
 st.sidebar.markdown("---")
-st.sidebar.info("💡 **Tips:** Gunakan menu *Panggil Ulang* di halaman utama untuk mengoreksi data yang sudah pernah disimpan.")
+st.sidebar.info("💡 **Tips:** Gunakan menu *Panggil Ulang* di panel kontrol untuk mengoreksi data yang sudah pernah disimpan.")
 
 if menu == "Master Kontrak":
     st.title("📁 Data Master Kontrak")
@@ -70,45 +69,44 @@ if menu == "Master Kontrak":
 
 elif menu == "Input Database & Invoice":
     
-    # --- STICKY HEADER (Bagian atas yang tetap menempel saat digulir ke bawah) ---
+    # --- STICKY HEADER (Posisi di tengah, tidak tertutup sidebar) ---
     st.markdown("""
         <div class="sticky-header">
-            <h2 style="margin:0; color:#1e293b; font-size: 24px;">📊 Dashboard Performa Invoice & Kontrak</h2>
-            <p style="margin:2px 0 0 0; color:#64748b; font-size: 13px;">Modul Pengelolaan & Koreksi Database Identifikasi Kontrak</p>
+            <h3 style="margin:0; color:#1e293b; font-size: 20px;">📊 Dashboard Performa Invoice & Kontrak</h3>
+            <p style="margin:2px 0 0 0; color:#64748b; font-size: 12px;">Modul Pengelolaan & Koreksi Database Identifikasi Kontrak</p>
         </div>
     """, unsafe_allow_html=True)
 
     # Spacer agar konten tidak tertutup header melayang
     st.markdown('<div class="content-spacer"></div>', unsafe_allow_html=True)
     
-    # --- KOTAK KONTROL PANGGIL ULANG (RECALL) ---
-    with st.container():
-        st.markdown("### 🔍 Panel Kontrol Data")
-        if len(st.session_state["db_tersimpan"]) > 0:
-            opsi_panggil = ["-- Formulir Kosong (Buat Data Baru) --"]
-            for i, data in enumerate(st.session_state["db_tersimpan"]):
-                opsi_panggil.append(f"Data {i+1} | PI: {data.get('Proforma Invoice No.', '-')} | Kontrak: {data.get('Contract No.', '-')}")
-            
-            col_pilih, col_btn_panggil = st.columns([3, 1])
-            with col_pilih:
-                pilihan_edit = st.selectbox("Pilih data untuk diedit/dikoreksi:", opsi_panggil, label_visibility="collapsed")
-            with col_btn_panggil:
-                if st.button("🔄 Panggil Ulang"):
-                    if pilihan_edit == "-- Formulir Kosong (Buat Data Baru) --":
-                        st.session_state["edit_index"] = None
-                    else:
-                        idx_str = pilihan_edit.split(" ")[1]
-                        st.session_state["edit_index"] = int(idx_str) - 1
-                    st.rerun()
-        else:
-            st.info("📌 Belum ada data tersimpan. Silakan isi formulir di bawah untuk membuat data baru.")
+    # --- PANEL KONTROL PANGGIL ULANG ---
+    st.markdown("### 🔍 Panel Kontrol Data")
+    if len(st.session_state["db_tersimpan"]) > 0:
+        opsi_panggil = ["-- Formulir Kosong (Buat Data Baru) --"]
+        for i, data in enumerate(st.session_state["db_tersimpan"]):
+            opsi_panggil.append(f"Data {i+1} | PI: {data.get('Proforma Invoice No.', '-')} | Kontrak: {data.get('Contract No.', '-')}")
+        
+        col_pilih, col_btn_panggil = st.columns([3, 1])
+        with col_pilih:
+            pilihan_edit = st.selectbox("Pilih data untuk diedit/dikoreksi:", opsi_panggil, label_visibility="collapsed")
+        with col_btn_panggil:
+            if st.button("🔄 Panggil Ulang"):
+                if pilihan_edit == "-- Formulir Kosong (Buat Data Baru) --":
+                    st.session_state["edit_index"] = None
+                else:
+                    idx_str = pilihan_edit.split(" ")[1]
+                    st.session_state["edit_index"] = int(idx_str) - 1
+                st.rerun()
+    else:
+        st.info("📌 Belum ada data tersimpan. Silakan isi formulir di bawah untuk membuat data baru.")
 
-        if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(st.session_state["db_tersimpan"]):
-            st.warning(f"⚠️ **MODE EDIT AKTIF:** Sedang mengoreksi Data ke-{st.session_state['edit_index'] + 1}. Klik tombol *Simpan Kembali (Update)* di bagian bawah jika selesai.")
+    if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(st.session_state["db_tersimpan"]):
+        st.warning(f"⚠️ **MODE EDIT AKTIF:** Sedang mengoreksi Data ke-{st.session_state['edit_index'] + 1}. Klik tombol *Simpan Kembali (Update)* di bagian bawah jika selesai.")
 
     st.markdown("---")
 
-    # Menyiapkan data default untuk form
+    # Mengambil data default untuk form
     def_data = {}
     if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(st.session_state["db_tersimpan"]):
         def_data = st.session_state["db_tersimpan"][st.session_state["edit_index"]]
@@ -120,7 +118,6 @@ elif menu == "Input Database & Invoice":
     st.markdown("### 📝 Lembar Kerja Input Database")
     with st.form("form_input_database"):
         
-        # Header Tabel Form
         col_no, col_item, col_input = st.columns([0.8, 3.5, 7])
         with col_no: st.markdown("**No**")
         with col_item: st.markdown("**Item**")
@@ -137,7 +134,7 @@ elif menu == "Input Database & Invoice":
                 else:
                     return st.text_input(f"input_{no}", value=val, label_visibility="collapsed")
 
-        # 26 Item Form dengan Layout Rapi
+        # 26 Item Form
         val_1 = baris_input_teks(1, "Contract No.", val=get_val("Contract No."))
         val_2 = baris_input_teks(2, "Tender No", val=get_val("Tender No"))
         val_3 = baris_input_teks(3, "Contract Title", val=get_val("Contract Title"), is_area=True)
@@ -167,14 +164,12 @@ elif menu == "Input Database & Invoice":
 
         st.markdown("---")
         
-        # Tombol Aksi di Bawah Form
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             submit_baru = st.form_submit_button("💾 Simpan Sebagai Data Baru")
         with col_btn2:
             submit_update = st.form_submit_button("📝 Simpan Kembali (Update Data Terpilih)")
         
-        # Logika Penyimpanan
         if submit_baru or submit_update:
             data_terinput = {
                 "Contract No.": val_1, "Tender No": val_2, "Contract Title": val_3, 
@@ -195,7 +190,7 @@ elif menu == "Input Database & Invoice":
                     st.session_state["db_tersimpan"][st.session_state["edit_index"]] = data_terinput
                     st.success("✨ Perubahan data berhasil diperbarui!")
                 else:
-                    st.error("⚠️ Anda belum memanggil data untuk diedit! Silakan gunakan 'Simpan Sebagai Data Baru'.")
+                    st.error("⚠️ Anda belum memanggil data untuk diedit!")
             elif submit_baru:
                 st.session_state["db_tersimpan"].append(data_terinput)
                 st.success("🎉 Data baru berhasil disimpan ke dalam sistem!")
