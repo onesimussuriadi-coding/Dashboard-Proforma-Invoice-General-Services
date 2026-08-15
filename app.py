@@ -10,8 +10,19 @@ st.set_page_config(page_title="Dashboard Terintegrasi - PT. Banggai Sentral Sula
 # CSS Styling Profesional (Tema Terang / Light Mode, Bersih, Ramah Cetak Tanpa Boros Tinta)
 st.markdown("""
     <style>
-    /* Paksa Tema Latar Belakang Terang / Abu-abu Muda */
+    /* Paksa Tema Latar Belakang Terang / Putih Bersih */
     .stApp { background-color: #f8fafc; color: #0f172a; }
+    
+    /* Paksa kotak input menjadi putih bersih dengan teks hitam */
+    div[data-baseweb="base-input"], div[data-baseweb="textarea"] {
+        background-color: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #000000 !important;
+    }
+    input, textarea {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
     
     .company-header-centered {
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
@@ -78,9 +89,9 @@ def muat_data_invoice():
 
 def simpan_data_invoice(data_list):
     df = pd.DataFrame(data_list)
-    cols_prioritas = ["Proforma Invoice No.", "Contract No.", "Tender No", "Keterangan PO"]
+    cols_prioritas = ["Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Keterangan PO"]
     sisa_cols = [c for c in df.columns if c not in cols_prioritas]
-    df = df[cols_prioritas + sisa_cols]
+    df = df[[c for c in cols_prioritas if c in df.columns] + sisa_cols]
     df.to_excel(EXCEL_INVOICE, index=False)
 
 def muat_data_transaksi():
@@ -122,7 +133,7 @@ st.sidebar.markdown("---")
 
 if modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
     menu = st.sidebar.radio("Pilih Menu:", [
-        "Input Database & Invoice (26 Kolom)",
+        "Input Database & Invoice (29 Kolom)",
         "Lihat Database Tersimpan",
         "Master Kontrak"
     ])
@@ -138,9 +149,9 @@ st.sidebar.success("📂 **Status Sistem:** Terhubung ke Database Lokal")
 
 
 # =========================================================================
-# LOGIKA MODUL 1: DATABASE & MASTER KONTRAK
+# LOGIKA MODUL 1: DATABASE & MASTER KONTRAK (29 KOLOM LENGKAP)
 # =========================================================================
-if menu == "Input Database & Invoice (26 Kolom)":
+if menu == "Input Database & Invoice (29 Kolom)":
     st.markdown("""
         <div class="dashboard-card">
             <h4 style="margin-top:0; color:#065f46; font-size:15px;">🔍 Panggil Ulang atau Buat Database Identifikasi Kontrak & PI</h4>
@@ -153,7 +164,7 @@ if menu == "Input Database & Invoice (26 Kolom)":
         opsi_panggil = ["-- Buat Data Baru (Formulir Kosong) --"]
         for i, data in enumerate(st.session_state["db_tersimpan"]):
             pi_num = data.get('Proforma Invoice No.', '-')
-            kontrak_num = data.get('Contract No.', '-')
+            kontrak_num = data.get('Nomor Kontrak', '-')
             opsi_panggil.append(f"PI: {pi_num} | Kontrak: {kontrak_num} (Data {i+1})")
         
         col_pilih, col_btn_panggil = st.columns([3, 1])
@@ -182,7 +193,7 @@ if menu == "Input Database & Invoice (26 Kolom)":
 
     st.markdown("""
         <div class="dashboard-card" style="margin-top: 10px;">
-            <h4 style="margin:0; color:#065f46; font-size:16px;">📝 Lembar Kerja 26 Kolom Identifikasi Kontrak & PI</h4>
+            <h4 style="margin:0; color:#065f46; font-size:16px;">📝 Lembar Kerja 29 Kolom Identifikasi Kontrak & PI</h4>
         </div>
     """, unsafe_allow_html=True)
 
@@ -195,40 +206,67 @@ if menu == "Input Database & Invoice (26 Kolom)":
 
         def baris_input_teks(no, label, val="", is_area=False):
             c1, c2, c3 = st.columns([0.8, 3.5, 7])
-            with c1: st.write(f"**{no}.**")
-            with c2: st.write(label)
+            with c1: c1.write(f"**{no}.**")
+            with c2: c2.write(label)
             with c3:
                 if is_area:
                     return st.text_area(f"input_{no}", value=val, label_visibility="collapsed", height=75)
                 else:
                     return st.text_input(f"input_{no}", value=val, label_visibility="collapsed")
 
-        val_1 = baris_input_teks(1, "Contract No.", val=get_val("Contract No."))
-        val_2 = baris_input_teks(2, "Tender No", val=get_val("Tender No"))
-        val_3 = baris_input_teks(3, "Contract Title", val=get_val("Contract Title"), is_area=True)
-        val_4 = baris_input_teks(4, "Tanggal Contract", val=get_val("Tanggal Contract"))
-        val_5 = baris_input_teks(5, "Contract Period", val=get_val("Contract Period"))
+        val_1 = baris_input_teks(1, "Nomor Kontrak", val=get_val("Nomor Kontrak"))
+        val_2 = baris_input_teks(2, "Nomor Tender", val=get_val("Nomor Tender"))
+        val_3 = baris_input_teks(3, "Judul Kontrak", val=get_val("Judul Kontrak"), is_area=True)
+        val_4 = baris_input_teks(4, "Tanggal Kontrak", val=get_val("Tanggal Kontrak"))
+        val_5 = baris_input_teks(5, "Jangka Waktu Kontrak", val=get_val("Jangka Waktu Kontrak"))
         val_6 = baris_input_teks(6, "Proforma Invoice No.", val=get_val("Proforma Invoice No."))
-        val_7 = baris_input_teks(7, "Tanggal Performa Invoice", val=get_val("Tanggal PI"))
-        val_8 = baris_input_teks(8, "No PO", val=get_val("No PO"))
-        val_9 = baris_input_teks(9, "Tanggal PO", val=get_val("Tanggal PO"))
-        val_10 = baris_input_teks(10, "Keterangan PO", val=get_val("Keterangan PO"), is_area=True)
+        val_7 = baris_input_teks(7, "Tanggal Performa Invoice", val=get_val("Tanggal Performa Invoice"))
+        val_8 = baris_input_teks(8, "Nomor Purchase Order", val=get_val("Nomor Purchase Order"))
+        val_9 = baris_input_teks(9, "Tanggal Purchase Order", val=get_val("Tanggal Purchase Order"))
+        val_10 = baris_input_teks(10, "Lingkup Pekerjaan", val=get_val("Lingkup Pekerjaan"), is_area=True)
         val_11 = baris_input_teks(11, "Pihak Pertama", val=get_val("Pihak Pertama"))
         val_12 = baris_input_teks(12, "Alamat Pihak Pertama", val=get_val("Alamat Pihak Pertama"), is_area=True)
-        val_13 = baris_input_teks(13, "Diwakili Oleh", val=get_val("Diwakili Oleh (P1)"))
-        val_14 = baris_input_teks(14, "Selaku", val=get_val("Selaku (P1)"))
+        
+        # 13. Dropdown On-Duty Pihak Pertama[cite: 1]
+        c1, c2, c3 = st.columns([0.8, 3.5, 7])
+        c1.write("**13.**")
+        c2.write("Diwakili Oleh")
+        pilihan_p1 = [
+            "Ronny Dwi Purnomo / Rafik Hidayat",
+            "Rafik Hidayat / Ronny Dwi Purnomo"
+        ]
+        def_p1 = get_val("Diwakili Oleh")
+        idx_p1 = pilihan_p1.index(def_p1) if def_p1 in pilihan_p1 else 0
+        val_13 = c3.selectbox("Diwakili Oleh P1", pilihan_p1, index=idx_p1, label_visibility="collapsed")
+
+        val_14 = baris_input_teks(14, "Selaku", val=get_val("Selaku"))
         val_15 = baris_input_teks(15, "Pihak Kedua", val=get_val("Pihak Kedua"))
         val_16 = baris_input_teks(16, "Alamat Pihak Kedua", val=get_val("Alamat Pihak Kedua"), is_area=True)
-        val_17 = baris_input_teks(17, "Diwakili Oleh", val=get_val("Diwakili Oleh (P2)"))
-        val_18 = baris_input_teks(18, "Selaku", val=get_val("Selaku (P2)"))
+        val_17 = baris_input_teks(17, "Diwakili Oleh (P2)", val=get_val("Diwakili Oleh (P2)"))
+        val_18 = baris_input_teks(18, "Selaku (P2)", val=get_val("Selaku (P2)"))
         val_19 = baris_input_teks(19, "Period", val=get_val("Period"))
-        val_20 = baris_input_teks(20, "Certificate No. (Cover WCC No.)", val=get_val("Certificate No."))
-        val_21 = baris_input_teks(21, "WCC Date", val=get_val("WCC Date"))
-        val_22 = baris_input_teks(22, "WO No.", val=get_val("WO No."))
-        val_23 = baris_input_teks(23, "WO Title", val=get_val("WO Title"), is_area=True)
-        val_24 = baris_input_teks(24, "CTR No.", val=get_val("CTR No."))
-        val_25 = baris_input_teks(25, "Prepared by Name", val=get_val("Prepared by Name"))
-        val_26 = baris_input_teks(26, "Prepared by Title", val=get_val("Prepared by Title"))
+        val_20 = baris_input_teks(20, "Nomor WCC", val=get_val("Nomor WCC"))
+        val_21 = baris_input_teks(21, "Tanggal WCC", val=get_val("Tanggal WCC"))
+        val_22 = baris_input_teks(22, "Nomor WO", val=get_val("Nomor WO"))
+        val_23 = baris_input_teks(23, "Keterangan WO", val=get_val("Keterangan WO"), is_area=True)
+        val_24 = baris_input_teks(24, "Nomor CTR", val=get_val("Nomor CTR"))
+        val_25 = baris_input_teks(25, "Progress Pekerjaan", val=get_val("Progress Pekerjaan"))
+        val_27 = baris_input_teks(27, "Prepared by Name", val=get_val("Prepared by Name"))
+        val_28_title = baris_input_teks(28, "Prepared by Title", val=get_val("Prepared by Title"))
+
+        # 29. Dropdown On-Duty Pejabat Berwenang[cite: 1]
+        c1, c2, c3 = st.columns([0.8, 3.5, 7])
+        c1.write("**29.**")
+        c2.write("Pejabat berwenang")
+        pilihan_pj = [
+            "Imron Maulana / Moh Bazarul Aqhsa",
+            "Moh Bazarul Aqhsa / Imron Maulana"
+        ]
+        def_pj = get_val("Pejabat berwenang")
+        idx_pj = pilihan_pj.index(def_pj) if def_pj in pilihan_pj else 0
+        val_29 = c3.selectbox("Pejabat berwenang", pilihan_pj, index=idx_pj, label_visibility="collapsed")
+
+        val_30 = baris_input_teks(30, "Jabatan Field Manager", val=get_val("Jabatan Field Manager"))
 
         st.markdown("---")
         
@@ -242,13 +280,14 @@ if menu == "Input Database & Invoice (26 Kolom)":
         
         if submit_baru or submit_save_as or submit_update:
             data_terinput = {
-                "Proforma Invoice No.": val_6, "Contract No.": val_1, "Tender No": val_2, "Keterangan PO": val_10,
-                "Contract Title": val_3, "Tanggal Contract": val_4, "Contract Period": val_5, "Tanggal PI": val_7, 
-                "No PO": val_8, "Tanggal PO": val_9, "Pihak Pertama": val_11, "Alamat Pihak Pertama": val_12, 
-                "Diwakili Oleh (P1)": val_13, "Selaku (P1)": val_14, "Pihak Kedua": val_15, "Alamat Pihak Kedua": val_16, 
-                "Diwakili Oleh (P2)": val_17, "Selaku (P2)": val_18, "Period": val_19, "Certificate No.": val_20, 
-                "WCC Date": val_21, "WO No.": val_22, "WO Title": val_23, "CTR No.": val_24, 
-                "Prepared by Name": val_25, "Prepared by Title": val_26
+                "Proforma Invoice No.": val_6, "Nomor Kontrak": val_1, "Nomor Tender": val_2, "Judul Kontrak": val_3,
+                "Tanggal Kontrak": val_4, "Jangka Waktu Kontrak": val_5, "Tanggal Performa Invoice": val_7, 
+                "Nomor Purchase Order": val_8, "Tanggal Purchase Order": val_9, "Lingkup Pekerjaan": val_10, 
+                "Pihak Pertama": val_11, "Alamat Pihak Pertama": val_12, "Diwakili Oleh": val_13, "Selaku": val_14, 
+                "Pihak Kedua": val_15, "Alamat Pihak Kedua": val_16, "Diwakili Oleh (P2)": val_17, "Selaku (P2)": val_18, 
+                "Period": val_19, "Nomor WCC": val_20, "Tanggal WCC": val_21, "Nomor WO": val_22, "Keterangan WO": val_23, 
+                "Nomor CTR": val_24, "Progress Pekerjaan": val_25, "Prepared by Name": val_27, "Prepared by Title": val_28_title,
+                "Pejabat berwenang": val_29, "Jabatan Field Manager": val_30
             }
 
             current_data = muat_data_invoice()
@@ -281,9 +320,9 @@ elif menu == "Lihat Database Tersimpan":
     saved_records = muat_data_invoice()
     if len(saved_records) > 0:
         df_saved = pd.DataFrame(saved_records)
-        cols_prioritas = ["Proforma Invoice No.", "Contract No.", "Tender No", "Keterangan PO"]
+        cols_prioritas = ["Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Lingkup Pekerjaan"]
         sisa_cols = [c for c in df_saved.columns if c not in cols_prioritas]
-        df_saved = df_saved[cols_prioritas + sisa_cols]
+        df_saved = df_saved[[c for c in cols_prioritas if c in df_saved.columns] + sisa_cols]
         st.dataframe(df_saved, use_container_width=True)
     else:
         st.info("Belum ada data database identifikasi di dalam file Excel.")
@@ -537,7 +576,6 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
         col_btn1, col_btn2 = st.columns(2)
         
         with col_btn1:
-            # Tombol Print Langsung dengan Klik Mouse
             b64_html = base64.b64encode(html_content.encode()).decode()
             print_script = f"""
                 <script>
@@ -556,7 +594,6 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
             st.components.v1.html(print_script, height=50)
 
         with col_btn2:
-            # Tombol Download PDF Otomatis via Klik Mouse
             b64_pdf = base64.b64encode(html_content.encode()).decode()
             download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="{doc_type.replace(" ", "_")}_{t_data["PI No."].replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download Dokumen (Format PDF/HTML)</button></a>'
             st.markdown(download_link, unsafe_allow_html=True)
