@@ -102,6 +102,16 @@ def simpan_data_transaksi(data_list):
     df = pd.DataFrame(data_list)
     df.to_excel(EXCEL_TRANSAKSI, index=False)
 
+# FUNGSI MEMBACA MASTER KONTRAK
+def muat_master_kontrak():
+    files = [f for f in glob.glob("*.xlsx") if f not in [EXCEL_INVOICE, EXCEL_TRANSAKSI] and not f.startswith("~$")]
+    if not files:
+        return pd.DataFrame()
+    try:
+        return pd.read_excel(files[0])
+    except:
+        return pd.DataFrame()
+
 if "db_tersimpan" not in st.session_state:
     st.session_state["db_tersimpan"] = muat_data_invoice()
 if "db_transaksi" not in st.session_state:
@@ -241,7 +251,7 @@ if menu == "Input Database & Invoice (29 Kolom)":
         val_17 = baris_input_teks(17, "Diwakili Oleh (P2)", val=get_val("Diwakili Oleh (P2)"))
         val_18 = baris_input_teks(18, "Selaku (P2)", val=get_val("Selaku (P2)"))
         
-        # 19. Periode Pekerjaan (Revisi Nama)[cite: 2]
+        # 19. Periode Pekerjaan[cite: 2]
         val_19 = baris_input_teks(19, "Periode Pekerjaan", val=get_val("Periode Pekerjaan"))
         
         val_20 = baris_input_teks(20, "Nomor WCC", val=get_val("Nomor WCC"))
@@ -350,60 +360,81 @@ elif menu == "Input & Proses Rincian Pekerjaan":
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📝 Lembar Kerja & Pemrosesan Rincian Pekerjaan</h3>
-            <p style="color:#047857; font-size:13px; margin:0;">Pilih Nomor Kontrak dan Nomor PI dari database untuk menarik data referensi secara otomatis, lalu lengkapi rincian item pekerjaan.</p>
+            <p style="color:#047857; font-size:13px; margin:0;">Pilih Nomor Kontrak dan Nomor PI dari database, lalu pilih Kategori dan Spesifikasi dari Master Kontrak.</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Ambil data dari database Modul 1 untuk pilihan Dropdown otomatis
     saved_db = muat_data_invoice()
+    df_master = muat_master_kontrak()
     
     if not saved_db:
-        st.warning("⚠️ Belum ada data di Database Modul 1. Harap lakukan input data kontrak & PI terlebih dahulu pada menu **Input Database & Invoice (29 Kolom)**.")
+        st.warning("⚠️ Belum ada data di Database Modul 1. Harap lakukan input data kontrak & PI terlebih dahulu.")
+    elif df_master.empty:
+        st.warning("⚠️ File Master Kontrak (Excel) tidak ditemukan di folder.")
     else:
-        # Ekstrak daftar pilihan Nomor Kontrak dan Nomor PI yang unik dari database
         list_kontrak = list(set([str(item.get("Nomor Kontrak", "")) for item in saved_db if item.get("Nomor Kontrak")]))
         list_pi = list(set([str(item.get("Proforma Invoice No.", "")) for item in saved_db if item.get("Proforma Invoice No.")]))
 
         with st.form("form_proses_rincian"):
             col1, col2 = st.columns(2)
             with col1:
-                # Nomor Kontrak & Nomor PI dibuat Dropdown pilihan
                 selected_kontrak = st.selectbox("Nomor Kontrak (Pilih dari Database)", list_kontrak if list_kontrak else [""])
-                
-                # Filter PI berdasarkan kontrak yang dipilih (atau tampilkan semua jika belum spesifik)
                 filtered_pi = [str(item.get("Proforma Invoice No.", "")) for item in saved_db if str(item.get("Nomor Kontrak")) == str(selected_kontrak)]
                 if not filtered_pi:
                     filtered_pi = list_pi
                 selected_pi = st.selectbox("Nomor Proforma Invoice (PI)", filtered_pi if filtered_pi else [""])
                 
-                # Cari data record yang cocok di database berdasarkan pilihan dropdown Kontrak & PI
                 matched_record = next((item for item in saved_db if str(item.get("Nomor Kontrak")) == str(selected_kontrak) and str(item.get("Proforma Invoice No.")) == str(selected_pi)), saved_db[0])
 
-                # Data otomatis dari database
                 nama_kontrak = matched_record.get("Judul Kontrak", "")
                 nomor_tender = matched_record.get("Nomor Tender", "")
                 tanggal_pi = matched_record.get("Tanggal Performa Invoice", "")
-                ditujukan_kepada = matched_record.get("Pihak Pertama", "") # atau instansi terkait
+                ditujukan_kepada = matched_record.get("Pihak Pertama", "")
             
             with col2:
                 nomor_po = st.text_input("Nomor PO", matched_record.get("Nomor Purchase Order", ""))
                 tanggal_po = st.text_input("Tanggal PO", matched_record.get("Tanggal Purchase Order", ""))
                 mata_uang = st.text_input("Mata Uang", "IDR")
-                desc_po = st.text_area("Lingkup Pekerjaan (Otomatis dari Database)", matched_record.get("Lingkup Pekerjaan", ""))
+                desc_po = st.text_area("Lingkup Pekerjaan", matched_record.get("Lingkup Pekerjaan", ""))
 
             st.markdown("---")
-            st.markdown("#### ⚙️ Rincian Item Pekerjaan & Tarif")
+            st.markdown("#### ⚙️ Pemilihan Kategori, Spesifikasi & Rujukan Master Kontrak")
             
-            c_item1, c_item2, c_item3, c_item4 = st.columns([3, 1, 1, 1])
-            with c_item1:
-                deskripsi_pekerjaan = st.text_input("Spesifikasi / Deskripsi Pekerjaan", "Jasa Sewa Alat Berat Monthly Basis (Include Operator, Rigger, Helper, BBM & Sertifikasi), Backhoe Loader 70 - 100 HP")
-            with c_item2:
-                qty = st.number_input("Qty Out", value=1.0)
-            with c_item3:
-                unit = st.text_input("Unit", "Month")
-            with c_item4:
-                harga_satuan = st.number_input("Harga Satuan (Rp)", value=75538000.0, format="%.2f")
+            # Deteksi kolom pada Master Kontrak secara fleksibel
+            kolom_kategori = "Kategori" if "Kategori" in df_master.columns else df_master.columns[0]
+            list_kat = df_master[kolom_kategori].dropna().unique().tolist()
+            
+            kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat)
+            
+            # Filter spesifikasi berdasarkan kategori
+            df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih]
+            kolom_spek = "Spesifikasi" if "Spesifikasi" in df_master.columns else df_master.columns[1]
+            list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
+            
+            deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek)
+            
+            # Ambil nilai harga satuan dan unit otomatis dari Master Kontrak
+            harga_satuan_otomatis = 0.0
+            unit_otomatis = "Month"
+            if not df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan].empty:
+                row_m = df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan].iloc[0]
+                try:
+                    harga_satuan_otomatis = float(row_m.get("Harga Satuan", 0))
+                except:
+                    harga_satuan_otomatis = 0.0
+                unit_otomatis = str(row_m.get("Unit", "Month"))
 
+            c_item1, c_item2, c_item3, c_item4 = st.columns([1, 1, 1, 1])
+            with c_item1:
+                qty = st.number_input("Qty Out", value=1.0)
+            with c_item2:
+                unit = st.text_input("Unit", value=unit_otomatis)
+            with c_item3:
+                tgl_mulai = st.text_input("Tanggal Mulai", "1 Jul 2026")
+            with c_item4:
+                tgl_selesai = st.text_input("Tanggal Selesai", "31 Jul 2026")
+
+            harga_satuan = st.number_input("Harga Satuan (Rp - Membaca Master Kontrak)", value=harga_satuan_otomatis, format="%.2f")
             keterangan_pekerjaan = st.text_input("Keterangan Pekerjaan", "Alat Beroperasi Periode 01 sd 31 Juli 2026")
 
             st.markdown("---")
@@ -422,9 +453,12 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                     "Deskripsi PO": desc_po,
                     "Tanggal PO": tanggal_po,
                     "Mata Uang": mata_uang,
+                    "Kategori": kategori_pilih,
                     "Deskripsi Pekerjaan": deskripsi_pekerjaan,
                     "Qty": qty,
                     "Unit": unit,
+                    "Tanggal Mulai": tgl_mulai,
+                    "Tanggal Selesai": tgl_selesai,
                     "Harga Satuan": harga_satuan,
                     "Total Harga": total_harga,
                     "Keterangan": keterangan_pekerjaan
@@ -446,7 +480,7 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
 
     transaksi_list = muat_data_transaksi()
     if not transaksi_list:
-        st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses. Silakan lakukan input pada menu **Input & Proses Rincian Pekerjaan**.")
+        st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
     else:
         pilihan_tx = [f"PI: {t['PI No.']} | Kontrak: {t['Nomor Kontrak']} | Total: Rp {t['Total Harga']:,.0f}" for t in transaksi_list]
         selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
@@ -465,7 +499,6 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
 
         st.markdown("---")
 
-        # GENERATE KONTEN DOKUMEN HTML (DISESUAIKAN DENGAN FORMAT STANDAR PERUSAHAAN)
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -520,16 +553,20 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
                     <th>Spesifikasi / Deskripsi</th>
                     <th>Qty Out</th>
                     <th>Unit</th>
+                    <th>Tanggal Mulai</th>
+                    <th>Tanggal Selesai</th>
                     <th>Harga Satuan (Rp)</th>
                     <th>Total Harga (Rp)</th>
                     <th>Keterangan</th>
                 </tr>
                 <tr>
                     <td style="text-align: center;">1</td>
-                    <td>MONTHLY BASIS</td>
+                    <td>{t_data.get('Kategori', 'MONTHLY BASIS')}</td>
                     <td>{t_data['Deskripsi Pekerjaan']}</td>
                     <td style="text-align: center;">{t_data['Qty']:,.2f}</td>
                     <td style="text-align: center;">{t_data['Unit']}</td>
+                    <td style="text-align: center;">{t_data.get('Tanggal Mulai', '-')}</td>
+                    <td style="text-align: center;">{t_data.get('Tanggal Selesai', '-')}</td>
                     <td style="text-align: right;">Rp {t_data['Harga Satuan']:,.2f}</td>
                     <td style="text-align: right;">Rp {t_data['Total Harga']:,.2f}</td>
                     <td>{t_data['Keterangan']}</td>
@@ -588,16 +625,13 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
 
         html_content += "</body></html>"
 
-        # TAMPILAN PRATINJAU DI LAYAR (PUTIH BERSIH)
         st.markdown('<div class="document-preview">', unsafe_allow_html=True)
         st.components.v1.html(html_content, height=500, scrolling=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # TOMBOL KLIK MOUSE INTERAKTIF (PRINT & DOWNLOAD)
         col_btn1, col_btn2 = st.columns(2)
-        
         with col_btn1:
             b64_html = base64.b64encode(html_content.encode()).decode()
             print_script = f"""
