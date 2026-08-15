@@ -10,10 +10,8 @@ st.set_page_config(page_title="Dashboard Terintegrasi - PT. Banggai Sentral Sula
 # CSS Styling Profesional (Tema Terang / Light Mode, Bersih, Ramah Cetak Tanpa Boros Tinta)
 st.markdown("""
     <style>
-    /* Paksa Tema Latar Belakang Terang / Putih Bersih */
     .stApp { background-color: #f8fafc; color: #0f172a; }
     
-    /* Paksa kotak input menjadi putih bersih dengan teks hitam */
     div[data-baseweb="base-input"], div[data-baseweb="textarea"] {
         background-color: #ffffff !important;
         border: 1px solid #cbd5e1 !important;
@@ -43,7 +41,6 @@ st.markdown("""
         box-shadow: 0 2px 6px rgba(0,0,0,0.02);
         color: #0f172a;
     }
-    /* Kotak Pratinjau Dokumen dengan Warna Putih Bersih Anti Boros Tinta */
     .document-preview {
         background-color: #ffffff;
         padding: 40px;
@@ -64,7 +61,6 @@ st.markdown("""
         background-color: #059669;
         color: white;
     }
-    /* Sembunyikan elemen sidebar & tombol saat mode cetak browser */
     @media print {
         [data-testid="stSidebar"] { display: none; }
         .stButton { display: none; }
@@ -244,7 +240,10 @@ if menu == "Input Database & Invoice (29 Kolom)":
         val_16 = baris_input_teks(16, "Alamat Pihak Kedua", val=get_val("Alamat Pihak Kedua"), is_area=True)
         val_17 = baris_input_teks(17, "Diwakili Oleh (P2)", val=get_val("Diwakili Oleh (P2)"))
         val_18 = baris_input_teks(18, "Selaku (P2)", val=get_val("Selaku (P2)"))
-        val_19 = baris_input_teks(19, "Period", val=get_val("Period"))
+        
+        # 19. Periode Pekerjaan (Revisi Nama)[cite: 2]
+        val_19 = baris_input_teks(19, "Periode Pekerjaan", val=get_val("Periode Pekerjaan"))
+        
         val_20 = baris_input_teks(20, "Nomor WCC", val=get_val("Nomor WCC"))
         val_21 = baris_input_teks(21, "Tanggal WCC", val=get_val("Tanggal WCC"))
         val_22 = baris_input_teks(22, "Nomor WO", val=get_val("Nomor WO"))
@@ -254,7 +253,7 @@ if menu == "Input Database & Invoice (29 Kolom)":
         val_27 = baris_input_teks(27, "Prepared by Name", val=get_val("Prepared by Name"))
         val_28_title = baris_input_teks(28, "Prepared by Title", val=get_val("Prepared by Title"))
 
-        # 29. Dropdown On-Duty Pejabat Berwenang[cite: 1]
+        # 29. Dropdown On-Duty Pejabat Berwenang[cite: 1, 2]
         c1, c2, c3 = st.columns([0.8, 3.5, 7])
         c1.write("**29.**")
         c2.write("Pejabat berwenang")
@@ -285,7 +284,7 @@ if menu == "Input Database & Invoice (29 Kolom)":
                 "Nomor Purchase Order": val_8, "Tanggal Purchase Order": val_9, "Lingkup Pekerjaan": val_10, 
                 "Pihak Pertama": val_11, "Alamat Pihak Pertama": val_12, "Diwakili Oleh": val_13, "Selaku": val_14, 
                 "Pihak Kedua": val_15, "Alamat Pihak Kedua": val_16, "Diwakili Oleh (P2)": val_17, "Selaku (P2)": val_18, 
-                "Period": val_19, "Nomor WCC": val_20, "Tanggal WCC": val_21, "Nomor WO": val_22, "Keterangan WO": val_23, 
+                "Periode Pekerjaan": val_19, "Nomor WCC": val_20, "Tanggal WCC": val_21, "Nomor WO": val_22, "Keterangan WO": val_23, 
                 "Nomor CTR": val_24, "Progress Pekerjaan": val_25, "Prepared by Name": val_27, "Prepared by Title": val_28_title,
                 "Pejabat berwenang": val_29, "Jabatan Field Manager": val_30
             }
@@ -351,75 +350,97 @@ elif menu == "Input & Proses Rincian Pekerjaan":
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📝 Lembar Kerja & Pemrosesan Rincian Pekerjaan</h3>
-            <p style="color:#047857; font-size:13px; margin:0;">Isi form rincian pekerjaan di bawah ini. Tombol proses akan mendistribusikan data secara otomatis ke Proforma Invoice, WCC, Opname, BAMP, BASP, dan TKDN.</p>
+            <p style="color:#047857; font-size:13px; margin:0;">Pilih Nomor Kontrak dan Nomor PI dari database untuk menarik data referensi secara otomatis, lalu lengkapi rincian item pekerjaan.</p>
         </div>
     """, unsafe_allow_html=True)
 
-    with st.form("form_proses_rincian"):
-        col1, col2 = st.columns(2)
-        with col1:
-            nomor_kontrak = st.text_input("Nomor Kontrak", "7207250142")
-            nama_kontrak = st.text_input("Nama Kontrak", "Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka")
-            nomor_tender = st.text_input("Nomor Tender", "S250551FLD-R1")
-            pi_no = st.text_input("Nomor Proforma Invoice (PI)", "042/BSS-JOB/AB/VII/2026")
-            tanggal_pi = st.text_input("Tanggal Proforma Invoice", "31 Jul 2026")
-        with col2:
-            ditujukan_kepada = st.text_input("Ditujukan Kepada", "JOB Pertamina - Medco E&P Tomori Sulawesi")
-            nomor_po = st.text_input("Nomor PO", "4500011424")
-            desc_po = st.text_area("Deskripsi PO", "Jasa Sewa Backhoe Loader Untuk support Kegiatan Operation & Maintenance di Area Senoro dan Tiaka Periode Juli - September 2026")
-            tanggal_po = st.text_input("Tanggal PO", "1 Jul 2026")
-            mata_uang = st.text_input("Mata Uang", "IDR")
+    # Ambil data dari database Modul 1 untuk pilihan Dropdown otomatis
+    saved_db = muat_data_invoice()
+    
+    if not saved_db:
+        st.warning("⚠️ Belum ada data di Database Modul 1. Harap lakukan input data kontrak & PI terlebih dahulu pada menu **Input Database & Invoice (29 Kolom)**.")
+    else:
+        # Ekstrak daftar pilihan Nomor Kontrak dan Nomor PI yang unik dari database
+        list_kontrak = list(set([str(item.get("Nomor Kontrak", "")) for item in saved_db if item.get("Nomor Kontrak")]))
+        list_pi = list(set([str(item.get("Proforma Invoice No.", "")) for item in saved_db if item.get("Proforma Invoice No.")]))
 
-        st.markdown("---")
-        st.markdown("#### ⚙️ Rincian Item Pekerjaan & Tarif")
-        
-        c_item1, c_item2, c_item3, c_item4 = st.columns([3, 1, 1, 1])
-        with c_item1:
-            deskripsi_pekerjaan = st.text_input("Spesifikasi / Deskripsi Pekerjaan", "Jasa Sewa Alat Berat Monthly Basis (Include Operator, Rigger, Helper, BBM & Sertifikasi), Backhoe Loader 70 - 100 HP")
-        with c_item2:
-            qty = st.number_input("Qty Out", value=1.0)
-        with c_item3:
-            unit = st.text_input("Unit", "Month")
-        with c_item4:
-            harga_satuan = st.number_input("Harga Satuan (Rp)", value=75538000.0, format="%.2f")
+        with st.form("form_proses_rincian"):
+            col1, col2 = st.columns(2)
+            with col1:
+                # Nomor Kontrak & Nomor PI dibuat Dropdown pilihan
+                selected_kontrak = st.selectbox("Nomor Kontrak (Pilih dari Database)", list_kontrak if list_kontrak else [""])
+                
+                # Filter PI berdasarkan kontrak yang dipilih (atau tampilkan semua jika belum spesifik)
+                filtered_pi = [str(item.get("Proforma Invoice No.", "")) for item in saved_db if str(item.get("Nomor Kontrak")) == str(selected_kontrak)]
+                if not filtered_pi:
+                    filtered_pi = list_pi
+                selected_pi = st.selectbox("Nomor Proforma Invoice (PI)", filtered_pi if filtered_pi else [""])
+                
+                # Cari data record yang cocok di database berdasarkan pilihan dropdown Kontrak & PI
+                matched_record = next((item for item in saved_db if str(item.get("Nomor Kontrak")) == str(selected_kontrak) and str(item.get("Proforma Invoice No.")) == str(selected_pi)), saved_db[0])
 
-        keterangan_pekerjaan = st.text_input("Keterangan Pekerjaan", "Alat Beroperasi Periode 01 sd 31 Juli 2026")
-
-        st.markdown("---")
-        submit_proses = st.form_submit_button("🚀 Proses & Distribusikan Data ke Semua Dokumen Turunan")
-
-        if submit_proses:
-            total_harga = qty * harga_satuan
-            data_transaksi = {
-                "Nomor Kontrak": nomor_kontrak,
-                "Nama Kontrak": nama_kontrak,
-                "Nomor Tender": nomor_tender,
-                "PI No.": pi_no,
-                "Tanggal PI": tanggal_pi,
-                "Ditujukan Kepada": ditujukan_kepada,
-                "Nomor PO": nomor_po,
-                "Deskripsi PO": desc_po,
-                "Tanggal PO": tanggal_po,
-                "Mata Uang": mata_uang,
-                "Deskripsi Pekerjaan": deskripsi_pekerjaan,
-                "Qty": qty,
-                "Unit": unit,
-                "Harga Satuan": harga_satuan,
-                "Total Harga": total_harga,
-                "Keterangan": keterangan_pekerjaan
-            }
+                # Data otomatis dari database
+                nama_kontrak = matched_record.get("Judul Kontrak", "")
+                nomor_tender = matched_record.get("Nomor Tender", "")
+                tanggal_pi = matched_record.get("Tanggal Performa Invoice", "")
+                ditujukan_kepada = matched_record.get("Pihak Pertama", "") # atau instansi terkait
             
-            existing_tx = muat_data_transaksi()
-            existing_tx.append(data_transaksi)
-            simpan_data_transaksi(existing_tx)
+            with col2:
+                nomor_po = st.text_input("Nomor PO", matched_record.get("Nomor Purchase Order", ""))
+                tanggal_po = st.text_input("Tanggal PO", matched_record.get("Tanggal Purchase Order", ""))
+                mata_uang = st.text_input("Mata Uang", "IDR")
+                desc_po = st.text_area("Lingkup Pekerjaan (Otomatis dari Database)", matched_record.get("Lingkup Pekerjaan", ""))
+
+            st.markdown("---")
+            st.markdown("#### ⚙️ Rincian Item Pekerjaan & Tarif")
             
-            st.success("🎉 Data Rincian Pekerjaan Berhasil Diproses dan Didistribusikan ke Seluruh Sheet Dokumen Turunan secara Otomatis!")
+            c_item1, c_item2, c_item3, c_item4 = st.columns([3, 1, 1, 1])
+            with c_item1:
+                deskripsi_pekerjaan = st.text_input("Spesifikasi / Deskripsi Pekerjaan", "Jasa Sewa Alat Berat Monthly Basis (Include Operator, Rigger, Helper, BBM & Sertifikasi), Backhoe Loader 70 - 100 HP")
+            with c_item2:
+                qty = st.number_input("Qty Out", value=1.0)
+            with c_item3:
+                unit = st.text_input("Unit", "Month")
+            with c_item4:
+                harga_satuan = st.number_input("Harga Satuan (Rp)", value=75538000.0, format="%.2f")
+
+            keterangan_pekerjaan = st.text_input("Keterangan Pekerjaan", "Alat Beroperasi Periode 01 sd 31 Juli 2026")
+
+            st.markdown("---")
+            submit_proses = st.form_submit_button("🚀 Proses & Distribusikan Data ke Semua Dokumen Turunan")
+
+            if submit_proses:
+                total_harga = qty * harga_satuan
+                data_transaksi = {
+                    "Nomor Kontrak": selected_kontrak,
+                    "Nama Kontrak": nama_kontrak,
+                    "Nomor Tender": nomor_tender,
+                    "PI No.": selected_pi,
+                    "Tanggal PI": tanggal_pi,
+                    "Ditujukan Kepada": ditujukan_kepada,
+                    "Nomor PO": nomor_po,
+                    "Deskripsi PO": desc_po,
+                    "Tanggal PO": tanggal_po,
+                    "Mata Uang": mata_uang,
+                    "Deskripsi Pekerjaan": deskripsi_pekerjaan,
+                    "Qty": qty,
+                    "Unit": unit,
+                    "Harga Satuan": harga_satuan,
+                    "Total Harga": total_harga,
+                    "Keterangan": keterangan_pekerjaan
+                }
+                
+                existing_tx = muat_data_transaksi()
+                existing_tx.append(data_transaksi)
+                simpan_data_transaksi(existing_tx)
+                
+                st.success("🎉 Data Rincian Pekerjaan Berhasil Diproses dan Didistribusikan secara Otomatis!")
 
 elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">🖨️ Pratinjau, Cetak & Download PDF Dokumen Resmi</h3>
-            <p style="color:#047857; font-size:13px; margin:0; color:#334155;">Pilih dokumen untuk melihat preview terang/jelas, lalu gunakan tombol klik mouse di bawah untuk mencetak atau mendownload PDF.</p>
+            <p style="color:#047857; font-size:13px; margin:0; color:#334155;">Pilih dokumen untuk melihat preview, lalu gunakan tombol klik mouse di bawah untuk mencetak atau mendownload dokumen.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -444,7 +465,7 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
 
         st.markdown("---")
 
-        # GENERATE KONTEN DOKUMEN DALAM FORMAT HTML BERSIH (PUTIH / ANTI BOROS TINTA)
+        # GENERATE KONTEN DOKUMEN HTML (DISESUAIKAN DENGAN FORMAT STANDAR PERUSAHAAN)
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -454,40 +475,42 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
             <style>
                 body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 30px; margin: 0; }}
                 .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }}
-                .title {{ text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 20px; text-transform: uppercase; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; }}
-                th, td {{ border: 1px solid #333; padding: 8px 12px; font-size: 12px; text-align: left; }}
-                th {{ background-color: #f1f5f9; }}
-                .footer-sign {{ margin-top: 40px; width: 100%; display: flex; justify-content: space-between; }}
-                .sign-box {{ text-align: center; width: 45%; display: inline-block; }}
+                .title {{ text-align: center; font-weight: bold; font-size: 15px; margin-bottom: 20px; text-transform: uppercase; text-decoration: underline; }}
+                table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; }}
+                th, td {{ border: 1px solid #333; padding: 6px 10px; font-size: 11px; text-align: left; }}
+                th {{ background-color: #f1f5f9; text-align: center; }}
             </style>
         </head>
         <body>
             <div class="header">
-                <h2 style="margin: 0; font-size: 18px;">PT. BANGGAI SENTRAL SULAWESI</h2>
-                <p style="margin: 2px 0; font-size: 11px;">Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
+                <h2 style="margin: 0; font-size: 16px;">PT. BANGGAI SENTRAL SULAWESI</h2>
+                <p style="margin: 2px 0; font-size: 10px;">Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
             </div>
             <div class="title">{doc_type}</div>
         """
 
         if doc_type == "Rincian Pekerjaan (Sheet Rincian Pek)":
             html_content += f"""
-            <table style="border: none; margin-bottom: 20px;">
+            <table style="border: none; margin-bottom: 15px;">
                 <tr>
-                    <td style="border: none; width: 50%;"><b>Nomor Kontrak:</b> {t_data['Nomor Kontrak']}</td>
-                    <td style="border: none; width: 50%;"><b>Ditujukan Kepada:</b> {t_data['Ditujukan Kepada']}</td>
+                    <td style="border: none; width: 50%;"><b>Rincian Pekerjaan</b> : {t_data['Nomor Kontrak']}-BSS-WCC-2026</td>
+                    <td style="border: none; width: 50%;"><b>Ditujukan Kepada</b> : {t_data['Ditujukan Kepada']}</td>
                 </tr>
                 <tr>
-                    <td style="border: none;"><b>Nama Kontrak:</b> {t_data['Nama Kontrak']}</td>
-                    <td style="border: none;"><b>Nomor PO:</b> {t_data['Nomor PO']}</td>
+                    <td style="border: none;"><b>Nomor Kontrak</b> : {t_data['Nomor Kontrak']}</td>
+                    <td style="border: none;"><b>Nomor Purchase Order</b> : {t_data['Nomor PO']}</td>
                 </tr>
                 <tr>
-                    <td style="border: none;"><b>Nomor Tender:</b> {t_data['Nomor Tender']}</td>
-                    <td style="border: none;"><b>Tanggal PO:</b> {t_data['Tanggal PO']}</td>
+                    <td style="border: none;"><b>Nama Kontrak</b> : {t_data['Nama Kontrak']}</td>
+                    <td style="border: none;"><b>Lingkup Pekerjaan</b> : {t_data['Deskripsi PO']}</td>
                 </tr>
                 <tr>
-                    <td style="border: none;"><b>Tanggal Proforma:</b> {t_data['Tanggal PI']}</td>
-                    <td style="border: none;"><b>Mata Uang:</b> {t_data['Mata Uang']}</td>
+                    <td style="border: none;"><b>Nomor Tender</b> : {t_data['Nomor Tender']}</td>
+                    <td style="border: none;"><b>Tanggal Purchase Order</b> : {t_data['Tanggal PO']}</td>
+                </tr>
+                <tr>
+                    <td style="border: none;"><b>Tanggal Proforma</b> : {t_data['Tanggal PI']}</td>
+                    <td style="border: none;"><b>Mata Uang</b> : {t_data['Mata Uang']}</td>
                 </tr>
             </table>
             <table>
@@ -502,19 +525,19 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
                     <th>Keterangan</th>
                 </tr>
                 <tr>
-                    <td>1</td>
+                    <td style="text-align: center;">1</td>
                     <td>MONTHLY BASIS</td>
                     <td>{t_data['Deskripsi Pekerjaan']}</td>
-                    <td>{t_data['Qty']}</td>
-                    <td>{t_data['Unit']}</td>
-                    <td>Rp {t_data['Harga Satuan']:,.2f}</td>
-                    <td>Rp {t_data['Total Harga']:,.2f}</td>
+                    <td style="text-align: center;">{t_data['Qty']:,.2f}</td>
+                    <td style="text-align: center;">{t_data['Unit']}</td>
+                    <td style="text-align: right;">Rp {t_data['Harga Satuan']:,.2f}</td>
+                    <td style="text-align: right;">Rp {t_data['Total Harga']:,.2f}</td>
                     <td>{t_data['Keterangan']}</td>
                 </tr>
             </table>
-            <p><b>TOTAL TAGIHAN: Rp {t_data['Total Harga']:,.2f}</b></p>
-            <br><br>
-            <table style="border: none; width: 100%;">
+            <p style="text-align: right; font-weight: bold; font-size: 13px;">TOTAL TAGIHAN: Rp {t_data['Total Harga']:,.2f}</p>
+            <br>
+            <table style="border: none; width: 100%; margin-top: 30px;">
                 <tr>
                     <td style="border: none; text-align: center; width: 50%;">
                         <b>DIBUAT OLEH</b><br><br><br><br>
@@ -545,15 +568,15 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
                     <th>TOTAL (IDR)</th>
                 </tr>
                 <tr>
-                    <td>1</td>
+                    <td style="text-align: center;">1</td>
                     <td>{t_data['Deskripsi Pekerjaan']}</td>
-                    <td>{t_data['Qty']}</td>
-                    <td>{t_data['Unit']}</td>
-                    <td>Rp {t_data['Harga Satuan']:,.2f}</td>
-                    <td>Rp {t_data['Total Harga']:,.2f}</td>
+                    <td style="text-align: center;">{t_data['Qty']}</td>
+                    <td style="text-align: center;">{t_data['Unit']}</td>
+                    <td style="text-align: right;">Rp {t_data['Harga Satuan']:,.2f}</td>
+                    <td style="text-align: right;">Rp {t_data['Total Harga']:,.2f}</td>
                 </tr>
             </table>
-            <h3>GRAND TOTAL: Rp {t_data['Total Harga']:,.2f}</h3>
+            <h3 style="text-align: right;">GRAND TOTAL: Rp {t_data['Total Harga']:,.2f}</h3>
             """
         else:
             html_content += f"""
@@ -572,7 +595,7 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # TOMBOL KLIK MOUSE INTERAKTIF (PRINT & DOWNLOAD PDF OTOMATIS)
+        # TOMBOL KLIK MOUSE INTERAKTIF (PRINT & DOWNLOAD)
         col_btn1, col_btn2 = st.columns(2)
         
         with col_btn1:
