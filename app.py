@@ -8,12 +8,11 @@ from datetime import date
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. Banggai Sentral Sulawesi", layout="wide", initial_sidebar_state="expanded")
 
-# --- CSS STYLING PROFESIONAL (FIX LABEL PUTIH / HILANG) ---
+# --- CSS STYLING PROFESIONAL ---
 st.markdown("""
     <style>
     .stApp { background-color: #f8fafc; color: #0f172a; }
     
-    /* Memastikan seluruh label teks di atas input / selectbox tampil jelas berwarna gelap */
     label, .stSelectbox label, .stTextInput label, .stNumberInput label, .stDateInput label, .stTextArea label {
         color: #0f172a !important;
         font-weight: 600 !important;
@@ -115,7 +114,10 @@ def muat_master_kontrak():
     if not files:
         return pd.DataFrame()
     try:
-        return pd.read_excel(files[0])
+        # Membaca sheet pertama dari file master kontrak
+        xl = pd.ExcelFile(files[0])
+        df = xl.parse(xl.sheet_names[0])
+        return df
     except:
         return pd.DataFrame()
 
@@ -362,7 +364,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📝 Lembar Kerja & Pemrosesan Rincian Pekerjaan</h3>
-            <p style="color:#047857; font-size:13px; margin:0;">Pilih Nomor Kontrak dan Nomor PI dari database, lalu pilih Kategori dan Spesifikasi dari Master Kontrak dengan lengkap.</p>
+            <p style="color:#047857; font-size:13px; margin:0;">Pilih Nomor Kontrak & PI dari database, lalu pilih Kategori dan Spesifikasi yang otomatis terbaca dari Master Kontrak.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -372,7 +374,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
     if not saved_db:
         st.warning("⚠️ Belum ada data di Database Modul 1. Harap lakukan input data kontrak & PI terlebih dahulu.")
     elif df_master.empty:
-        st.warning("⚠️ File Master Kontrak (Excel) tidak ditemukan di folder.")
+        st.warning("⚠️ File Master Kontrak (Excel) tidak ditemukan di folder direktori.")
     else:
         list_kontrak = list(set([str(item.get("Nomor Kontrak", "")) for item in saved_db if item.get("Nomor Kontrak")]))
         list_pi = list(set([str(item.get("Proforma Invoice No.", "")) for item in saved_db if item.get("Proforma Invoice No.")]))
@@ -402,28 +404,35 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             st.markdown("---")
             st.markdown("#### ⚙️ Pemilihan Kategori, Spesifikasi & Rujukan Master Kontrak")
             
-            kolom_kategori = "Kategori" if "Kategori" in df_master.columns else df_master.columns[0]
+            # Deteksi kolom secara cerdas (mengambil kolom pertama sebagai Kategori dan kedua sebagai Spesifikasi)
+            available_cols = df_master.columns.tolist()
+            kolom_kategori = next((c for c in available_cols if 'kategori' in str(c).lower()), available_cols[0])
             list_kat = df_master[kolom_kategori].dropna().unique().tolist()
             
-            kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat)
+            kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat if list_kat else ["(Data Kosong)"])
             
-            df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih]
-            kolom_spek = "Spesifikasi" if "Spesifikasi" in df_master.columns else df_master.columns[1]
+            # Filter spesifikasi berdasarkan kategori yang dipilih
+            df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih] if list_kat else df_master
+            kolom_spek = next((c for c in available_cols if 'spesifikasi' in str(c).lower() or 'deskripsi' in str(c).lower()), available_cols[1] if len(available_cols) > 1 else available_cols[0])
             list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
             
-            deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek)
+            deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Data Kosong)"])
             
+            # Deteksi otomatis kolom Harga Satuan dan Unit di Master Kontrak
+            kolom_harga = next((c for c in available_cols if 'harga' in str(c).lower() or 'satuan' in str(c).lower()), None)
+            kolom_unit = next((c for c in available_cols if 'unit' in str(c).lower()), None)
+
             harga_satuan_otomatis = 0.0
             unit_otomatis = "Month"
+            
             if not df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan].empty:
                 row_m = df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan].iloc[0]
-                try:
-                    harga_satuan_otomatis = float(row_m.get("Harga Satuan", 0))
-                except:
-                    harga_satuan_otomatis = 0.0
-                unit_otomatis = str(row_m.get("Unit", "Month"))
+                if kolom_harga:
+                    try: harga_satuan_otomatis = float(row_m.get(kolom_harga, 0))
+                    except: harga_satuan_otomatis = 0.0
+                if kolom_unit:
+                    unit_otomatis = str(row_m.get(kolom_unit, "Month"))
 
-            # Pilihan Qty, Unit (Dropdown Month/Day), dan Tanggal interaktif
             c_item1, c_item2, c_item3, c_item4 = st.columns([1, 1, 1, 1])
             with c_item1:
                 qty = st.number_input("Qty Out", value=1.0)
@@ -435,7 +444,9 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 tgl_selesai = st.date_input("Tanggal Selesai", value=date(2026, 7, 31))
 
             harga_satuan = st.number_input("Harga Satuan (Rp - Membaca Master Kontrak)", value=harga_satuan_otomatis, format="%.2f")
-            keterangan_pekerjaan = st.text_input("Keterangan / Deskripsi Tambahan", "Alat Beroperasi Periode 01 sd 31 Juli 2026")
+            
+            # Keterangan / Deskripsi Tambahan dikosongkan secara default agar fleksibel
+            keterangan_pekerjaan = st.text_input("Keterangan / Deskripsi Tambahan", value="")
 
             st.markdown("---")
             submit_proses = st.form_submit_button("🚀 Proses & Distribusikan Data ke Semua Dokumen Turunan")
