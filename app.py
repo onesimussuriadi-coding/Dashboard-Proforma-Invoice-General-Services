@@ -83,19 +83,16 @@ EXCEL_INVOICE = "database_proforma_invoice.xlsx"
 EXCEL_TRANSAKSI = "database_transaksi_rincian.xlsx"
 
 def muat_data_invoice():
-    """Membaca file Excel database invoice secara aman tanpa merusak data yang sudah ada di disk."""
     if os.path.exists(EXCEL_INVOICE):
         try:
             df = pd.read_excel(EXCEL_INVOICE)
             if df is not None and not df.empty:
                 return df.to_dict(orient="records")
-        except Exception as e:
-            st.error(f"Gagal membaca database invoice: {e}")
+        except:
             return []
     return []
 
 def simpan_data_invoice(data_list):
-    """Menyimpan data invoice ke file Excel tanpa menghilangkan riwayat sebelumnya."""
     df_baru = pd.DataFrame(data_list)
     cols_prioritas = ["Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Keterangan PO"]
     sisa_cols = [c for c in df_baru.columns if c not in cols_prioritas]
@@ -103,19 +100,16 @@ def simpan_data_invoice(data_list):
     df_baru.to_excel(EXCEL_INVOICE, index=False)
 
 def muat_data_transaksi():
-    """Membaca file Excel riwayat transaksi rincian pekerjaan secara aman."""
     if os.path.exists(EXCEL_TRANSAKSI):
         try:
             df = pd.read_excel(EXCEL_TRANSAKSI)
             if df is not None and not df.empty:
                 return df.to_dict(orient="records")
-        except Exception as e:
-            st.error(f"Gagal membaca database transaksi: {e}")
+        except:
             return []
     return []
 
 def simpan_data_transaksi(data_list):
-    """Menyimpan riwayat transaksi rincian pekerjaan ke file Excel independen."""
     df_baru = pd.DataFrame(data_list)
     df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
 
@@ -130,7 +124,6 @@ def muat_master_kontrak():
     except:
         return pd.DataFrame()
 
-# Inisialisasi Session State murni dari file disk lokal
 if "db_tersimpan" not in st.session_state: 
     st.session_state["db_tersimpan"] = muat_data_invoice()
 if "db_transaksi" not in st.session_state: 
@@ -414,19 +407,24 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             
             if not df_master.empty:
                 available_cols = [str(c).strip() for c in df_master.columns.tolist()]
-                kolom_kategori = next((c for c in available_cols if 'kategori' in c.lower()), available_cols[0])
+                
+                # --- PENCARIAN CERDAS KOLOM KATEGORY & DESCRIPTION ---
+                # Mencocokkan persis dengan nama kolom di Excel Anda ('Kategory' dan 'Description')
+                kolom_kategori = next((c for c in available_cols if c.lower() in ['kategory', 'kategori']), available_cols[3] if len(available_cols) > 3 else available_cols[0])
                 list_kat = df_master[kolom_kategori].dropna().unique().tolist()
                 
-                kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat if list_kat else ["(Master Kontrak Kosong)"])
+                kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat if list_kat else ["(Kategori Kosong)"])
                 
                 df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih] if list_kat else df_master
-                kolom_spek = next((c for c in available_cols if 'spesifikasi' in c.lower() or 'deskripsi' in c.lower() or 'item' in c.lower()), available_cols[1] if len(available_cols) > 1 else available_cols[0])
+                
+                # Mencocokkan persis dengan kolom 'Description'
+                kolom_spek = next((c for c in available_cols if c.lower() in ['description', 'spesifikasi', 'deskripsi', 'item']), available_cols[4] if len(available_cols) > 4 else available_cols[1])
                 list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
                 
-                deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Master Kontrak Kosong)"])
+                deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Deskripsi Kosong)"])
                 
-                kolom_harga = next((c for c in available_cols if 'harga' in c.lower() or 'satuan' in c.lower() or 'rate' in c.lower()), None)
-                kolom_unit = next((c for c in available_cols if 'unit' in c.lower() or 'satuan' in c.lower()), None)
+                kolom_harga = next((c for c in available_cols if any(k in c.lower() for k in ['harga', 'satuan', 'rate', 'amount', 'price'])), None)
+                kolom_unit = next((c for c in available_cols if 'unit' in c.lower()), None)
 
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
@@ -457,7 +455,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
 
             harga_satuan = st.number_input("Harga Satuan (Rp - Membaca Master Kontrak)", value=harga_satuan_otomatis, format="%.2f")
             
-            # Keterangan / Deskripsi Tambahan murni kosong tanpa template
+            # Keterangan / Deskripsi Tambahan murni kosong tanpa template siluman
             keterangan_pekerjaan = st.text_input("Keterangan / Deskripsi Tambahan", value="")
 
             st.markdown("---")
