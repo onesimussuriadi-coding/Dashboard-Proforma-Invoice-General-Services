@@ -78,21 +78,24 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEM DATABASE EXCEL LOKAL (AMAN & ANTI RESET) ---
+# --- SISTEM DATABASE EXCEL LOKAL (PROTEKSI TOTAL ANTI RESET) ---
 EXCEL_INVOICE = "database_proforma_invoice.xlsx"
 EXCEL_TRANSAKSI = "database_transaksi_rincian.xlsx"
 
 def muat_data_invoice():
+    """Membaca file Excel database invoice secara aman tanpa merusak data yang sudah ada di disk."""
     if os.path.exists(EXCEL_INVOICE):
         try:
             df = pd.read_excel(EXCEL_INVOICE)
-            if not df.empty:
+            if df is not None and not df.empty:
                 return df.to_dict(orient="records")
-        except:
+        except Exception as e:
+            st.error(f"Gagal membaca database invoice: {e}")
             return []
     return []
 
 def simpan_data_invoice(data_list):
+    """Menyimpan data invoice ke file Excel tanpa menghilangkan riwayat sebelumnya."""
     df_baru = pd.DataFrame(data_list)
     cols_prioritas = ["Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Keterangan PO"]
     sisa_cols = [c for c in df_baru.columns if c not in cols_prioritas]
@@ -100,32 +103,34 @@ def simpan_data_invoice(data_list):
     df_baru.to_excel(EXCEL_INVOICE, index=False)
 
 def muat_data_transaksi():
+    """Membaca file Excel riwayat transaksi rincian pekerjaan secara aman."""
     if os.path.exists(EXCEL_TRANSAKSI):
         try:
             df = pd.read_excel(EXCEL_TRANSAKSI)
-            if not df.empty:
+            if df is not None and not df.empty:
                 return df.to_dict(orient="records")
-        except:
+        except Exception as e:
+            st.error(f"Gagal membaca database transaksi: {e}")
             return []
     return []
 
 def simpan_data_transaksi(data_list):
+    """Menyimpan riwayat transaksi rincian pekerjaan ke file Excel independen."""
     df_baru = pd.DataFrame(data_list)
     df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
 
 def muat_master_kontrak():
-    # Mencari file excel master kontrak di direktori
     files = [f for f in glob.glob("*.xlsx") if f not in [EXCEL_INVOICE, EXCEL_TRANSAKSI] and not f.startswith("~$")]
     if not files:
         return pd.DataFrame()
     try:
         xl = pd.ExcelFile(files[0])
-        # Membaca sheet pertama, pastikan baris header terdeteksi dengan benar
         df = xl.parse(xl.sheet_names[0])
         return df
     except:
         return pd.DataFrame()
 
+# Inisialisasi Session State murni dari file disk lokal
 if "db_tersimpan" not in st.session_state: 
     st.session_state["db_tersimpan"] = muat_data_invoice()
 if "db_transaksi" not in st.session_state: 
@@ -408,18 +413,13 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             st.markdown("#### ⚙️ Pemilihan Kategori, Spesifikasi & Rujukan Master Kontrak")
             
             if not df_master.empty:
-                # Memastikan pembacaan kolom master kontrak membaca baris header dengan benar
                 available_cols = [str(c).strip() for c in df_master.columns.tolist()]
-                
-                # Deteksi kolom kategori secara fleksibel
                 kolom_kategori = next((c for c in available_cols if 'kategori' in c.lower()), available_cols[0])
                 list_kat = df_master[kolom_kategori].dropna().unique().tolist()
                 
                 kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat if list_kat else ["(Master Kontrak Kosong)"])
                 
                 df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih] if list_kat else df_master
-                
-                # Deteksi kolom spesifikasi/deskripsi
                 kolom_spek = next((c for c in available_cols if 'spesifikasi' in c.lower() or 'deskripsi' in c.lower() or 'item' in c.lower()), available_cols[1] if len(available_cols) > 1 else available_cols[0])
                 list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
                 
@@ -439,7 +439,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                     if kolom_unit:
                         unit_otomatis = str(row_m.get(kolom_unit, "Month"))
             else:
-                st.warning("⚠️ File Master Kontrak Excel belum ditemukan di direktori sistem. Harap unggah file Master Kontrak.")
+                st.warning("⚠️ File Master Kontrak Excel belum ditemukan di direktori sistem.")
                 kategori_pilih = "-"
                 deskripsi_pekerjaan = "-"
                 harga_satuan_otomatis = 0.0
@@ -457,7 +457,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
 
             harga_satuan = st.number_input("Harga Satuan (Rp - Membaca Master Kontrak)", value=harga_satuan_otomatis, format="%.2f")
             
-            # Keterangan / Deskripsi Tambahan dikosongkan murni (tanpa template siluman)
+            # Keterangan / Deskripsi Tambahan murni kosong tanpa template
             keterangan_pekerjaan = st.text_input("Keterangan / Deskripsi Tambahan", value="")
 
             st.markdown("---")
