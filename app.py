@@ -78,36 +78,44 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEM DATABASE EXCEL LOKAL ---
+# --- SISTEM DATABASE EXCEL LOKAL (AMAN & ANTI RESET) ---
 EXCEL_INVOICE = "database_proforma_invoice.xlsx"
 EXCEL_TRANSAKSI = "database_transaksi_rincian.xlsx"
 
 def muat_data_invoice():
+    """Membaca data database invoice secara aman tanpa menghapus file jika sudah ada."""
     if os.path.exists(EXCEL_INVOICE):
         try:
-            return pd.read_excel(EXCEL_INVOICE).to_dict(orient="records")
+            df = pd.read_excel(EXCEL_INVOICE)
+            if not df.empty:
+                return df.to_dict(orient="records")
         except:
             return []
     return []
 
 def simpan_data_invoice(data_list):
-    df = pd.DataFrame(data_list)
+    """Menyimpan data invoice dengan memastikan struktur data lama tetap tergabung."""
+    df_baru = pd.DataFrame(data_list)
     cols_prioritas = ["Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Keterangan PO"]
-    sisa_cols = [c for c in df.columns if c not in cols_prioritas]
-    df = df[[c for c in cols_prioritas if c in df.columns] + sisa_cols]
-    df.to_excel(EXCEL_INVOICE, index=False)
+    sisa_cols = [c for c in df_baru.columns if c not in cols_prioritas]
+    df_baru = df_baru[[c for c in cols_prioritas if c in df_baru.columns] + sisa_cols]
+    df_baru.to_excel(EXCEL_INVOICE, index=False)
 
 def muat_data_transaksi():
+    """Membaca data riwayat transaksi rincian pekerjaan secara aman."""
     if os.path.exists(EXCEL_TRANSAKSI):
         try:
-            return pd.read_excel(EXCEL_TRANSAKSI).to_dict(orient="records")
+            df = pd.read_excel(EXCEL_TRANSAKSI)
+            if not df.empty:
+                return df.to_dict(orient="records")
         except:
             return []
     return []
 
 def simpan_data_transaksi(data_list):
-    df = pd.DataFrame(data_list)
-    df.to_excel(EXCEL_TRANSAKSI, index=False)
+    """Menyimpan riwayat transaksi rincian pekerjaan ke Excel independen."""
+    df_baru = pd.DataFrame(data_list)
+    df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
 
 def muat_master_kontrak():
     files = [f for f in glob.glob("*.xlsx") if f not in [EXCEL_INVOICE, EXCEL_TRANSAKSI] and not f.startswith("~$")]
@@ -120,11 +128,12 @@ def muat_master_kontrak():
     except:
         return pd.DataFrame()
 
-if "db_tersimpan" not in st.session_state:
+# Inisialisasi Session State yang merujuk langsung pada data disk lokal
+if "db_tersimpan" not in st.session_state: 
     st.session_state["db_tersimpan"] = muat_data_invoice()
-if "db_transaksi" not in st.session_state:
+if "db_transaksi" not in st.session_state: 
     st.session_state["db_transaksi"] = muat_data_transaksi()
-if "edit_index" not in st.session_state:
+if "edit_index" not in st.session_state: 
     st.session_state["edit_index"] = None
 
 # --- HEADER UTAMA ---
@@ -159,7 +168,7 @@ else:
     ])
 
 st.sidebar.markdown("---")
-st.sidebar.success("📂 **Status Sistem:** Terhubung ke Database Lokal")
+st.sidebar.success("📂 **Status Sistem:** Terhubung ke Database Lokal Aman")
 
 
 # =========================================================================
@@ -172,6 +181,7 @@ if menu == "Input Database & Invoice (29 Kolom)":
         </div>
     """, unsafe_allow_html=True)
 
+    # Sinkronisasi ulang dengan data disk terbaru
     st.session_state["db_tersimpan"] = muat_data_invoice()
 
     if len(st.session_state["db_tersimpan"]) > 0:
@@ -302,6 +312,7 @@ if menu == "Input Database & Invoice (29 Kolom)":
                 "Pejabat berwenang": val_29, "Jabatan Field Manager": val_30
             }
 
+            # Mengambil data eksisting secara aman dari disk, lalu menggabungkannya
             current_data = muat_data_invoice()
 
             if submit_update:
@@ -370,7 +381,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
     saved_db = muat_data_invoice()
     df_master = muat_master_kontrak()
     
-    # Menyiapkan data cadangan jika Modul 1 belum diisi, agar form tetap interaktif dan tidak terhalang
+    # Data cadangan jika database kosong agar form tetap fleksibel digunakan
     if not saved_db:
         saved_db = [{
             "Nomor Kontrak": "042/BSS-JOB/AB/VII/2026",
@@ -486,6 +497,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 "Keterangan": keterangan_pekerjaan
             }
             
+            # Pengambilan data transaksi eksisting secara aman dari disk, lalu digabungkan
             existing_tx = muat_data_transaksi()
             existing_tx.append(data_transaksi)
             simpan_data_transaksi(existing_tx)
