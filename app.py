@@ -6,7 +6,7 @@ import base64
 from datetime import date
 
 # Konfigurasi Halaman
-st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Dashboard Terintegrasi - PT. Banggai Sentral Sulawesi", layout="wide", initial_sidebar_state="expanded")
 
 # --- CSS STYLING PROFESIONAL ---
 st.markdown("""
@@ -78,7 +78,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEM DATABASE EXCEL LOKAL (PROTEKSI TOTAL ANTI RESET) ---
+# --- SISTEM DATABASE EXCEL LOKAL (ANTI-RESET DENGAN SESSION PERSISTENCE) ---
 EXCEL_INVOICE = "database_proforma_invoice.xlsx"
 EXCEL_TRANSAKSI = "database_transaksi_rincian.xlsx"
 
@@ -89,7 +89,7 @@ def muat_data_invoice():
             if df is not None and not df.empty:
                 return df.to_dict(orient="records")
         except:
-            return []
+            pass
     return []
 
 def simpan_data_invoice(data_list):
@@ -98,6 +98,7 @@ def simpan_data_invoice(data_list):
     sisa_cols = [c for c in df_baru.columns if c not in cols_prioritas]
     df_baru = df_baru[[c for c in cols_prioritas if c in df_baru.columns] + sisa_cols]
     df_baru.to_excel(EXCEL_INVOICE, index=False)
+    st.session_state["db_tersimpan"] = data_list
 
 def muat_data_transaksi():
     if os.path.exists(EXCEL_TRANSAKSI):
@@ -106,12 +107,13 @@ def muat_data_transaksi():
             if df is not None and not df.empty:
                 return df.to_dict(orient="records")
         except:
-            return []
+            pass
     return []
 
 def simpan_data_transaksi(data_list):
     df_baru = pd.DataFrame(data_list)
     df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
+    st.session_state["db_transaksi"] = data_list
 
 def muat_master_kontrak():
     files = [f for f in glob.glob("*.xlsx") if f not in [EXCEL_INVOICE, EXCEL_TRANSAKSI] and not f.startswith("~$")]
@@ -124,11 +126,16 @@ def muat_master_kontrak():
     except:
         return pd.DataFrame()
 
-if "db_tersimpan" not in st.session_state: 
-    st.session_state["db_tersimpan"] = muat_data_invoice()
-if "db_transaksi" not in st.session_state: 
-    st.session_state["db_transaksi"] = muat_data_transaksi()
-if "edit_index" not in st.session_state: 
+# Inisialisasi Session State dengan membaca dari disk atau mempertahankan memori
+if "db_tersimpan" not in st.session_state:
+    disk_data = muat_data_invoice()
+    st.session_state["db_tersimpan"] = disk_data if disk_data else []
+
+if "db_transaksi" not in st.session_state:
+    disk_tx = muat_data_transaksi()
+    st.session_state["db_transaksi"] = disk_tx if disk_tx else []
+
+if "edit_index" not in st.session_state:
     st.session_state["edit_index"] = None
 
 # --- HEADER UTAMA ---
@@ -176,7 +183,9 @@ if menu == "Input Database & Invoice (29 Kolom)":
         </div>
     """, unsafe_allow_html=True)
 
-    st.session_state["db_tersimpan"] = muat_data_invoice()
+    # Sinkronisasi data dari disk jika memori kosong
+    if not st.session_state["db_tersimpan"]:
+        st.session_state["db_tersimpan"] = muat_data_invoice()
 
     if len(st.session_state["db_tersimpan"]) > 0:
         opsi_panggil = ["-- Buat Data Baru (Formulir Kosong) --"]
@@ -306,7 +315,7 @@ if menu == "Input Database & Invoice (29 Kolom)":
                 "Pejabat berwenang": val_29, "Jabatan Field Manager": val_30
             }
 
-            current_data = muat_data_invoice()
+            current_data = st.session_state["db_tersimpan"]
 
             if submit_update:
                 if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(current_data):
@@ -408,7 +417,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             if not df_master.empty:
                 available_cols = [str(c).strip() for c in df_master.columns.tolist()]
                 
-                # Kolom Kategory (Kolom ke-4 atau pencarian kata 'kategory'/'kategori')
+                # Kolom Kategory
                 kolom_kategori = next((c for c in available_cols if c.lower() in ['kategory', 'kategori']), available_cols[3] if len(available_cols) > 3 else available_cols[0])
                 list_kat = df_master[kolom_kategori].dropna().unique().tolist()
                 
@@ -416,33 +425,24 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 
                 df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih] if list_kat else df_master
                 
-                # Kolom Deskripsi ('Description')
+                # Kolom Description
                 kolom_spek = next((c for c in available_cols if c.lower() in ['description', 'spesifikasi', 'deskripsi', 'item']), available_cols[4] if len(available_cols) > 4 else available_cols[1])
                 list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
                 
                 deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Deskripsi Kosong)"])
                 
-                # --- LOGIKA VLOOKUP HARGA SATUAN OTOMATIS (MENGAMBIL DARI KOLOM NO 10 / INDEX 9) ---
+                # --- VLOOKUP HARGA SATUAN DARI KOLOM NO 10 (INDEX 9) ---
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
                 
                 if not df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan].empty:
                     row_m = df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan].iloc[0]
-                    
-                    # Berdasarkan instruksi Anda: Harga Satuan berada di kolom nomor 10 (indeks 9)
                     if len(row_m) > 9:
                         try:
                             harga_satuan_otomatis = float(row_m.iloc[9])
                         except:
                             harga_satuan_otomatis = 0.0
-                    else:
-                        # Fallback cadangan jika kolom kurang dari 10, mencari berdasarkan nama kolom harga/satuan/rate
-                        kolom_harga = next((c for c in available_cols if any(k in c.lower() for k in ['harga', 'satuan', 'rate', 'amount', 'price'])), None)
-                        if kolom_harga:
-                            try: harga_satuan_otomatis = float(row_m.get(kolom_harga, 0))
-                            except: harga_satuan_otomatis = 0.0
 
-                    # Deteksi Unit (jika ada di kolom lain)
                     kolom_unit = next((c for c in available_cols if 'unit' in c.lower()), None)
                     if kolom_unit:
                         unit_otomatis = str(row_m.get(kolom_unit, "Month"))
@@ -465,7 +465,6 @@ elif menu == "Input & Proses Rincian Pekerjaan":
 
             harga_satuan = st.number_input("Harga Satuan (Rp - Membaca Master Kontrak)", value=harga_satuan_otomatis, format="%.2f")
             
-            # Keterangan / Deskripsi Tambahan murni kosong tanpa template
             keterangan_pekerjaan = st.text_input("Keterangan / Deskripsi Tambahan", value="")
 
             st.markdown("---")
