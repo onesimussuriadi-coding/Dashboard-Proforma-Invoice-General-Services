@@ -6,7 +6,7 @@ import base64
 from datetime import date
 
 # Konfigurasi Halaman
-st.set_page_config(page_title="Dashboard Terintegrasi - PT. Banggai Sentral Sulawesi", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
 
 # --- CSS STYLING PROFESIONAL ---
 st.markdown("""
@@ -408,8 +408,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             if not df_master.empty:
                 available_cols = [str(c).strip() for c in df_master.columns.tolist()]
                 
-                # --- PENCARIAN CERDAS KOLOM KATEGORY & DESCRIPTION ---
-                # Mencocokkan persis dengan nama kolom di Excel Anda ('Kategory' dan 'Description')
+                # Kolom Kategory (Kolom ke-4 atau pencarian kata 'kategory'/'kategori')
                 kolom_kategori = next((c for c in available_cols if c.lower() in ['kategory', 'kategori']), available_cols[3] if len(available_cols) > 3 else available_cols[0])
                 list_kat = df_master[kolom_kategori].dropna().unique().tolist()
                 
@@ -417,23 +416,34 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 
                 df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih] if list_kat else df_master
                 
-                # Mencocokkan persis dengan kolom 'Description'
+                # Kolom Deskripsi ('Description')
                 kolom_spek = next((c for c in available_cols if c.lower() in ['description', 'spesifikasi', 'deskripsi', 'item']), available_cols[4] if len(available_cols) > 4 else available_cols[1])
                 list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
                 
                 deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Deskripsi Kosong)"])
                 
-                kolom_harga = next((c for c in available_cols if any(k in c.lower() for k in ['harga', 'satuan', 'rate', 'amount', 'price'])), None)
-                kolom_unit = next((c for c in available_cols if 'unit' in c.lower()), None)
-
+                # --- LOGIKA VLOOKUP HARGA SATUAN OTOMATIS (MENGAMBIL DARI KOLOM NO 10 / INDEX 9) ---
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
                 
                 if not df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan].empty:
                     row_m = df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan].iloc[0]
-                    if kolom_harga:
-                        try: harga_satuan_otomatis = float(row_m.get(kolom_harga, 0))
-                        except: harga_satuan_otomatis = 0.0
+                    
+                    # Berdasarkan instruksi Anda: Harga Satuan berada di kolom nomor 10 (indeks 9)
+                    if len(row_m) > 9:
+                        try:
+                            harga_satuan_otomatis = float(row_m.iloc[9])
+                        except:
+                            harga_satuan_otomatis = 0.0
+                    else:
+                        # Fallback cadangan jika kolom kurang dari 10, mencari berdasarkan nama kolom harga/satuan/rate
+                        kolom_harga = next((c for c in available_cols if any(k in c.lower() for k in ['harga', 'satuan', 'rate', 'amount', 'price'])), None)
+                        if kolom_harga:
+                            try: harga_satuan_otomatis = float(row_m.get(kolom_harga, 0))
+                            except: harga_satuan_otomatis = 0.0
+
+                    # Deteksi Unit (jika ada di kolom lain)
+                    kolom_unit = next((c for c in available_cols if 'unit' in c.lower()), None)
                     if kolom_unit:
                         unit_otomatis = str(row_m.get(kolom_unit, "Month"))
             else:
@@ -455,7 +465,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
 
             harga_satuan = st.number_input("Harga Satuan (Rp - Membaca Master Kontrak)", value=harga_satuan_otomatis, format="%.2f")
             
-            # Keterangan / Deskripsi Tambahan murni kosong tanpa template siluman
+            # Keterangan / Deskripsi Tambahan murni kosong tanpa template
             keterangan_pekerjaan = st.text_input("Keterangan / Deskripsi Tambahan", value="")
 
             st.markdown("---")
