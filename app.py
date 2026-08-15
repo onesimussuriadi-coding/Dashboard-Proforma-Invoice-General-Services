@@ -6,7 +6,7 @@ import glob
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. Banggai Sentral Sulawesi", layout="wide")
 
-# CSS Styling Profesional
+# CSS Styling Profesional (Tampilan Terang & Ramah Mata untuk Pratinjau Dokumen)
 st.markdown("""
     <style>
     .main { background-color: #f1f5f9; }
@@ -21,19 +21,22 @@ st.markdown("""
         margin-bottom: 25px;
     }
     .dashboard-card {
-        background-color: #ecfdf5;
-        border: 1px solid #a7f3d0;
-        padding: 15px 20px;
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        padding: 20px;
         border-radius: 8px;
         margin-bottom: 15px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.02);
     }
+    /* Kotak Pratinjau Dokumen dengan Warna Terang/Abu-abu Lembut */
     .document-preview {
         background-color: #ffffff;
-        padding: 30px;
+        padding: 40px;
         border-radius: 8px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         border: 1px solid #cbd5e1;
-        color: #000000;
+        color: #0f172a;
+        margin-bottom: 20px;
     }
     .stButton>button {
         width: 100%;
@@ -45,6 +48,12 @@ st.markdown("""
     .stButton>button:hover {
         background-color: #059669;
         color: white;
+    }
+    /* Sembunyikan elemen sidebar saat dicetak */
+    @media print {
+        [data-testid="stSidebar"] { display: none; }
+        .stButton { display: none; }
+        .document-preview { border: none; box-shadow: none; padding: 0; }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -90,7 +99,7 @@ if "edit_index" not in st.session_state:
 # --- HEADER UTAMA ---
 st.markdown("""
     <div class="company-header-centered">
-        <h2 style="margin:0; font-size: 24px; font-weight: 700;">PT. BANGGAI SENTRAL SULAWESI</h2>
+        <h2 style="margin:0; font-size: 24px; font-weight: 700; color: #ffffff;">PT. BANGGAI SENTRAL SULAWESI</h2>
         <p style="margin:4px 0 0 0; font-size: 13px; color: #34d399; font-weight: 500;">General Contractor and Suppliers | Dashboard Terintegrasi Utama</p>
     </div>
 """, unsafe_allow_html=True)
@@ -105,7 +114,6 @@ modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
 
 st.sidebar.markdown("---")
 
-# Sub-menu berdasarkan Modul yang dipilih
 if modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
     menu = st.sidebar.radio("Pilih Menu:", [
         "Input Database & Invoice (26 Kolom)",
@@ -115,7 +123,7 @@ if modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
 else:
     menu = st.sidebar.radio("Pilih Menu:", [
         "Input & Proses Rincian Pekerjaan",
-        "Pratinjau & Cetak Dokumen Turunan",
+        "Pratinjau, Cetak & Download PDF Dokumen",
         "Lihat Akumulasi Riwayat Transaksi"
     ])
 
@@ -362,11 +370,11 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             
             st.success("🎉 Data Rincian Pekerjaan Berhasil Diproses dan Didistribusikan ke Seluruh Sheet Dokumen Turunan secara Otomatis!")
 
-elif menu == "Pratinjau & Cetak Dokumen Turunan":
+elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">🖨️ Pratinjau & Cetak Dokumen Resmi (Hardcopy Ready)</h3>
-            <p style="color:#047857; font-size:13px; margin:0;">Pilih dokumen yang ingin ditampilkan format cetaknya berdasarkan data transaksi yang telah diproses.</p>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">🖨️ Pratinjau, Cetak & Download PDF Dokumen Resmi</h3>
+            <p style="color:#047857; font-size:13px; margin:0; color:#334155;">Pilih dokumen untuk melihat preview terang/jelas, lalu gunakan tombol cetak untuk mencetak atau menyimpan sebagai PDF.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -379,7 +387,7 @@ elif menu == "Pratinjau & Cetak Dokumen Turunan":
         
         t_data = transaksi_list[selected_idx]
         
-        doc_type = st.selectbox("Pilih Jenis Dokumen untuk Dicetak:", [
+        doc_type = st.selectbox("Pilih Jenis Dokumen:", [
             "Rincian Pekerjaan (Sheet Rincian Pek)",
             "Proforma Invoice",
             "WCC (Work Completion Certificate)",
@@ -391,29 +399,31 @@ elif menu == "Pratinjau & Cetak Dokumen Turunan":
 
         st.markdown("---")
 
+        # AREA PRATINJAU DOKUMEN (LATAR PUTIH BERSIH & KONTRAS TINGGI)
         st.markdown('<div class="document-preview">', unsafe_allow_html=True)
         
+        # Kop Surat Terang & Jelas
         st.markdown("""
-            <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">
-                <h3 style="margin: 0; color: #0f172a;">PT. BANGGAI SENTRAL SULAWESI</h3>
-                <p style="margin: 2px 0; font-size: 12px; color: #334155;">Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
+            <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 25px;">
+                <h3 style="margin: 0; color: #0f172a; font-size: 20px; font-weight: 700;">PT. BANGGAI SENTRAL SULAWESI</h3>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: #475569; font-weight: 500;">Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
             </div>
         """, unsafe_allow_html=True)
 
         if doc_type == "Rincian Pekerjaan (Sheet Rincian Pek)":
-            st.markdown("<h4 style='text-align: center; margin-bottom: 20px;'>RINCIAN PEKERJAAN</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align: center; margin-bottom: 20px; color: #0f172a;'>RINCIAN PEKERJAAN</h4>", unsafe_allow_html=True)
             
             c1, c2 = st.columns(2)
             with c1:
-                st.text(f"Nomor Kontrak   : {t_data['Nomor Kontrak']}")
-                st.text(f"Nama Kontrak    : {t_data['Nama Kontrak']}")
-                st.text(f"Nomor Tender    : {t_data['Nomor Tender']}")
-                st.text(f"Tanggal Proforma: {t_data['Tanggal PI']}")
+                st.markdown(f"**Nomor Kontrak &nbsp;&nbsp;&nbsp;:** {t_data['Nomor Kontrak']}")
+                st.markdown(f"**Nama Kontrak &nbsp;&nbsp;&nbsp;&nbsp;:** {t_data['Nama Kontrak']}")
+                st.markdown(f"**Nomor Tender &nbsp;&nbsp;&nbsp;&nbsp;:** {t_data['Nomor Tender']}")
+                st.markdown(f"**Tanggal Proforma :** {t_data['Tanggal PI']}")
             with c2:
-                st.text(f"Ditujukan Kepada: {t_data['Ditujukan Kepada']}")
-                st.text(f"Nomor PO        : {t_data['Nomor PO']}")
-                st.text(f"Tanggal PO      : {t_data['Tanggal PO']}")
-                st.text(f"Mata Uang       : {t_data['Mata Uang']}")
+                st.markdown(f"**Ditujukan Kepada :** {t_data['Ditujukan Kepada']}")
+                st.markdown(f"**Nomor PO &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:** {t_data['Nomor PO']}")
+                st.markdown(f"**Tanggal PO &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:** {t_data['Tanggal PO']}")
+                st.markdown(f"**Mata Uang &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:** {t_data['Mata Uang']}")
 
             st.markdown("<br>", unsafe_allow_html=True)
             
@@ -429,18 +439,18 @@ elif menu == "Pratinjau & Cetak Dokumen Turunan":
             }])
             st.table(df_table)
 
-            st.markdown(f"**TOTAL TAGIHAN:** Rp {t_data['Total Harga']:,.2f}")
+            st.markdown(f"<h5 style='color: #0f172a;'>TOTAL TAGIHAN: Rp {t_data['Total Harga']:,.2f}</h5>", unsafe_allow_html=True)
             
             st.markdown("<br><br>", unsafe_allow_html=True)
             col_sign1, col_sign2 = st.columns(2)
             with col_sign1:
-                st.markdown("<div style='text-align: center;'><b>DIBUAT OLEH</b><br><br><br><u>Yanuar Wiranata / Ireine Langi</u><br>Supervisor</div>", unsafe_allow_html=True)
+                st.markdown("<div style='text-align: center; color: #0f172a;'><b>DIBUAT OLEH</b><br><br><br><br><u>Yanuar Wiranata / Ireine Langi</u><br>Supervisor</div>", unsafe_allow_html=True)
             with col_sign2:
-                st.markdown("<div style='text-align: center;'><b>DIPERIKSA</b><br><br><br><u>Onesimus Suriadi</u><br>Manager General Services</div>", unsafe_allow_html=True)
+                st.markdown("<div style='text-align: center; color: #0f172a;'><b>DIPERIKSA</b><br><br><br><br><u>Onesimus Suriadi</u><br>Manager General Services</div>", unsafe_allow_html=True)
 
         elif doc_type == "Proforma Invoice":
             st.markdown(f"""
-                <div style="display: flex; justify-content: space-between;">
+                <div style="display: flex; justify-content: space-between; color: #0f172a;">
                     <div>
                         <b>TO:</b><br>{t_data['Ditujukan Kepada']}<br>Indonesia
                     </div>
@@ -450,7 +460,7 @@ elif menu == "Pratinjau & Cetak Dokumen Turunan":
                         <b>Contract No. :</b> {t_data['Nomor Kontrak']}
                     </div>
                 </div>
-                <h3 style="text-align: center; margin: 30px 0 20px 0;">PROFORMA INVOICE</h3>
+                <h3 style="text-align: center; margin: 30px 0 20px 0; color: #0f172a;">PROFORMA INVOICE</h3>
             """, unsafe_allow_html=True)
 
             df_pi = pd.DataFrame([{
@@ -462,18 +472,18 @@ elif menu == "Pratinjau & Cetak Dokumen Turunan":
                 "TOTAL (IDR)": f"Rp {t_data['Total Harga']:,.2f}"
             }])
             st.table(df_pi)
-            st.markdown(f"<b>GRAND TOTAL: Rp {t_data['Total Harga']:,.2f}</b>", unsafe_allow_html=True)
+            st.markdown(f"<h4 style='color: #0f172a;'>GRAND TOTAL: Rp {t_data['Total Harga']:,.2f}</h4>", unsafe_allow_html=True)
 
         elif doc_type == "WCC (Work Completion Certificate)":
-            st.markdown("<h4 style='text-align: center;'>WORK COMPLETION CERTIFICATE (WCC)</h4>", unsafe_allow_html=True)
-            st.text(f"CERTIFICATE NO : {t_data['Nomor Kontrak']}-BSS-WCC-2026-019")
-            st.markdown(f"<p>On the date of {t_data['Tanggal PI']}, we on behalf of PT Banggai Sentral Sulawesi have completed the following job for <b>{t_data['Ditujukan Kepada']}</b>.</p>", unsafe_allow_html=True)
-            st.text(f"WORK ORDER TITLE : {t_data['Deskripsi PO']}")
-            st.markdown(f"<b>AMOUNT TOTAL: Rp {t_data['Total Harga']:,.2f}</b>")
+            st.markdown("<h4 style='text-align: center; color: #0f172a;'>WORK COMPLETION CERTIFICATE (WCC)</h4>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #0f172a;'><b>CERTIFICATE NO :</b> {t_data['Nomor Kontrak']}-BSS-WCC-2026-019</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #0f172a;'>On the date of {t_data['Tanggal PI']}, we on behalf of PT Banggai Sentral Sulawesi have completed the following job for <b>{t_data['Ditujukan Kepada']}</b>.</p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #0f172a;'><b>WORK ORDER TITLE :</b> {t_data['Deskripsi PO']}</p>", unsafe_allow_html=True)
+            st.markdown(f"<h5 style='color: #0f172a;'>AMOUNT TOTAL: Rp {t_data['Total Harga']:,.2f}</h5>", unsafe_allow_html=True)
 
         elif doc_type == "Opname Pekerjaan":
-            st.markdown("<h4 style='text-align: center;'>BERITA ACARA PEKERJAAN / OPNAME</h4>", unsafe_allow_html=True)
-            st.text(f"Contract No : {t_data['Nomor Kontrak']}")
+            st.markdown("<h4 style='text-align: center; color: #0f172a;'>BERITA ACARA PEKERJAAN / OPNAME</h4>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #0f172a;'><b>Contract No :</b> {t_data['Nomor Kontrak']}</p>", unsafe_allow_html=True)
             df_opname = pd.DataFrame([{
                 "No": "1.1",
                 "Item - Description": t_data['Deskripsi Pekerjaan'],
@@ -485,21 +495,33 @@ elif menu == "Pratinjau & Cetak Dokumen Turunan":
             st.table(df_opname)
 
         elif doc_type == "Berita Acara Mulai Pekerjaan (BAMP)":
-            st.markdown("<h4 style='text-align: center;'>BERITA ACARA MULAI PEKERJAAN (BAMP)</h4>", unsafe_allow_html=True)
-            st.markdown(f"<p>Pada hari ini tanggal {t_data['Tanggal PO']}, bertempat di Area Kerja Senoro dan Tiaka, telah disepakati mulai pelaksanaan pekerjaan untuk kontrak nomor: <b>{t_data['Nomor Kontrak']}</b>.</p>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align: center; color: #0f172a;'>BERITA ACARA MULAI PEKERJAAN (BAMP)</h4>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #0f172a;'>Pada hari ini tanggal {t_data['Tanggal PO']}, bertempat di Area Kerja Senoro dan Tiaka, telah disepakati mulai pelaksanaan pekerjaan untuk kontrak nomor: <b>{t_data['Nomor Kontrak']}</b>.</p>", unsafe_allow_html=True)
 
         elif doc_type == "Berita Acara Selesai Pekerjaan (BASP)":
-            st.markdown("<h4 style='text-align: center;'>BERITA ACARA SELESAI PEKERJAAN (BASP)</h4>", unsafe_allow_html=True)
-            st.markdown(f"<p>Pada hari ini tanggal {t_data['Tanggal PI']}, pekerjaan berdasarkan kontrak nomor <b>{t_data['Nomor Kontrak']}</b> telah diselesaikan dengan baik.</p>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align: center; color: #0f172a;'>BERITA ACARA SELESAI PEKERJAAN (BASP)</h4>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #0f172a;'>Pada hari ini tanggal {t_data['Tanggal PI']}, pekerjaan berdasarkan kontrak nomor <b>{t_data['Nomor Kontrak']}</b> telah diselesaikan dengan baik.</p>", unsafe_allow_html=True)
 
         elif doc_type == "Formulir TKDN":
-            st.markdown("<h4 style='text-align: center;'>FORMULIR TINGKAT KOMPONEN DALAM NEGERI (TKDN)</h4>", unsafe_allow_html=True)
-            st.text(f"Kontrak No: {t_data['Nomor Kontrak']}")
+            st.markdown("<h4 style='text-align: center; color: #0f172a;'>FORMULIR TINGKAT KOMPONEN DALAM NEGERI (TKDN)</h4>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #0f172a;'><b>Kontrak No:</b> {t_data['Nomor Kontrak']}</p>", unsafe_allow_html=True)
+            st.markdown("<p style='color: #0f172a;'>Rekapitulasi komponen barang, jasa, dan tenaga kerja dalam negeri memenuhi ketentuan TKDN PT. Banggai Sentral Sulawesi.</p>", unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🖨️ Cetak / Print Dokumen Ini (Gunakan Ctrl+P)"):
-            st.success("💡 Tekan **Ctrl + P** pada keyboard Anda untuk mencetak dokumen ini.")
+        
+        # Tombol Cetak / Download PDF Profesional
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            if st.button("🖨️ Cetak Dokumen (Print Preview)"):
+                st.markdown("""
+                    <script>
+                        window.print();
+                    </script>
+                """, unsafe_allow_html=True)
+                st.success("✨ Jendela Print / Cetak telah dipanggil! (Atau tekan Ctrl+P untuk mencetak dan pilih 'Save as PDF').")
+        with col_p2:
+            st.info("💡 **Tips Download PDF:** Klik tombol cetak di atas, lalu pada jendela *printer*, ubah tujuan (*Destination*) menjadi **'Save as PDF'**.")
 
 elif menu == "Lihat Akumulasi Riwayat Transaksi":
     st.markdown("""
