@@ -886,9 +886,15 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
 
             with col_btn2:
                 b64_pdf = base64.b64encode(html_content.encode()).decode()
-                download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="{doc_type.replace(" ", "_")}_{t_data["PI No."].replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download Dokumen (Format PDF/HTML)</button></a>'
-                st.markdown(download_link, unsafe_allow_html=True)
-
+                pdf_download_link = f'''
+                    <a href="data:application/pdf;base64,{b64_pdf}" download="{doc_type.replace(" ", "_")}_{t_data["PI No."].replace("/", "-")}.pdf" style="text-decoration: none;">
+                        <button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                            📥 Download Dokumen (PDF)
+                        </button>
+                    </a>
+                '''
+                st.markdown(pdf_download_link, unsafe_allow_html=True)
+                
     elif menu == "Lihat Akumulasi Riwayat Transaksi":
         st.markdown("""
             <div class="dashboard-card">
