@@ -484,8 +484,8 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 mata_uang = st.text_input("Mata Uang", "IDR")
                 desc_po = st.text_area("Lingkup Pekerjaan", matched_record.get("Lingkup Pekerjaan", ""))
 
-           st.markdown("---")
-           st.markdown("#### ⚙️ Pemilihan Kategori, Spesifikasi & Rujukan Master Kontrak")
+            st.markdown("---")
+            st.markdown("#### ⚙️ Pemilihan Kategori, Spesifikasi & Rujukan Master Kontrak")
             
             # --- VLOOKUP AMAN & FLEKSIBEL (ANTI-KONTRAK KOSONG) ---
             if not df_master.empty:
