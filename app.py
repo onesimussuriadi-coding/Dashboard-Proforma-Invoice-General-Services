@@ -149,12 +149,22 @@ def simpan_data_transaksi(data_list):
     df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
     st.session_state["db_transaksi"] = data_list
 
-def muat_master_kontrak():
+def muat_master_kontrak(nomor_kontrak_aktif=""):
+    # Cari semua file excel master di folder
     files = [f for f in glob.glob("*.xlsx") if f not in [EXCEL_INVOICE, EXCEL_TRANSAKSI] and not f.startswith("~$")]
     if not files:
         return pd.DataFrame()
+    
+    # Cari file yang namanya paling mirip / mengandung nomor kontrak yang dipilih
+    target_file = files[0] # Default fallback
+    if nomor_kontrak_aktif:
+        for f in files:
+            if str(nomor_kontrak_aktif).strip() in f:
+                target_file = f
+                break
+                
     try:
-        xl = pd.ExcelFile(files[0])
+        xl = pd.ExcelFile(target_file)
         df = xl.parse(xl.sheet_names[0])
         df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
         if 'No.' in df.columns:
