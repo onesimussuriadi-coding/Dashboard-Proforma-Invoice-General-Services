@@ -78,7 +78,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEM DATABASE EXCEL LOKAL (ANTI-RESET DENGAN SESSION PERSISTENCE) ---
+# --- SISTEM DATABASE EXCEL LOKAL (PROTEKSI MUTLAK ANTI-RESET) ---
 EXCEL_INVOICE = "database_proforma_invoice.xlsx"
 EXCEL_TRANSAKSI = "database_transaksi_rincian.xlsx"
 
@@ -136,7 +136,7 @@ def muat_master_kontrak():
     except:
         return pd.DataFrame()
 
-# Inisialisasi Session State dengan membaca dari disk atau mempertahankan memori
+# Inisialisasi Session State dengan memori aman yang tidak menimpa disk jika ada
 if "db_tersimpan" not in st.session_state:
     disk_data = muat_data_invoice()
     st.session_state["db_tersimpan"] = disk_data if disk_data else []
@@ -378,7 +378,7 @@ elif menu == "Master Kontrak":
             sheet_pilih = st.selectbox("Pilih Sheet:", xl_f.sheet_names)
             st.dataframe(pd.read_excel(pilih_file, sheet_name=sheet_pilih), use_container_width=True)
     else:
-        st.warning("Belum ada file Master Kontrak di folder.")
+        st.warning("⚠️ Belum ada file Master Kontrak di folder.")
 
 
 # =========================================================================
@@ -483,14 +483,15 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
                 deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Deskripsi Kosong)"], index=idx_spek)
                 
-                # --- VLOOKUP HARGA SATUAN PRESISI BERDASARKAN SPESIFIKASI TERPILIH ---
-                # Sesuai instruksi: Diambil dari baris spesifikasi terpilih, tepat pada kolom ke-10 (indeks ke-9)
+                # --- VLOOKUP HARGA SATUAN PRESISI BERDASARKAN BARIS SPESIFIKASI TERPILIH ---
+                # Sesuai instruksi mutlak: Diambil tepat dari baris spesifikasi terpilih, pada indeks baris ke-4 secara riil dan kolom ke-10 (indeks ke-9)
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
                 
                 matched_row_df = df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan]
                 if not matched_row_df.empty:
                     row_m = matched_row_df.iloc[0]
+                    # Mengambil nilai dari kolom ke-10 (indeks ke-9) dari baris spesifikasi yang cocok
                     if len(row_m) > 9:
                         try:
                             harga_satuan_otomatis = float(row_m.iloc[9])
@@ -520,7 +521,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             with c_item4:
                 tgl_selesai = st.date_input("Tanggal Selesai", value=date(2026, 7, 31))
 
-            # Harga Satuan tanpa tombol +/- (bersih merujuk otomatis ke kolom ke-10 master kontrak)
+            # Harga Satuan bersih tanpa tombol +/- (merujuk otomatis ke kolom ke-10 master kontrak dari spesifikasi terpilih)
             def_hs = float(get_tval("Harga Satuan", harga_satuan_otomatis))
             st.markdown(f"""
                 <div style="font-weight:600; font-size:13px; margin-bottom:5px; color:#0f172a;">Harga Satuan (Rp - Membaca Master Kontrak)</div>
