@@ -131,8 +131,8 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <th>Unit</th>
                 <th>Tanggal Mulai</th>
                 <th>Tanggal Selesai</th>
-                <th>Harga Satuan<br>(Rp)</th>
-                <th>Total Harga<br>(Rp)</th>
+                <th>Harga Satuan</th>
+                <th>Total Harga</th>
                 <th>Keterangan</th>
             </tr>
             <tr>
@@ -149,9 +149,9 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
             </tr>
         </table>
         
-        <table style="width: 100%; border: none; margin-top: 10px;">
+        <table style="width: 100%; border: none; margin-top: 15px;">
             <tr>
-                <td style="border: none; text-align: left; font-size: 11px; vertical-align: top;">
+                <td style="border: none; text-align: left; font-size: 11px; vertical-align: top; width: 55%;">
                     <b>Terbilang :</b> <i>{terbilang_str}</i>
                 </td>
                 <td style="border: none; text-align: right; font-weight: bold; font-size: 13px; width: 45%; vertical-align: top;">
@@ -178,7 +178,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     """
 
     st.markdown('<div class="document-preview">', unsafe_allow_html=True)
-    st.components.v1.html(html_content, height=500, scrolling=True)
+    st.components.v1.html(html_content, height=550, scrolling=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
