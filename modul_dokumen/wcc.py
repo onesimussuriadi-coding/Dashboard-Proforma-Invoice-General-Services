@@ -53,10 +53,19 @@ def tampilkan_wcc(transaksi_list):
     t_data = unique_tx_list[selected_idx]
     terbilang_str = terbilang(t_data['Total Harga']).strip() + " Rupiah"
     
-    # Penomoran WCC dinamis berdasarkan nomor kontrak / PI
-    wcc_no = f"{t_data['Nomor Kontrak']}-BSS-WCC-2026"
-    wo_no = f"{t_data['Nomor Kontrak']}-BSS-WO-2026"
-    ctr_no = f"{t_data['Nomor Kontrak']}-BSS-CTR-2026"
+    # Pengambilan data dinamis dari inputan/database
+    wcc_no = t_data.get('Nomor WCC', f"{t_data['Nomor Kontrak']}-BSS-WCC-2026-019")
+    wo_no = t_data.get('Nomor WO', f"{t_data['Nomor Kontrak']}-BSS-WO-2026-019")
+    ctr_no = t_data.get('Nomor CTR', f"{t_data['Nomor Kontrak']}-BSS-CTR-2026-019")
+    wo_title = t_data.get('Nama Kontrak', t_data.get('Deskripsi PO', ''))
+    progress_desc = t_data.get('Progress Pekerjaan', '☑ Penyelesaian Pekerjaan')
+    
+    # Pengambilan nama penandatangan dinamis dari data session / database
+    prepared_name = t_data.get('Prepared by Name', 'Onesimus Suriadi')
+    prepared_title = t_data.get('Prepared by Title', 'General Service Manager')
+    reviewed_name = t_data.get('Diwakili Oleh', 'Ronny Dwi Purnomo / Rafik Hidayat')
+    approved_name = t_data.get('Pejabat berwenang', 'Imron Maulana / Moh Bazarul Aqhsa')
+    field_mgr_title = t_data.get('Jabatan Field Manager', 'Field Senior Manager')
 
     html_content = f"""
     <!DOCTYPE html>
@@ -65,62 +74,67 @@ def tampilkan_wcc(transaksi_list):
         <meta charset="utf-8">
         <title>Work Completion Certificate - PT BSS</title>
         <style>
-            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 30px; margin: 0; font-size: 11px; line-height: 1.5; }}
-            .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }}
-            .title {{ text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 15px; text-transform: uppercase; }}
-            .cert-no {{ text-align: center; font-weight: bold; font-size: 12px; margin-bottom: 20px; }}
-            table.info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; border: none; }}
-            table.info-table td {{ border: none; padding: 5px 0; vertical-align: top; font-size: 11px; }}
-            .label-col {{ width: 180px; font-weight: bold; }}
-            .colon-col {{ width: 15px; font-weight: bold; text-align: center; }}
-            .content-text {{ margin-bottom: 15px; text-align: justify; font-size: 11px; }}
-            table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 25px; border: none; }}
+            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 25px; margin: 0; font-size: 11px; line-height: 1.4; }}
+            .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px; }}
+            .title-box {{ background-color: #dbeafe; border: 1px solid #000; text-align: center; font-weight: bold; font-size: 13px; padding: 6px; margin-bottom: 4px; text-transform: uppercase; }}
+            .cert-box {{ background-color: #f1f5f9; border: 1px solid #000; text-align: center; font-weight: bold; font-size: 12px; padding: 6px; margin-bottom: 20px; }}
+            
+            table.grid-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; }}
+            table.grid-table th, table.grid-table td {{ border: 1px solid #000; padding: 8px 10px; font-size: 11px; vertical-align: middle; }}
+            .col-label {{ width: 25%; font-weight: bold; background-color: #fafafa; }}
+            .col-colon {{ width: 3%; text-align: center; font-weight: bold; }}
+            .col-val {{ width: 72%; }}
+            
+            .content-text {{ margin-bottom: 15px; font-size: 11px; }}
+            table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 30px; border: none; }}
             table.sig-table td {{ border: none; text-align: center; vertical-align: top; font-size: 11px; padding: 5px; }}
         </style>
     </head>
     <body>
         <div class="header">
-            <h2 style="margin: 0; font-size: 16px;">PT. BANGGAI SENTRAL SULAWESI</h2>
-            <p style="margin: 2px 0; font-size: 10px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
+            <h2 style="margin: 0; font-size: 15px;">PT. BANGGAI SENTRAL SULAWESI</h2>
+            <p style="margin: 2px 0; font-size: 9px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
         </div>
 
-        <div class="title">WORK COMPLETION CERTIFICATE</div>
-        <div class="cert-no">CERTIFICATE NO : {wcc_no}</div>
+        <div class="title-box">WORK COMPLETION CERTIFICATE</div>
+        <div class="cert-box">CERTIFICATE NO : {wcc_no}</div>
 
         <div class="content-text">
             On the date of <b>{t_data['Tanggal PI']}</b> we on behalf of <b>PT Banggai Sentral Sulawesi</b> have completed the following job:
         </div>
 
-        <table class="info-table">
+        <table class="grid-table">
             <tr>
-                <td class="label-col">WORK ORDER NUMBER</td>
-                <td class="colon-col">:</td>
-                <td>{wo_no}</td>
+                <td class="col-label">WORK ORDER NUMBER</td>
+                <td class="col-colon">:</td>
+                <td class="col-val"><b>{wo_no}</b></td>
             </tr>
             <tr>
-                <td class="label-col">WORK ORDER TITLE</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Nama Kontrak']}</td>
+                <td class="col-label">WORK ORDER TITLE</td>
+                <td class="col-colon">:</td>
+                <td class="col-val">{wo_title}</td>
             </tr>
             <tr>
-                <td class="label-col">CTR NUMBER</td>
-                <td class="colon-col">:</td>
-                <td>{ctr_no}</td>
+                <td class="col-label">CTR NUMBER</td>
+                <td class="col-colon">:</td>
+                <td class="col-val">{ctr_no}</td>
             </tr>
             <tr>
-                <td class="label-col">CONTRACT NO.</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Nomor Kontrak']}</td>
+                <td class="col-label">DESCRIPTION</td>
+                <td class="col-colon">:</td>
+                <td class="col-val">
+                    <table style="width:100%; border:none;">
+                        <tr>
+                            <td style="border:none; padding:0; width:65%;">{progress_desc}</td>
+                            <td style="border:none; padding:0; width:35%; text-align:right; font-weight:bold;">Rp {t_data['Total Harga']:,.2f}</td>
+                        </tr>
+                    </table>
+                </td>
             </tr>
             <tr>
-                <td class="label-col">DESCRIPTION</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Deskripsi Pekerjaan']}</td>
-            </tr>
-            <tr>
-                <td class="label-col">AMOUNT TOTAL</td>
-                <td class="colon-col">:</td>
-                <td><b>Rp {t_data['Total Harga']:,.2f}</b> <i>({terbilang_str})</i></td>
+                <td class="col-label">AMOUNT TOTAL</td>
+                <td class="col-colon">:</td>
+                <td class="col-val"><b>{terbilang_str}</b></td>
             </tr>
         </table>
 
@@ -128,33 +142,28 @@ def tampilkan_wcc(transaksi_list):
             The work has been properly completed as per requirement, witnessed and accepted by <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b>.
         </div>
 
-        <div style="margin-top: 15px; margin-bottom: 25px;">
-            Paisubololi, {t_data['Tanggal PI']}
-        </div>
-
         <table class="sig-table">
             <tr>
-                <td style="width: 33%;">
-                    <b>Prepared by,</b><br><br><br><br>
-                    <u>Ronny Dwi Purnomo</u><br>Maintenance Support Supervisor
+                <td style="width: 33%; text-align: left; padding-left: 10px;">
+                    Paisubololi, {t_data['Tanggal PI']}<br>
+                    <b>PT Banggai Sentral Sulawesi</b><br>
+                    Prepared by,<br><br><br><br>
+                    <u><b>{prepared_name}</b></u><br>
+                    {prepared_title}
                 </td>
-                <td style="width: 34%;">
-                    <b>Reviewed by,</b><br><br><br><br>
-                    <u>Rafik Hidayat</u><br>Field Senior Manager
+                <td style="width: 34%; text-align: center;">
+                    <br><br>
+                    <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
+                    Reviewed by,<br><br><br><br>
+                    <u><b>{reviewed_name}</b></u><br>
+                    Maintenance Support Supervisor
                 </td>
-                <td style="width: 33%;">
-                    <b>Approved by,</b><br><br><br><br>
-                    <u>Imron Maulana / Moh Bazarul</u><br>JOB Pertamina - Medco E&P
-                </td>
-            </tr>
-        </table>
-        
-        <br>
-        <table class="sig-table" style="margin-top: 10px;">
-            <tr>
-                <td style="width: 100%; text-align: center;">
-                    <b>PT BANGGAI SENTRAL SULAWESI</b><br><br><br><br>
-                    <u>Onesimus Suriadi</u><br>General Service Manager
+                <td style="width: 33%; text-align: center;">
+                    <br><br>
+                    <br>
+                    Approved by,<br><br><br><br>
+                    <u><b>{approved_name}</b></u><br>
+                    {field_mgr_title}
                 </td>
             </tr>
         </table>
@@ -163,7 +172,7 @@ def tampilkan_wcc(transaksi_list):
     """
 
     st.markdown('<div class="document-preview">', unsafe_allow_html=True)
-    st.components.v1.html(html_content, height=600, scrolling=True)
+    st.components.v1.html(html_content, height=620, scrolling=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
