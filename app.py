@@ -495,7 +495,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 kolom_kategori = next((c for c in available_cols if 'kategori' in c.lower()), available_cols[2] if len(available_cols) > 2 else available_cols[0])
                 kolom_spek = next((c for c in available_cols if any(k in c.lower() for k in ['spesifikasi', 'deskripsi', 'pekerjaan', 'uraian'])), available_cols[3] if len(available_cols) > 3 else available_cols[1])
                 
-                # Gunakan seluruh data master agar pilihan kategori & spesifikasi langsung muncul dengan normal
+                # Gunakan seluruh data master agar pilihan kategori & spesifikasi langsung muncul
                 df_master['Clean_Kat'] = df_master[kolom_kategori].astype(str).str.strip()
                 list_kat = df_master['Clean_Kat'].dropna().unique().tolist()
                 
