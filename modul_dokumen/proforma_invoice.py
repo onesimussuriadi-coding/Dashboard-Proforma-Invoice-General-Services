@@ -121,8 +121,8 @@ def tampilkan_proforma_invoice(transaksi_list):
                 <th>Qty</th>
                 <th>Unit</th>
                 <th>Duration</th>
-                <th>Unit Price<br>(IDR)</th>
                 <th>Percent</th>
+                <th>Unit Price<br>(IDR)</th>
                 <th>TOTAL (IDR)</th>
             </tr>
             <tr>
@@ -134,8 +134,8 @@ def tampilkan_proforma_invoice(transaksi_list):
                 <td style="text-align: center;">{t_data['Qty']:,.2f}</td>
                 <td style="text-align: center;">{t_data['Unit']}</td>
                 <td style="text-align: center;">1.0 Month</td>
-                <td style="text-align: right;">{t_data['Harga Satuan']:,.2f}</td>
                 <td style="text-align: center;">{t_data.get('Percent', 100)}%</td>
+                <td style="text-align: right;">{t_data['Harga Satuan']:,.2f}</td>
                 <td style="text-align: right;">{t_data['Total Harga']:,.2f}</td>
             </tr>
         </table>
