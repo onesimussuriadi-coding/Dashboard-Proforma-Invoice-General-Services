@@ -6,9 +6,9 @@ import base64
 from datetime import date
 
 # Konfigurasi Halaman
-st.set_page_config(page_title="Dashboard Terintegrasi - PT. Banggai Sentral Sulawesi", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
 
-# --- CSS STYLING PROFESIONAL ---
+# --- CSS STYLING PROFESIONAL & PENYEJAJARAN TITIK DUA ---
 st.markdown("""
     <style>
     .stApp { background-color: #f8fafc; color: #0f172a; }
@@ -111,9 +111,21 @@ def muat_data_transaksi():
     return []
 
 def simpan_data_transaksi(data_list):
-    df_baru = pd.DataFrame(data_list)
+    # Logika Upsert: Menghilangkan duplikat berdasarkan PI No. agar selalu menimpa data terbaru
+    clean_list = []
+    seen_pi = set()
+    # Proses dari belakang agar data terbaru yang menimpa yang lama
+    for item in reversed(data_list):
+        pi_no = str(item.get("PI No.", "")).strip()
+        if pi_no and pi_no not in seen_pi:
+            seen_pi.add(pi_no)
+            clean_list.insert(0, item)
+        elif not pi_no:
+            clean_list.insert(0, item)
+
+    df_baru = pd.DataFrame(clean_list)
     df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
-    st.session_state["db_transaksi"] = data_list
+    st.session_state["db_transaksi"] = clean_list
 
 def muat_master_kontrak():
     files = [f for f in glob.glob("*.xlsx") if f not in [EXCEL_INVOICE, EXCEL_TRANSAKSI] and not f.startswith("~$")]
@@ -126,7 +138,7 @@ def muat_master_kontrak():
     except:
         return pd.DataFrame()
 
-# Inisialisasi Session State dengan membaca dari disk atau mempertahankan memori
+# Inisialisasi Session State
 if "db_tersimpan" not in st.session_state:
     disk_data = muat_data_invoice()
     st.session_state["db_tersimpan"] = disk_data if disk_data else []
@@ -137,6 +149,9 @@ if "db_transaksi" not in st.session_state:
 
 if "edit_index" not in st.session_state:
     st.session_state["edit_index"] = None
+
+if "edit_tx_index" not in st.session_state:
+    st.session_state["edit_tx_index"] = None
 
 # --- HEADER UTAMA ---
 st.markdown("""
@@ -183,7 +198,6 @@ if menu == "Input Database & Invoice (29 Kolom)":
         </div>
     """, unsafe_allow_html=True)
 
-    # Sinkronisasi data dari disk jika memori kosong
     if not st.session_state["db_tersimpan"]:
         st.session_state["db_tersimpan"] = muat_data_invoice()
 
@@ -386,17 +400,57 @@ elif menu == "Input & Proses Rincian Pekerjaan":
     if not saved_db:
         st.warning("⚠️ Belum ada data di Database Modul 1. Harap lakukan input data kontrak & PI terlebih dahulu pada Modul 1.")
     else:
+        # --- FITUR TOMBOL PANGGIL KEMBALI (EDIT & UPDATE TRANSAKSI) ---
+        st.markdown("#### 🔄 Panggil Data Transaksi untuk Edit & Update")
+        existing_tx_list = muat_data_transaksi()
+        
+        # Unikkan daftar PI untuk dropdown pemanggilan edit
+        unique_pi_list = sorted(list(set([str(t.get("PI No.", "")) for t in existing_tx_list if t.get("PI No.")])))
+        
+        opsi_panggil_tx = ["-- Buat / Input Data Baru --"] + [f"PI: {pi}" for pi in unique_pi_list]
+        
+        col_p_tx, col_b_tx = st.columns([3, 1])
+        with col_p_tx:
+            pilihan_edit_tx = st.selectbox("Pilih Nomor PI yang ingin diedit:", opsi_panggil_tx, label_visibility="collapsed")
+        with col_b_tx:
+            if st.button("📥 Panggil Data Ini"):
+                if pilihan_edit_tx == "-- Buat / Input Data Baru --":
+                    st.session_state["edit_tx_index"] = None
+                else:
+                    target_pi = pilihan_edit_tx.replace("PI: ", "")
+                    # Cari index data transaksi yang sesuai
+                    for idx, tx in enumerate(existing_tx_list):
+                        if str(tx.get("PI No.")) == target_pi:
+                            st.session_state["edit_tx_index"] = idx
+                            break
+                st.rerun()
+
+        # Ambil default values jika mode edit aktif
+        def_tx = {}
+        if st.session_state["edit_tx_index"] is not None and st.session_state["edit_tx_index"] < len(existing_tx_list):
+            def_tx = existing_tx_list[st.session_state["edit_tx_index"]]
+            st.info(f"✏️ **Mode Edit Aktif:** Mengubah data untuk PI [{def_tx.get('PI No.')}]. Data lama akan otomatis diperbarui (*overwrite*).")
+
+        def get_tval(key, default=""):
+            return def_tx.get(key, default)
+
         list_kontrak = list(set([str(item.get("Nomor Kontrak", "")) for item in saved_db if item.get("Nomor Kontrak")]))
         list_pi = list(set([str(item.get("Proforma Invoice No.", "")) for item in saved_db if item.get("Proforma Invoice No.")]))
 
         with st.form("form_proses_rincian"):
             col1, col2 = st.columns(2)
             with col1:
-                selected_kontrak = st.selectbox("Nomor Kontrak (Pilih dari Database Modul 1)", list_kontrak if list_kontrak else [""])
+                def_kontrak = get_tval("Nomor Kontrak", list_kontrak[0] if list_kontrak else "")
+                idx_k = list_kontrak.index(def_kontrak) if def_kontrak in list_kontrak else 0
+                selected_kontrak = st.selectbox("Nomor Kontrak (Pilih dari Database Modul 1)", list_kontrak if list_kontrak else [""], index=idx_k)
+                
                 filtered_pi = [str(item.get("Proforma Invoice No.", "")) for item in saved_db if str(item.get("Nomor Kontrak")) == str(selected_kontrak)]
                 if not filtered_pi:
                     filtered_pi = list_pi
-                selected_pi = st.selectbox("Nomor Proforma Invoice (PI)", filtered_pi if filtered_pi else [""])
+                
+                def_pi_val = get_tval("PI No.", filtered_pi[0] if filtered_pi else "")
+                idx_pi = filtered_pi.index(def_pi_val) if def_pi_val in filtered_pi else 0
+                selected_pi = st.selectbox("Nomor Proforma Invoice (PI)", filtered_pi if filtered_pi else [""], index=idx_pi)
                 
                 matched_record = next((item for item in saved_db if str(item.get("Nomor Kontrak")) == str(selected_kontrak) and str(item.get("Proforma Invoice No.")) == str(selected_pi)), saved_db[0])
 
@@ -421,7 +475,9 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 kolom_kategori = next((c for c in available_cols if c.lower() in ['kategory', 'kategori']), available_cols[3] if len(available_cols) > 3 else available_cols[0])
                 list_kat = df_master[kolom_kategori].dropna().unique().tolist()
                 
-                kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat if list_kat else ["(Kategori Kosong)"])
+                def_kat = get_tval("Kategori", list_kat[0] if list_kat else "")
+                idx_kat = list_kat.index(def_kat) if def_kat in list_kat else 0
+                kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat if list_kat else ["(Kategori Kosong)"], index=idx_kat)
                 
                 df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih] if list_kat else df_master
                 
@@ -429,7 +485,9 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 kolom_spek = next((c for c in available_cols if c.lower() in ['description', 'spesifikasi', 'deskripsi', 'item']), available_cols[4] if len(available_cols) > 4 else available_cols[1])
                 list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
                 
-                deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Deskripsi Kosong)"])
+                def_spek = get_tval("Deskripsi Pekerjaan", list_spek[0] if list_spek else "")
+                idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
+                deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Deskripsi Kosong)"], index=idx_spek)
                 
                 # --- VLOOKUP HARGA SATUAN DARI KOLOM NO 10 (INDEX 9) ---
                 harga_satuan_otomatis = 0.0
@@ -455,17 +513,23 @@ elif menu == "Input & Proses Rincian Pekerjaan":
 
             c_item1, c_item2, c_item3, c_item4 = st.columns([1, 1, 1, 1])
             with c_item1:
-                qty = st.number_input("Qty Out", value=1.0)
+                def_qty = float(get_tval("Qty", 1.0))
+                qty = st.number_input("Qty Out", value=def_qty)
             with c_item2:
-                unit = st.selectbox("Unit", ["Month", "Day"], index=0 if unit_otomatis.lower() in ["month", "bln"] else 1)
+                def_unit = get_tval("Unit", unit_otomatis)
+                u_opts = ["Month", "Day"]
+                idx_u = u_opts.index(def_unit) if def_unit in u_opts else 0
+                unit = st.selectbox("Unit", u_opts, index=idx_u)
             with c_item3:
                 tgl_mulai = st.date_input("Tanggal Mulai", value=date(2026, 7, 1))
             with c_item4:
                 tgl_selesai = st.date_input("Tanggal Selesai", value=date(2026, 7, 31))
 
-            harga_satuan = st.number_input("Harga Satuan (Rp - Membaca Master Kontrak)", value=harga_satuan_otomatis, format="%.2f")
+            def_hs = float(get_tval("Harga Satuan", harga_satuan_otomatis))
+            harga_satuan = st.number_input("Harga Satuan (Rp - Membaca Master Kontrak)", value=def_hs, format="%.2f")
             
-            keterangan_pekerjaan = st.text_input("Keterangan / Deskripsi Tambahan", value="")
+            def_ket = get_tval("Keterangan", "")
+            keterangan_pekerjaan = st.text_input("Keterangan / Deskripsi Tambahan", value=def_ket)
 
             st.markdown("---")
             submit_proses = st.form_submit_button("🚀 Proses & Distribusikan Data ke Dokumen Turunan")
@@ -495,10 +559,16 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 }
                 
                 existing_tx = muat_data_transaksi()
+                
+                # Logika Upsert mutlak berdasarkan PI No. agar data lama tertimpa dengan update terbaru
+                pi_baru = str(selected_pi).strip()
+                existing_tx = [t for t in existing_tx if str(t.get("PI No.")).strip() != pi_baru]
+                
                 existing_tx.append(data_transaksi)
                 simpan_data_transaksi(existing_tx)
                 
-                st.success("🎉 Data Rincian Pekerjaan Berhasil Diproses Real-Time!")
+                st.session_state["edit_tx_index"] = None
+                st.success(f"🎉 Data Rincian Pekerjaan untuk PI [{pi_baru}] Berhasil Diproses & Diperbarui Real-Time!")
 
 elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
     st.markdown("""
@@ -512,10 +582,19 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
     if not transaksi_list:
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses di Modul 2.")
     else:
-        pilihan_tx = [f"PI: {t['PI No.']} | Kontrak: {t['Nomor Kontrak']} | Total: Rp {t['Total Harga']:,.0f}" for t in transaksi_list]
+        # Menghilangkan duplikat PI pada dropdown pilihan dokumen
+        seen_pi_dd = set()
+        unique_tx_list = []
+        for t in transaksi_list:
+            pi_key = str(t.get('PI No.', ''))
+            if pi_key not in seen_pi_dd:
+                seen_pi_dd.add(pi_key)
+                unique_tx_list.append(t)
+
+        pilihan_tx = [f"PI: {t['PI No.']} | Kontrak: {t['Nomor Kontrak']} | Total: Rp {t['Total Harga']:,.0f}" for t in unique_tx_list]
         selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
         
-        t_data = transaksi_list[selected_idx]
+        t_data = unique_tx_list[selected_idx]
         
         doc_type = st.selectbox("Pilih Jenis Dokumen:", [
             "Rincian Pekerjaan (Sheet Rincian Pek)",
@@ -529,6 +608,7 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
 
         st.markdown("---")
 
+        # --- HTML DOKUMEN DENGAN HEADER DISEJAJARKAN TITIK DUA & DATA MURNI MODUL 1/2 ---
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -539,9 +619,13 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
                 body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 30px; margin: 0; }}
                 .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }}
                 .title {{ text-align: center; font-weight: bold; font-size: 15px; margin-bottom: 20px; text-transform: uppercase; text-decoration: underline; }}
-                table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; }}
-                th, td {{ border: 1px solid #333; padding: 6px 10px; font-size: 11px; text-align: left; }}
-                th {{ background-color: #f1f5f9; text-align: center; }}
+                table.info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; border: none; }}
+                table.info-table td {{ border: none; padding: 4px 6px; font-size: 11px; vertical-align: top; }}
+                .label-col {{ width: 160px; font-weight: bold; }}
+                .colon-col {{ width: 10px; font-weight: bold; text-align: center; }}
+                table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; }}
+                table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 6px 10px; font-size: 11px; text-align: left; }}
+                table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
             </style>
         </head>
         <body>
@@ -554,29 +638,49 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
 
         if doc_type == "Rincian Pekerjaan (Sheet Rincian Pek)":
             html_content += f"""
-            <table style="border: none; margin-bottom: 15px;">
+            <table class="info-table">
                 <tr>
-                    <td style="border: none; width: 50%;"><b>Rincian Pekerjaan</b> : {t_data['Nomor Kontrak']}-BSS-WCC-2026</td>
-                    <td style="border: none; width: 50%;"><b>Ditujukan Kepada</b> : {t_data['Ditujukan Kepada']}</td>
+                    <td class="label-col">Rincian Pekerjaan</td>
+                    <td class="colon-col">:</td>
+                    <td>{t_data['Nomor Kontrak']}-BSS-WCC-2026</td>
+                    <td class="label-col">Ditujukan Kepada</td>
+                    <td class="colon-col">:</td>
+                    <td>{t_data['Ditujukan Kepada']}</td>
                 </tr>
                 <tr>
-                    <td style="border: none;"><b>Nomor Kontrak</b> : {t_data['Nomor Kontrak']}</td>
-                    <td style="border: none;"><b>Nomor Purchase Order</b> : {t_data['Nomor PO']}</td>
+                    <td class="label-col">Nomor Kontrak</td>
+                    <td class="colon-col">:</td>
+                    <td>{t_data['Nomor Kontrak']}</td>
+                    <td class="label-col">Nomor Purchase Order</td>
+                    <td class="colon-col">:</td>
+                    <td>{t_data['Nomor PO']}</td>
                 </tr>
                 <tr>
-                    <td style="border: none;"><b>Nama Kontrak</b> : {t_data['Nama Kontrak']}</td>
-                    <td style="border: none;"><b>Lingkup Pekerjaan</b> : {t_data['Deskripsi PO']}</td>
+                    <td class="label-col">Nama Kontrak</td>
+                    <td class="colon-col">:</td>
+                    <td>{t_data['Nama Kontrak']}</td>
+                    <td class="label-col">Lingkup Pekerjaan</td>
+                    <td class="colon-col">:</td>
+                    <td>{t_data['Deskripsi PO']}</td>
                 </tr>
                 <tr>
-                    <td style="border: none;"><b>Nomor Tender</b> : {t_data['Nomor Tender']}</td>
-                    <td style="border: none;"><b>Tanggal Purchase Order</b> : {t_data['Tanggal PO']}</td>
+                    <td class="label-col">Nomor Tender</td>
+                    <td class="colon-col">:</td>
+                    <td>{t_data['Nomor Tender']}</td>
+                    <td class="label-col">Tanggal Purchase Order</td>
+                    <td class="colon-col">:</td>
+                    <td>{t_data['Tanggal PO']}</td>
                 </tr>
                 <tr>
-                    <td style="border: none;"><b>Tanggal Proforma</b> : {t_data['Tanggal PI']}</td>
-                    <td style="border: none;"><b>Mata Uang</b> : {t_data['Mata Uang']}</td>
+                    <td class="label-col">Tanggal Proforma</td>
+                    <td class="colon-col">:</td>
+                    <td>{t_data['Tanggal PI']}</td>
+                    <td class="label-col">Mata Uang</td>
+                    <td class="colon-col">:</td>
+                    <td>{t_data['Mata Uang']}</td>
                 </tr>
             </table>
-            <table>
+            <table class="data-table">
                 <tr>
                     <th>No.</th>
                     <th>Kategori</th>
@@ -619,13 +723,13 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
             """
         elif doc_type == "Proforma Invoice":
             html_content += f"""
-            <table style="border: none; margin-bottom: 20px;">
+            <table class="info-table" style="margin-bottom: 20px;">
                 <tr>
                     <td style="border: none;"><b>TO:</b><br>{t_data['Ditujukan Kepada']}<br>Indonesia</td>
                     <td style="border: none; text-align: right;"><b>PI No. :</b> {t_data['PI No.']}<br><b>Date :</b> {t_data['Tanggal PI']}<br><b>Contract No. :</b> {t_data['Nomor Kontrak']}</td>
                 </tr>
             </table>
-            <table>
+            <table class="data-table">
                 <tr>
                     <th>Item</th>
                     <th>Description</th>
@@ -694,6 +798,7 @@ elif menu == "Lihat Akumulasi Riwayat Transaksi":
     
     tx_records = muat_data_transaksi()
     if tx_records:
+        # Menampilkan tabel transaksi murni tanpa duplikat PI (sudah bersih karena sistem upsert)
         st.dataframe(pd.DataFrame(tx_records), use_container_width=True)
     else:
         st.info("Belum ada riwayat transaksi rincian pekerjaan tersimpan.")
