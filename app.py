@@ -499,32 +499,36 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 if df_master_kontrak.empty:
                     df_master_kontrak = df_master
 
+                # --- FILTER KATEGORI YANG KEBAL SPESIFIKASI & HURUF BESAR/KECIL ---
                 kolom_kategori = next((c for c in available_cols if c.lower() == 'kategori'), available_cols[2] if len(available_cols) > 2 else available_cols[0])
-                list_kat = df_master_kontrak[kolom_kategori].dropna().unique().tolist()
+                
+                # Bersihkan data kategori master dari spasi berlebih
+                df_master_kontrak['Clean_Kat'] = df_master_kontrak[kolom_kategori].astype(str).str.strip()
+                list_kat = df_master_kontrak['Clean_Kat'].dropna().unique().tolist()
                 
                 def_kat = get_tval("Kategori", list_kat[0] if list_kat else "")
                 idx_kat = list_kat.index(def_kat) if def_kat in list_kat else 0
                 kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat if list_kat else ["(Kategori Kosong)"], index=idx_kat)
                 
-                df_filtered = df_master_kontrak[df_master_kontrak[kolom_kategori] == kategori_pilih] if list_kat else df_master_kontrak
-                
-                # --- PENCARIAN KOLOM SPESIFIKASI YANG AMAN & ANTI-KEYERROR ---
+                # Filter dengan mencocokkan teks bersih (aman dari spasi/huruf)
+                df_filtered = df_master_kontrak[df_master_kontrak['Clean_Kat'].str.lower() == str(kategori_pilih).strip().lower()] if list_kat else df_master_kontrak
+
+                # --- PENCARIAN KOLOM SPESIFIKASI YANG AMAN ---
                 kolom_spek = None
                 for c in available_cols:
                     if any(keyword in c.lower() for keyword in ['spesifikasi', 'deskripsi', 'pekerjaan', 'uraian']):
                         kolom_spek = c
                         break
                 
-                # Jika tidak ketemu lewat keyword, gunakan indeks ke-3 (atau kolom kedua jika total kolom sedikit)
                 if not kolom_spek or kolom_spek not in df_filtered.columns:
                     kolom_spek = available_cols[3] if len(available_cols) > 3 else available_cols[0]
 
-                list_spek = df_filtered[kolom_spek].dropna().unique().tolist() if kolom_spek in df_filtered.columns else ["(Spesifikasi Kosong)"]
+                list_spek = df_filtered[kolom_spek].dropna().unique().tolist() if not df_filtered.empty and kolom_spek in df_filtered.columns else ["(Spesifikasi Kosong)"]
                 
                 def_spek = get_tval("Deskripsi Pekerjaan", list_spek[0] if list_spek else "")
                 idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
-                deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Deskripsi Kosong)"], index=idx_spek)
-                
+                deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Spesifikasi Kosong)"], index=idx_spek)
+
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
                 
