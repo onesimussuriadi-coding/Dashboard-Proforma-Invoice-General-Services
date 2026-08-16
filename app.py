@@ -78,6 +78,35 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- FUNGSI TERBILANG OTOMATIS ---
+def terbilang(n):
+    n = int(n)
+    if n < 0:
+        return "minus " + terbilang(-n)
+    
+    satuan = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"]
+    
+    if n < 12:
+        return " " + satuan[n]
+    elif n < 20:
+        return terbilang(n - 10) + " Belas"
+    elif n < 100:
+        return terbilang(n // 10) + " Puluh" + terbilang(n % 10)
+    elif n < 200:
+        return " Seratus" + terbilang(n - 100)
+    elif n < 1000:
+        return terbilang(n // 100) + " Ratus" + terbilang(n % 100)
+    elif n < 2000:
+        return " Seribu" + terbilang(n - 1000)
+    elif n < 1000000:
+        return terbilang(n // 1000) + " Ribu" + terbilang(n % 1000)
+    elif n < 1000000000:
+        return terbilang(n // 1000000) + " Juta" + terbilang(n % 1000000)
+    elif n < 1000000000000:
+        return terbilang(n // 1000000000) + " Miliar" + terbilang(n % 1000000000)
+    else:
+        return " Angka terlalu besar"
+
 # --- SISTEM DIREKTORI & DATABASE LOKAL AMAN ---
 DIR_DATABASE = "database_penyimpanan_aman"
 if not os.path.exists(DIR_DATABASE):
@@ -218,12 +247,10 @@ if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
         st.markdown("""
             <div class="dashboard-card">
                 <h3 style="margin-top:0; color:#065f46; font-size:18px;">📌 Input & Panggil Kembali Master Referensi Harga Tetap</h3>
-                <p style="margin:4px 0 0 0; font-size:12px; color:#475569;">Pilih Uraian Pekerjaan di bawah untuk memanggil kembali data guna koreksi/revisi, lalu simpan dengan Update atau Simpan Baru.</p>
             </div>
         """, unsafe_allow_html=True)
 
         master_data_live = muat_master_referensi()
-        
         opsi_panggil_uraian = ["-- Buat Data Referensi Baru --"] + [f"{m.get('Uraian Pekerjaan', '')[:60]}... (Kontrak: {m.get('Nomor Kontrak','')})" for m in master_data_live]
         
         col_p_ref, col_b_ref = st.columns([3, 1])
@@ -309,7 +336,6 @@ if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
 
         master_records = muat_master_referensi()
         if master_records:
-            # TAMPILAN SATU BARIS BERSIH DENGAN TABEL DATAFRAME / CUSTOM LOOP
             for idx, item in enumerate(master_records):
                 c_no, c_kon, c_kat, c_pek, c_unit, c_hrg, c_act1, c_act2 = st.columns([0.6, 1.8, 1.8, 4.0, 0.8, 1.5, 0.7, 0.7])
                 c_no.write(f"**{idx+1}**")
@@ -522,7 +548,7 @@ elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
             st.info("Belum ada data database identifikasi di dalam folder penyimpanan aman.")
 
 # =========================================================================
-# LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN (DINAMIS & SINKRON)
+# LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN
 # =========================================================================
 elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
     if menu == "Input & Proses Rincian Pekerjaan":
@@ -571,7 +597,6 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
             list_kontrak = list(set([str(item.get("Nomor Kontrak", "")) for item in saved_db if item.get("Nomor Kontrak")]))
             list_pi = list(set([str(item.get("Proforma Invoice No.", "")) for item in saved_db if item.get("Proforma Invoice No.")]))
 
-            # --- FORM DI LUAR AGAR SINKRONISASI DROPDOWN BERJALAN DINAMIS ---
             col1, col2 = st.columns(2)
             with col1:
                 def_kontrak = get_tval("Nomor Kontrak", list_kontrak[0] if list_kontrak else "")
@@ -592,12 +617,27 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                 nomor_tender = matched_record.get("Nomor Tender", "")
                 tanggal_pi = matched_record.get("Tanggal Performa Invoice", "")
                 ditujukan_kepada = matched_record.get("Pihak Pertama", "")
+                alamat_pihak_ pertama = matched_record.get("Alamat Pihak Pertama", "")
+                jangka_waktu = matched_record.get("Jangka Waktu Kontrak", "")
             
             with col2:
                 nomor_po = st.text_input("Nomor PO", matched_record.get("Nomor Purchase Order", ""))
                 tanggal_po = st.text_input("Tanggal PO", matched_record.get("Tanggal Purchase Order", ""))
                 mata_uang = st.text_input("Mata Uang", "IDR")
                 desc_po = st.text_area("Lingkup Pekerjaan", matched_record.get("Lingkup Pekerjaan", ""))
+
+            st.markdown("---")
+            st.markdown("#### ⚙️ Pengaturan Khusus Bank & Pembayaran Proforma Invoice")
+            
+            c_bank1, c_bank2 = st.columns(2)
+            with c_bank1:
+                bank_name = st.text_input("Nama Bank", value=get_tval("Bank Name", "BANK RAKYAT INDONESIA (PERSERO) Tbk."))
+                bank_branch = st.text_input("Cabang Bank", value=get_tval("Bank Branch", "Cabang Luwuk"))
+                bank_acc_no = st.text_input("Nomor Rekening", value=get_tval("Account No", "0167 0167 8888 303"))
+            with c_bank2:
+                bank_acc_name = st.text_input("Atas Nama Rekening", value=get_tval("Account Name", "PT. BANGGAI SENTRAL SULAWESI"))
+                attn_to = st.text_input("Attn. (Penerima Invoice)", value=get_tval("Attn", "Accounts Payable - Finance Department"))
+                persen_val = st.number_input("Persentase Tagihan (%)", min_value=1.0, max_value=100.0, value=float(get_tval("Percent", 100.0)))
 
             st.markdown("---")
             st.markdown("#### ⚙️ Pemilihan Kategori & Uraian Pekerjaan (Dinamis & Terhubung)")
@@ -607,13 +647,11 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
             if df_ref_kontrak.empty:
                 df_ref_kontrak = df_ref 
 
-            # 1. PILIH KATEGORI TERLEBIH DAHULU
             list_kat = df_ref_kontrak["Kategori"].dropna().unique().tolist()
             def_kat = get_tval("Kategori", list_kat[0] if list_kat else "")
             idx_kat = list_kat.index(def_kat) if def_kat in list_kat else 0
             kategori_pilih = st.selectbox("Kategori Pekerjaan", list_kat if list_kat else ["-"], index=idx_kat)
 
-            # 2. FILTER URAIAN PEKERJAAN BERDASARKAN KATEGORI YANG DIPILIH SECARA DINAMIS
             df_filtered_kat = df_ref_kontrak[df_ref_kontrak["Kategori"].astype(str).str.strip() == str(kategori_pilih).strip()]
             list_spek = df_filtered_kat["Uraian Pekerjaan"].dropna().unique().tolist() if not df_filtered_kat.empty else df_ref_kontrak["Uraian Pekerjaan"].dropna().unique().tolist()
             
@@ -621,7 +659,6 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
             idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
             deskripsi_pekerjaan = st.selectbox("Uraian Pekerjaan / Spesifikasi", list_spek if list_spek else ["-"], index=idx_spek)
 
-            # 3. AMBIL HARGA SATUAN & UNIT OTOMATIS BERDASARKAN URAIAN YANG DIPILIH
             harga_satuan_otomatis = 0.0
             unit_otomatis = "Month"
 
@@ -649,7 +686,6 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                 with c_item4:
                     tgl_selesai = st.date_input("Tanggal Selesai", value=date(2026, 7, 31))
 
-                # HARGA SATUAN DINAMIS MENGIKUTI MASTER REFERENSI TERPILIH
                 def_hs = float(get_tval("Harga Satuan", harga_satuan_otomatis))
                 
                 st.markdown(f"""
@@ -668,7 +704,7 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
 
                 if submit_proses:
                     waktu_aksi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    total_harga = qty * harga_satuan
+                    total_harga = (qty * harga_satuan) * (persen_val / 100.0)
                     data_transaksi = {
                         "Nomor Kontrak": selected_kontrak,
                         "Nama Kontrak": nama_kontrak,
@@ -676,6 +712,8 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                         "PI No.": selected_pi,
                         "Tanggal PI": tanggal_pi,
                         "Ditujukan Kepada": ditujukan_kepada,
+                        "Alamat Pihak Pertama": alamat_pihak_ pertama if 'alamat_pihak_ pertama' in locals() else "",
+                        "Jangka Waktu Kontrak": jangka_waktu,
                         "Nomor PO": nomor_po,
                         "Deskripsi PO": desc_po,
                         "Tanggal PO": tanggal_po,
@@ -684,10 +722,16 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                         "Deskripsi Pekerjaan": deskripsi_pekerjaan,
                         "Qty": qty,
                         "Unit": unit,
+                        "Percent": persen_val,
                         "Tanggal Mulai": tgl_mulai.strftime("%d %b %Y"),
                         "Tanggal Selesai": tgl_selesai.strftime("%d %b %Y"),
                         "Harga Satuan": harga_satuan,
                         "Total Harga": total_harga,
+                        "Bank Name": bank_name,
+                        "Bank Branch": bank_branch,
+                        "Account No": bank_acc_no,
+                        "Account Name": bank_acc_name,
+                        "Attn": attn_to,
                         "Keterangan": keterangan_pekerjaan,
                         "Update Terakhir": waktu_aksi
                     }
@@ -699,7 +743,7 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                     simpan_data_transaksi(existing_tx)
                     
                     st.session_state["edit_tx_index"] = None
-                    st.success(f"🎉 Data Rincian Pekerjaan untuk PI [{pi_baru}] Berhasil Diproses & Disimpan ke Folder Aman!")
+                    st.success(f"🎉 Data Transaksi untuk PI [{pi_baru}] Berhasil Diproses & Disimpan!")
 
     elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
         st.markdown("""
@@ -726,8 +770,8 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
             t_data = unique_tx_list[selected_idx]
             
             doc_type = st.selectbox("Pilih Jenis Dokumen:", [
-                "Rincian Pekerjaan",
                 "Proforma Invoice",
+                "Rincian Pekerjaan",
                 "WCC (Work Completion Certificate)",
                 "Opname Pekerjaan",
                 "Berita Acara Mulai Pekerjaan (BAMP)",
@@ -737,130 +781,186 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
 
             st.markdown("---")
 
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <title>{doc_type} - PT BSS</title>
-                <style>
-                    body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 30px; margin: 0; }}
-                    .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }}
-                    .title {{ text-align: center; font-weight: bold; font-size: 15px; margin-bottom: 20px; text-transform: uppercase; text-decoration: underline; }}
-                    table.info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; border: none; }}
-                    table.info-table td {{ border: none; padding: 4px 6px; font-size: 11px; vertical-align: top; }}
-                    .label-col {{ width: 160px; font-weight: bold; }}
-                    .colon-col {{ width: 10px; font-weight: bold; text-align: center; }}
-                    table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; }}
-                    table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 6px 10px; font-size: 11px; text-align: left; }}
-                    table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <h2 style="margin: 0; font-size: 16px;">PT. BANGGAI SENTRAL SULAWESI</h2>
-                    <p style="margin: 2px 0; font-size: 10px;">Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
-                </div>
-                <div class="title">{doc_type}</div>
-            """
+            # --- RANCANGAN HTML PROFORMA INVOICE SESUAI FORMAT PDF ANDA ---
+            if doc_type == "Proforma Invoice":
+                terbilang_str = terbilang(t_data['Total Harga']).strip() + " Rupiah"
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Proforma Invoice - PT BSS</title>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 30px; margin: 0; font-size: 12px; }}
+                        .header-title {{ font-size: 18px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase; }}
+                        table.top-info {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
+                        table.top-info td {{ vertical-align: top; padding: 2px 0; }}
+                        table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; }}
+                        table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 8px 10px; font-size: 11px; text-align: left; }}
+                        table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
+                        .bank-section {{ margin-top: 20px; font-size: 11px; line-height: 1.5; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="header-title">Proforma Invoice</div>
+                    
+                    <table class="top-info">
+                        <tr>
+                            <td style="width: 55%;">
+                                <b>TO :</b><br>
+                                <b>{t_data.get('Ditujukan Kepada', 'JOB Pertamina - Medco E&P Tomori Sulawesi')}</b><br>
+                                {t_data.get('Alamat Pihak Pertama', 'Bidakara Office Tower I 4Th Floor, Jl. Gatot Subroto Kav. 71 - 73, Jakarta 12870, Indonesia')}
+                            </td>
+                            <td style="width: 45%;">
+                                <b>Proforma Invoice No.</b> : {t_data['PI No.']}<br>
+                                <b>Tanggal Performa Invoice</b> : {t_data['Tanggal PI']}<br>
+                                <b>Nomor Kontrak</b> : {t_data['Nomor Kontrak']}<br>
+                                <b>Jangka Waktu Kontrak</b> : {t_data.get('Jangka Waktu Kontrak', '24 Month')}<br>
+                                <b>Attn.</b> : {t_data.get('Attn', 'Accounts Payable - Finance Department')}
+                            </td>
+                        </tr>
+                    </table>
 
-            if doc_type == "Rincian Pekerjaan":
-                html_content += f"""
-                <table class="info-table">
-                    <tr>
-                        <td class="label-col">Rincian Pekerjaan</td>
-                        <td class="colon-col">:</td>
-                        <td>{t_data['Nomor Kontrak']}-BSS-WCC-2026</td>
-                        <td class="label-col">Ditujukan Kepada</td>
-                        <td class="colon-col">:</td>
-                        <td>{t_data['Ditujukan Kepada']}</td>
-                    </tr>
-                    <tr>
-                        <td class="label-col">Nomor Kontrak</td>
-                        <td class="colon-col">:</td>
-                        <td>{t_data['Nomor Kontrak']}</td>
-                        <td class="label-col">Nomor Purchase Order</td>
-                        <td class="colon-col">:</td>
-                        <td>{t_data['Nomor PO']}</td>
-                    </tr>
-                    <tr>
-                        <td class="label-col">Nama Kontrak</td>
-                        <td class="colon-col">:</td>
-                        <td>{t_data['Nama Kontrak']}</td>
-                        <td class="label-col">Lingkup Pekerjaan</td>
-                        <td class="colon-col">:</td>
-                        <td>{t_data['Deskripsi PO']}</td>
-                    </tr>
-                    <tr>
-                        <td class="label-col">Nomor Tender</td>
-                        <td class="colon-col">:</td>
-                        <td>{t_data['Nomor Tender']}</td>
-                        <td class="label-col">Tanggal Purchase Order</td>
-                        <td class="colon-col">:</td>
-                        <td>{t_data['Tanggal PO']}</td>
-                    </tr>
-                    <tr>
-                        <td class="label-col">Tanggal Proforma</td>
-                        <td class="colon-col">:</td>
-                        <td>{t_data['Tanggal PI']}</td>
-                        <td class="label-col">Mata Uang</td>
-                        <td class="colon-col">:</td>
-                        <td>{t_data['Mata Uang']}</td>
-                    </tr>
-                </table>
-                <table class="data-table">
-                    <tr>
-                        <th>No.</th>
-                        <th>Kategori</th>
-                        <th>Uraian Pekerjaan</th>
-                        <th>Qty Out</th>
-                        <th>Unit</th>
-                        <th>Tanggal Mulai</th>
-                        <th>Tanggal Selesai</th>
-                        <th>Harga Satuan (Rp)</th>
-                        <th>Total Harga (Rp)</th>
-                        <th>Keterangan</th>
-                    </tr>
-                    <tr>
-                        <td style="text-align: center;">1</td>
-                        <td>{t_data.get('Kategori', '-')}</td>
-                        <td>{t_data['Deskripsi Pekerjaan']}</td>
-                        <td style="text-align: center;">{t_data['Qty']:,.2f}</td>
-                        <td style="text-align: center;">{t_data['Unit']}</td>
-                        <td style="text-align: center;">{t_data.get('Tanggal Mulai', '-')}</td>
-                        <td style="text-align: center;">{t_data.get('Tanggal Selesai', '-')}</td>
-                        <td style="text-align: right;">Rp {t_data['Harga Satuan']:,.2f}</td>
-                        <td style="text-align: right;">Rp {t_data['Total Harga']:,.2f}</td>
-                        <td>{t_data['Keterangan']}</td>
-                    </tr>
-                </table>
-                <p style="text-align: right; font-weight: bold; font-size: 13px;">TOTAL TAGIHAN: Rp {t_data['Total Harga']:,.2f}</p>
-                <br>
-                <table style="border: none; width: 100%; margin-top: 30px;">
-                    <tr>
-                        <td style="border: none; text-align: center; width: 50%;">
-                            <b>DIBUAT OLEH</b><br><br><br><br>
-                            <u>Yanuar Wiranata / Ireine Langi</u><br>Supervisor
-                        </td>
-                        <td style="border: none; text-align: center; width: 50%;">
-                            <b>DIPERIKSA</b><br><br><br><br>
-                            <u>Onesimus Suriadi</u><br>Manager General Services
-                        </td>
-                    </tr>
-                </table>
+                    <table class="data-table">
+                        <tr>
+                            <th>Item</th>
+                            <th>Description</th>
+                            <th>Qty</th>
+                            <th>Unit</th>
+                            <th>Duration</th>
+                            <th>Unit Price<br>(IDR)</th>
+                            <th>Percent</th>
+                            <th>TOTAL (IDR)</th>
+                        </tr>
+                        <tr>
+                            <td style="text-align: center;">1</td>
+                            <td>
+                                <b>{t_data.get('Kategori', 'MONTHLY BASIS')}</b><br>
+                                {t_data['Deskripsi Pekerjaan']}
+                            </td>
+                            <td style="text-align: center;">{t_data['Qty']:,.2f}</td>
+                            <td style="text-align: center;">{t_data['Unit']}</td>
+                            <td style="text-align: center;">1.0 Month</td>
+                            <td style="text-align: right;">Rp {t_data['Harga Satuan']:,.2f}</td>
+                            <td style="text-align: center;">{t_data.get('Percent', 100)}%</td>
+                            <td style="text-align: right;">Rp {t_data['Total Harga']:,.2f}</td>
+                        </tr>
+                    </table>
+
+                    <div style="text-align: right; font-weight: bold; font-size: 13px; margin-bottom: 10px;">
+                        Total : Rp {t_data['Total Harga']:,.2f}
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <b>Terbilang :</b> <i>{terbilang_str}</i>
+                    </div>
+
+                    <div class="bank-section">
+                        <b>PAYMENT INSTRUCTION</b><br>
+                        Please remit to our bank:<br>
+                        <b>Bank Name :</b> {t_data.get('Bank Name', 'BANK RAKYAT INDONESIA (PERSERO) Tbk.')}<br>
+                        <b>Branch :</b> {t_data.get('Bank Branch', 'Cabang Luwuk')}<br>
+                        <b>Account No :</b> {t_data.get('Account No', '0167 0167 8888 303')}<br>
+                        <b>Account Name :</b> {t_data.get('Account Name', 'PT. BANGGAI SENTRAL SULAWESI')}<br><br><br>
+                        <b>PT. BANGGAI SENTRAL SULAWESI</b><br><br><br><br>
+                        <u>Onesimus Suriadi</u><br>
+                        General Service Manager
+                    </div>
+                </body>
+                </html>
+                """
+            elif doc_type == "Rincian Pekerjaan":
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Rincian Pekerjaan - PT BSS</title>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 30px; margin: 0; }}
+                        .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }}
+                        .title {{ text-align: center; font-weight: bold; font-size: 15px; margin-bottom: 20px; text-transform: uppercase; text-decoration: underline; }}
+                        table.info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; border: none; }}
+                        table.info-table td {{ border: none; padding: 4px 6px; font-size: 11px; vertical-align: top; }}
+                        .label-col {{ width: 160px; font-weight: bold; }}
+                        .colon-col {{ width: 10px; font-weight: bold; text-align: center; }}
+                        table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; }}
+                        table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 6px 10px; font-size: 11px; text-align: left; }}
+                        table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h2 style="margin: 0; font-size: 16px;">PT. BANGGAI SENTRAL SULAWESI</h2>
+                        <p style="margin: 2px 0; font-size: 10px;">Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
+                    </div>
+                    <div class="title">Rincian Pekerjaan</div>
+                    
+                    <table class="info-table">
+                        <tr>
+                            <td class="label-col">Rincian Pekerjaan</td>
+                            <td class="colon-col">:</td>
+                            <td>{t_data['Nomor Kontrak']}-BSS-WCC-2026</td>
+                            <td class="label-col">Ditujukan Kepada</td>
+                            <td class="colon-col">:</td>
+                            <td>{t_data['Ditujukan Kepada']}</td>
+                        </tr>
+                        <tr>
+                            <td class="label-col">Nomor Kontrak</td>
+                            <td class="colon-col">:</td>
+                            <td>{t_data['Nomor Kontrak']}</td>
+                            <td class="label-col">Nomor Purchase Order</td>
+                            <td class="colon-col">:</td>
+                            <td>{t_data['Nomor PO']}</td>
+                        </tr>
+                        <tr>
+                            <td class="label-col">Nama Kontrak</td>
+                            <td class="colon-col">:</td>
+                            <td>{t_data['Nama Kontrak']}</td>
+                            <td class="label-col">Lingkup Pekerjaan</td>
+                            <td class="colon-col">:</td>
+                            <td>{t_data['Deskripsi PO']}</td>
+                        </tr>
+                    </table>
+                    <table class="data-table">
+                        <tr>
+                            <th>No.</th>
+                            <th>Kategori</th>
+                            <th>Uraian Pekerjaan</th>
+                            <th>Qty Out</th>
+                            <th>Unit</th>
+                            <th>Harga Satuan (Rp)</th>
+                            <th>Total Harga (Rp)</th>
+                        </tr>
+                        <tr>
+                            <td style="text-align: center;">1</td>
+                            <td>{t_data.get('Kategori', '-')}</td>
+                            <td>{t_data['Deskripsi Pekerjaan']}</td>
+                            <td style="text-align: center;">{t_data['Qty']:,.2f}</td>
+                            <td style="text-align: center;">{t_data['Unit']}</td>
+                            <td style="text-align: right;">Rp {t_data['Harga Satuan']:,.2f}</td>
+                            <td style="text-align: right;">Rp {t_data['Total Harga']:,.2f}</td>
+                        </tr>
+                    </table>
+                    <p style="text-align: right; font-weight: bold; font-size: 13px;">TOTAL TAGIHAN: Rp {t_data['Total Harga']:,.2f}</p>
+                </body>
+                </html>
                 """
             else:
-                html_content += f"""
-                <p><b>Nomor Kontrak:</b> {t_data['Nomor Kontrak']}</p>
-                <p><b>Nama Kontrak:</b> {t_data['Nama Kontrak']}</p>
-                <p><b>Nilai Transaksi:</b> Rp {t_data['Total Harga']:,.2f}</p>
-                <p>Dokumen resmi untuk <b>{doc_type}</b> telah terbit berdasarkan data transaksi sistem PT. Banggai Sentral Sulawesi.</p>
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <body>
+                    <h2>{doc_type}</h2>
+                    <p><b>Nomor Kontrak:</b> {t_data['Nomor Kontrak']}</p>
+                    <p><b>Nilai Transaksi:</b> Rp {t_data['Total Harga']:,.2f}</p>
+                    <p>Dokumen resmi untuk <b>{doc_type}</b> telah terbit berdasarkan data transaksi sistem.</p>
+                </body>
+                </html>
                 """
 
-            html_content += "</body></html>"
-
             st.markdown('<div class="document-preview">', unsafe_allow_html=True)
-            st.components.v1.html(html_content, height=500, scrolling=True)
+            st.components.v1.html(html_content, height=600, scrolling=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
@@ -879,14 +979,14 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                         }}
                     </script>
                     <button onclick="printDoc()" style="width: 100%; background-color: #10b981; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-                        🖨️ Cetak / Print Dokumen (Klik Disini)
+                        🖨️ Cetak / Print Dokumen ke PDF (Klik Disini)
                     </button>
                 """
                 st.components.v1.html(print_script, height=50)
 
             with col_btn2:
                 b64_pdf = base64.b64encode(html_content.encode()).decode()
-                download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="{doc_type.replace(" ", "_")}_{t_data["PI No."].replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download Dokumen (Format PDF/HTML)</button></a>'
+                download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="{doc_type.replace(" ", "_")}_{t_data["PI No."].replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File HTML/PDF</button></a>'
                 st.markdown(download_link, unsafe_allow_html=True)
 
     elif menu == "Lihat Akumulasi Riwayat Transaksi":
