@@ -553,13 +553,15 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 tgl_selesai = st.date_input("Tanggal Selesai", value=date(2026, 7, 31))
 
             def_hs = float(get_tval("Harga Satuan", harga_satuan_otomatis))
+            
+            # --- UBAH TEKS KETERANGAN DI SINI AGAR SESUAI DENGAN URAIAN PEKERJAAN ---
             st.markdown(f"""
-                <div style="font-weight:600; font-size:13px; margin-bottom:5px; color:#0f172a;">Harga Satuan (Rp - Membaca Master Kontrak Berdasarkan Nomor Kontrak)</div>
+                <div style="font-weight:600; font-size:13px; margin-bottom:5px; color:#0f172a;">Harga Satuan (Rp - Membaca Master Kontrak Berdasarkan Uraian Pekerjaan)</div>
                 <div style="background-color:#ffffff; border:1px solid #cbd5e1; padding:8px 12px; border-radius:6px; font-size:15px; font-weight:bold; color:#0f172a;">
                     Rp {def_hs:,.2f}
                 </div>
             """, unsafe_allow_html=True)
-            harga_satuan = def_hs  
+            harga_satuan = def_hs
             
             def_ket = get_tval("Keterangan", "")
             keterangan_pekerjaan = st.text_input("Keterangan / Deskripsi Tambahan", value=def_ket)
