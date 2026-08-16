@@ -215,7 +215,6 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.success("📂 **Status Sistem:** Terhubung ke Database Lokal Aman")
 
-
 # =========================================================================
 # LOGIKA MODUL 1: DATABASE & MASTER KONTRAK
 # =========================================================================
@@ -410,11 +409,8 @@ elif menu == "Master Kontrak":
             sheet_pilih = st.selectbox("Pilih Sheet:", xl_f.sheet_names)
             st.dataframe(muat_master_kontrak(), use_container_width=True)
     else:
-        st.warning("⚠️ Belum ada file Master Kontrak di folder.")
-
-
-# =========================================================================
-# LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN
+        st.warning("⚠️ Belum ada file Master Kontrak di folder.")# =========================================================================
+# LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN (DENGAN VLOOKUP BERBASIS KONTRAK)
 # =========================================================================
 elif menu == "Input & Proses Rincian Pekerjaan":
     st.markdown("""
@@ -489,22 +485,29 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 desc_po = st.text_area("Lingkup Pekerjaan", matched_record.get("Lingkup Pekerjaan", ""))
 
             st.markdown("---")
-            st.markdown("#### ⚙️ Pemilihan Kategori, Spesifikasi & Rujukan Master Kontrak")
+            st.markdown("#### ⚙️ Pemilihan Kategori, Spesifikasi & Rujukan Master Kontrak (VLOOKUP Berbasis Kontrak)")
             
             if not df_master.empty:
                 available_cols = [str(c).strip() for c in df_master.columns.tolist()]
                 
-                # --- PENCARIAN KOLOM PRESISI SESUAI HEADER EXCEL ANDA ---
+                # --- VLOOKUP UTAMA: FILTER BERDASARKAN NOMOR KONTRAK TERLEBIH DAHULU ---
+                # Kolom indeks ke-1 atau kolom yang mencakup nomor kontrak
+                kolom_kontrak_master = available_cols[1] if len(available_cols) > 1 else available_cols[0]
+                df_master_kontrak = df_master[df_master[kolom_kontrak_master].astype(str).str.strip() == str(selected_kontrak).strip()]
+                
+                # Fallback jika data kontrak di master tidak ditemukan persis, gunakan seluruh master agar aplikasi tetap berjalan
+                if df_master_kontrak.empty:
+                    df_master_kontrak = df_master
+
                 kolom_kategori = next((c for c in available_cols if c.lower() == 'kategori'), available_cols[2] if len(available_cols) > 2 else available_cols[0])
-                list_kat = df_master[kolom_kategori].dropna().unique().tolist()
+                list_kat = df_master_kontrak[kolom_kategori].dropna().unique().tolist()
                 
                 def_kat = get_tval("Kategori", list_kat[0] if list_kat else "")
                 idx_kat = list_kat.index(def_kat) if def_kat in list_kat else 0
                 kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat if list_kat else ["(Kategori Kosong)"], index=idx_kat)
                 
-                df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih] if list_kat else df_master
+                df_filtered = df_master_kontrak[df_master_kontrak[kolom_kategori] == kategori_pilih] if list_kat else df_master_kontrak
                 
-                # Menyesuaikan persis dengan header 'Spesifikasi / Deskripsi Pekerjaan' dari Excel Anda
                 kolom_spek = next((c for c in available_cols if 'spesifikasi' in c.lower() or 'deskripsi' in c.lower()), available_cols[3] if len(available_cols) > 3 else available_cols[1])
                 list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
                 
@@ -512,7 +515,6 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
                 deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Deskripsi Kosong)"], index=idx_spek)
                 
-                # --- VLOOKUP HARGA SATUAN PRESISI BERDASARKAN KOLOM 'Harga Satuan' ---
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
                 
@@ -520,7 +522,6 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 if not matched_row_df.empty:
                     row_m = matched_row_df.iloc[0]
                     
-                    # Mengacu persis ke header 'Harga Satuan' pada file Excel Anda
                     kolom_hs = next((c for c in available_cols if c.lower() == 'harga satuan'), None)
                     if kolom_hs and kolom_hs in row_m:
                         try:
@@ -553,7 +554,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
 
             def_hs = float(get_tval("Harga Satuan", harga_satuan_otomatis))
             st.markdown(f"""
-                <div style="font-weight:600; font-size:13px; margin-bottom:5px; color:#0f172a;">Harga Satuan (Rp - Membaca Master Kontrak)</div>
+                <div style="font-weight:600; font-size:13px; margin-bottom:5px; color:#0f172a;">Harga Satuan (Rp - Membaca Master Kontrak Berdasarkan Nomor Kontrak)</div>
                 <div style="background-color:#ffffff; border:1px solid #cbd5e1; padding:8px 12px; border-radius:6px; font-size:15px; font-weight:bold; color:#0f172a;">
                     Rp {def_hs:,.2f}
                 </div>
