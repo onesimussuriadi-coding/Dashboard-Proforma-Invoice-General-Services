@@ -494,16 +494,8 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             if not df_master.empty:
                 available_cols = [str(c).strip() for c in df_master.columns.tolist()]
                 
-                # --- PENCARIAN KOLOM AMAN & TAHAN BANTING (MENCEGAH KEYERROR) ---
-                kolom_kategori = None
-                for c in available_cols:
-                    c_lower = c.lower()
-                    if 'kategori' in c_lower or 'kategory' in c_lower:
-                        kolom_kategori = c
-                        break
-                if not kolom_kategori:
-                    kolom_kategori = available_cols[3] if len(available_cols) > 3 else available_cols[0]
-
+                # --- PENCARIAN KOLOM PRESISI SESUAI HEADER EXCEL ANDA ---
+                kolom_kategori = next((c for c in available_cols if c.lower() == 'kategori'), available_cols[2] if len(available_cols) > 2 else available_cols[0])
                 list_kat = df_master[kolom_kategori].dropna().unique().tolist()
                 
                 def_kat = get_tval("Kategori", list_kat[0] if list_kat else "")
@@ -512,22 +504,15 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 
                 df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih] if list_kat else df_master
                 
-                kolom_spek = None
-                for c in available_cols:
-                    c_lower = c.lower()
-                    if 'spesifikasi' in c_lower or 'deskripsi' in c_lower or 'description' in c_lower:
-                        kolom_spek = c
-                        break
-                if not kolom_spek:
-                    kolom_spek = available_cols[4] if len(available_cols) > 4 else available_cols[1]
-
+                # Menyesuaikan persis dengan header 'Spesifikasi / Deskripsi Pekerjaan' dari Excel Anda
+                kolom_spek = next((c for c in available_cols if 'spesifikasi' in c.lower() or 'deskripsi' in c.lower()), available_cols[3] if len(available_cols) > 3 else available_cols[1])
                 list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
                 
                 def_spek = get_tval("Deskripsi Pekerjaan", list_spek[0] if list_spek else "")
                 idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
                 deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Deskripsi Kosong)"], index=idx_spek)
                 
-                # --- VLOOKUP HARGA SATUAN PRESISI BERDASARKAN KOLOM 'Unit Price' ---
+                # --- VLOOKUP HARGA SATUAN PRESISI BERDASARKAN KOLOM 'Harga Satuan' ---
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
                 
@@ -535,7 +520,8 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 if not matched_row_df.empty:
                     row_m = matched_row_df.iloc[0]
                     
-                    kolom_hs = next((c for c in available_cols if c.lower() in ['unit price', 'harga satuan', 'satuan harga', 'rate']), None)
+                    # Mengacu persis ke header 'Harga Satuan' pada file Excel Anda
+                    kolom_hs = next((c for c in available_cols if c.lower() == 'harga satuan'), None)
                     if kolom_hs and kolom_hs in row_m:
                         try:
                             harga_satuan_otomatis = float(row_m[kolom_hs])
