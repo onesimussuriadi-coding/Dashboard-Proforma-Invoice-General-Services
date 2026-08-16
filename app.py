@@ -132,11 +132,16 @@ def muat_master_kontrak():
     try:
         xl = pd.ExcelFile(files[0])
         df = xl.parse(xl.sheet_names[0])
+        
+        # Pembersihan otomatis kolom Unnamed / kosong agar sinkron sempurna dengan Excel
+        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+        if 'No.' in df.columns:
+            df = df.dropna(subset=['No.'], how='all')
         return df
     except:
         return pd.DataFrame()
 
-# Inisialisasi Session State dengan memori aman yang tidak menimpa disk jika ada
+# Inisialisasi Session State
 if "db_tersimpan" not in st.session_state:
     disk_data = muat_data_invoice()
     st.session_state["db_tersimpan"] = disk_data if disk_data else []
@@ -376,7 +381,7 @@ elif menu == "Master Kontrak":
         if pilih_file:
             xl_f = pd.ExcelFile(pilih_file)
             sheet_pilih = st.selectbox("Pilih Sheet:", xl_f.sheet_names)
-            st.dataframe(pd.read_excel(pilih_file, sheet_name=sheet_pilih), use_container_width=True)
+            st.dataframe(muat_master_kontrak(), use_container_width=True)
     else:
         st.warning("⚠️ Belum ada file Master Kontrak di folder.")
 
@@ -465,8 +470,8 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             if not df_master.empty:
                 available_cols = [str(c).strip() for c in df_master.columns.tolist()]
                 
-                # Kolom Kategory
-                kolom_kategori = next((c for c in available_cols if c.lower() in ['kategory', 'kategori']), available_cols[3] if len(available_cols) > 3 else available_cols[0])
+                # Pencarian kolom Kategori
+                kolom_kategori = next((c for c in available_cols if 'kategori' in c.lower() or 'kategory' in c.lower()), available_cols[3] if len(available_cols) > 3 else available_cols[0])
                 list_kat = df_master[kolom_kategori].dropna().unique().tolist()
                 
                 def_kat = get_tval("Kategori", list_kat[0] if list_kat else "")
@@ -475,30 +480,42 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 
                 df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih] if list_kat else df_master
                 
-                # Kolom Description
-                kolom_spek = next((c for c in available_cols if c.lower() in ['description', 'spesifikasi', 'deskripsi', 'item']), available_cols[4] if len(available_cols) > 4 else available_cols[1])
+                # Pencarian kolom Spesifikasi / Deskripsi Pekerjaan
+                kolom_spek = next((c for c in available_cols if 'spesifikasi' in c.lower() or 'deskripsi' in c.lower() or 'description' in c.lower()), available_cols[4] if len(available_cols) > 4 else available_cols[1])
                 list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
                 
                 def_spek = get_tval("Deskripsi Pekerjaan", list_spek[0] if list_spek else "")
                 idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
                 deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Deskripsi Kosong)"], index=idx_spek)
                 
-                # --- VLOOKUP HARGA SATUAN PRESISI BERDASARKAN BARIS SPESIFIKASI TERPILIH ---
-                # Sesuai instruksi mutlak: Diambil tepat dari baris spesifikasi terpilih, pada indeks baris ke-4 secara riil dan kolom ke-10 (indeks ke-9)
+                # --- VLOOKUP HARGA SATUAN PRESISI BERDASARKAN KOLOM 'Unit Price' ATAU 'Harga Satuan' ---
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
                 
                 matched_row_df = df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan]
                 if not matched_row_df.empty:
                     row_m = matched_row_df.iloc[0]
-                    # Mengambil nilai dari kolom ke-10 (indeks ke-9) dari baris spesifikasi yang cocok
-                    if len(row_m) > 9:
+                    
+                    # Pencarian presisi kolom Unit Price / Harga Satuan
+                    kolom_hs = next((c for c in available_cols if c.lower() in ['unit price', 'harga satuan', 'satuan harga', 'rate']), None)
+                    if kolom_hs and kolom_hs in row_m:
                         try:
-                            harga_satuan_otomatis = float(row_m.iloc[9])
+                            harga_satuan_otomatis = float(row_m[kolom_hs])
                         except:
                             harga_satuan_otomatis = 0.0
+                    else:
+                        # Fallback cadangan jika nama kolom tidak persis
+                        for col in available_cols:
+                            if 'price' in col.lower() or 'harga' in col.lower():
+                                if 'total' not in col.lower():
+                                    try:
+                                        harga_satuan_otomatis = float(row_m[col])
+                                        break
+                                    except:
+                                        pass
 
-                    kolom_unit = next((c for c in available_cols if 'unit' in c.lower()), None)
+                    # Pencarian kolom Unit
+                    kolom_unit = next((c for c in available_cols if c.lower() in ['unit', 'satuan']), None)
                     if kolom_unit:
                         unit_otomatis = str(row_m.get(kolom_unit, "Month"))
             else:
@@ -521,7 +538,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             with c_item4:
                 tgl_selesai = st.date_input("Tanggal Selesai", value=date(2026, 7, 31))
 
-            # Harga Satuan bersih tanpa tombol +/- (merujuk otomatis ke kolom ke-10 master kontrak dari spesifikasi terpilih)
+            # Harga Satuan bersih tanpa tombol +/- (merujuk presisi ke kolom Unit Price master kontrak)
             def_hs = float(get_tval("Harga Satuan", harga_satuan_otomatis))
             st.markdown(f"""
                 <div style="font-weight:600; font-size:13px; margin-bottom:5px; color:#0f172a;">Harga Satuan (Rp - Membaca Master Kontrak)</div>
