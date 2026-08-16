@@ -151,10 +151,10 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         
         <table style="width: 100%; border: none; margin-top: 15px;">
             <tr>
-                <td style="border: none; text-align: left; font-size: 11px; vertical-align: top; width: 55%;">
+                <td style="border: none; text-align: left; font-size: 11px; vertical-align: top; width: 60%;">
                     <b>Terbilang :</b> <i>{terbilang_str}</i>
                 </td>
-                <td style="border: none; text-align: right; font-weight: bold; font-size: 13px; width: 45%; vertical-align: top;">
+                <td style="border: none; text-align: right; font-weight: bold; font-size: 13px; width: 40%; vertical-align: top;">
                     TOTAL TAGIHAN: Rp {t_data['Total Harga']:,.2f}
                 </td>
             </tr>

@@ -140,10 +140,6 @@ def tampilkan_proforma_invoice(transaksi_list):
             </tr>
         </table>
 
-        <div style="text-align: right; font-weight: bold; font-size: 12px; margin-bottom: 10px;">
-            Total : Rp {t_data['Total Harga']:,.2f}
-        </div>
-
         <div style="margin-bottom: 15px; font-size: 11px;">
             <b>Terbilang :</b> <i>{terbilang_str}</i>
         </div>
