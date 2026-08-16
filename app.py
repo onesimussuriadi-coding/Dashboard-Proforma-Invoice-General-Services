@@ -78,7 +78,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEM DATABASE EXCEL LOKAL (ANTI-RESET / AMAN TANPA PENGHAPUSAN OTOMATIS) ---
+# --- SISTEM DATABASE EXCEL LOKAL (ANTI-RESET / AMAN) ---
 EXCEL_INVOICE = "database_proforma_invoice.xlsx"
 EXCEL_TRANSAKSI = "database_transaksi_rincian.xlsx"
 
@@ -87,7 +87,6 @@ def muat_data_invoice():
         try:
             df = pd.read_excel(EXCEL_INVOICE)
             if df is not None and not df.empty:
-                # Filter baris kosong agar data aman terbaca
                 df = df.dropna(how='all')
                 return df.to_dict(orient="records")
         except:
@@ -100,7 +99,6 @@ def simpan_data_invoice(data_list):
     sisa_cols = [c for c in df_baru.columns if c not in cols_prioritas]
     df_baru = df_baru[[c for c in cols_prioritas if c in df_baru.columns] + sisa_cols]
     
-    # Mode Append / Akumulasi Aman: Jika file sudah ada, gabungkan data baru tanpa merusak data lama yang di-delete manual
     if os.path.exists(EXCEL_INVOICE):
         try:
             df_lama = pd.read_excel(EXCEL_INVOICE)
@@ -171,17 +169,18 @@ if "edit_tx_index" not in st.session_state:
     st.session_state["edit_tx_index"] = None
 
 # --- HEADER UTAMA ---
-current_time_str = datetime.now().strftime("%d %b %Y, %H:%M:%S WITA")
-st.markdown(f"""
+st.markdown("""
     <div class="company-header-centered">
         <h2 style="margin:0; font-size: 24px; font-weight: 700; color: #ffffff;">PT. BANGGAI SENTRAL SULAWESI</h2>
         <p style="margin:4px 0 0 0; font-size: 13px; color: #34d399; font-weight: 500;">General Contractor and Suppliers | Dashboard Terintegrasi Utama</p>
     </div>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR: NAVIGASI 2 TINGKAT & TANGGAL JAM TERUPDATE ---
+# --- SIDEBAR: NAVIGASI 2 TINGKAT & WAKTU LOKAL TERUPDATE ---
 st.sidebar.markdown("### 🗂️ Navigasi Dashboard Utama")
-st.sidebar.markdown(f"🕒 **Update Terakhir:**<br>`{current_time_str}`", unsafe_allow_html=True)
+# Menggunakan waktu sistem lokal yang akurat
+current_time_str = datetime.now().strftime("%d %b %Y, %H:%M:%S")
+st.sidebar.markdown(f"🕒 **Update Terakhir:**<br>`{current_time_str} WITA`", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 
 modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
@@ -209,7 +208,7 @@ st.sidebar.success("📂 **Status Sistem:** Terhubung ke Database Lokal Aman")
 
 
 # =========================================================================
-# LOGIKA MODUL 1: DATABASE & MASTER KONTRAK (DENGAN HISTORI INPUT)
+# LOGIKA MODUL 1: DATABASE & MASTER KONTRAK (AMAN & STABIL)
 # =========================================================================
 if menu == "Input Database & Invoice (29 Kolom)":
     st.markdown("""
@@ -218,7 +217,6 @@ if menu == "Input Database & Invoice (29 Kolom)":
         </div>
     """, unsafe_allow_html=True)
 
-    # Sinkronisasi ulang dengan file Excel lokal agar data tidak pernah kosong/hilang
     disk_check = muat_data_invoice()
     if disk_check and len(disk_check) > len(st.session_state["db_tersimpan"]):
         st.session_state["db_tersimpan"] = disk_check
@@ -254,14 +252,13 @@ if menu == "Input Database & Invoice (29 Kolom)":
     def get_val(key):
         return def_data.get(key, "")
 
-    # Fungsi helper untuk memunculkan histori input terdahulu pada setiap kolom isian
     def get_history(key_name):
         hist = [str(item.get(key_name, "")) for item in st.session_state["db_tersimpan"] if item.get(key_name)]
         return sorted(list(set(hist)))
 
     st.markdown("""
         <div class="dashboard-card" style="margin-top: 10px;">
-            <h4 style="margin:0; color:#065f46; font-size:16px;">📝 Lembar Kerja 29 Kolom Identifikasi Kontrak & PI (Dengan Histori Input)</h4>
+            <h4 style="margin:0; color:#065f46; font-size:16px;">📝 Lembar Kerja 29 Kolom Identifikasi Kontrak & PI</h4>
         </div>
     """, unsafe_allow_html=True)
 
@@ -269,42 +266,44 @@ if menu == "Input Database & Invoice (29 Kolom)":
         col_no, col_item, col_input = st.columns([0.8, 3.5, 7])
         with col_no: st.markdown("**No**")
         with col_item: st.markdown("**Item**")
-        with col_input: st.markdown("**Kolom Input Data (Pilih Histori atau Ketik Baru)**")
+        with col_input: st.markdown("**Kolom Input Data**")
         st.markdown("---")
 
-        def baris_input_histori(no, label, key_field, default_val="", is_area=False):
+        def baris_input_aman(no, label, key_field, default_val="", is_area=False):
             c1, c2, c3 = st.columns([0.8, 3.5, 7])
             with c1: c1.write(f"**{no}.**")
             with c2: c2.write(label)
             with c3:
                 hist_list = get_history(key_field)
                 if hist_list:
-                    # Kotak pilihan histori + teks input gabungan untuk efisiensi tinggi
-                    pilihan_gabung = ["-- Ketik Baru atau Pilih Histori --"] + hist_list
-                    default_idx = pilihan_gabung.index(default_val) if default_val in pilihan_gabung else 0
+                    pilihan_gabung = ["-- Ketik Baru / Pilih Histori --"] + hist_list
+                    default_idx = pilihan_gabung.index(str(default_val)) if str(default_val) in pilihan_gabung else 0
                     pilih_h = st.selectbox(f"hist_{no}", pilihan_gabung, index=default_idx, label_visibility="collapsed")
-                    if pilih_h == "-- Ketik Baru atau Pilih Histori --":
-                        return st.text_input(f"input_{no}", value=default_val, label_visibility="collapsed", placeholder="Ketik data baru di sini...")
+                    if pilih_h == "-- Ketik Baru / Pilih Histori --":
+                        if is_area:
+                            return st.text_area(f"input_{no}", value=str(default_val), label_visibility="collapsed", height=75)
+                        else:
+                            return st.text_input(f"input_{no}", value=str(default_val), label_visibility="collapsed")
                     else:
-                        return st.text_input(f"input_{no}", value=pilih_h, label_visibility="collapsed")
+                        return st.text_input(f"input_{no}", value=str(pilih_h), label_visibility="collapsed")
                 else:
                     if is_area:
-                        return st.text_area(f"input_{no}", value=default_val, label_visibility="collapsed", height=75)
+                        return st.text_area(f"input_{no}", value=str(default_val), label_visibility="collapsed", height=75)
                     else:
-                        return st.text_input(f"input_{no}", value=default_val, label_visibility="collapsed")
+                        return st.text_input(f"input_{no}", value=str(default_val), label_visibility="collapsed")
 
-        val_1 = baris_input_histori(1, "Nomor Kontrak", "Nomor Kontrak", val=get_val("Nomor Kontrak"))
-        val_2 = baris_input_histori(2, "Nomor Tender", "Nomor Tender", val=get_val("Nomor Tender"))
-        val_3 = baris_input_histori(3, "Judul Kontrak", "Judul Kontrak", val=get_val("Judul Kontrak"), is_area=True)
-        val_4 = baris_input_histori(4, "Tanggal Kontrak", "Tanggal Kontrak", val=get_val("Tanggal Kontrak"))
-        val_5 = baris_input_histori(5, "Jangka Waktu Kontrak", "Jangka Waktu Kontrak", val=get_val("Jangka Waktu Kontrak"))
-        val_6 = baris_input_histori(6, "Proforma Invoice No.", "Proforma Invoice No.", val=get_val("Proforma Invoice No."))
-        val_7 = baris_input_histori(7, "Tanggal Performa Invoice", "Tanggal Performa Invoice", val=get_val("Tanggal Performa Invoice"))
-        val_8 = baris_input_histori(8, "Nomor Purchase Order", "Nomor Purchase Order", val=get_val("Nomor Purchase Order"))
-        val_9 = baris_input_histori(9, "Tanggal Purchase Order", "Tanggal Purchase Order", val=get_val("Tanggal Purchase Order"))
-        val_10 = baris_input_histori(10, "Lingkup Pekerjaan", "Lingkup Pekerjaan", val=get_val("Lingkup Pekerjaan"), is_area=True)
-        val_11 = baris_input_histori(11, "Pihak Pertama", "Pihak Pertama", val=get_val("Pihak Pertama"))
-        val_12 = baris_input_histori(12, "Alamat Pihak Pertama", "Alamat Pihak Pertama", val=get_val("Alamat Pihak Pertama"), is_area=True)
+        val_1 = baris_input_aman(1, "Nomor Kontrak", "Nomor Kontrak", default_val=get_val("Nomor Kontrak"))
+        val_2 = baris_input_aman(2, "Nomor Tender", "Nomor Tender", default_val=get_val("Nomor Tender"))
+        val_3 = baris_input_aman(3, "Judul Kontrak", "Judul Kontrak", default_val=get_val("Judul Kontrak"), is_area=True)
+        val_4 = baris_input_aman(4, "Tanggal Kontrak", "Tanggal Kontrak", default_val=get_val("Tanggal Kontrak"))
+        val_5 = baris_input_aman(5, "Jangka Waktu Kontrak", "Jangka Waktu Kontrak", default_val=get_val("Jangka Waktu Kontrak"))
+        val_6 = baris_input_aman(6, "Proforma Invoice No.", "Proforma Invoice No.", default_val=get_val("Proforma Invoice No."))
+        val_7 = baris_input_aman(7, "Tanggal Performa Invoice", "Tanggal Performa Invoice", default_val=get_val("Tanggal Performa Invoice"))
+        val_8 = baris_input_aman(8, "Nomor Purchase Order", "Nomor Purchase Order", default_val=get_val("Nomor Purchase Order"))
+        val_9 = baris_input_aman(9, "Tanggal Purchase Order", "Tanggal Purchase Order", default_val=get_val("Tanggal Purchase Order"))
+        val_10 = baris_input_aman(10, "Lingkup Pekerjaan", "Lingkup Pekerjaan", default_val=get_val("Lingkup Pekerjaan"), is_area=True)
+        val_11 = baris_input_aman(11, "Pihak Pertama", "Pihak Pertama", default_val=get_val("Pihak Pertama"))
+        val_12 = baris_input_aman(12, "Alamat Pihak Pertama", "Alamat Pihak Pertama", default_val=get_val("Alamat Pihak Pertama"), is_area=True)
         
         c1, c2, c3 = st.columns([0.8, 3.5, 7])
         c1.write("**13.**")
@@ -317,20 +316,20 @@ if menu == "Input Database & Invoice (29 Kolom)":
         idx_p1 = pilihan_p1.index(def_p1) if def_p1 in pilihan_p1 else 0
         val_13 = c3.selectbox("Diwakili Oleh P1", pilihan_p1, index=idx_p1, label_visibility="collapsed")
 
-        val_14 = baris_input_histori(14, "Selaku", "Selaku", val=get_val("Selaku"))
-        val_15 = baris_input_histori(15, "Pihak Kedua", "Pihak Kedua", val=get_val("Pihak Kedua"))
-        val_16 = baris_input_histori(16, "Alamat Pihak Kedua", "Alamat Pihak Kedua", val=get_val("Alamat Pihak Kedua"), is_area=True)
-        val_17 = baris_input_histori(17, "Diwakili Oleh (P2)", "Diwakili Oleh (P2)", val=get_val("Diwakili Oleh (P2)"))
-        val_18 = baris_input_histori(18, "Selaku (P2)", "Selaku (P2)", val=get_val("Selaku (P2)"))
-        val_19 = baris_input_histori(19, "Periode Pekerjaan", "Periode Pekerjaan", val=get_val("Periode Pekerjaan"))
-        val_20 = baris_input_histori(20, "Nomor WCC", "Nomor WCC", val=get_val("Nomor WCC"))
-        val_21 = baris_input_histori(21, "Tanggal WCC", "Tanggal WCC", val=get_val("Tanggal WCC"))
-        val_22 = baris_input_histori(22, "Nomor WO", "Nomor WO", val=get_val("Nomor WO"))
-        val_23 = baris_input_histori(23, "Keterangan WO", "Keterangan WO", val=get_val("Keterangan WO"), is_area=True)
-        val_24 = baris_input_histori(24, "Nomor CTR", "Nomor CTR", val=get_val("Nomor CTR"))
-        val_25 = baris_input_histori(25, "Progress Pekerjaan", "Progress Pekerjaan", val=get_val("Progress Pekerjaan"))
-        val_27 = baris_input_histori(27, "Prepared by Name", "Prepared by Name", val=get_val("Prepared by Name"))
-        val_28_title = baris_input_histori(28, "Prepared by Title", "Prepared by Title", val=get_val("Prepared by Title"))
+        val_14 = baris_input_aman(14, "Selaku", "Selaku", default_val=get_val("Selaku"))
+        val_15 = baris_input_aman(15, "Pihak Kedua", "Pihak Kedua", default_val=get_val("Pihak Kedua"))
+        val_16 = baris_input_aman(16, "Alamat Pihak Kedua", "Alamat Pihak Kedua", default_val=get_val("Alamat Pihak Kedua"), is_area=True)
+        val_17 = baris_input_aman(17, "Diwakili Oleh (P2)", "Diwakili Oleh (P2)", default_val=get_val("Diwakili Oleh (P2)"))
+        val_18 = baris_input_aman(18, "Selaku (P2)", "Selaku (P2)", default_val=get_val("Selaku (P2)"))
+        val_19 = baris_input_aman(19, "Periode Pekerjaan", "Periode Pekerjaan", default_val=get_val("Periode Pekerjaan"))
+        val_20 = baris_input_aman(20, "Nomor WCC", "Nomor WCC", default_val=get_val("Nomor WCC"))
+        val_21 = baris_input_aman(21, "Tanggal WCC", "Tanggal WCC", default_val=get_val("Tanggal WCC"))
+        val_22 = baris_input_aman(22, "Nomor WO", "Nomor WO", default_val=get_val("Nomor WO"))
+        val_23 = baris_input_aman(23, "Keterangan WO", "Keterangan WO", default_val=get_val("Keterangan WO"), is_area=True)
+        val_24 = baris_input_aman(24, "Nomor CTR", "Nomor CTR", default_val=get_val("Nomor CTR"))
+        val_25 = baris_input_aman(25, "Progress Pekerjaan", "Progress Pekerjaan", default_val=get_val("Progress Pekerjaan"))
+        val_27 = baris_input_aman(27, "Prepared by Name", "Prepared by Name", default_val=get_val("Prepared by Name"))
+        val_28_title = baris_input_aman(28, "Prepared by Title", "Prepared by Title", default_val=get_val("Prepared by Title"))
 
         c1, c2, c3 = st.columns([0.8, 3.5, 7])
         c1.write("**29.**")
@@ -343,7 +342,7 @@ if menu == "Input Database & Invoice (29 Kolom)":
         idx_pj = pilihan_pj.index(def_pj) if def_pj in pilihan_pj else 0
         val_29 = c3.selectbox("Pejabat berwenang", pilihan_pj, index=idx_pj, label_visibility="collapsed")
 
-        val_30 = baris_input_histori(30, "Jabatan Field Manager", "Jabatan Field Manager", val=get_val("Jabatan Field Manager"))
+        val_30 = baris_input_aman(30, "Jabatan Field Manager", "Jabatan Field Manager", default_val=get_val("Jabatan Field Manager"))
 
         st.markdown("---")
         
@@ -428,7 +427,6 @@ elif menu == "Input & Proses Rincian Pekerjaan":
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📝 Lembar Kerja & Pemrosesan Rincian Pekerjaan</h3>
-            <p style="color:#047857; font-size:13px; margin:0;">Pilih Nomor Kontrak & PI dari Modul 1, lalu pilih Kategori dan Spesifikasi yang dibaca murni dari Master Kontrak.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -462,7 +460,6 @@ elif menu == "Input & Proses Rincian Pekerjaan":
         def_tx = {}
         if st.session_state["edit_tx_index"] is not None and st.session_state["edit_tx_index"] < len(existing_tx_list):
             def_tx = existing_tx_list[st.session_state["edit_tx_index"]]
-            st.info(f"✏️ **Mode Edit Aktif:** Mengubah data untuk PI [{def_tx.get('PI No.')}].")
 
         def get_tval(key, default=""):
             return def_tx.get(key, default)
@@ -475,7 +472,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             with col1:
                 def_kontrak = get_tval("Nomor Kontrak", list_kontrak[0] if list_kontrak else "")
                 idx_k = list_kontrak.index(def_kontrak) if def_kontrak in list_kontrak else 0
-                selected_kontrak = st.selectbox("Nomor Kontrak (Pilih dari Database Modul 1)", list_kontrak if list_kontrak else [""], index=idx_k)
+                selected_kontrak = st.selectbox("Nomor Kontrak", list_kontrak if list_kontrak else [""], index=idx_k)
                 
                 filtered_pi = [str(item.get("Proforma Invoice No.", "")) for item in saved_db if str(item.get("Nomor Kontrak")) == str(selected_kontrak)]
                 if not filtered_pi:
