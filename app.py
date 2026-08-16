@@ -78,7 +78,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEM DATABASE EXCEL LOKAL (AMAN & MENYERTAKAN TIMESTAMP DI EXCEL) ---
+# --- SISTEM DATABASE EXCEL LOKAL (AMAN & TIMESTAMP DI EXCEL) ---
 EXCEL_INVOICE = "database_proforma_invoice.xlsx"
 EXCEL_TRANSAKSI = "database_transaksi_rincian.xlsx"
 
@@ -94,7 +94,6 @@ def muat_data_invoice():
     return []
 
 def simpan_data_invoice(data_list):
-    # Menyertakan kolom 'Update Terakhir' pada setiap baris data yang disimpan ke Excel
     waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     for item in data_list:
         if not item.get("Update Terakhir"):
@@ -495,8 +494,16 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             if not df_master.empty:
                 available_cols = [str(c).strip() for c in df_master.columns.tolist()]
                 
-                # Deteksi fleksibel kolom Kategori agar tidak error KeyError
-                kolom_kategori = next((c for c in available_cols if 'kategori' in c.lower() or 'kategory' in c.lower()), available_cols[3] if len(available_cols) > 3 else available_cols[0])
+                # --- PENCARIAN KOLOM AMAN & TAHAN BANTING (MENCEGAH KEYERROR) ---
+                kolom_kategori = None
+                for c in available_cols:
+                    c_lower = c.lower()
+                    if 'kategori' in c_lower or 'kategory' in c_lower:
+                        kolom_kategori = c
+                        break
+                if not kolom_kategori:
+                    kolom_kategori = available_cols[3] if len(available_cols) > 3 else available_cols[0]
+
                 list_kat = df_master[kolom_kategori].dropna().unique().tolist()
                 
                 def_kat = get_tval("Kategori", list_kat[0] if list_kat else "")
@@ -505,8 +512,15 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 
                 df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih] if list_kat else df_master
                 
-                # Deteksi fleksibel kolom Spesifikasi/Deskripsi
-                kolom_spek = next((c for c in available_cols if 'spesifikasi' in c.lower() or 'deskripsi' in c.lower() or 'description' in c.lower()), available_cols[4] if len(available_cols) > 4 else available_cols[1])
+                kolom_spek = None
+                for c in available_cols:
+                    c_lower = c.lower()
+                    if 'spesifikasi' in c_lower or 'deskripsi' in c_lower or 'description' in c_lower:
+                        kolom_spek = c
+                        break
+                if not kolom_spek:
+                    kolom_spek = available_cols[4] if len(available_cols) > 4 else available_cols[1]
+
                 list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
                 
                 def_spek = get_tval("Deskripsi Pekerjaan", list_spek[0] if list_spek else "")
