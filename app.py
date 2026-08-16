@@ -78,10 +78,14 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEM DATABASE EXCEL LOKAL ---
-EXCEL_INVOICE = "database_proforma_invoice.xlsx"
-EXCEL_TRANSAKSI = "database_transaksi_rincian.xlsx"
-EXCEL_MASTER_REF = "database_master_referensi.xlsx"
+# --- SISTEM DIREKTORI & DATABASE LOKAL AMAN ---
+DIR_DATABASE = "database_penyimpanan_aman"
+if not os.path.exists(DIR_DATABASE):
+    os.makedirs(DIR_DATABASE)
+
+EXCEL_INVOICE = os.path.join(DIR_DATABASE, "database_proforma_invoice.xlsx")
+EXCEL_TRANSAKSI = os.path.join(DIR_DATABASE, "database_transaksi_rincian.xlsx")
+EXCEL_MASTER_REF = os.path.join(DIR_DATABASE, "database_master_referensi.xlsx")
 
 def muat_data_invoice():
     if os.path.exists(EXCEL_INVOICE):
@@ -104,18 +108,6 @@ def simpan_data_invoice(data_list):
     cols_prioritas = ["Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Keterangan PO"]
     sisa_cols = [c for c in df_baru.columns if c not in cols_prioritas]
     df_baru = df_baru[[c for c in cols_prioritas if c in df_baru.columns] + sisa_cols]
-    
-    if os.path.exists(EXCEL_INVOICE):
-        try:
-            df_lama = pd.read_excel(EXCEL_INVOICE)
-            if df_lama is not None and not df_lama.empty:
-                df_gabung = pd.concat([df_lama, df_baru]).drop_duplicates(subset=["Proforma Invoice No."], keep="last")
-                df_gabung.to_excel(EXCEL_INVOICE, index=False)
-                st.session_state["db_tersimpan"] = df_gabung.to_dict(orient="records")
-                return
-        except:
-            pass
-            
     df_baru.to_excel(EXCEL_INVOICE, index=False)
     st.session_state["db_tersimpan"] = data_list
 
@@ -137,20 +129,9 @@ def simpan_data_transaksi(data_list):
             item["Update Terakhir"] = waktu_sekarang
 
     df_baru = pd.DataFrame(data_list)
-    if os.path.exists(EXCEL_TRANSAKSI):
-        try:
-            df_lama = pd.read_excel(EXCEL_TRANSAKSI)
-            if df_lama is not None and not df_lama.empty:
-                df_gabung = pd.concat([df_lama, df_baru]).drop_duplicates(subset=["PI No."], keep="last")
-                df_gabung.to_excel(EXCEL_TRANSAKSI, index=False)
-                st.session_state["db_transaksi"] = df_gabung.to_dict(orient="records")
-                return
-        except:
-            pass
     df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
     st.session_state["db_transaksi"] = data_list
 
-# --- FUNGSI MASTER REFERENSI MANDIRI (PENGGANTI EXCEL EKSTERNAL) ---
 def muat_master_referensi():
     if os.path.exists(EXCEL_MASTER_REF):
         try:
@@ -162,11 +143,15 @@ def muat_master_referensi():
     return []
 
 def simpan_master_referensi(data_list):
+    waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    for item in data_list:
+        if not item.get("Update Terakhir"):
+            item["Update Terakhir"] = waktu_sekarang
     df_baru = pd.DataFrame(data_list)
     df_baru.to_excel(EXCEL_MASTER_REF, index=False)
     st.session_state["db_master_ref"] = data_list
 
-# Inisialisasi Session State
+# Inisialisasi Session State dengan Sinkronisasi File Aman
 if "db_tersimpan" not in st.session_state:
     st.session_state["db_tersimpan"] = muat_data_invoice()
 
@@ -181,6 +166,9 @@ if "edit_index" not in st.session_state:
 
 if "edit_tx_index" not in st.session_state:
     st.session_state["edit_tx_index"] = None
+
+if "edit_master_index" not in st.session_state:
+    st.session_state["edit_master_index"] = None
 
 # --- HEADER UTAMA ---
 st.markdown("""
@@ -206,7 +194,7 @@ st.sidebar.markdown("---")
 
 if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
     menu = st.sidebar.radio("Pilih Menu:", [
-        "Input Data Master Harga & Pekerjaan",
+        "Input & Kelola Master Referensi",
         "Lihat Daftar Master Referensi Tersimpan"
     ])
 elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
@@ -222,19 +210,44 @@ else:
     ])
 
 st.sidebar.markdown("---")
-st.sidebar.success("📂 **Status Sistem:** Terhubung ke Database Lokal Aman")
+st.sidebar.success("📂 **Status Sistem:** Terhubung ke Folder Aman (`database_penyimpanan_aman`)")
 
 # =========================================================================
-# LOGIKA MODUL 0: MASTER REFERENSI HARGA & PEKERJAAN TETAP
+# LOGIKA MODUL 0: MASTER REFERENSI HARGA & PEKERJAAN (DENGAN PANGGIL KEMBALI)
 # =========================================================================
 if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
-    if menu == "Input Data Master Harga & Pekerjaan":
+    if menu == "Input & Kelola Master Referensi":
         st.markdown("""
             <div class="dashboard-card">
-                <h3 style="margin-top:0; color:#065f46; font-size:18px;">📌 Input Referensi Harga & Uraian Pekerjaan Tetap</h3>
-                <p style="margin:4px 0 0 0; font-size:12px; color:#475569;">Data yang diinput di sini akan menjadi rujukan tetap (seperti gaji/tarif dasar) untuk perhitungan transaksi berikutnya.</p>
+                <h3 style="margin-top:0; color:#065f46; font-size:18px;">📌 Input & Panggil Kembali Master Referensi Harga Tetap</h3>
+                <p style="margin:4px 0 0 0; font-size:12px; color:#475569;">Pilih Uraian Pekerjaan di bawah untuk memanggil kembali data guna koreksi/revisi, lalu simpan dengan Update atau Simpan Baru.</p>
             </div>
         """, unsafe_allow_html=True)
+
+        master_data_live = muat_master_referensi()
+        
+        # Fitur Panggil Kembali Berdasarkan Uraian Pekerjaan
+        opsi_panggil_uraian = ["-- Buat Data Referensi Baru --"] + [f"{m.get('Uraian Pekerjaan', '')[:60]}... (Kontrak: {m.get('Nomor Kontrak','')})" for m in master_data_live]
+        
+        col_p_ref, col_b_ref = st.columns([3, 1])
+        with col_p_ref:
+            pilihan_panggil_uraian = st.selectbox("Panggil Ulang Berdasarkan Uraian Pekerjaan:", opsi_panggil_uraian)
+        with col_b_ref:
+            if st.button("🔄 Panggil Data Ini"):
+                if pilihan_panggil_uraian == "-- Buat Data Referensi Baru --":
+                    st.session_state["edit_master_index"] = None
+                else:
+                    for idx, m in enumerate(master_data_live):
+                        prefix_Str = f"{m.get('Uraian Pekerjaan', '')[:60]}... (Kontrak: {m.get('Nomor Kontrak','')})"
+                        if prefix_Str == pilihan_panggil_uraian:
+                            st.session_state["edit_master_index"] = idx
+                            break
+                st.rerun()
+
+        def_ref = {}
+        if st.session_state["edit_master_index"] is not None and st.session_state["edit_master_index"] < len(master_data_live):
+            def_ref = master_data_live[st.session_state["edit_master_index"]]
+            st.info("📋 **Mode Edit Aktif:** Anda sedang mengubah data referensi yang dipanggil.")
 
         saved_db = muat_data_invoice()
         list_kontrak_db = list(set([str(item.get("Nomor Kontrak", "")) for item in saved_db if item.get("Nomor Kontrak")]))
@@ -242,21 +255,34 @@ if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
         with st.form("form_master_referensi"):
             col1, col2 = st.columns(2)
             with col1:
-                nomor_kontrak_ref = st.text_input("Nomor Kontrak Rujukan", value=list_kontrak_db[0] if list_kontrak_db else "")
-                kategori_ref = st.selectbox("Kategori Pekerjaan", ["MONTHLY BASIS", "ON-CALL BASIS", "JASA MOBILISASI", "PROFESSIONAL SUM", "LAINNYA"])
-                unit_ref = st.selectbox("Satuan Unit", ["Month", "Day", "Ls", "Unit", "Trip", "Jam"])
+                def_kontrak_val = def_ref.get("Nomor Kontrak", list_kontrak_db[0] if list_kontrak_db else "")
+                nomor_kontrak_ref = st.text_input("Nomor Kontrak Rujukan", value=def_kontrak_val)
+                
+                kat_opts = ["MONTHLY BASIS", "ON-CALL BASIS", "JASA MOBILISASI", "PROFESSIONAL SUM", "LAINNYA"]
+                def_kat_val = def_ref.get("Kategori", kat_opts[0])
+                idx_kat_ref = kat_opts.index(def_kat_val) if def_kat_val in kat_opts else 0
+                kategori_ref = st.selectbox("Kategori Pekerjaan", kat_opts, index=idx_kat_ref)
+                
+                unit_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam"]
+                def_unit_val = def_ref.get("Unit", unit_opts[0])
+                idx_unit_ref = unit_opts.index(def_unit_val) if def_unit_val in unit_opts else 0
+                unit_ref = st.selectbox("Satuan Unit", unit_opts, index=idx_unit_ref)
             with col2:
-                uraian_ref = st.text_area("Uraian Pekerjaan / Spesifikasi Alat", height=105)
-                harga_satuan_ref = st.number_input("Harga Satuan Tetap (Rp)", min_value=0.0, step=1000.0, format="%.2f")
+                uraian_ref = st.text_area("Uraian Pekerjaan / Spesifikasi Alat", value=def_ref.get("Uraian Pekerjaan", ""), height=105)
+                harga_satuan_ref = st.number_input("Harga Satuan Tetap (Rp)", min_value=0.0, value=float(def_ref.get("Harga Satuan", 0.0)), step=1000.0, format="%.2f")
 
             st.markdown("---")
-            submit_master = st.form_submit_button("💾 Simpan ke Master Referensi")
+            col_sb1, col_sb2 = st.columns(2)
+            with col_sb1:
+                submit_master_baru = st.form_submit_button("💾 Simpan Master Baru")
+            with col_sb2:
+                submit_master_update = st.form_submit_button("📝 Update Data Dipanggil / Save As")
 
-            if submit_master:
+            if submit_master_baru or submit_master_update:
                 if not nomor_kontrak_ref or not uraian_ref:
                     st.error("⚠️ Nomor Kontrak dan Uraian Pekerjaan tidak boleh kosong!")
                 else:
-                    master_data = st.session_state["db_master_ref"]
+                    master_data = muat_master_referensi()
                     item_baru = {
                         "Nomor Kontrak": nomor_kontrak_ref,
                         "Kategori": kategori_ref,
@@ -265,22 +291,48 @@ if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
                         "Harga Satuan": harga_satuan_ref,
                         "Update Terakhir": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
-                    master_data.append(item_baru)
+                    
+                    if submit_master_update and st.session_state["edit_master_index"] is not None and st.session_state["edit_master_index"] < len(master_data):
+                        # Timpa / Update data yang sedang diedit
+                        master_data[st.session_state["edit_master_index"]] = item_baru
+                        st.success("✨ Data Master Referensi berhasil di-update!")
+                    else:
+                        master_data.append(item_baru)
+                        st.success("🎉 Data Master Referensi baru berhasil disimpan!")
+                    
                     simpan_master_referensi(master_data)
-                    st.success("🎉 Data master referensi harga & pekerjaan berhasil disimpan!")
+                    st.session_state["edit_master_index"] = None
+                    st.rerun()
 
     elif menu == "Lihat Daftar Master Referensi Tersimpan":
         st.markdown("""
             <div class="dashboard-card">
-                <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Tabel Master Referensi Harga & Pekerjaan</h3>
+                <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Tabel Master Referensi Harga & Pekerjaan (Dilengkapi Tombol Edit & Hapus)</h3>
             </div>
         """, unsafe_allow_html=True)
 
         master_records = muat_master_referensi()
         if master_records:
-            df_m = pd.DataFrame(master_records)
-            st.dataframe(df_m, use_container_width=True)
+            for idx, item in enumerate(master_records):
+                with st.expander(f"No. {idx+1} | Kontrak: {item.get('Nomor Kontrak')} | {item.get('Uraian Pekerjaan')[:50]}..."):
+                    st.write(f"**Kategori:** {item.get('Kategori')}")
+                    st.write(f"**Uraian Pekerjaan:** {item.get('Uraian Pekerjaan')}")
+                    st.write(f"**Unit:** {item.get('Unit')} | **Harga Satuan:** Rp {item.get('Harga Satuan', 0):,.2f}")
+                    st.write(f"**Update Terakhir:** {item.get('Update Terakhir')}")
+                    
+                    col_ed1, col_ed2 = st.columns(2)
+                    with col_ed1:
+                        if st.button(f"✏️ Edit Baris {idx+1}", key=f"edit_m_{idx}"):
+                            st.session_state["edit_master_index"] = idx
+                            st.success("Data dimuat untuk diedit. Silakan kembali ke menu 'Input & Kelola Master Referensi'.")
+                    with col_ed2:
+                        if st.button(f"🗑️ Hapus Baris {idx+1}", key=f"del_m_{idx}"):
+                            master_records.pop(idx)
+                            simpan_master_referensi(master_records)
+                            st.success("Baris referensi berhasil dihapus!")
+                            st.rerun()
             
+            st.markdown("---")
             if st.button("🗑️ Reset / Hapus Semua Master Referensi"):
                 if os.path.exists(EXCEL_MASTER_REF):
                     os.remove(EXCEL_MASTER_REF)
@@ -288,7 +340,7 @@ if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
                 st.success("Semua data master berhasil direset.")
                 st.rerun()
         else:
-            st.info("Belum ada data master referensi tersimpan. Silakan input terlebih dahulu melalui menu input.")
+            st.info("Belum ada data master referensi tersimpan di folder aman.")
 
 # =========================================================================
 # LOGIKA MODUL 1: DATABASE & MASTER KONTRAK
@@ -324,7 +376,7 @@ elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
                         st.session_state["edit_index"] = int(idx_part) - 1
                     st.rerun()
         else:
-            st.info("📌 Belum ada data database tersimpan di Excel atau data kosong.")
+            st.info("📌 Belum ada data database tersimpan di folder aman.")
 
         if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(st.session_state["db_tersimpan"]):
             st.info(f"📋 **DATA DIPANGGIL:** Silakan ubah isian, lalu gunakan tombol **'Save As (Buat PI Baru)'** atau **'Update Data Ini'**.")
@@ -434,7 +486,7 @@ elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
                     "Pejabat berwenang": val_29, "Jabatan Field Manager": val_30, "Update Terakhir": waktu_aksi
                 }
 
-                current_data = st.session_state["db_tersimpan"]
+                current_data = muat_data_invoice()
 
                 if submit_update:
                     if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(current_data):
@@ -457,7 +509,7 @@ elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
     elif menu == "Lihat Database Tersimpan":
         st.markdown("""
             <div class="dashboard-card">
-                <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Database Identifikasi Tersimpan (Excel)</h3>
+                <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Database Identifikasi Tersimpan (Folder Aman)</h3>
             </div>
         """, unsafe_allow_html=True)
         
@@ -469,10 +521,10 @@ elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
             df_saved = df_saved[[c for c in cols_prioritas if c in df_saved.columns] + sisa_cols]
             st.dataframe(df_saved, use_container_width=True)
         else:
-            st.info("Belum ada data database identifikasi di dalam file Excel.")
+            st.info("Belum ada data database identifikasi di dalam folder penyimpanan aman.")
 
 # =========================================================================
-# LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN (DENGAN RUJUKAN MASTER MANDIRI)
+# LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN
 # =========================================================================
 elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
     if menu == "Input & Proses Rincian Pekerjaan":
@@ -488,7 +540,7 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
         if not saved_db:
             st.warning("⚠️ Belum ada data di Database Modul 1. Harap lakukan input data kontrak & PI terlebih dahulu pada Modul 1.")
         elif not master_ref_data:
-            st.warning("⚠️ Belum ada data di Master Referensi Harga (Modul 0). Silakan input data tarif/harga tetap di Modul 0 terlebih dahulu.")
+            st.warning("⚠️ Belum ada data di Master Referensi Harga (Modul 0). Silakan input data harga tetap di Modul 0 terlebih dahulu.")
         else:
             st.markdown("#### 🔄 Panggil Data Transaksi untuk Edit & Update")
             existing_tx_list = muat_data_transaksi()
@@ -550,21 +602,18 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                     desc_po = st.text_area("Lingkup Pekerjaan", matched_record.get("Lingkup Pekerjaan", ""))
 
                 st.markdown("---")
-                st.markdown("#### ⚙️ Pemilihan Kategori & Uraian Pekerjaan (Rujukan Master Mandiri)")
+                st.markdown("#### ⚙️ Pemilihan Kategori & Uraian Pekerjaan (Rujukan Master Tetap)")
                 
-                # Filter master referensi berdasarkan kontrak yang dipilih
                 df_ref = pd.DataFrame(master_ref_data)
                 df_ref_kontrak = df_ref[df_ref["Nomor Kontrak"].astype(str).str.strip() == str(selected_kontrak).strip()]
                 if df_ref_kontrak.empty:
-                    df_ref_kontrak = df_ref # Fallback jika kontrak tidak persis
+                    df_ref_kontrak = df_ref 
 
-                # Pilih Kategori
                 list_kat = df_ref_kontrak["Kategori"].dropna().unique().tolist()
                 def_kat = get_tval("Kategori", list_kat[0] if list_kat else "")
                 idx_kat = list_kat.index(def_kat) if def_kat in list_kat else 0
                 kategori_pilih = st.selectbox("Kategori Pekerjaan", list_kat if list_kat else ["-"], index=idx_kat)
 
-                # Filter Uraian Pekerjaan berdasarkan Kategori
                 df_filtered_kat = df_ref_kontrak[df_ref_kontrak["Kategori"].astype(str).str.strip() == str(kategori_pilih).strip()]
                 list_spek = df_filtered_kat["Uraian Pekerjaan"].dropna().unique().tolist() if not df_filtered_kat.empty else df_ref_kontrak["Uraian Pekerjaan"].dropna().unique().tolist()
                 
@@ -572,7 +621,6 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                 idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
                 deskripsi_pekerjaan = st.selectbox("Uraian Pekerjaan / Spesifikasi", list_spek if list_spek else ["-"], index=idx_spek)
 
-                # Ambil Harga Satuan & Unit Otomatis Berdasarkan Rujukan Master
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
 
@@ -648,7 +696,7 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                     simpan_data_transaksi(existing_tx)
                     
                     st.session_state["edit_tx_index"] = None
-                    st.success(f"🎉 Data Rincian Pekerjaan untuk PI [{pi_baru}] Berhasil Diproses & Disimpan!")
+                    st.success(f"🎉 Data Rincian Pekerjaan untuk PI [{pi_baru}] Berhasil Diproses & Disimpan ke Folder Aman!")
 
     elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
         st.markdown("""
