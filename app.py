@@ -673,10 +673,11 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
             <div class="title">{doc_type}</div>
         """
 
-        if doc_type == "Rincian Pekerjaan ":
-            pdf_content += f"""
+        if doc_type == "Rincian Pekerjaan (Sheet Rincian Pek)":
+            html_content += f"""
             <table class="info-table">
                 <tr>
+
                     <td class="label-col">Rincian Pekerjaan</td>
                     <td class="colon-col">:</td>
                     <td>{t_data['Nomor Kontrak']}-BSS-WCC-2026</td>
