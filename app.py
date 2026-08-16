@@ -629,12 +629,27 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
             st.markdown("---")
             st.markdown("#### ⚙️ Pengaturan Khusus Bank & Pembayaran Proforma Invoice")
             
+            # FITUR PILIHAN BANK DINAMIS
+            pilihan_bank_preset = [
+                "BANK RAKYAT INDONESIA (PERSERO) Tbk.",
+                "BANK MANDIRI (PERSERO) Tbk.",
+                "BANK NEGARA INDONESIA (PERSERO) Tbk.",
+                "BANK BCA (CENTRAL ASIA)",
+                "-- Ketik Manual Sendiri --"
+            ]
+            
             c_bank1, c_bank2 = st.columns(2)
             with c_bank1:
-                bank_name = st.text_input("Nama Bank", value=get_tval("Bank Name", "BANK RAKYAT INDONESIA (PERSERO) Tbk."))
+                pilih_preset_bank = st.selectbox("Pilih Bank Cepat", pilihan_bank_preset)
+                if pilih_preset_bank == "-- Ketik Manual Sendiri --":
+                    bank_name = st.text_input("Nama Bank Manual", value=get_tval("Bank Name", ""))
+                else:
+                    bank_name = pilih_preset_bank
+                    st.text_input("Nama Bank Terpilih", value=bank_name, disabled=True)
+                
                 bank_branch = st.text_input("Cabang Bank", value=get_tval("Bank Branch", "Cabang Luwuk"))
-                bank_acc_no = st.text_input("Nomor Rekening", value=get_tval("Account No", "0167 0167 8888 303"))
             with c_bank2:
+                bank_acc_no = st.text_input("Nomor Rekening", value=get_tval("Account No", "0167 0167 8888 303"))
                 bank_acc_name = st.text_input("Atas Nama Rekening", value=get_tval("Account Name", "PT. BANGGAI SENTRAL SULAWESI"))
                 attn_to = st.text_input("Attn. (Penerima Invoice)", value=get_tval("Attn", "Accounts Payable - Finance Department"))
                 persen_val = st.number_input("Persentase Tagihan (%)", min_value=1.0, max_value=100.0, value=float(get_tval("Percent", 100.0)))
@@ -712,7 +727,7 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                         "PI No.": selected_pi,
                         "Tanggal PI": tanggal_pi,
                         "Ditujukan Kepada": ditujukan_kepada,
-                        "Alamat Pihak Pertama": alamat_pihak_pertama if 'alamat_pihak_ pertama' in locals() else "",
+                        "Alamat Pihak Pertama": alamat_pihak_pertama,
                         "Jangka Waktu Kontrak": jangka_waktu,
                         "Nomor PO": nomor_po,
                         "Deskripsi PO": desc_po,
@@ -781,7 +796,7 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
 
             st.markdown("---")
 
-            # --- RANCANGAN HTML PROFORMA INVOICE SESUAI FORMAT PDF ANDA ---
+            # --- RANCANGAN HTML PROFORMA INVOICE DENGAN KOP & DUA KOLOM PRESISI ---
             if doc_type == "Proforma Invoice":
                 terbilang_str = terbilang(t_data['Total Harga']).strip() + " Rupiah"
                 html_content = f"""
@@ -791,32 +806,56 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                     <meta charset="utf-8">
                     <title>Proforma Invoice - PT BSS</title>
                     <style>
-                        body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 30px; margin: 0; font-size: 12px; }}
-                        .header-title {{ font-size: 18px; font-weight: bold; margin-bottom: 20px; text-transform: uppercase; }}
-                        table.top-info {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
-                        table.top-info td {{ vertical-align: top; padding: 2px 0; }}
-                        table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; }}
-                        table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 8px 10px; font-size: 11px; text-align: left; }}
+                        body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 30px; margin: 0; font-size: 11px; }}
+                        .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px; }}
+                        .header-title {{ font-size: 16px; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; }}
+                        table.two-col {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; border: none; }}
+                        table.two-col td {{ border: none; padding: 2px 0; vertical-align: top; font-size: 11px; }}
+                        table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; }}
+                        table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 6px 8px; font-size: 11px; text-align: left; }}
                         table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
-                        .bank-section {{ margin-top: 20px; font-size: 11px; line-height: 1.5; }}
+                        .bank-section {{ margin-top: 15px; font-size: 11px; line-height: 1.4; }}
                     </style>
                 </head>
                 <body>
-                    <div class="header-title">Proforma Invoice</div>
+                    <div class="header">
+                        <h2 style="margin: 0; font-size: 15px;">PT. BANGGAI SENTRAL SULAWESI</h2>
+                        <p style="margin: 2px 0; font-size: 9px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
+                    </div>
+
+                    <div class="header-title">PROFORMA INVOICE</div>
                     
-                    <table class="top-info">
+                    <table class="two-col">
                         <tr>
-                            <td style="width: 55%;">
+                            <td style="width: 52%;">
                                 <b>TO :</b><br>
                                 <b>{t_data.get('Ditujukan Kepada', 'JOB Pertamina - Medco E&P Tomori Sulawesi')}</b><br>
-                                {t_data.get('Alamat Pihak Pertama', 'Bidakara Office Tower I 4Th Floor, Jl. Gatot Subroto Kav. 71 - 73, Jakarta 12870, Indonesia')}
+                                {t_data.get('Alamat Pihak Pertama', 'Bidakara Office Tower I 4Th Floor, Jl. Gatot Subroto Kav. 71 - 73, Jakarta 12870, Indonesia')}<br><br>
+                                <b>Attn. :</b> {t_data.get('Attn', 'Accounts Payable - Finance Department')}
                             </td>
-                            <td style="width: 45%;">
-                                <b>Proforma Invoice No.</b> : {t_data['PI No.']}<br>
-                                <b>Tanggal Performa Invoice</b> : {t_data['Tanggal PI']}<br>
-                                <b>Nomor Kontrak</b> : {t_data['Nomor Kontrak']}<br>
-                                <b>Jangka Waktu Kontrak</b> : {t_data.get('Jangka Waktu Kontrak', '24 Month')}<br>
-                                <b>Attn.</b> : {t_data.get('Attn', 'Accounts Payable - Finance Department')}
+                            <td style="width: 48%;">
+                                <table style="width: 100%; border-collapse: collapse; border: none;">
+                                    <tr>
+                                        <td style="border: none; width: 45%; font-weight: bold;">Proforma Invoice No.</td>
+                                        <td style="border: none; width: 5%; text-align: center;">:</td>
+                                        <td style="border: none; width: 50%;">{t_data['PI No.']}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="border: none; font-weight: bold;">Tanggal Performa Invoice</td>
+                                        <td style="border: none; text-align: center;">:</td>
+                                        <td style="border: none;">{t_data['Tanggal PI']}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="border: none; font-weight: bold;">Nomor Kontrak</td>
+                                        <td style="border: none; text-align: center;">:</td>
+                                        <td style="border: none;">{t_data['Nomor Kontrak']}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="border: none; font-weight: bold;">Jangka Waktu Kontrak</td>
+                                        <td style="border: none; text-align: center;">:</td>
+                                        <td style="border: none;">{t_data.get('Jangka Waktu Kontrak', '24 Month')}</td>
+                                    </tr>
+                                </table>
                             </td>
                         </tr>
                     </table>
@@ -847,11 +886,11 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                         </tr>
                     </table>
 
-                    <div style="text-align: right; font-weight: bold; font-size: 13px; margin-bottom: 10px;">
+                    <div style="text-align: right; font-weight: bold; font-size: 12px; margin-bottom: 10px;">
                         Total : Rp {t_data['Total Harga']:,.2f}
                     </div>
 
-                    <div style="margin-bottom: 15px;">
+                    <div style="margin-bottom: 15px; font-size: 11px;">
                         <b>Terbilang :</b> <i>{terbilang_str}</i>
                     </div>
 
@@ -892,7 +931,7 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                 <body>
                     <div class="header">
                         <h2 style="margin: 0; font-size: 16px;">PT. BANGGAI SENTRAL SULAWESI</h2>
-                        <p style="margin: 2px 0; font-size: 10px;">Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
+                        <p style="margin: 2px 0; font-size: 10px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
                     </div>
                     <div class="title">Rincian Pekerjaan</div>
                     
