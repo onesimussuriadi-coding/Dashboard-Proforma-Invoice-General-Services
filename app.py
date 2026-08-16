@@ -508,8 +508,18 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 
                 df_filtered = df_master_kontrak[df_master_kontrak[kolom_kategori] == kategori_pilih] if list_kat else df_master_kontrak
                 
-                kolom_spek = next((c for c in available_cols if 'spesifikasi' in c.lower() or 'deskripsi' in c.lower()), available_cols[3] if len(available_cols) > 3 else available_cols[1])
-                list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
+                # --- PENCARIAN KOLOM SPESIFIKASI YANG AMAN & ANTI-KEYERROR ---
+                kolom_spek = None
+                for c in available_cols:
+                    if any(keyword in c.lower() for keyword in ['spesifikasi', 'deskripsi', 'pekerjaan', 'uraian']):
+                        kolom_spek = c
+                        break
+                
+                # Jika tidak ketemu lewat keyword, gunakan indeks ke-3 (atau kolom kedua jika total kolom sedikit)
+                if not kolom_spek or kolom_spek not in df_filtered.columns:
+                    kolom_spek = available_cols[3] if len(available_cols) > 3 else available_cols[0]
+
+                list_spek = df_filtered[kolom_spek].dropna().unique().tolist() if kolom_spek in df_filtered.columns else ["(Spesifikasi Kosong)"]
                 
                 def_spek = get_tval("Deskripsi Pekerjaan", list_spek[0] if list_spek else "")
                 idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
