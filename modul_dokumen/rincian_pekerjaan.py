@@ -131,8 +131,8 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <th>Unit</th>
                 <th>Tanggal Mulai</th>
                 <th>Tanggal Selesai</th>
-                <th>Harga Satuan (Rp)</th>
-                <th>Total Harga (Rp)</th>
+                <th>Harga Satuan<br>(Rp)</th>
+                <th>Total Harga<br>(Rp)</th>
                 <th>Keterangan</th>
             </tr>
             <tr>
@@ -149,12 +149,12 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
             </tr>
         </table>
         
-        <table style="width: 100%; border: none; margin-top: 5px;">
+        <table style="width: 100%; border: none; margin-top: 10px;">
             <tr>
-                <td style="border: none; text-align: left; font-size: 11px;">
+                <td style="border: none; text-align: left; font-size: 11px; vertical-align: top;">
                     <b>Terbilang :</b> <i>{terbilang_str}</i>
                 </td>
-                <td style="border: none; text-align: right; font-weight: bold; font-size: 13px; width: 40%;">
+                <td style="border: none; text-align: right; font-weight: bold; font-size: 13px; width: 45%; vertical-align: top;">
                     TOTAL TAGIHAN: Rp {t_data['Total Harga']:,.2f}
                 </td>
             </tr>
