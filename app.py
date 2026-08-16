@@ -485,63 +485,51 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 desc_po = st.text_area("Lingkup Pekerjaan", matched_record.get("Lingkup Pekerjaan", ""))
 
             st.markdown("---")
-            st.markdown("#### ⚙️ Pemilihan Kategori, Spesifikasi & Rujukan Master Kontrak")
+            st.markdown("#### ⚙️ Pemilihan Kategori, Uraian Pekerjaan & Rujukan Master Kontrak")
             
-            # --- VLOOKUP AMAN BERBASIS INDEKS KOLOM (ANTI-KEYERROR) ---
             if not df_master.empty:
-                available_cols = [str(c).strip() for c in df_master.columns.tolist()]
+                df_master.columns = df_master.columns.astype(str).str.strip()
+                available_cols = df_master.columns.tolist()
                 
-                # Ambil kolom berdasarkan posisi indeks yang aman (Kolom ke-2 untuk Kategori, Kolom ke-3 untuk Spesifikasi)
-                idx_kat_pos = 2 if len(available_cols) > 2 else 0
-                idx_spek_pos = 3 if len(available_cols) > 3 else (1 if len(available_cols) > 1 else 0)
+                # --- DETEKSI KOLOM PRESISI SESUAI EXCEL BARU ANDA ---
+                kolom_kategori = next((c for c in available_cols if 'kategori' in c.lower()), available_cols[2] if len(available_cols) > 2 else available_cols[0])
                 
-                kolom_kategori = available_cols[idx_kat_pos]
-                kolom_spek = available_cols[idx_spek_pos]
+                # Mendeteksi 'Uraian Pekerjaan'
+                kolom_spek = next((c for c in available_cols if 'uraian' in c.lower() or 'pekerjaan' in c.lower()), available_cols[4] if len(available_cols) > 4 else available_cols[3])
                 
-                # Gunakan data master untuk pilihan Kategori
-                df_master['Clean_Kat'] = df_master[kolom_kategori].astype(str).str.strip()
-                list_kat = df_master['Clean_Kat'].dropna().unique().tolist()
-                
+                # --- PILIHAN KATEGORI & URAIAN PEKERJAAN ---
+                list_kat = df_master[kolom_kategori].dropna().unique().tolist()
                 def_kat = get_tval("Kategori", list_kat[0] if list_kat else "")
                 idx_kat = list_kat.index(def_kat) if def_kat in list_kat else 0
                 kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat if list_kat else ["(Kategori Kosong)"], index=idx_kat)
                 
-                # Filter berdasarkan Kategori
-                df_filtered = df_master[df_master['Clean_Kat'].str.lower() == str(kategori_pilih).strip().lower()] if list_kat else df_master
+                df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih]
                 
-                # Ambil daftar spesifikasi secara aman
-                if not df_filtered.empty and kolom_spek in df_filtered.columns:
-                    list_spek = df_filtered[kolom_spek].dropna().unique().tolist()
-                else:
-                    list_spek = df_master[kolom_spek].dropna().unique().tolist() if kolom_spek in df_master.columns else ["(Spesifikasi Kosong)"]
+                list_spek = df_filtered[kolom_spek].dropna().unique().tolist() if not df_filtered.empty and kolom_spek in df_filtered.columns else df_master[kolom_spek].dropna().unique().tolist()
                 
                 def_spek = get_tval("Deskripsi Pekerjaan", list_spek[0] if list_spek else "")
                 idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
-                deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Spesifikasi Kosong)"], index=idx_spek)
-
+                deskripsi_pekerjaan = st.selectbox("Uraian Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Uraian Kosong)"], index=idx_spek)
+                
+                # --- VLOOKUP HARGA SATUAN OTOMATIS ---
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
                 
-                # --- PENCARIAN BARIS & VLOOKUP HARGA YANG AMAN ---
-                harga_satuan_otomatis = 0.0
-                unit_otomatis = "Month"
-                
-                if not df_filtered.empty and kolom_spek in df_filtered.columns:
+                if not df_filtered.empty:
                     matched_row_df = df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan]
-                    
                     if not matched_row_df.empty:
                         row_m = matched_row_df.iloc[0]
                         
-                        # Ambil Harga Satuan secara aman
-                        kolom_hs = next((c for c in available_cols if 'harga' in c.lower() or 'satuan' in c.lower()), None)
+                        # Mendeteksi kolom 'Harga Satuan' secara presisi
+                        kolom_hs = next((c for c in available_cols if 'harga satuan' in c.lower() or ('harga' in c.lower() and 'satuan' in c.lower())), None)
                         if kolom_hs and kolom_hs in row_m:
                             try:
-                                harga_satuan_otomatis = float(row_m[kolom_hs])
+                                raw_val = str(row_m[kolom_hs]).replace("Rp", "").replace(".", "").replace(",", ".").strip()
+                                harga_satuan_otomatis = float(raw_val)
                             except:
                                 harga_satuan_otomatis = 0.0
-                        
-                        # Ambil Unit secara aman
-                        kolom_unit = next((c for c in available_cols if c.lower() in ['unit', 'satuan']), None)
+
+                        kolom_unit = next((c for c in available_cols if 'unit' in c.lower()), None)
                         if kolom_unit and kolom_unit in row_m:
                             unit_otomatis = str(row_m.get(kolom_unit, "Month"))
             else:
