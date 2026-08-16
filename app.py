@@ -14,6 +14,7 @@ try:
     from modul_dokumen.rincian_pekerjaan import tampilkan_rincian_pekerjaan
     from modul_dokumen.proforma_invoice import tampilkan_proforma_invoice
     from modul_dokumen.bamp import tampilkan_bamp
+    from modul_dokumen.wcc import tampilkan_wcc
 except ImportError:
     pass
 
@@ -779,7 +780,10 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
             doc_type = st.selectbox("Pilih Jenis Dokumen Resmi:", [
                 "Rincian Pekerjaan",
                 "Proforma Invoice",
-                "Berita Acara Mulai Pekerjaan (BAMP)"
+                "Berita Acara Mulai Pekerjaan (BAMP)",
+                "Work Completion Certificate (WCC)",
+                "Berita Acara Mulai & Selesai Pekerjaan (BASTP)",
+                "Formulir TKDN"
             ])
 
             # Pemanggilan Modul Terisolasi Berdasarkan Data Excel Riil
@@ -789,6 +793,12 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                 tampilkan_proforma_invoice(transaksi_list)
             elif doc_type == "Berita Acara Mulai Pekerjaan (BAMP)":
                 tampilkan_bamp(transaksi_list)
+            elif doc_type == "Work Completion Certificate (WCC)":
+                tampilkan_wcc(transaksi_list)
+            elif doc_type == "Berita Acara Mulai & Selesai Pekerjaan (BASTP)":
+                st.info("ℹ️ Modul Berita Acara Mulai & Selesai Pekerjaan (BASTP) sedang disiapkan.")
+            elif doc_type == "Formulir TKDN":
+                st.info("ℹ️ Modul Formulir TKDN sedang disiapkan.")
 
     elif menu == "Lihat Akumulasi Riwayat Transaksi":
         st.markdown("""
