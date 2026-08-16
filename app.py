@@ -491,36 +491,42 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 df_master.columns = df_master.columns.astype(str).str.strip()
                 available_cols = df_master.columns.tolist()
                 
-                # --- DETEKSI KOLOM PRESISI SESUAI EXCEL BARU ANDA ---
+                # 1. Deteksi Kolom Utama secara Presisi
+                kolom_kontrak_master = available_cols[1] if len(available_cols) > 1 else available_cols[0]
                 kolom_kategori = next((c for c in available_cols if 'kategori' in c.lower()), available_cols[2] if len(available_cols) > 2 else available_cols[0])
-                
-                # Mendeteksi 'Uraian Pekerjaan'
                 kolom_spek = next((c for c in available_cols if 'uraian' in c.lower() or 'pekerjaan' in c.lower()), available_cols[4] if len(available_cols) > 4 else available_cols[3])
                 
-                # --- PILIHAN KATEGORI & URAIAN PEKERJAAN ---
-                list_kat = df_master[kolom_kategori].dropna().unique().tolist()
+                # 2. STEP 1: Filter Master Berdasarkan Nomor Kontrak yang Dipilih
+                df_master_kontrak = df_master[df_master[kolom_kontrak_master].astype(str).str.strip() == str(selected_kontrak).strip()]
+                if df_master_kontrak.empty:
+                    df_master_kontrak = df_master # Fallback jika format nomor kontrak berbeda tipis
+
+                # 3. STEP 2: Filter dan Pilih Kategori Berdasarkan Kontrak
+                df_master_kontrak['Clean_Kat'] = df_master_kontrak[kolom_kategori].astype(str).str.strip()
+                list_kat = df_master_kontrak['Clean_Kat'].dropna().unique().tolist()
+                
                 def_kat = get_tval("Kategori", list_kat[0] if list_kat else "")
                 idx_kat = list_kat.index(def_kat) if def_kat in list_kat else 0
                 kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat if list_kat else ["(Kategori Kosong)"], index=idx_kat)
                 
-                df_filtered = df_master[df_master[kolom_kategori] == kategori_pilih]
+                # 4. STEP 3: Filter Uraian Pekerjaan HANYA Berdasarkan Kategori yang Dipilih
+                df_filtered_kat = df_master_kontrak[df_master_kontrak['Clean_Kat'].str.lower() == str(kategori_pilih).strip().lower()]
                 
-                list_spek = df_filtered[kolom_spek].dropna().unique().tolist() if not df_filtered.empty and kolom_spek in df_filtered.columns else df_master[kolom_spek].dropna().unique().tolist()
+                list_spek = df_filtered_kat[kolom_spek].dropna().unique().tolist() if not df_filtered_kat.empty else df_master_kontrak[kolom_spek].dropna().unique().tolist()
                 
                 def_spek = get_tval("Deskripsi Pekerjaan", list_spek[0] if list_spek else "")
                 idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
                 deskripsi_pekerjaan = st.selectbox("Uraian Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Uraian Kosong)"], index=idx_spek)
                 
-                # --- VLOOKUP HARGA SATUAN OTOMATIS ---
+                # 5. STEP 4: Tarik Harga Satuan & Unit Berdasarkan Uraian Pekerjaan yang Dipilih Spesifik
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
                 
-                if not df_filtered.empty:
-                    matched_row_df = df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan]
+                if not df_filtered_kat.empty:
+                    matched_row_df = df_filtered_kat[df_filtered_kat[kolom_spek].astype(str).str.strip() == str(deskripsi_pekerjaan).strip()]
                     if not matched_row_df.empty:
                         row_m = matched_row_df.iloc[0]
                         
-                        # Mendeteksi kolom 'Harga Satuan' secara presisi
                         kolom_hs = next((c for c in available_cols if 'harga satuan' in c.lower() or ('harga' in c.lower() and 'satuan' in c.lower())), None)
                         if kolom_hs and kolom_hs in row_m:
                             try:
