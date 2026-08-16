@@ -528,20 +528,28 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
                 
-                matched_row_df = df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan]
-                if not matched_row_df.empty:
-                    row_m = matched_row_df.iloc[0]
+                # --- PENCARIAN BARIS & VLOOKUP HARGA YANG AMAN ---
+                harga_satuan_otomatis = 0.0
+                unit_otomatis = "Month"
+                
+                if not df_filtered.empty and kolom_spek in df_filtered.columns:
+                    matched_row_df = df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan]
                     
-                    kolom_hs = next((c for c in available_cols if c.lower() == 'harga satuan'), None)
-                    if kolom_hs and kolom_hs in row_m:
-                        try:
-                            harga_satuan_otomatis = float(row_m[kolom_hs])
-                        except:
-                            harga_satuan_otomatis = 0.0
-
-                    kolom_unit = next((c for c in available_cols if c.lower() in ['unit', 'satuan']), None)
-                    if kolom_unit:
-                        unit_otomatis = str(row_m.get(kolom_unit, "Month"))
+                    if not matched_row_df.empty:
+                        row_m = matched_row_df.iloc[0]
+                        
+                        # Ambil Harga Satuan secara aman
+                        kolom_hs = next((c for c in available_cols if 'harga' in c.lower() or 'satuan' in c.lower()), None)
+                        if kolom_hs and kolom_hs in row_m:
+                            try:
+                                harga_satuan_otomatis = float(row_m[kolom_hs])
+                            except:
+                                harga_satuan_otomatis = 0.0
+                        
+                        # Ambil Unit secara aman
+                        kolom_unit = next((c for c in available_cols if c.lower() in ['unit', 'satuan']), None)
+                        if kolom_unit and kolom_unit in row_m:
+                            unit_otomatis = str(row_m.get(kolom_unit, "Month"))
             else:
                 st.warning("⚠️ File Master Kontrak Excel belum ditemukan di direktori sistem.")
                 kategori_pilih = "-"
