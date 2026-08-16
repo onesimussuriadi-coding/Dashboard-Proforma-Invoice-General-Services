@@ -485,7 +485,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 desc_po = st.text_area("Lingkup Pekerjaan", matched_record.get("Lingkup Pekerjaan", ""))
 
            st.markdown("---")
-            st.markdown("#### ⚙️ Pemilihan Kategori, Spesifikasi & Rujukan Master Kontrak")
+           st.markdown("#### ⚙️ Pemilihan Kategori, Spesifikasi & Rujukan Master Kontrak")
             
             # --- VLOOKUP AMAN & FLEKSIBEL (ANTI-KONTRAK KOSONG) ---
             if not df_master.empty:
