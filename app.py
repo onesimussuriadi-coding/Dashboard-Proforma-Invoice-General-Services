@@ -103,7 +103,6 @@ def simpan_data_invoice(data_list):
     for item in data_list:
         if not item.get("Update Terakhir"):
             item["Update Terakhir"] = waktu_sekarang
-
     df_baru = pd.DataFrame(data_list)
     cols_prioritas = ["Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Keterangan PO"]
     sisa_cols = [c for c in df_baru.columns if c not in cols_prioritas]
@@ -127,7 +126,6 @@ def simpan_data_transaksi(data_list):
     for item in data_list:
         if not item.get("Update Terakhir"):
             item["Update Terakhir"] = waktu_sekarang
-
     df_baru = pd.DataFrame(data_list)
     df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
     st.session_state["db_transaksi"] = data_list
@@ -151,7 +149,7 @@ def simpan_master_referensi(data_list):
     df_baru.to_excel(EXCEL_MASTER_REF, index=False)
     st.session_state["db_master_ref"] = data_list
 
-# Inisialisasi Session State dengan Sinkronisasi File Aman
+# Inisialisasi Session State
 if "db_tersimpan" not in st.session_state:
     st.session_state["db_tersimpan"] = muat_data_invoice()
 
@@ -213,7 +211,7 @@ st.sidebar.markdown("---")
 st.sidebar.success("📂 **Status Sistem:** Terhubung ke Folder Aman (`database_penyimpanan_aman`)")
 
 # =========================================================================
-# LOGIKA MODUL 0: MASTER REFERENSI HARGA & PEKERJAAN (DENGAN PANGGIL KEMBALI)
+# LOGIKA MODUL 0: MASTER REFERENSI HARGA & PEKERJAAN
 # =========================================================================
 if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
     if menu == "Input & Kelola Master Referensi":
@@ -226,7 +224,6 @@ if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
 
         master_data_live = muat_master_referensi()
         
-        # Fitur Panggil Kembali Berdasarkan Uraian Pekerjaan
         opsi_panggil_uraian = ["-- Buat Data Referensi Baru --"] + [f"{m.get('Uraian Pekerjaan', '')[:60]}... (Kontrak: {m.get('Nomor Kontrak','')})" for m in master_data_live]
         
         col_p_ref, col_b_ref = st.columns([3, 1])
@@ -293,7 +290,6 @@ if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
                     }
                     
                     if submit_master_update and st.session_state["edit_master_index"] is not None and st.session_state["edit_master_index"] < len(master_data):
-                        # Timpa / Update data yang sedang diedit
                         master_data[st.session_state["edit_master_index"]] = item_baru
                         st.success("✨ Data Master Referensi berhasil di-update!")
                     else:
@@ -307,32 +303,34 @@ if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
     elif menu == "Lihat Daftar Master Referensi Tersimpan":
         st.markdown("""
             <div class="dashboard-card">
-                <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Tabel Master Referensi Harga & Pekerjaan (Dilengkapi Tombol Edit & Hapus)</h3>
+                <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Tabel Master Referensi Harga & Pekerjaan (Tampilan Satu Baris)</h3>
             </div>
         """, unsafe_allow_html=True)
 
         master_records = muat_master_referensi()
         if master_records:
+            # TAMPILAN SATU BARIS BERSIH DENGAN TABEL DATAFRAME / CUSTOM LOOP
             for idx, item in enumerate(master_records):
-                with st.expander(f"No. {idx+1} | Kontrak: {item.get('Nomor Kontrak')} | {item.get('Uraian Pekerjaan')[:50]}..."):
-                    st.write(f"**Kategori:** {item.get('Kategori')}")
-                    st.write(f"**Uraian Pekerjaan:** {item.get('Uraian Pekerjaan')}")
-                    st.write(f"**Unit:** {item.get('Unit')} | **Harga Satuan:** Rp {item.get('Harga Satuan', 0):,.2f}")
-                    st.write(f"**Update Terakhir:** {item.get('Update Terakhir')}")
-                    
-                    col_ed1, col_ed2 = st.columns(2)
-                    with col_ed1:
-                        if st.button(f"✏️ Edit Baris {idx+1}", key=f"edit_m_{idx}"):
-                            st.session_state["edit_master_index"] = idx
-                            st.success("Data dimuat untuk diedit. Silakan kembali ke menu 'Input & Kelola Master Referensi'.")
-                    with col_ed2:
-                        if st.button(f"🗑️ Hapus Baris {idx+1}", key=f"del_m_{idx}"):
-                            master_records.pop(idx)
-                            simpan_master_referensi(master_records)
-                            st.success("Baris referensi berhasil dihapus!")
-                            st.rerun()
+                c_no, c_kon, c_kat, c_pek, c_unit, c_hrg, c_act1, c_act2 = st.columns([0.6, 1.8, 1.8, 4.0, 0.8, 1.5, 0.7, 0.7])
+                c_no.write(f"**{idx+1}**")
+                c_kon.write(str(item.get('Nomor Kontrak', '')))
+                c_kat.write(str(item.get('Kategori', '')))
+                c_pek.write(str(item.get('Uraian Pekerjaan', '')))
+                c_unit.write(str(item.get('Unit', '')))
+                c_hrg.write(f"Rp {item.get('Harga Satuan', 0):,.2f}")
+                
+                with c_act1:
+                    if st.button("✏️", key=f"edit_m_{idx}", help="Edit baris ini"):
+                        st.session_state["edit_master_index"] = idx
+                        st.rerun()
+                with c_act2:
+                    if st.button("🗑️", key=f"del_m_{idx}", help="Hapus baris ini"):
+                        master_records.pop(idx)
+                        simpan_master_referensi(master_records)
+                        st.rerun()
+                st.markdown("<hr style='margin:4px 0; border-color:#e2e8f0;'>", unsafe_allow_html=True)
             
-            st.markdown("---")
+            st.markdown("<br>", unsafe_allow_html=True)
             if st.button("🗑️ Reset / Hapus Semua Master Referensi"):
                 if os.path.exists(EXCEL_MASTER_REF):
                     os.remove(EXCEL_MASTER_REF)
@@ -524,7 +522,7 @@ elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
             st.info("Belum ada data database identifikasi di dalam folder penyimpanan aman.")
 
 # =========================================================================
-# LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN
+# LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN (DINAMIS & SINKRON)
 # =========================================================================
 elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
     if menu == "Input & Proses Rincian Pekerjaan":
@@ -573,67 +571,71 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
             list_kontrak = list(set([str(item.get("Nomor Kontrak", "")) for item in saved_db if item.get("Nomor Kontrak")]))
             list_pi = list(set([str(item.get("Proforma Invoice No.", "")) for item in saved_db if item.get("Proforma Invoice No.")]))
 
-            with st.form("form_proses_rincian"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    def_kontrak = get_tval("Nomor Kontrak", list_kontrak[0] if list_kontrak else "")
-                    idx_k = list_kontrak.index(def_kontrak) if def_kontrak in list_kontrak else 0
-                    selected_kontrak = st.selectbox("Nomor Kontrak", list_kontrak if list_kontrak else [""], index=idx_k)
-                    
-                    filtered_pi = [str(item.get("Proforma Invoice No.", "")) for item in saved_db if str(item.get("Nomor Kontrak")) == str(selected_kontrak)]
-                    if not filtered_pi:
-                        filtered_pi = list_pi
-                    
-                    def_pi_val = get_tval("PI No.", filtered_pi[0] if filtered_pi else "")
-                    idx_pi = filtered_pi.index(def_pi_val) if def_pi_val in filtered_pi else 0
-                    selected_pi = st.selectbox("Nomor Proforma Invoice (PI)", filtered_pi if filtered_pi else [""], index=idx_pi)
-                    
-                    matched_record = next((item for item in saved_db if str(item.get("Nomor Kontrak")) == str(selected_kontrak) and str(item.get("Proforma Invoice No.")) == str(selected_pi)), saved_db[0])
-
-                    nama_kontrak = matched_record.get("Judul Kontrak", "")
-                    nomor_tender = matched_record.get("Nomor Tender", "")
-                    tanggal_pi = matched_record.get("Tanggal Performa Invoice", "")
-                    ditujukan_kepada = matched_record.get("Pihak Pertama", "")
+            # --- FORM DI LUAR AGAR SINKRONISASI DROPDOWN BERJALAN DINAMIS ---
+            col1, col2 = st.columns(2)
+            with col1:
+                def_kontrak = get_tval("Nomor Kontrak", list_kontrak[0] if list_kontrak else "")
+                idx_k = list_kontrak.index(def_kontrak) if def_kontrak in list_kontrak else 0
+                selected_kontrak = st.selectbox("Nomor Kontrak", list_kontrak if list_kontrak else [""], index=idx_k)
                 
-                with col2:
-                    nomor_po = st.text_input("Nomor PO", matched_record.get("Nomor Purchase Order", ""))
-                    tanggal_po = st.text_input("Tanggal PO", matched_record.get("Tanggal Purchase Order", ""))
-                    mata_uang = st.text_input("Mata Uang", "IDR")
-                    desc_po = st.text_area("Lingkup Pekerjaan", matched_record.get("Lingkup Pekerjaan", ""))
-
-                st.markdown("---")
-                st.markdown("#### ⚙️ Pemilihan Kategori & Uraian Pekerjaan (Rujukan Master Tetap)")
+                filtered_pi = [str(item.get("Proforma Invoice No.", "")) for item in saved_db if str(item.get("Nomor Kontrak")) == str(selected_kontrak)]
+                if not filtered_pi:
+                    filtered_pi = list_pi
                 
-                df_ref = pd.DataFrame(master_ref_data)
-                df_ref_kontrak = df_ref[df_ref["Nomor Kontrak"].astype(str).str.strip() == str(selected_kontrak).strip()]
-                if df_ref_kontrak.empty:
-                    df_ref_kontrak = df_ref 
-
-                list_kat = df_ref_kontrak["Kategori"].dropna().unique().tolist()
-                def_kat = get_tval("Kategori", list_kat[0] if list_kat else "")
-                idx_kat = list_kat.index(def_kat) if def_kat in list_kat else 0
-                kategori_pilih = st.selectbox("Kategori Pekerjaan", list_kat if list_kat else ["-"], index=idx_kat)
-
-                df_filtered_kat = df_ref_kontrak[df_ref_kontrak["Kategori"].astype(str).str.strip() == str(kategori_pilih).strip()]
-                list_spek = df_filtered_kat["Uraian Pekerjaan"].dropna().unique().tolist() if not df_filtered_kat.empty else df_ref_kontrak["Uraian Pekerjaan"].dropna().unique().tolist()
+                def_pi_val = get_tval("PI No.", filtered_pi[0] if filtered_pi else "")
+                idx_pi = filtered_pi.index(def_pi_val) if def_pi_val in filtered_pi else 0
+                selected_pi = st.selectbox("Nomor Proforma Invoice (PI)", filtered_pi if filtered_pi else [""], index=idx_pi)
                 
-                def_spek = get_tval("Deskripsi Pekerjaan", list_spek[0] if list_spek else "")
-                idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
-                deskripsi_pekerjaan = st.selectbox("Uraian Pekerjaan / Spesifikasi", list_spek if list_spek else ["-"], index=idx_spek)
+                matched_record = next((item for item in saved_db if str(item.get("Nomor Kontrak")) == str(selected_kontrak) and str(item.get("Proforma Invoice No.")) == str(selected_pi)), saved_db[0])
 
-                harga_satuan_otomatis = 0.0
-                unit_otomatis = "Month"
+                nama_kontrak = matched_record.get("Judul Kontrak", "")
+                nomor_tender = matched_record.get("Nomor Tender", "")
+                tanggal_pi = matched_record.get("Tanggal Performa Invoice", "")
+                ditujukan_kepada = matched_record.get("Pihak Pertama", "")
+            
+            with col2:
+                nomor_po = st.text_input("Nomor PO", matched_record.get("Nomor Purchase Order", ""))
+                tanggal_po = st.text_input("Tanggal PO", matched_record.get("Tanggal Purchase Order", ""))
+                mata_uang = st.text_input("Mata Uang", "IDR")
+                desc_po = st.text_area("Lingkup Pekerjaan", matched_record.get("Lingkup Pekerjaan", ""))
 
-                if not df_filtered_kat.empty:
-                    matched_row = df_filtered_kat[df_filtered_kat["Uraian Pekerjaan"].astype(str).str.strip() == str(deskripsi_pekerjaan).strip()]
-                    if not matched_row.empty:
-                        row_m = matched_row.iloc[0]
-                        try:
-                            harga_satuan_otomatis = float(row_m.get("Harga Satuan", 0.0))
-                        except:
-                            harga_satuan_otomatis = 0.0
-                        unit_otomatis = str(row_m.get("Unit", "Month"))
+            st.markdown("---")
+            st.markdown("#### ⚙️ Pemilihan Kategori & Uraian Pekerjaan (Dinamis & Terhubung)")
+            
+            df_ref = pd.DataFrame(master_ref_data)
+            df_ref_kontrak = df_ref[df_ref["Nomor Kontrak"].astype(str).str.strip() == str(selected_kontrak).strip()]
+            if df_ref_kontrak.empty:
+                df_ref_kontrak = df_ref 
 
+            # 1. PILIH KATEGORI TERLEBIH DAHULU
+            list_kat = df_ref_kontrak["Kategori"].dropna().unique().tolist()
+            def_kat = get_tval("Kategori", list_kat[0] if list_kat else "")
+            idx_kat = list_kat.index(def_kat) if def_kat in list_kat else 0
+            kategori_pilih = st.selectbox("Kategori Pekerjaan", list_kat if list_kat else ["-"], index=idx_kat)
+
+            # 2. FILTER URAIAN PEKERJAAN BERDASARKAN KATEGORI YANG DIPILIH SECARA DINAMIS
+            df_filtered_kat = df_ref_kontrak[df_ref_kontrak["Kategori"].astype(str).str.strip() == str(kategori_pilih).strip()]
+            list_spek = df_filtered_kat["Uraian Pekerjaan"].dropna().unique().tolist() if not df_filtered_kat.empty else df_ref_kontrak["Uraian Pekerjaan"].dropna().unique().tolist()
+            
+            def_spek = get_tval("Deskripsi Pekerjaan", list_spek[0] if list_spek else "")
+            idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
+            deskripsi_pekerjaan = st.selectbox("Uraian Pekerjaan / Spesifikasi", list_spek if list_spek else ["-"], index=idx_spek)
+
+            # 3. AMBIL HARGA SATUAN & UNIT OTOMATIS BERDASARKAN URAIAN YANG DIPILIH
+            harga_satuan_otomatis = 0.0
+            unit_otomatis = "Month"
+
+            if not df_filtered_kat.empty:
+                matched_row = df_filtered_kat[df_filtered_kat["Uraian Pekerjaan"].astype(str).str.strip() == str(deskripsi_pekerjaan).strip()]
+                if not matched_row.empty:
+                    row_m = matched_row.iloc[0]
+                    try:
+                        harga_satuan_otomatis = float(row_m.get("Harga Satuan", 0.0))
+                    except:
+                        harga_satuan_otomatis = 0.0
+                    unit_otomatis = str(row_m.get("Unit", "Month"))
+
+            with st.form("form_proses_rincian_sub"):
                 c_item1, c_item2, c_item3, c_item4 = st.columns([1, 1, 1, 1])
                 with c_item1:
                     qty = st.number_input("Qty Out", value=float(get_tval("Qty", 1.0)))
@@ -647,10 +649,11 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                 with c_item4:
                     tgl_selesai = st.date_input("Tanggal Selesai", value=date(2026, 7, 31))
 
+                # HARGA SATUAN DINAMIS MENGIKUTI MASTER REFERENSI TERPILIH
                 def_hs = float(get_tval("Harga Satuan", harga_satuan_otomatis))
                 
                 st.markdown(f"""
-                    <div style="font-weight:600; font-size:13px; margin-bottom:5px; color:#0f172a;">Harga Satuan Tetap (Rp - Bersumber dari Master Referensi)</div>
+                    <div style="font-weight:600; font-size:13px; margin-bottom:5px; color:#0f172a;">Harga Satuan Tetap (Rp - Dinamis Mengikuti Uraian Terpilih)</div>
                     <div style="background-color:#ffffff; border:1px solid #cbd5e1; padding:8px 12px; border-radius:6px; font-size:15px; font-weight:bold; color:#0f172a;">
                         Rp {def_hs:,.2f}
                     </div>
