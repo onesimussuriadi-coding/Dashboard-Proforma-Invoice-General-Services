@@ -8,7 +8,7 @@ from datetime import date
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
 
-# --- CSS STYLING PROFESIONAL & PENYEJAJARAN TITIK DUA ---
+# --- CSS STYLING PROFESIONAL ---
 st.markdown("""
     <style>
     .stApp { background-color: #f8fafc; color: #0f172a; }
@@ -111,10 +111,8 @@ def muat_data_transaksi():
     return []
 
 def simpan_data_transaksi(data_list):
-    # Logika Upsert: Menghilangkan duplikat berdasarkan PI No. agar selalu menimpa data terbaru
     clean_list = []
     seen_pi = set()
-    # Proses dari belakang agar data terbaru yang menimpa yang lama
     for item in reversed(data_list):
         pi_no = str(item.get("PI No.", "")).strip()
         if pi_no and pi_no not in seen_pi:
@@ -404,9 +402,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
         st.markdown("#### 🔄 Panggil Data Transaksi untuk Edit & Update")
         existing_tx_list = muat_data_transaksi()
         
-        # Unikkan daftar PI untuk dropdown pemanggilan edit
         unique_pi_list = sorted(list(set([str(t.get("PI No.", "")) for t in existing_tx_list if t.get("PI No.")])))
-        
         opsi_panggil_tx = ["-- Buat / Input Data Baru --"] + [f"PI: {pi}" for pi in unique_pi_list]
         
         col_p_tx, col_b_tx = st.columns([3, 1])
@@ -418,14 +414,12 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                     st.session_state["edit_tx_index"] = None
                 else:
                     target_pi = pilihan_edit_tx.replace("PI: ", "")
-                    # Cari index data transaksi yang sesuai
                     for idx, tx in enumerate(existing_tx_list):
                         if str(tx.get("PI No.")) == target_pi:
                             st.session_state["edit_tx_index"] = idx
                             break
                 st.rerun()
 
-        # Ambil default values jika mode edit aktif
         def_tx = {}
         if st.session_state["edit_tx_index"] is not None and st.session_state["edit_tx_index"] < len(existing_tx_list):
             def_tx = existing_tx_list[st.session_state["edit_tx_index"]]
@@ -489,12 +483,13 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
                 deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Deskripsi Kosong)"], index=idx_spek)
                 
-                # --- VLOOKUP HARGA SATUAN DARI KOLOM NO 10 (INDEX 9) ---
+                # --- VLOOKUP HARGA SATUAN PRESISI BERDASARKAN SPESIFIKASI TERPILIH (KOLOM NO 10 / INDEX 9) ---
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
                 
-                if not df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan].empty:
-                    row_m = df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan].iloc[0]
+                matched_row_df = df_filtered[df_filtered[kolom_spek] == deskripsi_pekerjaan]
+                if not matched_row_df.empty:
+                    row_m = matched_row_df.iloc[0]
                     if len(row_m) > 9:
                         try:
                             harga_satuan_otomatis = float(row_m.iloc[9])
@@ -513,8 +508,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
 
             c_item1, c_item2, c_item3, c_item4 = st.columns([1, 1, 1, 1])
             with c_item1:
-                def_qty = float(get_tval("Qty", 1.0))
-                qty = st.number_input("Qty Out", value=def_qty)
+                qty = st.number_input("Qty Out", value=float(get_tval("Qty", 1.0)))
             with c_item2:
                 def_unit = get_tval("Unit", unit_otomatis)
                 u_opts = ["Month", "Day"]
@@ -525,8 +519,15 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             with c_item4:
                 tgl_selesai = st.date_input("Tanggal Selesai", value=date(2026, 7, 31))
 
+            # Harga Satuan tanpa tombol +/- (menggunakan number_input bersih atau text_input terformat)
             def_hs = float(get_tval("Harga Satuan", harga_satuan_otomatis))
-            harga_satuan = st.number_input("Harga Satuan (Rp - Membaca Master Kontrak)", value=def_hs, format="%.2f")
+            st.markdown(f"""
+                <div style="font-weight:600; font-size:13px; margin-bottom:5px; color:#0f172a;">Harga Satuan (Rp - Membaca Master Kontrak)</div>
+                <div style="background-color:#ffffff; border:1px solid #cbd5e1; padding:8px 12px; border-radius:6px; font-size:15px; font-weight:bold; color:#0f172a;">
+                    Rp {def_hs:,.2f}
+                </div>
+            """, unsafe_allow_html=True)
+            harga_satuan = def_hs  # Nilai otomatis dari master kontrak sesuai spesifikasi terpilih
             
             def_ket = get_tval("Keterangan", "")
             keterangan_pekerjaan = st.text_input("Keterangan / Deskripsi Tambahan", value=def_ket)
@@ -559,8 +560,6 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 }
                 
                 existing_tx = muat_data_transaksi()
-                
-                # Logika Upsert mutlak berdasarkan PI No. agar data lama tertimpa dengan update terbaru
                 pi_baru = str(selected_pi).strip()
                 existing_tx = [t for t in existing_tx if str(t.get("PI No.")).strip() != pi_baru]
                 
@@ -582,7 +581,6 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
     if not transaksi_list:
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses di Modul 2.")
     else:
-        # Menghilangkan duplikat PI pada dropdown pilihan dokumen
         seen_pi_dd = set()
         unique_tx_list = []
         for t in transaksi_list:
@@ -608,7 +606,6 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
 
         st.markdown("---")
 
-        # --- HTML DOKUMEN DENGAN HEADER DISEJAJARKAN TITIK DUA & DATA MURNI MODUL 1/2 ---
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -798,7 +795,6 @@ elif menu == "Lihat Akumulasi Riwayat Transaksi":
     
     tx_records = muat_data_transaksi()
     if tx_records:
-        # Menampilkan tabel transaksi murni tanpa duplikat PI (sudah bersih karena sistem upsert)
         st.dataframe(pd.DataFrame(tx_records), use_container_width=True)
     else:
         st.info("Belum ada riwayat transaksi rincian pekerjaan tersimpan.")
