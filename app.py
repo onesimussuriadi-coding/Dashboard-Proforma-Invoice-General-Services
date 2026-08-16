@@ -136,7 +136,7 @@ def muat_master_kontrak():
     except:
         return pd.DataFrame()
 
-# Inisialisasi Session State
+# Inisialisasi Session State dengan membaca dari disk atau mempertahankan memori
 if "db_tersimpan" not in st.session_state:
     disk_data = muat_data_invoice()
     st.session_state["db_tersimpan"] = disk_data if disk_data else []
@@ -483,7 +483,8 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
                 deskripsi_pekerjaan = st.selectbox("Spesifikasi / Deskripsi Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Deskripsi Kosong)"], index=idx_spek)
                 
-                # --- VLOOKUP HARGA SATUAN PRESISI BERDASARKAN SPESIFIKASI TERPILIH (KOLOM NO 10 / INDEX 9) ---
+                # --- VLOOKUP HARGA SATUAN PRESISI BERDASARKAN SPESIFIKASI TERPILIH ---
+                # Sesuai instruksi: Diambil dari baris spesifikasi terpilih, tepat pada kolom ke-10 (indeks ke-9)
                 harga_satuan_otomatis = 0.0
                 unit_otomatis = "Month"
                 
@@ -519,7 +520,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             with c_item4:
                 tgl_selesai = st.date_input("Tanggal Selesai", value=date(2026, 7, 31))
 
-            # Harga Satuan tanpa tombol +/- (menggunakan number_input bersih atau text_input terformat)
+            # Harga Satuan tanpa tombol +/- (bersih merujuk otomatis ke kolom ke-10 master kontrak)
             def_hs = float(get_tval("Harga Satuan", harga_satuan_otomatis))
             st.markdown(f"""
                 <div style="font-weight:600; font-size:13px; margin-bottom:5px; color:#0f172a;">Harga Satuan (Rp - Membaca Master Kontrak)</div>
@@ -527,7 +528,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                     Rp {def_hs:,.2f}
                 </div>
             """, unsafe_allow_html=True)
-            harga_satuan = def_hs  # Nilai otomatis dari master kontrak sesuai spesifikasi terpilih
+            harga_satuan = def_hs  
             
             def_ket = get_tval("Keterangan", "")
             keterangan_pekerjaan = st.text_input("Keterangan / Deskripsi Tambahan", value=def_ket)
