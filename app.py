@@ -409,8 +409,10 @@ elif menu == "Master Kontrak":
             sheet_pilih = st.selectbox("Pilih Sheet:", xl_f.sheet_names)
             st.dataframe(muat_master_kontrak(), use_container_width=True)
     else:
-        st.warning("⚠️ Belum ada file Master Kontrak di folder.")# =========================================================================
-# LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN (DENGAN VLOOKUP BERBASIS KONTRAK)
+        st.warning("⚠️ Belum ada file Master Kontrak di folder.")
+
+# =========================================================================
+# LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN (DISERAGAMKAN & PRESISI)
 # =========================================================================
 elif menu == "Input & Proses Rincian Pekerjaan":
     st.markdown("""
@@ -487,21 +489,28 @@ elif menu == "Input & Proses Rincian Pekerjaan":
             st.markdown("---")
             st.markdown("#### ⚙️ Pemilihan Kategori, Uraian Pekerjaan & Rujukan Master Kontrak")
             
+            harga_satuan_otomatis = 0.0
+            unit_otomatis = "Month"
+            kategori_pilih = "-"
+            deskripsi_pekerjaan = "-"
+
             if not df_master.empty:
                 df_master.columns = df_master.columns.astype(str).str.strip()
                 available_cols = df_master.columns.tolist()
                 
-                # 1. Deteksi Kolom Utama secara Presisi
+                # Deteksi kolom secara presisi berdasarkan standar kesepakatan
                 kolom_kontrak_master = available_cols[1] if len(available_cols) > 1 else available_cols[0]
                 kolom_kategori = next((c for c in available_cols if 'kategori' in c.lower()), available_cols[2] if len(available_cols) > 2 else available_cols[0])
-                kolom_spek = next((c for c in available_cols if 'uraian' in c.lower() or 'pekerjaan' in c.lower()), available_cols[4] if len(available_cols) > 4 else available_cols[3])
                 
-                # 2. STEP 1: Filter Master Berdasarkan Nomor Kontrak yang Dipilih
+                # Deteksi fleksibel kolom Uraian Pekerjaan / Spesifikasi
+                kolom_spek = next((c for c in available_cols if 'uraian' in c.lower() or 'spesifikasi' in c.lower() or 'deskripsi' in c.lower()), available_cols[3])
+                
+                # Filter berdasarkan Nomor Kontrak
                 df_master_kontrak = df_master[df_master[kolom_kontrak_master].astype(str).str.strip() == str(selected_kontrak).strip()]
                 if df_master_kontrak.empty:
-                    df_master_kontrak = df_master # Fallback jika format nomor kontrak berbeda tipis
+                    df_master_kontrak = df_master
 
-                # 3. STEP 2: Filter dan Pilih Kategori Berdasarkan Kontrak
+                # Filter Kategori
                 df_master_kontrak['Clean_Kat'] = df_master_kontrak[kolom_kategori].astype(str).str.strip()
                 list_kat = df_master_kontrak['Clean_Kat'].dropna().unique().tolist()
                 
@@ -509,25 +518,21 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                 idx_kat = list_kat.index(def_kat) if def_kat in list_kat else 0
                 kategori_pilih = st.selectbox("Kategori (Rujukan Master Kontrak)", list_kat if list_kat else ["(Kategori Kosong)"], index=idx_kat)
                 
-                # 4. STEP 3: Filter Uraian Pekerjaan HANYA Berdasarkan Kategori yang Dipilih
+                # Filter Uraian Pekerjaan berdasarkan Kategori yang dipilih
                 df_filtered_kat = df_master_kontrak[df_master_kontrak['Clean_Kat'].str.lower() == str(kategori_pilih).strip().lower()]
-                
                 list_spek = df_filtered_kat[kolom_spek].dropna().unique().tolist() if not df_filtered_kat.empty else df_master_kontrak[kolom_spek].dropna().unique().tolist()
                 
                 def_spek = get_tval("Deskripsi Pekerjaan", list_spek[0] if list_spek else "")
                 idx_spek = list_spek.index(def_spek) if def_spek in list_spek else 0
                 deskripsi_pekerjaan = st.selectbox("Uraian Pekerjaan (Rujukan Master Kontrak)", list_spek if list_spek else ["(Uraian Kosong)"], index=idx_spek)
                 
-                # 5. STEP 4: Tarik Harga Satuan & Unit Berdasarkan Uraian Pekerjaan yang Dipilih Spesifik
-                harga_satuan_otomatis = 0.0
-                unit_otomatis = "Month"
-                
+                # VLOOKUP Harga Satuan & Unit Berdasarkan Uraian Pekerjaan
                 if not df_filtered_kat.empty:
                     matched_row_df = df_filtered_kat[df_filtered_kat[kolom_spek].astype(str).str.strip() == str(deskripsi_pekerjaan).strip()]
                     if not matched_row_df.empty:
                         row_m = matched_row_df.iloc[0]
                         
-                        kolom_hs = next((c for c in available_cols if 'harga satuan' in c.lower() or ('harga' in c.lower() and 'satuan' in c.lower())), None)
+                        kolom_hs = next((c for c in available_cols if 'harga satuan' in c.lower() or ('harga' in c.lower() and 'satuan' in c.lower()) or 'satuan' in c.lower()), None)
                         if kolom_hs and kolom_hs in row_m:
                             try:
                                 raw_val = str(row_m[kolom_hs]).replace("Rp", "").replace(".", "").replace(",", ".").strip()
@@ -535,22 +540,18 @@ elif menu == "Input & Proses Rincian Pekerjaan":
                             except:
                                 harga_satuan_otomatis = 0.0
 
-                        kolom_unit = next((c for c in available_cols if 'unit' in c.lower()), None)
+                        kolom_unit = next((c for c in available_cols if c.lower() == 'unit' or 'satuan' in c.lower() and c.lower() != 'harga satuan'), None)
                         if kolom_unit and kolom_unit in row_m:
                             unit_otomatis = str(row_m.get(kolom_unit, "Month"))
             else:
                 st.warning("⚠️ File Master Kontrak Excel belum ditemukan di direktori sistem.")
-                kategori_pilih = "-"
-                deskripsi_pekerjaan = "-"
-                harga_satuan_otomatis = 0.0
-                unit_otomatis = "Month"
 
             c_item1, c_item2, c_item3, c_item4 = st.columns([1, 1, 1, 1])
             with c_item1:
                 qty = st.number_input("Qty Out", value=float(get_tval("Qty", 1.0)))
             with c_item2:
                 def_unit = get_tval("Unit", unit_otomatis)
-                u_opts = ["Month", "Day"]
+                u_opts = ["Month", "Day", "Ls", "Unit"]
                 idx_u = u_opts.index(def_unit) if def_unit in u_opts else 0
                 unit = st.selectbox("Unit", u_opts, index=idx_u)
             with c_item3:
@@ -560,14 +561,13 @@ elif menu == "Input & Proses Rincian Pekerjaan":
 
             def_hs = float(get_tval("Harga Satuan", harga_satuan_otomatis))
             
-            # --- UBAH TEKS KETERANGAN DI SINI AGAR SESUAI DENGAN URAIAN PEKERJAAN ---
             st.markdown(f"""
                 <div style="font-weight:600; font-size:13px; margin-bottom:5px; color:#0f172a;">Harga Satuan (Rp - Membaca Master Kontrak Berdasarkan Uraian Pekerjaan)</div>
                 <div style="background-color:#ffffff; border:1px solid #cbd5e1; padding:8px 12px; border-radius:6px; font-size:15px; font-weight:bold; color:#0f172a;">
                     Rp {def_hs:,.2f}
                 </div>
             """, unsafe_allow_html=True)
-            harga_satuan = def_hs
+            harga_satuan = def_hs  
             
             def_ket = get_tval("Keterangan", "")
             keterangan_pekerjaan = st.text_input("Keterangan / Deskripsi Tambahan", value=def_ket)
@@ -613,7 +613,7 @@ elif menu == "Input & Proses Rincian Pekerjaan":
 elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">🖨️ Pratinjau, Cetak & Download PDF Dokumen Resmi</h3>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">🖨️ Pratinjau, Cetak & Download Dokumen Resmi</h3>
         </div>
     """, unsafe_allow_html=True)
 
@@ -635,7 +635,7 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
         t_data = unique_tx_list[selected_idx]
         
         doc_type = st.selectbox("Pilih Jenis Dokumen:", [
-            "Rincian Pekerjaan (Sheet Rincian Pek)",
+            "Rincian Pekerjaan",
             "Proforma Invoice",
             "WCC (Work Completion Certificate)",
             "Opname Pekerjaan",
@@ -673,11 +673,10 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
             <div class="title">{doc_type}</div>
         """
 
-        if doc_type == "Rincian Pekerjaan (Sheet Rincian Pek)":
+        if doc_type == "Rincian Pekerjaan":
             html_content += f"""
             <table class="info-table">
                 <tr>
-
                     <td class="label-col">Rincian Pekerjaan</td>
                     <td class="colon-col">:</td>
                     <td>{t_data['Nomor Kontrak']}-BSS-WCC-2026</td>
@@ -722,7 +721,7 @@ elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
                 <tr>
                     <th>No.</th>
                     <th>Kategori</th>
-                    <th>Spesifikasi / Deskripsi</th>
+                    <th>Uraian Pekerjaan</th>
                     <th>Qty Out</th>
                     <th>Unit</th>
                     <th>Tanggal Mulai</th>
