@@ -6,9 +6,7 @@ def terbilang(n):
     n = int(n)
     if n < 0:
         return "minus " + terbilang(-n)
-    
     satuan = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"]
-    
     if n < 12:
         return " " + satuan[n]
     elif n < 20:
@@ -67,7 +65,7 @@ def tampilkan_proforma_invoice(transaksi_list):
             .header-title {{ font-size: 16px; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; }}
             table.two-col {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; border: none; }}
             table.two-col td {{ border: none; padding: 2px 0; vertical-align: top; font-size: 11px; }}
-            table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; }}
+            table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 10px; }}
             table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 6px 8px; font-size: 11px; text-align: left; }}
             table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
             .bank-section {{ margin-top: 15px; font-size: 11px; line-height: 1.4; }}
@@ -136,9 +134,9 @@ def tampilkan_proforma_invoice(transaksi_list):
                 <td style="text-align: center;">{t_data['Qty']:,.2f}</td>
                 <td style="text-align: center;">{t_data['Unit']}</td>
                 <td style="text-align: center;">1.0 Month</td>
-                <td style="text-align: right;">Rp {t_data['Harga Satuan']:,.2f}</td>
+                <td style="text-align: right;">{t_data['Harga Satuan']:,.2f}</td>
                 <td style="text-align: center;">{t_data.get('Percent', 100)}%</td>
-                <td style="text-align: right;">Rp {t_data['Total Harga']:,.2f}</td>
+                <td style="text-align: right;">{t_data['Total Harga']:,.2f}</td>
             </tr>
         </table>
 

@@ -2,6 +2,32 @@ import streamlit as st
 import pandas as pd
 import base64
 
+def terbilang(n):
+    n = int(n)
+    if n < 0:
+        return "minus " + terbilang(-n)
+    satuan = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"]
+    if n < 12:
+        return " " + satuan[n]
+    elif n < 20:
+        return terbilang(n - 10) + " Belas"
+    elif n < 100:
+        return terbilang(n // 10) + " Puluh" + terbilang(n % 10)
+    elif n < 200:
+        return " Seratus" + terbilang(n - 100)
+    elif n < 1000:
+        return terbilang(n // 100) + " Ratus" + terbilang(n % 100)
+    elif n < 2000:
+        return " Seribu" + terbilang(n - 1000)
+    elif n < 1000000:
+        return terbilang(n // 1000) + " Ribu" + terbilang(n % 1000)
+    elif n < 1000000000:
+        return terbilang(n // 1000000) + " Juta" + terbilang(n % 1000000)
+    elif n < 1000000000000:
+        return terbilang(n // 1000000000) + " Miliar" + terbilang(n % 1000000000)
+    else:
+        return " Angka terlalu besar"
+
 def tampilkan_rincian_pekerjaan(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
@@ -25,6 +51,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
     
     t_data = unique_tx_list[selected_idx]
+    terbilang_str = terbilang(t_data['Total Harga']).strip() + " Rupiah"
 
     html_content = f"""
     <!DOCTYPE html>
@@ -40,7 +67,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
             table.info-table td {{ border: none; padding: 4px 6px; font-size: 11px; vertical-align: top; }}
             .label-col {{ width: 160px; font-weight: bold; }}
             .colon-col {{ width: 10px; font-weight: bold; text-align: center; }}
-            table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px; }}
+            table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 10px; }}
             table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 6px 10px; font-size: 11px; text-align: left; }}
             table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
         </style>
@@ -114,18 +141,27 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <td>{t_data['Deskripsi Pekerjaan']}</td>
                 <td style="text-align: center;">{t_data['Qty']:,.2f}</td>
                 <td style="text-align: center;">{t_data['Unit']}</td>
-                <td style="text-align: center;">{t_data.get('Tanggal Mulai', '-')}</td>
-                <td style="text-align: center;">{t_data.get('Tanggal Selesai', '-')}</td>
-                <td style="text-align: right;">Rp {t_data['Harga Satuan']:,.2f}</td>
-                <td style="text-align: right;">Rp {t_data['Total Harga']:,.2f}</td>
+                <td style="text-align: center; white-space: nowrap;">{t_data.get('Tanggal Mulai', '-')}</td>
+                <td style="text-align: center; white-space: nowrap;">{t_data.get('Tanggal Selesai', '-')}</td>
+                <td style="text-align: right;">{t_data['Harga Satuan']:,.2f}</td>
+                <td style="text-align: right;">{t_data['Total Harga']:,.2f}</td>
                 <td>{t_data['Keterangan']}</td>
             </tr>
         </table>
         
-        <p style="text-align: right; font-weight: bold; font-size: 13px;">TOTAL TAGIHAN: Rp {t_data['Total Harga']:,.2f}</p>
+        <table style="width: 100%; border: none; margin-top: 5px;">
+            <tr>
+                <td style="border: none; text-align: left; font-size: 11px;">
+                    <b>Terbilang :</b> <i>{terbilang_str}</i>
+                </td>
+                <td style="border: none; text-align: right; font-weight: bold; font-size: 13px; width: 40%;">
+                    TOTAL TAGIHAN: Rp {t_data['Total Harga']:,.2f}
+                </td>
+            </tr>
+        </table>
         <br>
         
-        <table style="border: none; width: 100%; margin-top: 30px;">
+        <table style="border: none; width: 100%; margin-top: 20px;">
             <tr>
                 <td style="border: none; text-align: center; width: 50%;">
                     <b>DIBUAT OLEH</b><br><br><br><br>
