@@ -617,7 +617,7 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                 nomor_tender = matched_record.get("Nomor Tender", "")
                 tanggal_pi = matched_record.get("Tanggal Performa Invoice", "")
                 ditujukan_kepada = matched_record.get("Pihak Pertama", "")
-                alamat_pihak_ pertama = matched_record.get("Alamat Pihak Pertama", "")
+                alamat_pihak_pertama = matched_record.get("Alamat Pihak Pertama", "")
                 jangka_waktu = matched_record.get("Jangka Waktu Kontrak", "")
             
             with col2:
