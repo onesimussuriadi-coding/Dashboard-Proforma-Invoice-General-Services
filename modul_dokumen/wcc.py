@@ -53,23 +53,20 @@ def tampilkan_wcc(transaksi_list):
     t_data = unique_tx_list[selected_idx]
     terbilang_str = terbilang(t_data['Total Harga']).strip() + " Rupiah"
     
-    # --- PENGAMBILAN DATA DINAMIS DARI DATABASE ---
-    wcc_no = t_data.get('Nomor WCC', f"{t_data['Nomor Kontrak']}-BSS-WCC-2026")
+    # Ambil data spesifik dari database tanpa terpotong
+    wcc_no = t_data.get('Nomor WCC', f"{t_data['Nomor Kontrak']}-BSS-WCC-2026-019")
     wcc_date = t_data.get('Tanggal WCC', t_data['Tanggal PI'])
-    wo_no = t_data.get('Nomor WO', f"{t_data['Nomor Kontrak']}-BSS-WO-2026")
-    ctr_no = t_data.get('Nomor CTR', f"{t_data['Nomor Kontrak']}-BSS-CTR-2026")
+    wo_no = t_data.get('Nomor WO', f"{t_data['Nomor Kontrak']}-BSS-WO-2026-019")
+    ctr_no = t_data.get('Nomor CTR', f"{t_data['Nomor Kontrak']}-BSS-CTR-2026-019")
     
-    # Work Order Title membaca Keterangan WO / Deskripsi PO secara dinamis
     wo_title = t_data.get('Keterangan WO', '')
     if not wo_title:
         wo_title = t_data.get('Deskripsi PO', t_data.get('Nama Kontrak', ''))
 
     progress_desc = t_data.get('Progress Pekerjaan', '☑ Penyelesaian Pekerjaan')
-    
-    # Lokasi penandatanganan dinamis (menggantikan Paisubololi statis)
     lokasi_proyek = t_data.get('Lokasi Proyek', 'Paisubololi')
 
-    # Nama penandatangan murni dinamis dari isian database
+    # Nama penandatangan murni dari database
     prepared_name = t_data.get('Prepared by Name', 'Onesimus Suriadi')
     prepared_title = t_data.get('Prepared by Title', 'General Service Manager')
     reviewed_name = t_data.get('Diwakili Oleh', 'Ronny Dwi Purnomo / Rafik Hidayat')
