@@ -6,6 +6,8 @@ import base64
 import sys
 from datetime import datetime, date
 
+from modul_dokumen import tkdn
+
 # Menambahkan path untuk pemanggilan folder modul_dokumen
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
@@ -14,7 +16,12 @@ try:
     from modul_dokumen.rincian_pekerjaan import tampilkan_rincian_pekerjaan
     from modul_dokumen.proforma_invoice import tampilkan_proforma_invoice
     from modul_dokumen.bamp import tampilkan_bamp
+    from modul_dokumen.bastp import tampilkan_bastp
     from modul_dokumen.wcc import tampilkan_wcc
+    from modul_dokumen.tkdn import tampilkan_tkdn
+    from modul_dokumen.timesheet import tampilkan_timesheet
+    from modul_dokumen.opname_pekerjaan import tampilkan_opname
+        
 except ImportError:
     pass
 
@@ -781,9 +788,12 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
                 "Rincian Pekerjaan",
                 "Proforma Invoice",
                 "Berita Acara Mulai Pekerjaan (BAMP)",
+                "Berita Acara Selesai Pekerjaan (BASTP)",
                 "Work Completion Certificate (WCC)",
                 "Berita Acara Mulai & Selesai Pekerjaan (BASTP)",
-                "Formulir TKDN"
+                "Formulir tkdn",
+                "Timesheet Peralatan",
+                "Berita Acara Opname pekerjaan",
             ])
 
             # Pemanggilan Modul Terisolasi Berdasarkan Data Excel Riil
@@ -792,13 +802,17 @@ elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
             elif doc_type == "Proforma Invoice":
                 tampilkan_proforma_invoice(transaksi_list)
             elif doc_type == "Berita Acara Mulai Pekerjaan (BAMP)":
-                tampilkan_bamp(transaksi_list)
+                 tampilkan_bamp(transaksi_list)
+            elif doc_type == "Berita Acara Mulai & Selesai Pekerjaan (BASTP)" or doc_type == "Berita Acara Selesai Pekerjaan (BASTP)":
+                 tampilkan_bastp(transaksi_list)
             elif doc_type == "Work Completion Certificate (WCC)":
-                tampilkan_wcc(transaksi_list)
-            elif doc_type == "Berita Acara Mulai & Selesai Pekerjaan (BASTP)":
-                st.info("ℹ️ Modul Berita Acara Mulai & Selesai Pekerjaan (BASTP) sedang disiapkan.")
-            elif doc_type == "Formulir TKDN":
-                st.info("ℹ️ Modul Formulir TKDN sedang disiapkan.")
+                 tampilkan_wcc(transaksi_list)
+            elif doc_type.lower() == "formulir tkdn":
+                 tkdn.tampilkan_tkdn(transaksi_list)
+            elif doc_type == "Berita Acara Opname pekerjaan":
+                 tampilkan_opname(transaksi_list)
+            elif doc_type.lower() == "timesheet peralatan" or doc_type.lower() == "timesheet":
+                 tampilkan_timesheet(transaksi_list)
 
     elif menu == "Lihat Akumulasi Riwayat Transaksi":
         st.markdown("""

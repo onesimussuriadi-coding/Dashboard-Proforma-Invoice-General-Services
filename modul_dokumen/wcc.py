@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import os
 import base64
 
 def terbilang(n):
@@ -48,30 +49,74 @@ def tampilkan_wcc(transaksi_list):
             unique_tx_list.append(t)
 
     pilihan_tx = [f"PI: {t['PI No.']} | Kontrak: {t['Nomor Kontrak']} | Total: Rp {t['Total Harga']:,.0f}" for t in unique_tx_list]
-    selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
     
+    col_sel1, col_sel2 = st.columns([2, 1])
+    with col_sel1:
+        selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
+    with col_sel2:
+        lokasi_office = st.text_input("📍 Lokasi Office (Tempat WCC):", value="Paisubololi")
+
+    if 'persisted_logo_1' not in st.session_state:
+        st.session_state.persisted_logo_1 = None
+    if 'persisted_logo_2' not in st.session_state:
+        st.session_state.persisted_logo_2 = None
+
+    st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen WCC (Tersimpan Otomatis)")
+    c_log1, c_log2 = st.columns(2)
+    with c_log1:
+        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama (PT BSS)", type=["png", "jpg", "jpeg"], key="logo_wcc_1")
+        if uploaded_logo_1 is not None:
+            st.session_state.persisted_logo_1 = uploaded_logo_1.getvalue()
+    with c_log2:
+        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua / Instansi (JOB Pertamina)", type=["png", "jpg", "jpeg"], key="logo_wcc_2")
+        if uploaded_logo_2 is not None:
+            st.session_state.persisted_logo_2 = uploaded_logo_2.getvalue()
+
     t_data = unique_tx_list[selected_idx]
     terbilang_str = terbilang(t_data['Total Harga']).strip() + " Rupiah"
     
-    # Ambil data spesifik dari database tanpa terpotong
-    wcc_no = t_data.get('Nomor WCC', f"{t_data['Nomor Kontrak']}-BSS-WCC-2026-019")
-    wcc_date = t_data.get('Tanggal WCC', t_data['Tanggal PI'])
-    wo_no = t_data.get('Nomor WO', f"{t_data['Nomor Kontrak']}-BSS-WO-2026-019")
-    ctr_no = t_data.get('Nomor CTR', f"{t_data['Nomor Kontrak']}-BSS-CTR-2026-019")
+    db_invoice_path = os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx")
+    matched_db_row = {}
+    if os.path.exists(db_invoice_path):
+        try:
+            df_inv = pd.read_excel(db_invoice_path)
+            pi_sekarang = str(t_data.get('PI No.', '')).strip()
+            row_match = df_inv[df_inv['Proforma Invoice No.'].astype(str).str.strip() == pi_sekarang]
+            if not row_match.empty:
+                matched_db_row = row_match.iloc[0].to_dict()
+        except:
+            pass
+
+    nomor_kontrak_str = str(t_data.get('Nomor Kontrak', ''))
+    wcc_no = str(matched_db_row.get('Nomor WCC', nomor_kontrak_str + '-BSS-WCC-2026'))
+    wcc_date = str(matched_db_row.get('Tanggal WCC', t_data.get('Tanggal PI', '')))
+    wo_no = str(matched_db_row.get('Nomor WO', nomor_kontrak_str + '-BSS-WO-2026'))
+    ctr_no = str(matched_db_row.get('Nomor CTR', nomor_kontrak_str + '-BSS-CTR-2026'))
     
-    wo_title = t_data.get('Keterangan WO', '')
+    wo_title = str(matched_db_row.get('Keterangan WO', ''))
     if not wo_title:
-        wo_title = t_data.get('Deskripsi PO', t_data.get('Nama Kontrak', ''))
+        wo_title = str(t_data.get('Deskripsi PO', t_data.get('Nama Kontrak', '')))
 
-    progress_desc = t_data.get('Progress Pekerjaan', '☑ Penyelesaian Pekerjaan')
-    lokasi_proyek = t_data.get('Lokasi Proyek', 'Paisubololi')
+    progress_val = str(matched_db_row.get('Progress Pekerjaan', '100%'))
+    
+    # PERBAIKAN: Menggunakan simbol HTML universal aman-PDF pengganti kotak-kotak
+    progress_desc = f"[&#10003;] {progress_val} - Penyelesaian Pekerjaan"
 
-    # Nama penandatangan murni dari database
-    prepared_name = t_data.get('Prepared by Name', 'Onesimus Suriadi')
-    prepared_title = t_data.get('Prepared by Title', 'General Service Manager')
-    reviewed_name = t_data.get('Diwakili Oleh', 'Ronny Dwi Purnomo / Rafik Hidayat')
-    approved_name = t_data.get('Pejabat berwenang', 'Imron Maulana / Moh Bazarul Aqhsa')
-    field_mgr_title = t_data.get('Jabatan Field Manager', 'Field Senior Manager')
+    prepared_name = str(matched_db_row.get('Prepared by Name', 'Onesimus Suriadi'))
+    prepared_title = str(matched_db_row.get('Prepared by Title', 'General Service Manager'))
+    reviewed_name = str(matched_db_row.get('Diwakili Oleh', 'Ronny Dwi Purnomo / Rafik Hidayat'))
+    approved_name = str(matched_db_row.get('Pejabat berwenang', 'Imron Maulana / Moh Bazarul Aqhsa'))
+    field_mgr_title = str(matched_db_row.get('Jabatan Field Manager', 'Field Senior Manager'))
+
+    logo1_html = ""
+    if st.session_state.persisted_logo_1 is not None:
+        b64_l1 = base64.b64encode(st.session_state.persisted_logo_1).decode()
+        logo1_html = f'<img src="data:image/png;base64,{b64_l1}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">'
+
+    logo2_html = ""
+    if st.session_state.persisted_logo_2 is not None:
+        b64_l2 = base64.b64encode(st.session_state.persisted_logo_2).decode()
+        logo2_html = f'<img src="data:image/png;base64,{b64_l2}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">'
 
     html_content = f"""
     <!DOCTYPE html>
@@ -81,7 +126,9 @@ def tampilkan_wcc(transaksi_list):
         <title>Work Completion Certificate - PT BSS</title>
         <style>
             body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 25px; margin: 0; font-size: 11px; line-height: 1.4; }}
-            .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px; }}
+            .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }}
+            .header-table td {{ border: none; vertical-align: middle; padding: 0 10px; }}
+            
             .title-box {{ background-color: #dbeafe; border: 1px solid #000; text-align: center; font-weight: bold; font-size: 13px; padding: 6px; margin-bottom: 4px; text-transform: uppercase; }}
             .cert-box {{ background-color: #f1f5f9; border: 1px solid #000; text-align: center; font-weight: bold; font-size: 12px; padding: 6px; margin-bottom: 20px; }}
             
@@ -93,14 +140,20 @@ def tampilkan_wcc(transaksi_list):
             
             .content-text {{ margin-bottom: 15px; font-size: 11px; }}
             table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 30px; border: none; }}
-            table.sig-table td {{ border: none; text-align: center; vertical-align: top; font-size: 11px; padding: 5px; }}
+            table.sig-table td {{ border: none; vertical-align: top; font-size: 11px; padding: 5px; }}
         </style>
     </head>
     <body>
-        <div class="header">
-            <h2 style="margin: 0; font-size: 15px;">PT. BANGGAI SENTRAL SULAWESI</h2>
-            <p style="margin: 2px 0; font-size: 9px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
-        </div>
+        <table class="header-table">
+            <tr>
+                <td style="width: 22%; text-align: center;">{logo1_html}</td>
+                <td style="width: 56%; text-align: center;">
+                    <h3 style="margin: 0; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">JASA SEWA ALAT BERAT PENDUKUNG OPERASIONAL SENORO & TIAKA</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 11px; font-weight: bold;">Contract No. {nomor_kontrak_str}</p>
+                </td>
+                <td style="width: 22%; text-align: center;">{logo2_html}</td>
+            </tr>
+        </table>
 
         <div class="title-box">WORK COMPLETION CERTIFICATE</div>
         <div class="cert-box">CERTIFICATE NO : {wcc_no}</div>
@@ -151,22 +204,22 @@ def tampilkan_wcc(transaksi_list):
         <table class="sig-table">
             <tr>
                 <td style="width: 33%; text-align: left; padding-left: 10px;">
-                    {lokasi_proyek}, {wcc_date}<br>
+                    {lokasi_office}, {wcc_date}<br>
                     <b>PT Banggai Sentral Sulawesi</b><br>
                     Prepared by,<br><br><br><br>
                     <u><b>{prepared_name}</b></u><br>
                     {prepared_title}
                 </td>
                 <td style="width: 34%; text-align: center;">
-                    <br><br>
+                    <br>
                     <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
                     Reviewed by,<br><br><br><br>
                     <u><b>{reviewed_name}</b></u><br>
                     Maintenance Support Supervisor
                 </td>
                 <td style="width: 33%; text-align: center;">
-                    <br><br>
                     <br>
+                    <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
                     Approved by,<br><br><br><br>
                     <u><b>{approved_name}</b></u><br>
                     {field_mgr_title}
@@ -178,7 +231,7 @@ def tampilkan_wcc(transaksi_list):
     """
 
     st.markdown('<div class="document-preview">', unsafe_allow_html=True)
-    st.components.v1.html(html_content, height=620, scrolling=True)
+    st.components.v1.html(html_content, height=640, scrolling=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)

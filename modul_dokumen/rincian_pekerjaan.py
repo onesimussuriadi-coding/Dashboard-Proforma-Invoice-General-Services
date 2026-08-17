@@ -127,7 +127,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <th>No.</th>
                 <th>Kategori</th>
                 <th>Uraian Pekerjaan</th>
-                <th>Qty Out</th>
+                <th>Qty</th>
                 <th>Unit</th>
                 <th>Tanggal Mulai</th>
                 <th>Tanggal Selesai</th>

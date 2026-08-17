@@ -3,10 +3,10 @@ import pandas as pd
 import base64
 from datetime import datetime
 
-def tampilkan_bamp(transaksi_list):
+def tampilkan_bastp(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📋 Pratinjau, Cetak & Download Berita Acara Mulai Pekerjaan (BAMP)</h3>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📋 Pratinjau, Cetak & Download Berita Acara Selesai Pekerjaan (BASP)</h3>
         </div>
     """, unsafe_allow_html=True)
 
@@ -28,15 +28,15 @@ def tampilkan_bamp(transaksi_list):
     with col_sel1:
         selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
     with col_sel2:
-        lokasi_office = st.text_input("📍 Lokasi Office (Tempat BAMP):", value="Luwuk")
+        lokasi_office = st.text_input("📍 Lokasi Office (Tempat BASP):", value="Luwuk")
 
     t_data = unique_tx_list[selected_idx]
 
-    # --- PENGAMBILAN DATA ITEM SECARA PRESISI SEPERTI PROFORMA INVOICE & BASP ---
+    # --- PENGAMBILAN DATA ITEM SECARA PRESISI SEPERTI PROFORMA INVOICE ---
     kategori_item = str(t_data.get('Kategori', 'MONTHLY BASIS')).strip()
     deskripsi_item = str(t_data.get('Deskripsi Pekerjaan', '')).strip()
     
-    # Gabungkan Kategori dan Deskripsi Pekerjaan agar seragam dengan dokumen lain
+    # Gabungkan Kategori dan Deskripsi Pekerjaan agar persis seperti di Proforma Invoice
     item_desc_final = f"<b>{kategori_item}</b><br>{deskripsi_item}"
 
     uom_str = str(t_data.get('Unit', 'Month')).strip()
@@ -46,38 +46,33 @@ def tampilkan_bamp(transaksi_list):
     except:
         qty_val = 1.0
 
-    st.markdown("#### ⚙️ Pengaturan Parameter Detail Berita Acara Mulai Pekerjaan (BAMP)")
+    st.markdown("#### ⚙️ Pengaturan Parameter Detail Berita Acara Selesai Pekerjaan (BASP)")
     
     c_b1, c_b2 = st.columns(2)
     with c_b1:
-        selected_date = st.date_input("📅 Mulai Operasi Tanggal:", value=datetime(2026, 7, 1), key="bamp_date_picker")
+        selected_date = st.date_input("📅 Selesai Operasi Tanggal:", value=datetime(2026, 7, 31), key="bastp_date_picker")
         bulan_indo = {
             1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
             7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"
         }
-        bamp_date = f"{selected_date.day:02d} {bulan_indo[selected_date.month]} {selected_date.year}"
+        bastp_date = f"{selected_date.day:02d} {bulan_indo[selected_date.month]} {selected_date.year}"
 
     with c_b2:
-        tambahan_opsional = st.text_input("Keterangan Tambahan / Opsional (Catatan):", value="", placeholder="Opsional, misal: Kondisi alat siap beroperasi")
-
-    # Susun teks catatan: tanggal mulai + keterangan opsional jika ada
-    catatan_final = f"Mulai Operasi Tanggal {bamp_date}"
-    if tambahan_opsional.strip():
-        catatan_final += f" - {tambahan_opsional.strip()}"
+        catatan_input = st.text_input("Kolom Catatan / Keterangan (Tabel BASP):", value=f"Periode Pekerjaan 01 Juli sd {bastp_date}", key="catatan_input_bastp_field")
 
     if 'persisted_logo_1' not in st.session_state:
         st.session_state.persisted_logo_1 = None
     if 'persisted_logo_2' not in st.session_state:
         st.session_state.persisted_logo_2 = None
 
-    st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen BAMP (Tersimpan Otomatis)")
+    st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen BASP (Tersimpan Otomatis)")
     c_log1, c_log2 = st.columns(2)
     with c_log1:
-        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama (JOB Pertamina)", type=["png", "jpg", "jpeg"], key="logo_bamp_1")
+        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama (JOB Pertamina)", type=["png", "jpg", "jpeg"], key="logo_bastp_1")
         if uploaded_logo_1 is not None:
             st.session_state.persisted_logo_1 = uploaded_logo_1.getvalue()
     with c_log2:
-        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua (PT BSS)", type=["png", "jpg", "jpeg"], key="logo_bamp_2")
+        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua (PT BSS)", type=["png", "jpg", "jpeg"], key="logo_bastp_2")
         if uploaded_logo_2 is not None:
             st.session_state.persisted_logo_2 = uploaded_logo_2.getvalue()
 
@@ -116,7 +111,7 @@ def tampilkan_bamp(transaksi_list):
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Berita Acara Mulai Pekerjaan (BAMP) - PT BSS</title>
+        <title>Berita Acara Selesai Pekerjaan (BASP) - PT BSS</title>
         <style>
             body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 25px; margin: 0; font-size: 10px; line-height: 1.4; }}
             .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }}
@@ -137,20 +132,20 @@ def tampilkan_bamp(transaksi_list):
         </style>
     </head>
     <body>
-        <div class="doc-meta">Dokumen No: FM-GS-14 Rev:03</div>
+        <div class="doc-meta">Dokumen No: FM-GS-15 Rev:03</div>
 
         <table class="header-table">
             <tr>
                 <td style="width: 25%; text-align: left;">{logo1_html}</td>
                 <td style="width: 50%; text-align: center;">
-                    <h3 style="margin: 0; font-size: 11px; font-weight: bold; text-transform: uppercase;">BERITA ACARA MULAI PEKERJAAN (BAMP)</h3>
+                    <h3 style="margin: 0; font-size: 11px; font-weight: bold; text-transform: uppercase;">BERITA ACARA SELESAI PEKERJAAN (BASP)</h3>
                 </td>
                 <td style="width: 25%; text-align: right;">{logo2_html}</td>
             </tr>
         </table>
 
         <div class="content-text">
-            Pada hari ini, tanggal <b>{bamp_date}</b>, yang bertanda tangan di bawah ini:
+            Pada hari ini, tanggal <b>{bastp_date}</b>, yang bertanda tangan di bawah ini:
         </div>
 
         <div class="section-title">01. PIHAK PERTAMA</div>
@@ -231,7 +226,7 @@ def tampilkan_bamp(transaksi_list):
         </table>
 
         <div class="content-text">
-            Dengan ini <b>PIHAK KEDUA</b> memulai melaksanakan pekerjaan terhitung mulai tanggal <b>{bamp_date}</b> dengan rincian sebagai berikut:
+            Dengan ini <b>PIHAK KEDUA</b> telah menyelesaikan pelaksanaan pekerjaan terhitung sampai dengan tanggal <b>{bastp_date}</b> dengan rincian sebagai berikut:
         </div>
 
         <table class="item-grid">
@@ -248,12 +243,12 @@ def tampilkan_bamp(transaksi_list):
                 <td style="text-align: left;">{item_desc_final}</td>
                 <td style="text-align: center;">{qty_val:.2f}</td>
                 <td style="text-align: center;">{uom_str}</td>
-                <td style="text-align: center;"><b>{catatan_final}</b></td>
+                <td style="text-align: center;"><b>{catatan_input}</b></td>
             </tr>
         </table>
 
         <div class="content-text">
-            Demikian Berita Acara Mulai Pekerjaan ini dibuat dan ditandatangani oleh kedua belah pihak untuk dipergunakan sebagaimana mestinya.
+            Demikian Berita Acara Selesai Pekerjaan ini dibuat dan ditandatangani oleh kedua belah pihak untuk dipergunakan sebagaimana mestinya.
         </div>
 
         <table class="sig-table">
@@ -298,12 +293,12 @@ def tampilkan_bamp(transaksi_list):
                 }}
             </script>
             <button onclick="printDoc()" style="width: 100%; background-color: #10b981; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-                🖨️ Cetak / Print Berita Acara Mulai Pekerjaan (Klik Disini)
+                🖨️ Cetak / Print Berita Acara Selesai Pekerjaan (Klik Disini)
             </button>
         """
         st.components.v1.html(print_script, height=50)
 
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
-        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="BAMP_{nomor_kontrak_str}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File BAMP</button></a>'
+        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="BASP_{nomor_kontrak_str}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File BASP</button></a>'
         st.markdown(download_link, unsafe_allow_html=True)
