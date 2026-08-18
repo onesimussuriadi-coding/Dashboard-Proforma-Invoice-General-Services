@@ -53,6 +53,11 @@ def tampilkan_proforma_invoice(transaksi_list):
     t_data = unique_tx_list[selected_idx]
     terbilang_str = terbilang(t_data['Total Harga']).strip() + " Rupiah"
 
+    # Pengambilan data dinamis untuk penandatangan dan perusahaan dari input
+    nama_pt_sign = t_data.get('Nama PT Sign', 'PT. BANGGAI SENTRAL SULAWESI')
+    nama_pejabat = t_data.get('Penandatangan Nama', 'Onesimus Suriadi')
+    jabatan_pejabat = t_data.get('Penandatangan Jabatan', 'Manager General Services')
+
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -60,15 +65,27 @@ def tampilkan_proforma_invoice(transaksi_list):
         <meta charset="utf-8">
         <title>Proforma Invoice - PT BSS</title>
         <style>
-            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 30px; margin: 0; font-size: 11px; }}
+            @page {{
+                size: A4;
+                margin: 5mm 10mm 5mm 10mm;
+            }}
+            @media print {{
+                body {{
+                    -webkit-print-color-adjust: exact;
+                }}
+                @page {{
+                    margin: 5mm 10mm 5mm 10mm;
+                }}
+            }}
+            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 15px; margin: 0; font-size: 11px; }}
             .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px; }}
-            .header-title {{ font-size: 16px; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; }}
+            .header-title {{ font-size: 15px; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; }}
             table.two-col {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; border: none; }}
             table.two-col td {{ border: none; padding: 2px 0; vertical-align: top; font-size: 11px; }}
             table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 10px; }}
             table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 6px 8px; font-size: 11px; text-align: left; }}
             table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
-            .bank-section {{ margin-top: 15px; font-size: 11px; line-height: 1.4; }}
+            .bank-section {{ font-size: 11px; line-height: 1.4; }}
         </style>
     </head>
     <body>
@@ -132,8 +149,8 @@ def tampilkan_proforma_invoice(transaksi_list):
                     {t_data['Deskripsi Pekerjaan']}
                 </td>
                 <td style="text-align: center;">{t_data['Qty']:,.2f}</td>
-                <td style="text-align: center;">{t_data['Unit']}</td>
-                <td style="text-align: center;">1.0 Month</td>
+                <td style="text-align: center;">Unit</td>
+                <td style="text-align: center; white-space: nowrap;">1.0 Month</td>
                 <td style="text-align: center;">{t_data.get('Percent', 100)}%</td>
                 <td style="text-align: right;">{t_data['Harga Satuan']:,.2f}</td>
                 <td style="text-align: right;">{t_data['Total Harga']:,.2f}</td>
@@ -144,17 +161,27 @@ def tampilkan_proforma_invoice(transaksi_list):
             <b>Terbilang :</b> <i>{terbilang_str}</i>
         </div>
 
-        <div class="bank-section">
-            <b>PAYMENT INSTRUCTION</b><br>
-            Please remit to our bank:<br>
-            <b>Bank Name :</b> {t_data.get('Bank Name', 'BANK RAKYAT INDONESIA (PERSERO) Tbk.')}<br>
-            <b>Branch :</b> {t_data.get('Bank Branch', 'Cabang Luwuk')}<br>
-            <b>Account No :</b> {t_data.get('Account No', '0167 0167 8888 303')}<br>
-            <b>Account Name :</b> {t_data.get('Account Name', 'PT. BANGGAI SENTRAL SULAWESI')}<br><br><br>
-            <b>PT. BANGGAI SENTRAL SULAWESI</b><br><br><br><br>
-            <u>Onesimus Suriadi</u><br>
-            General Service Manager
-        </div>
+        <table style="width: 100%; border: none; margin-top: 10px;">
+            <tr>
+                <td style="border: none; width: 55%; vertical-align: top;">
+                    <div class="bank-section">
+                        <b>PAYMENT INSTRUCTION</b><br>
+                        Please remit to our bank:<br>
+                        <b>Bank Name :</b> {t_data.get('Bank Name', 'BANK RAKYAT INDONESIA (PERSERO) Tbk.')}<br>
+                        <b>Branch :</b> {t_data.get('Bank Branch', 'Cabang Luwuk')}<br>
+                        <b>Account No :</b> {t_data.get('Account No', '0167 0167 8888 303')}<br>
+                        <b>Account Name :</b> {t_data.get('Account Name', 'PT. BANGGAI SENTRAL SULAWESI')}
+                    </div>
+                </td>
+                <td style="border: none; width: 45%; text-align: right; vertical-align: top;">
+                    <div class="bank-section" style="margin-top: 115px; text-align: center; display: inline-block; min-width: 220px;">
+                        <b>{nama_pt_sign}</b><br><br><br><br>
+                        <u>{nama_pejabat}</u><br>
+                        {jabatan_pejabat}
+                    </div>
+                </td>
+            </tr>
+        </table>
     </body>
     </html>
     """

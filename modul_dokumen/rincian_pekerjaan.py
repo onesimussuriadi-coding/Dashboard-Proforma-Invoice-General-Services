@@ -60,22 +60,52 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         <meta charset="utf-8">
         <title>Rincian Pekerjaan - PT BSS</title>
         <style>
-            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 30px; margin: 0; }}
-            .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }}
-            .title {{ text-align: center; font-weight: bold; font-size: 15px; margin-bottom: 20px; text-transform: uppercase; text-decoration: underline; }}
-            table.info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; border: none; }}
-            table.info-table td {{ border: none; padding: 4px 6px; font-size: 11px; vertical-align: top; }}
-            .label-col {{ width: 160px; font-weight: bold; }}
+            @page {{
+                size: A4;
+                margin: 10mm;
+            }}
+            @media print {{
+                body {{
+                    -webkit-print-color-adjust: exact;
+                }}
+                /* Menghilangkan header & footer otomatis browser (tanggal, URL, about:blank) */
+                header, footer {{
+                    display: none !important;
+                }}
+            }}
+            body {{ 
+                font-family: Arial, sans-serif; 
+                background-color: #ffffff; 
+                color: #000000; 
+                padding: 20px; 
+                margin: 0; 
+                font-size: 10px;
+                line-height: 1.2;
+            }}
+            .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; }}
+            .title {{ text-align: center; font-weight: bold; font-size: 13px; margin-bottom: 15px; text-transform: uppercase; text-decoration: underline; }}
+            
+            table.info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; border: none; }}
+            table.info-table td {{ border: none; padding: 3px 5px; font-size: 10px; vertical-align: top; }}
+            .label-col {{ width: 150px; font-weight: bold; }}
             .colon-col {{ width: 10px; font-weight: bold; text-align: center; }}
-            table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 10px; }}
-            table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 6px 10px; font-size: 11px; text-align: left; }}
+            
+            table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 8px; }}
+            table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 5px 8px; font-size: 9px; text-align: left; }}
             table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
+
+            /* Penyesuaian ukuran teks tanda tangan agar proporsional dan tidak terlalu besar */
+            .sign-table {{ border: none; width: 100%; margin-top: 25px; }}
+            .sign-table td {{ border: none; text-align: center; width: 50%; font-size: 9px; vertical-align: top; }}
+            .sign-title {{ font-weight: bold; font-size: 9px; text-transform: uppercase; margin-bottom: 35px; }}
+            .sign-name {{ font-weight: bold; font-size: 9px; text-decoration: underline; }}
+            .sign-pos {{ font-size: 8px; margin-top: 2px; }}
         </style>
     </head>
     <body>
         <div class="header">
-            <h2 style="margin: 0; font-size: 16px;">PT. BANGGAI SENTRAL SULAWESI</h2>
-            <p style="margin: 2px 0; font-size: 10px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
+            <h2 style="margin: 0; font-size: 14px;">PT. BANGGAI SENTRAL SULAWESI</h2>
+            <p style="margin: 2px 0; font-size: 8px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
         </div>
         <div class="title">Rincian Pekerjaan</div>
         
@@ -149,27 +179,29 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
             </tr>
         </table>
         
-        <table style="width: 100%; border: none; margin-top: 15px;">
+        <table style="width: 100%; border: none; margin-top: 10px;">
             <tr>
-                <td style="border: none; text-align: left; font-size: 11px; vertical-align: top; width: 60%;">
+                <td style="border: none; text-align: left; font-size: 10px; vertical-align: top; width: 60%;">
                     <b>Terbilang :</b> <i>{terbilang_str}</i>
                 </td>
-                <td style="border: none; text-align: right; font-weight: bold; font-size: 13px; width: 40%; vertical-align: top;">
+                <td style="border: none; text-align: right; font-weight: bold; font-size: 11px; width: 40%; vertical-align: top;">
                     TOTAL TAGIHAN: Rp {t_data['Total Harga']:,.2f}
                 </td>
             </tr>
         </table>
         <br>
         
-        <table style="border: none; width: 100%; margin-top: 20px;">
+        <table class="sign-table">
             <tr>
-                <td style="border: none; text-align: center; width: 50%;">
-                    <b>DIBUAT OLEH</b><br><br><br><br>
-                    <u>Yanuar Wiranata / Ireine Langi</u><br>Supervisor
+                <td>
+                    <div class="sign-title">DIBUAT OLEH</div>
+                    <div class="sign-name">Yanuar Wiranata / Ireine Langi</div>
+                    <div class="sign-pos">Supervisor</div>
                 </td>
-                <td style="border: none; text-align: center; width: 50%;">
-                    <b>DIPERIKSA</b><br><br><br><br>
-                    <u>Onesimus Suriadi</u><br>Manager General Services
+                <td>
+                    <div class="sign-title">DIPERIKSA</div>
+                    <div class="sign-name">Onesimus Suriadi</div>
+                    <div class="sign-pos">Manager General Services</div>
                 </td>
             </tr>
         </table>

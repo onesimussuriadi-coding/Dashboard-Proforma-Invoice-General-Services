@@ -32,13 +32,10 @@ def tampilkan_bamp(transaksi_list):
 
     t_data = unique_tx_list[selected_idx]
 
-    # --- PENGAMBILAN DATA ITEM SECARA PRESISI SEPERTI PROFORMA INVOICE & BASP ---
     kategori_item = str(t_data.get('Kategori', 'MONTHLY BASIS')).strip()
     deskripsi_item = str(t_data.get('Deskripsi Pekerjaan', '')).strip()
     
-    # Gabungkan Kategori dan Deskripsi Pekerjaan agar seragam dengan dokumen lain
     item_desc_final = f"<b>{kategori_item}</b><br>{deskripsi_item}"
-
     uom_str = str(t_data.get('Unit', 'Month')).strip()
     
     try:
@@ -60,7 +57,6 @@ def tampilkan_bamp(transaksi_list):
     with c_b2:
         tambahan_opsional = st.text_input("Keterangan Tambahan / Opsional (Catatan):", value="", placeholder="Opsional, misal: Kondisi alat siap beroperasi")
 
-    # Susun teks catatan: tanggal mulai + keterangan opsional jika ada
     catatan_final = f"Mulai Operasi Tanggal {bamp_date}"
     if tambahan_opsional.strip():
         catatan_final += f" - {tambahan_opsional.strip()}"
@@ -91,15 +87,15 @@ def tampilkan_bamp(transaksi_list):
 
     p1_nama = str(t_data.get('Ditujukan Kepada', 'JOB Pertamina - Medco E&P Tomori Sulawesi'))
     p1_alamat = str(t_data.get('Alamat Pihak Pertama', 'Bidakara Office Tower I 4Th Floor, Jl. Gatot Subroto Kav. 71 - 73, Jakarta 12870, Indonesia'))
-    p1_wakil = 'Ir. Ferry Tatimu'
     
-    p2_nama = 'PT Banggai Sentral Sulawesi'
-    p2_alamat = 'Jl. Urip Sumorharjo No. 53, Luwuk, Kabupaten Banggai, Provinsi Sulawesi Tengah (94715)'
-    p2_wakil = 'Ir. Ferry Tatimu'
-    p2_jabatan = 'Direktur'
+    # Mengambil nama lengkap dan jabatan Pihak Pertama dari input database
+    p1_wakil_lengkap = str(t_data.get('Wakil Pihak Pertama', t_data.get('P1 Wakil', 'Ronny Dwi Purnomo / Rafik Hidayat'))).strip()
+    p1_jabatan = str(t_data.get('Jabatan Pihak Pertama', t_data.get('P1 Jabatan', 'Maintenance Support Supervisor'))).strip()
 
-    sign_rev = 'Ronny Dwi Purnomo / Rafik Hidayat'
-    sign_rev_title = 'Maintenance Support Supervisor'
+    p2_nama = str(t_data.get('Nama PT Sign', 'PT Banggai Sentral Sulawesi'))
+    p2_alamat = str(t_data.get('Alamat Pihak Kedua', 'Jl. Urip Sumorharjo No. 53, Luwuk, Kabupaten Banggai, Provinsi Sulawesi Tengah (94715)'))
+    p2_wakil = str(t_data.get('Penandatangan Nama', 'Ir. Ferry Tatimu'))
+    p2_jabatan = str(t_data.get('Penandatangan Jabatan', 'Direktur'))
 
     logo1_html = ""
     if st.session_state.persisted_logo_1 is not None:
@@ -118,16 +114,31 @@ def tampilkan_bamp(transaksi_list):
         <meta charset="utf-8">
         <title>Berita Acara Mulai Pekerjaan (BAMP) - PT BSS</title>
         <style>
-            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 25px; margin: 0; font-size: 10px; line-height: 1.4; }}
+            @page {{
+                size: A4;
+                margin: 5mm 10mm 5mm 10mm;
+            }}
+            @media print {{
+                body {{
+                    -webkit-print-color-adjust: exact;
+                }}
+                header, footer {{
+                    display: none !important;
+                }}
+            }}
+            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 20px; margin: 0; font-size: 10px; line-height: 1.4; }}
             .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }}
             .header-table td {{ border: none; vertical-align: middle; padding: 0 5px; }}
             
             .doc-meta {{ text-align: right; font-size: 9px; font-weight: bold; margin-bottom: 10px; }}
             .section-title {{ font-weight: bold; font-size: 10px; text-transform: uppercase; margin-top: 10px; margin-bottom: 5px; text-decoration: underline; }}
-            .parties-table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 10px; }}
-            .parties-table td {{ padding: 2px 4px; border: none; vertical-align: top; }}
-            .contract-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 10px; }}
-            .contract-table td {{ padding: 3px 5px; border: none; }}
+            
+            .info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 10px; }}
+            .info-table td {{ padding: 2px 4px; border: none; vertical-align: top; }}
+            .col-label {{ width: 22%; }}
+            .col-colon {{ width: 2%; text-align: center; }}
+            .col-value {{ width: 76%; }}
+
             table.item-grid {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; }}
             table.item-grid th, table.item-grid td {{ border: 1px solid #000; padding: 6px 8px; font-size: 9px; vertical-align: middle; }}
             .th-header {{ background-color: #f1f5f9; font-weight: bold; text-transform: uppercase; text-align: center; }}
@@ -154,83 +165,83 @@ def tampilkan_bamp(transaksi_list):
         </div>
 
         <div class="section-title">01. PIHAK PERTAMA</div>
-        <table class="parties-table">
+        <table class="info-table">
             <tr>
-                <td style="width: 18%;">Nama Perusahaan</td>
-                <td style="width: 2%;">:</td>
-                <td style="width: 80%;"><b>{p1_nama}</b></td>
+                <td class="col-label">Nama Perusahaan</td>
+                <td class="col-colon">:</td>
+                <td class="col-value"><b>{p1_nama}</b></td>
             </tr>
             <tr>
-                <td>Alamat</td>
-                <td>:</td>
-                <td>{p1_alamat}</td>
+                <td class="col-label">Alamat</td>
+                <td class="col-colon">:</td>
+                <td class="col-value">{p1_alamat}</td>
             </tr>
             <tr>
-                <td>Diwakili oleh</td>
-                <td>:</td>
-                <td>{p1_wakil}</td>
+                <td class="col-label">Diwakili oleh</td>
+                <td class="col-colon">:</td>
+                <td class="col-value">{p1_wakil_lengkap}</td>
             </tr>
             <tr>
-                <td>Jabatan</td>
-                <td>:</td>
-                <td>{sign_rev_title}</td>
+                <td class="col-label">Jabatan</td>
+                <td class="col-colon">:</td>
+                <td class="col-value">{p1_jabatan}</td>
             </tr>
         </table>
 
         <div class="section-title" style="margin-top: 10px;">02. PIHAK KEDUA</div>
-        <table class="parties-table">
+        <table class="info-table">
             <tr>
-                <td style="width: 18%;">Nama Perusahaan</td>
-                <td style="width: 2%;">:</td>
-                <td style="width: 80%;"><b>{p2_nama}</b></td>
+                <td class="col-label">Nama Perusahaan</td>
+                <td class="col-colon">:</td>
+                <td class="col-value"><b>{p2_nama}</b></td>
             </tr>
             <tr>
-                <td>Alamat</td>
-                <td>:</td>
-                <td>{p2_alamat}</td>
+                <td class="col-label">Alamat</td>
+                <td class="col-colon">:</td>
+                <td class="col-value">{p2_alamat}</td>
             </tr>
             <tr>
-                <td>Diwakili oleh</td>
-                <td>:</td>
-                <td>{p2_wakil}</td>
+                <td class="col-label">Diwakili oleh</td>
+                <td class="col-colon">:</td>
+                <td class="col-value">{p2_wakil}</td>
             </tr>
             <tr>
-                <td>Jabatan</td>
-                <td>:</td>
-                <td>{p2_jabatan}</td>
+                <td class="col-label">Jabatan</td>
+                <td class="col-colon">:</td>
+                <td class="col-value">{p2_jabatan}</td>
             </tr>
         </table>
 
         <div class="section-title" style="margin-top: 15px;">DASAR PELAKSANAAN PEKERJAAN</div>
-        <table class="contract-table">
+        <table class="info-table">
             <tr>
-                <td style="width: 22%; font-weight: bold;">Nomor Kontrak</td>
-                <td style="width: 2%;">:</td>
-                <td style="width: 76%;"><b>{nomor_kontrak_str}</b></td>
+                <td class="col-label" style="font-weight: bold;">Nomor Kontrak</td>
+                <td class="col-colon">:</td>
+                <td class="col-value"><b>{nomor_kontrak_str}</b></td>
             </tr>
             <tr>
-                <td style="font-weight: bold;">Tanggal Kontrak</td>
-                <td>:</td>
-                <td>{tgl_kontrak}</td>
+                <td class="col-label" style="font-weight: bold;">Tanggal Kontrak</td>
+                <td class="col-colon">:</td>
+                <td class="col-value">{tgl_kontrak}</td>
             </tr>
             <tr>
-                <td style="font-weight: bold;">Nomor Purchase Order</td>
-                <td>:</td>
-                <td><b>{no_po_auto}</b></td>
+                <td class="col-label" style="font-weight: bold;">Nomor Purchase Order</td>
+                <td class="col-colon">:</td>
+                <td class="col-value"><b>{no_po_auto}</b></td>
             </tr>
             <tr>
-                <td style="font-weight: bold;">Tanggal Purchase Order</td>
-                <td>:</td>
-                <td>{tgl_po_auto}</td>
+                <td class="col-label" style="font-weight: bold;">Tanggal Purchase Order</td>
+                <td class="col-colon">:</td>
+                <td class="col-value">{tgl_po_auto}</td>
             </tr>
             <tr>
-                <td style="font-weight: bold; vertical-align: top;">Lingkup Pekerjaan</td>
-                <td style="vertical-align: top;">:</td>
-                <td><b>{lingkup_pekerjaan}</b> (Refer CTR No. {ctr_no})</td>
+                <td class="col-label" style="font-weight: bold; vertical-align: top;">Lingkup Pekerjaan</td>
+                <td class="col-colon" style="vertical-align: top;">:</td>
+                <td class="col-value"><b>{lingkup_pekerjaan}</b> (Refer CTR No. {ctr_no})</td>
             </tr>
         </table>
 
-        <div class="content-text">
+        <div class="content-text" style="margin-top: 10px;">
             Dengan ini <b>PIHAK KEDUA</b> memulai melaksanakan pekerjaan terhitung mulai tanggal <b>{bamp_date}</b> dengan rincian sebagai berikut:
         </div>
 
@@ -244,7 +255,6 @@ def tampilkan_bamp(transaksi_list):
             </tr>
             <tr>
                 <td style="text-align: center;">1</td>
-                <!-- Mengambil persis format Kategori + Deskripsi Pekerjaan seperti di Proforma Invoice -->
                 <td style="text-align: left;">{item_desc_final}</td>
                 <td style="text-align: center;">{qty_val:.2f}</td>
                 <td style="text-align: center;">{uom_str}</td>
@@ -260,15 +270,13 @@ def tampilkan_bamp(transaksi_list):
             <tr>
                 <td style="width: 50%; text-align: left; padding-left: 20px;">
                     <b>{p1_nama}</b><br>
-                    <b>PIHAK PERTAMA</b><br>
-                    Review / Supervisor,<br><br><br><br>
-                    <u><b>{sign_rev}</b></u><br>
-                    {sign_rev_title}
+                    <b>PIHAK PERTAMA</b><br><br><br><br>
+                    <u><b>{p1_wakil_lengkap}</b></u><br>
+                    {p1_jabatan}
                 </td>
                 <td style="width: 50%; text-align: left; padding-left: 20px;">
                     <b>{p2_nama}</b><br>
-                    <b>PIHAK KEDUA</b><br>
-                    Director,<br><br><br><br>
+                    <b>PIHAK KEDUA</b><br><br><br><br>
                     <u><b>{p2_wakil}</b></u><br>
                     {p2_jabatan}
                 </td>
