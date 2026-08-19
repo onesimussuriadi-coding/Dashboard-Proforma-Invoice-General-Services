@@ -553,20 +553,65 @@ elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
     elif menu == "Lihat Database Tersimpan":
         st.markdown("""
             <div class="dashboard-card">
-                <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Database Identifikasi Tersimpan (Folder Aman)</h3>
+                <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Database Identifikasi Tersimpan (Dengan Penomoran Kolom Presisi)</h3>
             </div>
         """, unsafe_allow_html=True)
         
         saved_records = muat_data_invoice()
         if len(saved_records) > 0:
             df_saved = pd.DataFrame(saved_records)
-            cols_prioritas = ["Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Lingkup Pekerjaan", "Update Terakhir"]
+            
+            # Bersihkan kolom Update Terakhir
+            if "Update Terakhir" in df_saved.columns:
+                df_saved = df_saved.drop(columns=["Update Terakhir"])
+                
+            # Susun prioritas kolom
+            cols_prioritas = ["Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Lingkup Pekerjaan"]
             sisa_cols = [c for c in df_saved.columns if c not in cols_prioritas]
             df_saved = df_saved[[c for c in cols_prioritas if c in df_saved.columns] + sisa_cols]
+            
+            # MEMBERIKAN PENOMORAN URUT PADA NAMA KOLOM (HEADER)
+            df_saved.columns = [f"{i}: {col}" for i, col in enumerate(df_saved.columns)]
+            
             st.dataframe(df_saved, use_container_width=True)
         else:
             st.info("Belum ada data database identifikasi di dalam folder penyimpanan aman.")
 
+        # TOMBOL HAPUS EKSKLUSIF DI MODUL 1 -> LIHAT DATABASE TERSIMPAN
+        st.markdown("---")
+        st.markdown("#### 🗑️ Pengelolaan Data: Hapus Baris yang Salah / Duplikat")
+
+        try:
+            current_db_list = muat_data_invoice()
+        except:
+            current_db_list = []
+
+        if current_db_list:
+            pilihan_hapus = []
+            for idx, item in enumerate(current_db_list):
+                pi_val = str(item.get('Proforma Invoice No.') or item.get('PI No.') or 'Tanpa Nomor PI')
+                kontrak_val = str(item.get('Nomor Kontrak') or 'Tanpa Kontrak')
+                pilihan_hapus.append(f"Index {idx} | PI: {pi_val} | Kontrak: {kontrak_val}")
+
+            col_h1, col_h2 = st.columns([2, 1])
+            with col_h1:
+                target_hapus_idx = st.selectbox(
+                    "Pilih Baris Data yang Ingin Dihapus Secara Permanen:",
+                    range(len(pilihan_hapus)),
+                    format_func=lambda x: pilihan_hapus[x],
+                    key="select_row_to_delete_saved"
+                )
+            with col_h2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("❌ Hapus Baris Terpilih", use_container_width=True, type="primary"):
+                    try:
+                        deleted_item = current_db_list.pop(target_hapus_idx)
+                        simpan_data_invoice(current_db_list)
+                        pi_terhapus = deleted_item.get('Proforma Invoice No.') or deleted_item.get('PI No.') or 'Baris Kosong'
+                        st.success(f"✅ Berhasil menghapus data (PI: {pi_terhapus}) secara permanen!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"⚠️ Terjadi kesalahan saat menghapus data: {e}")
 # =========================================================================
 # LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN
 # =========================================================================

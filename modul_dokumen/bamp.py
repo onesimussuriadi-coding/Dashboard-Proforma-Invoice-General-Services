@@ -17,7 +17,7 @@ def tampilkan_bamp(transaksi_list):
     seen_pi_dd = set()
     unique_tx_list = []
     for t in transaksi_list:
-        pi_key = str(t.get('PI No.', ''))
+        pi_key = str(t.get('PI No.', '')).strip()
         if pi_key not in seen_pi_dd:
             seen_pi_dd.add(pi_key)
             unique_tx_list.append(t)
@@ -26,17 +26,74 @@ def tampilkan_bamp(transaksi_list):
     
     col_sel1, col_sel2 = st.columns([2, 1])
     with col_sel1:
-        selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
+        selected_idx = st.selectbox("Pilih Dokumen Transaksi Berdasarkan PI:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
     with col_sel2:
         lokasi_office = st.text_input("📍 Lokasi Office (Tempat BAMP):", value="Luwuk")
 
     t_data = unique_tx_list[selected_idx]
+    current_pi_no = str(t_data.get('PI No.', '')).strip().lower()
 
-    kategori_item = str(t_data.get('Kategori', 'MONTHLY BASIS')).strip()
-    deskripsi_item = str(t_data.get('Deskripsi Pekerjaan', '')).strip()
+    # --- MEMBACA MURNI DARI DATABASE INDUK MODUL 1 (LIHAT DATABASE TERSIMPAN) ---
+    try:
+        saved_db_induk = muat_data_invoice()
+    except:
+        saved_db_induk = []
+
+    matched_record_values = []
     
-    item_desc_final = f"<b>{kategori_item}</b><br>{deskripsi_item}"
-    uom_str = str(t_data.get('Unit', 'Month')).strip()
+    for item in saved_db_induk:
+        if isinstance(item, dict):
+            if "Update Terakhir" in item:
+                item.pop("Update Terakhir", None)
+            
+            item_values = list(item.values())
+            # Cari baris yang mengandung nomor PI yang sama persis
+            for val in item_values:
+                if str(val).strip().lower() == current_pi_no:
+                    matched_record_values = item_values
+                    break
+            if matched_record_values:
+                break
+
+    def get_induk_val(idx, default_val=""):
+        try:
+            if len(matched_record_values) > idx:
+                val = matched_record_values[idx]
+                if val is not None and str(val).strip() != "" and str(val).strip().lower() != "nan":
+                    return str(val).strip()
+        except:
+            pass
+        return default_val
+
+    # Pemetaan Mutlak Indeks Kolom Sesuai Tabel Database Induk Modul 1
+    nomor_kontrak_str = get_induk_val(1, str(t_data.get('Nomor Kontrak', '')))
+    tgl_kontrak = get_induk_val(4, '-')
+    no_po_auto = get_induk_val(8, '-')
+    tgl_po_auto = get_induk_val(9, '-')
+    lingkup_pekerjaan = get_induk_val(10, '-')
+
+    # Pihak Pertama (Murni dari Database Induk Modul 1)
+    p1_nama = get_induk_val(11, '-')
+    p1_alamat = get_induk_val(12, '-')
+    p1_wakil_lengkap = get_induk_val(13, '-')
+    p1_jabatan = get_induk_val(14, '-')
+
+    if "/" in p1_wakil_lengkap:
+        p1_wakil_sign = p1_wakil_lengkap.split("/")[0].strip()
+    else:
+        p1_wakil_sign = p1_wakil_lengkap
+
+    # Pihak Kedua (Murni dari Database Induk Modul 1)
+    p2_nama = get_induk_val(15, '-')
+    p2_alamat = get_induk_val(16, '-')
+    p2_wakil = get_induk_val(17, '-')
+    p2_jabatan = get_induk_val(18, '-')
+
+    # Rincian Pekerjaan (Diambil dari transaksi item yang bersangkutan)
+    kategori_item = str(t_data.get('Kategori', '')).strip()
+    deskripsi_item = str(t_data.get('Deskripsi Pekerjaan', '')).strip()
+    item_desc_final = f"<b>{kategori_item}</b><br>{deskripsi_item}" if kategori_item else deskripsi_item
+    uom_str = str(t_data.get('Unit', '')).strip()
     
     try:
         qty_val = float(t_data.get('Qty', 1.0))
@@ -55,7 +112,7 @@ def tampilkan_bamp(transaksi_list):
         bamp_date = f"{selected_date.day:02d} {bulan_indo[selected_date.month]} {selected_date.year}"
 
     with c_b2:
-        tambahan_opsional = st.text_input("Keterangan Tambahan / Opsional (Catatan):", value="", placeholder="Opsional, misal: Kondisi alat siap beroperasi")
+        tambahan_opsional = st.text_input("Keterangan Tambahan / Opsional (Catatan):", value="", placeholder="Opsional")
 
     catatan_final = f"Mulai Operasi Tanggal {bamp_date}"
     if tambahan_opsional.strip():
@@ -66,36 +123,16 @@ def tampilkan_bamp(transaksi_list):
     if 'persisted_logo_2' not in st.session_state:
         st.session_state.persisted_logo_2 = None
 
-    st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen BAMP (Tersimpan Otomatis)")
+    st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen BAMP")
     c_log1, c_log2 = st.columns(2)
     with c_log1:
-        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama (JOB Pertamina)", type=["png", "jpg", "jpeg"], key="logo_bamp_1")
+        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama", type=["png", "jpg", "jpeg"], key="logo_bamp_1")
         if uploaded_logo_1 is not None:
             st.session_state.persisted_logo_1 = uploaded_logo_1.getvalue()
     with c_log2:
-        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua (PT BSS)", type=["png", "jpg", "jpeg"], key="logo_bamp_2")
+        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua", type=["png", "jpg", "jpeg"], key="logo_bamp_2")
         if uploaded_logo_2 is not None:
             st.session_state.persisted_logo_2 = uploaded_logo_2.getvalue()
-
-    nomor_kontrak_str = str(t_data.get('Nomor Kontrak', '')).strip()
-    no_po_auto = str(t_data.get('Nomor PO', '4500011424')).strip()
-    tgl_po_auto = str(t_data.get('Tanggal PO', '1 Jul 2026')).strip()
-    tgl_kontrak = str(t_data.get('Tanggal Kontrak', '16 Desember 2025')).strip()
-    ctr_no = str(t_data.get('Nomor CTR', nomor_kontrak_str + '-BSS-CTR-2026-019')).strip()
-    
-    lingkup_pekerjaan = str(t_data.get('Lingkup Pekerjaan', f"Jasa Sewa Alat Berat untuk support Kegiatan Operation dan Maintenance di Area Senoro dan Tiaka Periode Juli - September 2026 (01 - 31 Juli 2026)")).strip()
-
-    p1_nama = str(t_data.get('Ditujukan Kepada', 'JOB Pertamina - Medco E&P Tomori Sulawesi'))
-    p1_alamat = str(t_data.get('Alamat Pihak Pertama', 'Bidakara Office Tower I 4Th Floor, Jl. Gatot Subroto Kav. 71 - 73, Jakarta 12870, Indonesia'))
-    
-    # Mengambil nama lengkap dan jabatan Pihak Pertama dari input database
-    p1_wakil_lengkap = str(t_data.get('Wakil Pihak Pertama', t_data.get('P1 Wakil', 'Ronny Dwi Purnomo / Rafik Hidayat'))).strip()
-    p1_jabatan = str(t_data.get('Jabatan Pihak Pertama', t_data.get('P1 Jabatan', 'Maintenance Support Supervisor'))).strip()
-
-    p2_nama = str(t_data.get('Nama PT Sign', 'PT Banggai Sentral Sulawesi'))
-    p2_alamat = str(t_data.get('Alamat Pihak Kedua', 'Jl. Urip Sumorharjo No. 53, Luwuk, Kabupaten Banggai, Provinsi Sulawesi Tengah (94715)'))
-    p2_wakil = str(t_data.get('Penandatangan Nama', 'Ir. Ferry Tatimu'))
-    p2_jabatan = str(t_data.get('Penandatangan Jabatan', 'Direktur'))
 
     logo1_html = ""
     if st.session_state.persisted_logo_1 is not None:
@@ -114,31 +151,18 @@ def tampilkan_bamp(transaksi_list):
         <meta charset="utf-8">
         <title>Berita Acara Mulai Pekerjaan (BAMP) - PT BSS</title>
         <style>
-            @page {{
-                size: A4;
-                margin: 5mm 10mm 5mm 10mm;
-            }}
-            @media print {{
-                body {{
-                    -webkit-print-color-adjust: exact;
-                }}
-                header, footer {{
-                    display: none !important;
-                }}
-            }}
+            @page {{ size: A4; margin: 5mm 10mm 5mm 10mm; }}
+            @media print {{ body {{ -webkit-print-color-adjust: exact; }} header, footer {{ display: none !important; }} }}
             body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 20px; margin: 0; font-size: 10px; line-height: 1.4; }}
             .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }}
             .header-table td {{ border: none; vertical-align: middle; padding: 0 5px; }}
-            
             .doc-meta {{ text-align: right; font-size: 9px; font-weight: bold; margin-bottom: 10px; }}
             .section-title {{ font-weight: bold; font-size: 10px; text-transform: uppercase; margin-top: 10px; margin-bottom: 5px; text-decoration: underline; }}
-            
             .info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 10px; }}
             .info-table td {{ padding: 2px 4px; border: none; vertical-align: top; }}
             .col-label {{ width: 22%; }}
             .col-colon {{ width: 2%; text-align: center; }}
             .col-value {{ width: 76%; }}
-
             table.item-grid {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; }}
             table.item-grid th, table.item-grid td {{ border: 1px solid #000; padding: 6px 8px; font-size: 9px; vertical-align: middle; }}
             .th-header {{ background-color: #f1f5f9; font-weight: bold; text-transform: uppercase; text-align: center; }}
@@ -179,12 +203,12 @@ def tampilkan_bamp(transaksi_list):
             <tr>
                 <td class="col-label">Diwakili oleh</td>
                 <td class="col-colon">:</td>
-                <td class="col-value">{p1_wakil_lengkap}</td>
+                <td class="col-value"><b>{p1_wakil_lengkap}</b></td>
             </tr>
             <tr>
                 <td class="col-label">Jabatan</td>
                 <td class="col-colon">:</td>
-                <td class="col-value">{p1_jabatan}</td>
+                <td class="col-value"><b>{p1_jabatan}</b></td>
             </tr>
         </table>
 
@@ -203,12 +227,12 @@ def tampilkan_bamp(transaksi_list):
             <tr>
                 <td class="col-label">Diwakili oleh</td>
                 <td class="col-colon">:</td>
-                <td class="col-value">{p2_wakil}</td>
+                <td class="col-value"><b>{p2_wakil}</b></td>
             </tr>
             <tr>
                 <td class="col-label">Jabatan</td>
                 <td class="col-colon">:</td>
-                <td class="col-value">{p2_jabatan}</td>
+                <td class="col-value"><b>{p2_jabatan}</b></td>
             </tr>
         </table>
 
@@ -237,7 +261,7 @@ def tampilkan_bamp(transaksi_list):
             <tr>
                 <td class="col-label" style="font-weight: bold; vertical-align: top;">Lingkup Pekerjaan</td>
                 <td class="col-colon" style="vertical-align: top;">:</td>
-                <td class="col-value"><b>{lingkup_pekerjaan}</b> (Refer CTR No. {ctr_no})</td>
+                <td class="col-value"><b>{lingkup_pekerjaan}</b></td>
             </tr>
         </table>
 
@@ -271,7 +295,7 @@ def tampilkan_bamp(transaksi_list):
                 <td style="width: 50%; text-align: left; padding-left: 20px;">
                     <b>{p1_nama}</b><br>
                     <b>PIHAK PERTAMA</b><br><br><br><br>
-                    <u><b>{p1_wakil_lengkap}</b></u><br>
+                    <u><b>{p1_wakil_sign}</b></u><br>
                     {p1_jabatan}
                 </td>
                 <td style="width: 50%; text-align: left; padding-left: 20px;">
