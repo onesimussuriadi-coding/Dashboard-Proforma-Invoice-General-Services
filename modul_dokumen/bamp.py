@@ -33,63 +33,70 @@ def tampilkan_bamp(transaksi_list):
     t_data = unique_tx_list[selected_idx]
     current_pi_no = str(t_data.get('PI No.', '')).strip().lower()
 
-    # --- MEMBACA MURNI DARI DATABASE INDUK MODUL 1 (LIHAT DATABASE TERSIMPAN) ---
+    # --- PENGAMBILAN MURNI BERDASARKAN INDEKS KOLOM ABSOLUT DARI MODUL 1 ---
     try:
         saved_db_induk = muat_data_invoice()
     except:
         saved_db_induk = []
 
-    matched_record_values = []
-    
+    matched_values = []
     for item in saved_db_induk:
         if isinstance(item, dict):
             if "Update Terakhir" in item:
                 item.pop("Update Terakhir", None)
             
-            item_values = list(item.values())
-            # Cari baris yang mengandung nomor PI yang sama persis
-            for val in item_values:
-                if str(val).strip().lower() == current_pi_no:
-                    matched_record_values = item_values
+            item_vals = list(item.values())
+            # Cari baris yang memuat nomor PI aktif pada kolom mana pun
+            found = False
+            for val in item_vals:
+                if val is not None and str(val).strip().lower() == current_pi_no:
+                    found = True
                     break
-            if matched_record_values:
+            if found:
+                matched_values = item_vals
                 break
 
-    def get_induk_val(idx, default_val=""):
+    def get_col_val(index_pos, fallback_key=""):
         try:
-            if len(matched_record_values) > idx:
-                val = matched_record_values[idx]
+            if len(matched_values) > index_pos:
+                val = matched_values[index_pos]
                 if val is not None and str(val).strip() != "" and str(val).strip().lower() != "nan":
                     return str(val).strip()
         except:
             pass
-        return default_val
+        
+        # Cadangan terakhir mengambil dari transaksi aktif jika indeks kosong
+        if fallback_key and fallback_key in t_data:
+            val_t = t_data[fallback_key]
+            if val_t is not None and str(val_t).strip() != "":
+                return str(val_t).strip()
+                
+        return "-"
 
-    # Pemetaan Mutlak Indeks Kolom Sesuai Tabel Database Induk Modul 1
-    nomor_kontrak_str = get_induk_val(1, str(t_data.get('Nomor Kontrak', '')))
-    tgl_kontrak = get_induk_val(4, '-')
-    no_po_auto = get_induk_val(8, '-')
-    tgl_po_auto = get_induk_val(9, '-')
-    lingkup_pekerjaan = get_induk_val(10, '-')
+    # Pemetaan Mutlak Menggunakan Nomor Urut Indeks Kolom Modul 1
+    nomor_kontrak_str = get_col_val(1, 'Nomor Kontrak')
+    tgl_kontrak = get_col_val(4, 'Tanggal Kontrak')
+    no_po_auto = get_col_val(8, 'Nomor Purchase Order')
+    tgl_po_auto = get_col_val(9, 'Tanggal Purchase Order')
+    lingkup_pekerjaan = get_col_val(10, 'Lingkup Pekerjaan')
 
-    # Pihak Pertama (Murni dari Database Induk Modul 1)
-    p1_nama = get_induk_val(11, '-')
-    p1_alamat = get_induk_val(12, '-')
-    p1_wakil_lengkap = get_induk_val(13, '-')
-    p1_jabatan = get_induk_val(14, '-')
+    # Pihak Pertama (Kolom 11 s.d 14)
+    p1_nama = get_col_val(11, 'Pihak Pertama')
+    p1_alamat = get_col_val(12, 'Alamat Pihak Pertama')
+    p1_wakil_lengkap = get_col_val(13, 'Diwakili Oleh')
+    p1_jabatan = get_col_val(14, 'Selaku')
 
     if "/" in p1_wakil_lengkap:
         p1_wakil_sign = p1_wakil_lengkap.split("/")[0].strip()
     else:
         p1_wakil_sign = p1_wakil_lengkap
 
-    # Pihak Kedua (Murni dari Database Induk Modul 1)
-    p2_nama = get_induk_val(15, '-')
-    p2_alamat = get_induk_val(16, '-')
-    p2_wakil = get_induk_val(17, '-')
-    p2_jabatan = get_induk_val(18, '-')
+    # Pihak Kedua (Kolom 15 s.d 18)
+    p2_nama = get_col_val(15, 'Pihak Kedua')
+    p2_alamat = get_col_val(16, 'Alamat Pihak Kedua')
+    p2_wakil = get_col_val(17, 'Diwakili Oleh (P2)')
+    p2_jabatan = get_col_val(18, 'Selaku (P2)')
 
-    # Rincian Pekerjaan (Diambil dari transaksi item yang bersangkutan)
     kategori_item = str(t_data.get('Kategori', '')).strip()
     deskripsi_item = str(t_data.get('Deskripsi Pekerjaan', '')).strip()
     item_desc_final = f"<b>{kategori_item}</b><br>{deskripsi_item}" if kategori_item else deskripsi_item
