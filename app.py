@@ -238,11 +238,17 @@ if form_login_sistem():
     # --- PEMBATASAN MENU BERJENJANG BERDASARKAN ROLE ---
     if user_role == "Staff Timesheet":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan"])
-    else:
+    elif user_role == "Finance / Invoice":
+        modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
+            "📁 Modul 1: Database & Master Kontrak",
+            "📄 Modul 2: Invoice & Dokumen Turunan"
+        ])
+    else: # Manajer Operasional (Akses Penuh)
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "📁 Modul 0: Master Referensi Harga & Pekerjaan",
             "📁 Modul 1: Database & Master Kontrak",
-            "📄 Modul 2: Invoice & Dokumen Turunan"
+            "📄 Modul 2: Invoice & Dokumen Turunan",
+            "Timesheet Peralatan"
         ])
 
     st.sidebar.markdown("---")
