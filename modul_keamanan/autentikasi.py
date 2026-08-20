@@ -9,7 +9,6 @@ if not os.path.exists(DIR_DATABASE):
 EXCEL_PENGGUNA = os.path.join(DIR_DATABASE, "database_pengguna.xlsx")
 
 def muat_data_pengguna():
-    # Akun default bawaan jika file Excel belum ada
     default_users = [
         {"Username": "admin", "Password": "bss2026", "Role": "Manajer Operasional"},
         {"Username": "staff_timesheet", "Password": "ts2026", "Role": "Staff Timesheet"}
@@ -21,6 +20,9 @@ def muat_data_pengguna():
                 return df.to_dict(orient="records")
         except:
             pass
+    
+    # Jika file Excel belum ada, buatkan otomatis filenya di folder penyimpanan aman
+    simpan_data_pengguna(default_users)
     return default_users
 
 def simpan_data_pengguna(data_list):
@@ -36,7 +38,6 @@ def form_login_sistem():
         st.session_state.current_role = ""
 
     if not st.session_state.logged_in:
-        # Menggunakan kolom untuk membatasi lebar form agar tidak full-width
         col1, col2, col3 = st.columns([1, 1.2, 1])
         with col2:
             st.markdown("""
@@ -78,8 +79,8 @@ def render_panel_manajemen_akun():
         st.markdown(f"👤 **Login:** `{st.session_state.get('current_user')}`")
         st.markdown(f"🛡️ **Role:** `{st.session_state.get('current_role')}`")
         
-        # Hanya Manajer Operasional yang boleh mendaftarkan akun baru
-        if st.session_state.get('current_role') == "Manajer Operasional":
+        # Mengizinkan Manajer Operasional maupun Administrator untuk mengelola akun
+        if st.session_state.get('current_role') in ["Manajer Operasional", "Administrator"]:
             st.markdown("---")
             st.markdown("**Tambah Akun Baru:**")
             with st.form("form_tambah_user_secure"):
