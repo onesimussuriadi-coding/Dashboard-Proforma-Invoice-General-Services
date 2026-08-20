@@ -13,16 +13,17 @@ def muat_data_pengguna():
         {"Username": "admin", "Password": "bss2026", "Role": "Manajer Operasional"},
         {"Username": "staff_timesheet", "Password": "ts2026", "Role": "Staff Timesheet"}
     ]
-    if os.path.exists(EXCEL_PENGGUNA):
-        try:
-            df = pd.read_excel(EXCEL_PENGGUNA)
-            if df is not None and not df.empty:
-                return df.to_dict(orient="records")
-        except Exception:
-            pass
+    # Jika file fisik Excel belum ada di folder, buatkan sekarang juga secara paksa!
+    if not os.path.exists(EXCEL_PENGGUNA):
+        df_default = pd.DataFrame(default_users)
+        df_default.to_excel(EXCEL_PENGGUNA, index=False)
     
-    # Jika file Excel belum ada, buatkan otomatis filenya di folder penyimpanan aman
-    simpan_data_pengguna(default_users)
+    try:
+        df = pd.read_excel(EXCEL_PENGGUNA)
+        if df is not None and not df.empty:
+            return df.to_dict(orient="records")
+    except Exception:
+        pass
     return default_users
 
 def simpan_data_pengguna(data_list):
@@ -79,7 +80,6 @@ def render_panel_manajemen_akun():
         st.markdown(f"👤 **Login:** `{st.session_state.get('current_user')}`")
         st.markdown(f"🛡️ **Role:** `{st.session_state.get('current_role')}`")
         
-        # Mengizinkan Manajer Operasional maupun Administrator untuk mengelola akun
         if st.session_state.get('current_role') in ["Manajer Operasional", "Administrator"]:
             st.markdown("---")
             st.markdown("**Tambah Akun Baru:**")
@@ -106,12 +106,10 @@ def render_panel_manajemen_akun():
                                 "Password": new_pass.strip(),
                                 "Role": new_role
                             })
-                            # Perintah mutlak menyimpan ke folder fisik Excel
                             simpan_data_pengguna(existing_users)
-                            st.success(f"🎉 Akun {new_user} berhasil dibuat dan disimpan!")
+                            st.success(f"🎉 Akun {new_user} berhasil dibuat!")
                             st.balloons()
         
-        # Logout
         if st.sidebar.button("🔒 Keluar / Logout Sistem", use_container_width=True):
             st.session_state.logged_in = False
             st.session_state.current_user = ""
