@@ -31,49 +31,30 @@ def tampilkan_timesheet(transaksi_list):
         </div>
     """, unsafe_allow_html=True)
 
-    if not transaksi_list:
-        st.warning("⚠️ Belum ada data transaksi kontrak atau proforma invoice yang tersedia.")
-        return
-
-    # 1. Rujukan Nomor Proforma Invoice (PI) & Kontrak
-    seen_pi = set()
-    unique_pi_list = []
-    for t in transaksi_list:
-        pi_no = str(t.get('PI No.', t.get('Proforma Invoice No.', ''))).strip()
-        if pi_no and pi_no not in seen_pi:
-            seen_pi.add(pi_no)
-            unique_pi_list.append(t)
-
-    if not unique_pi_list:
-        unique_pi_list = transaksi_list
-
-    pilihan_pi = [f"PI No: {p.get('PI No.', 'PI-001')} | Kontrak: {p.get('Nomor Kontrak', '7207250142')} | User: {p.get('Ditujukan Kepada', 'JOB Pertamina-Medco')}" for p in unique_pi_list]
-
-    col_pi1, col_pi2, col_pi3 = st.columns([2, 1, 1])
-    with col_pi1:
-        selected_pi_idx = st.selectbox("📌 Rujukan Nomor Proforma Invoice (PI):", range(len(pilihan_pi)), format_func=lambda x: pilihan_pi[x], key="ts_select_pi_ref")
-    with col_pi2:
+    # 1. Pilihan Bulan & Tahun sebagai basis utama periode
+    col_bln1, col_bln2 = st.columns(2)
+    with col_bln1:
         daftar_bulan = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
         pilih_bulan = st.selectbox("📅 Pilih Bulan:", daftar_bulan, index=6, key="ts_pilih_bulan")
-    with col_pi3:
+    with col_bln2:
         pilih_tahun = st.selectbox("📆 Pilih Tahun:", [str(y) for y in range(2026, 2036)], index=0, key="ts_pilih_tahun")
 
-    selected_pi_data = unique_pi_list[selected_pi_idx]
-    nomor_pi_ref = str(selected_pi_data.get('PI No.', selected_pi_data.get('Proforma Invoice No.', 'PI-042/BSS-JOB/AB/VII/2026'))).strip()
-    
-    # --- INPUT TAMBAHAN: NOMOR KONTRAK, PO OPSIONAL, & SKEMA SEWA ---
+    # --- KONFIGURASI KONTRAK & SKEMA SEWA (TANPA RUJUKAN PI DI AWAL) ---
     st.markdown("---")
     st.markdown("#### 📋 Konfigurasi Kontrak & Skema Perhitungan Timesheet")
     c_cfg1, c_cfg2, c_cfg3 = st.columns(3)
     with c_cfg1:
-        nomor_kontrak = st.text_input("Nomor Kontrak Rujukan:", value=str(selected_pi_data.get('Nomor Kontrak', '7207250142')), key="ts_input_no_kontrak")
+        nomor_kontrak = st.text_input("Nomor Kontrak Rujukan:", value="7207250142", key="ts_input_no_kontrak")
     with c_cfg2:
-        nomor_po_opsional = st.text_input("Nomor PO (Opsional):", value=str(selected_pi_data.get('Nomor PO', '4500011425')), key="ts_input_no_po")
+        nomor_po_opsional = st.text_input("Nomor PO (Opsional):", value="4500011424", key="ts_input_no_po")
     with c_cfg3:
         skema_sewa_pilihan = st.selectbox("Skema Perhitungan Sewa:", ["Monthly", "Daily", "Mobilisasi", "Provisional Sum"], index=0, key="ts_skema_sewa_pilihan")
 
-    customer_user = str(selected_pi_data.get('Ditujukan Kepada', 'JOB Pertamina - Medco E&P Tomori Sulawesi')).strip()
-    proyek_teks = str(selected_pi_data.get('Nama Kontrak', 'Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka')).strip()
+    c_usr1, c_usr2 = st.columns(2)
+    with c_usr1:
+        customer_user = st.text_input("Customer / User:", value="JOB Pertamina - Medco E&P Tomori Sulawesi", key="ts_input_customer")
+    with c_usr2:
+        proyek_teks = st.text_input("Nama Proyek / Kontrak:", value="Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka", key="ts_input_proyek")
 
     st.markdown("---")
     st.markdown("#### 🗓️ Rentang Tanggal Kalender Periode Timesheet")
@@ -130,16 +111,16 @@ def tampilkan_timesheet(transaksi_list):
     sub_pekerjaan_teks = st.selectbox("📋 Pilih Sub Pekerjaan / Nama Alat Aktual:", master_alat_list, key="ts_dropdown_alat_dinamis")
     note_teks = st.text_input("Catatan / Note:", value="", key="ts_note_input")
 
-    # SIMPAN, LOAD, UPDATE TIMESHEET
+    # SIMPAN, LOAD, UPDATE TIMESHEET (Berbasis Kontrak & Periode)
     ts_db_path = os.path.join(db_folder, "database_timesheet_history.xlsx")
     loaded_record = None
 
     if os.path.exists(ts_db_path):
         try:
             df_check = pd.read_excel(ts_db_path)
-            match_rec = df_check[(df_check["PI No."].astype(str).str.strip() == nomor_pi_ref) & (df_check["Periode"].astype(str).str.strip() == periode_teks_input) & (df_check["Sub Pekerjaan"].astype(str).str.strip() == sub_pekerjaan_teks)]
+            match_rec = df_check[(df_check["Nomor Kontrak"].astype(str).str.strip() == nomor_kontrak) & (df_check["Periode"].astype(str).str.strip() == periode_teks_input) & (df_check["Sub Pekerjaan"].astype(str).str.strip() == sub_pekerjaan_teks)]
             if not match_rec.empty:
-                st.info(f"📂 Ditemukan riwayat timesheet tersimpan untuk PI: {nomor_pi_ref} ({sub_pekerjaan_teks}).")
+                st.info(f"📂 Ditemukan riwayat timesheet tersimpan untuk Kontrak: {nomor_kontrak} ({sub_pekerjaan_teks}).")
                 if st.button("📂 Panggil Kembali Data Tersimpan (Load Data)", key="btn_load_ts"):
                     loaded_record = match_rec.iloc[0].to_dict()
                     st.success("✅ Data timesheet berhasil dimuat kembali!")
@@ -213,7 +194,6 @@ def tampilkan_timesheet(transaksi_list):
     if simpan_mode or save_as_mode:
         record = {
             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "PI No.": nomor_pi_ref,
             "Nomor Kontrak": nomor_kontrak,
             "Nomor PO": nomor_po_opsional,
             "Skema Sewa": skema_sewa_pilihan,
@@ -222,7 +202,7 @@ def tampilkan_timesheet(transaksi_list):
             "Sub Pekerjaan": sub_pekerjaan_teks,
             "Periode": periode_teks_input,
             "Note": note_teks,
-            "Volume_Quantity": volume_final,  # Volume final untuk ditarik ke Rincian Pekerjaan & PI
+            "Volume_Quantity": volume_final,  # Volume final hasil rekap untuk ditarik ke PI nantinya
             "Satuan": "Hari" if skema_sewa_pilihan == "Monthly" else "Unit",
             "Total Operation (O)": total_O,
             "Total Standby (S)": total_S,
@@ -239,8 +219,8 @@ def tampilkan_timesheet(transaksi_list):
             if os.path.exists(ts_db_path):
                 df_ts = pd.read_excel(ts_db_path)
                 if simpan_mode:
-                    if "PI No." in df_ts.columns and "Sub Pekerjaan" in df_ts.columns:
-                        df_ts = df_ts[~((df_ts["PI No."].astype(str).str.strip() == nomor_pi_ref) & (df_ts["Sub Pekerjaan"].astype(str).str.strip() == sub_pekerjaan_teks))]
+                    if "Nomor Kontrak" in df_ts.columns and "Sub Pekerjaan" in df_ts.columns:
+                        df_ts = df_ts[~((df_ts["Nomor Kontrak"].astype(str).str.strip() == nomor_kontrak) & (df_ts["Sub Pekerjaan"].astype(str).str.strip() == sub_pekerjaan_teks) & (df_ts["Periode"].astype(str).str.strip() == periode_teks_input))]
                 df_ts = pd.concat([df_ts, pd.DataFrame([record])], ignore_index=True)
             else:
                 df_ts = pd.DataFrame([record])
@@ -284,7 +264,7 @@ def tampilkan_timesheet(transaksi_list):
             <p style="margin: 1px 0; font-size: 7px;">JL. URIP SUMOHARJO NO. 53, TELP 0461-21025, 21185, 21307. LUWUK</p>
         </div>
 
-        <div class="title">REKAP TIME SHEET PERALATAN (PI REF: {nomor_pi_ref})</div>
+        <div class="title">REKAP TIME SHEET PERALATAN</div>
 
         <table class="info-table">
             <tr>
@@ -427,5 +407,5 @@ def tampilkan_timesheet(transaksi_list):
 
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
-        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="Timesheet_ISO_{nomor_pi_ref.replace("/", "_")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File Timesheet (ISO)</button></a>'
+        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="Timesheet_ISO_{nomor_kontrak}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File Timesheet (ISO)</button></a>'
         st.markdown(download_link, unsafe_allow_html=True)
