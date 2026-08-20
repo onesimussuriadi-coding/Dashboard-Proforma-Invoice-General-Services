@@ -3,6 +3,26 @@ import pandas as pd
 import os
 import base64
 from datetime import datetime
+import calendar
+
+def hitung_volume_bayar(total_O, total_S, total_R, total_M, hari_dalam_bulan, skema_sewa):
+    """
+    Logika perhitungan dinamis berdasarkan pilihan skema sewa:
+    - Monthly: Full bulan dikurangi hari rusak (R) / prorata
+    - Daily: Operation (O) + Mobilisasi (M)
+    - Mobilisasi: Berdasarkan hari mobilisasi (M)
+    - Provisional Sum: Berdasarkan realisasi aktual
+    """
+    if skema_sewa == "Monthly":
+        volume_bayar = hari_dalam_bulan - total_R
+        return max(0, volume_bayar)
+    elif skema_sewa == "Daily":
+        return total_O + total_M
+    elif skema_sewa == "Mobilisasi":
+        return total_M
+    elif skema_sewa == "Provisional Sum":
+        return total_O
+    return total_O
 
 def tampilkan_timesheet(transaksi_list):
     st.markdown("""
@@ -33,19 +53,28 @@ def tampilkan_timesheet(transaksi_list):
     with col_pi1:
         selected_pi_idx = st.selectbox("📌 Rujukan Nomor Proforma Invoice (PI):", range(len(pilihan_pi)), format_func=lambda x: pilihan_pi[x], key="ts_select_pi_ref")
     with col_pi2:
-        # Pilihan Bulan & Tahun (Mendukung beberapa tahun ke depan)
         daftar_bulan = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
-        pilih_bulan = st.selectbox("📅 Pilih Bulan:", daftar_bulan, index=6, key="ts_pilih_bulan") # Default Juli
+        pilih_bulan = st.selectbox("📅 Pilih Bulan:", daftar_bulan, index=6, key="ts_pilih_bulan")
     with col_pi3:
         pilih_tahun = st.selectbox("📆 Pilih Tahun:", [str(y) for y in range(2026, 2036)], index=0, key="ts_pilih_tahun")
 
     selected_pi_data = unique_pi_list[selected_pi_idx]
     nomor_pi_ref = str(selected_pi_data.get('PI No.', selected_pi_data.get('Proforma Invoice No.', 'PI-042/BSS-JOB/AB/VII/2026'))).strip()
-    nomor_kontrak = str(selected_pi_data.get('Nomor Kontrak', '7207250142')).strip()
+    
+    # --- INPUT TAMBAHAN: NOMOR KONTRAK, PO OPSIONAL, & SKEMA SEWA ---
+    st.markdown("---")
+    st.markdown("#### 📋 Konfigurasi Kontrak & Skema Perhitungan Timesheet")
+    c_cfg1, c_cfg2, c_cfg3 = st.columns(3)
+    with c_cfg1:
+        nomor_kontrak = st.text_input("Nomor Kontrak Rujukan:", value=str(selected_pi_data.get('Nomor Kontrak', '7207250142')), key="ts_input_no_kontrak")
+    with c_cfg2:
+        nomor_po_opsional = st.text_input("Nomor PO (Opsional):", value=str(selected_pi_data.get('Nomor PO', '4500011425')), key="ts_input_no_po")
+    with c_cfg3:
+        skema_sewa_pilihan = st.selectbox("Skema Perhitungan Sewa:", ["Monthly", "Daily", "Mobilisasi", "Provisional Sum"], index=0, key="ts_skema_sewa_pilihan")
+
     customer_user = str(selected_pi_data.get('Ditujukan Kepada', 'JOB Pertamina - Medco E&P Tomori Sulawesi')).strip()
     proyek_teks = str(selected_pi_data.get('Nama Kontrak', 'Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka')).strip()
 
-    # Pilihan Kalender Mulai & Selesai untuk Periode Timesheet
     st.markdown("---")
     st.markdown("#### 🗓️ Rentang Tanggal Kalender Periode Timesheet")
     c_cal1, c_cal2 = st.columns(2)
@@ -54,14 +83,11 @@ def tampilkan_timesheet(transaksi_list):
     with c_cal2:
         tanggal_selesai = st.date_input("Tanggal Selesai:", value=datetime(2026, 7, 31), key="ts_tgl_selesai")
 
-    # Format otomatis teks periode (Contoh: 01 s/d 31 Juli 2026)
     periode_teks_input = f"{tanggal_mulai.day:02d} s/d {tanggal_selesai.day:02d} {pilih_bulan} {pilih_tahun}"
 
     st.markdown("---")
     
     # MANAJEMEN MASTER NAMA ALAT DINAMIS
-    st.markdown("#### 🛠️ Manajemen Master Nama Alat / Sub Pekerjaan")
-    
     db_folder = "database_penyimpanan_aman"
     os.makedirs(db_folder, exist_ok=True)
     master_alat_path = os.path.join(db_folder, "database_master_nama_alat.xlsx")
@@ -161,6 +187,12 @@ def tampilkan_timesheet(transaksi_list):
     total_R = sum(1 for i in range(1, 32) if st.session_state.daily_status.get(str(i)) == "R")
     total_M = sum(1 for i in range(1, 32) if st.session_state.daily_status.get(str(i)) == "M")
 
+    # Hitung jumlah hari dalam bulan terpilih untuk perhitungan prorata
+    _, last_day = calendar.monthrange(int(pilih_tahun), daftar_bulan.index(pilih_bulan) + 1)
+    
+    # Kalkulasi Volume Final Berdasarkan Pilihan Skema Sewa
+    volume_final = hitung_volume_bayar(total_O, total_S, total_R, total_M, last_day, skema_sewa_pilihan)
+
     st.markdown("---")
     st.markdown("#### 👥 Otoritas Penandatangan Dokumen")
     c_sign1, c_sign2, c_sign3 = st.columns(3)
@@ -183,11 +215,15 @@ def tampilkan_timesheet(transaksi_list):
             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "PI No.": nomor_pi_ref,
             "Nomor Kontrak": nomor_kontrak,
+            "Nomor PO": nomor_po_opsional,
+            "Skema Sewa": skema_sewa_pilihan,
             "Customer": customer_user,
             "Proyek": proyek_teks,
             "Sub Pekerjaan": sub_pekerjaan_teks,
             "Periode": periode_teks_input,
             "Note": note_teks,
+            "Volume_Quantity": volume_final,  # Volume final untuk ditarik ke Rincian Pekerjaan & PI
+            "Satuan": "Hari" if skema_sewa_pilihan == "Monthly" else "Unit",
             "Total Operation (O)": total_O,
             "Total Standby (S)": total_S,
             "Total Perbaikan (R)": total_R,
@@ -210,7 +246,7 @@ def tampilkan_timesheet(transaksi_list):
                 df_ts = pd.DataFrame([record])
             
             df_ts.to_excel(ts_db_path, index=False)
-            st.success("✅ Data timesheet berhasil disimpan / diperbarui ke database!")
+            st.success(f"✅ Data timesheet berhasil disimpan! Skema: {skema_sewa_pilihan} | Volume Tertagih: {volume_final}")
         except Exception as e:
             st.error(f"Gagal menyimpan data timesheet: {e}")
 
@@ -254,12 +290,18 @@ def tampilkan_timesheet(transaksi_list):
             <tr>
                 <td style="width: 15%; font-weight: bold;">Customer / User</td>
                 <td style="width: 2%;">:</td>
-                <td style="width: 83%;" colspan="4"><b>{customer_user}</b></td>
+                <td style="width: 45%;"><b>{customer_user}</b></td>
+                <td style="width: 15%; font-weight: bold;">Skema Sewa</td>
+                <td style="width: 2%;">:</td>
+                <td style="width: 21%;"><b>{skema_sewa_pilihan}</b></td>
             </tr>
             <tr>
-                <td style="font-weight: bold;">Kontrak / SO No.</td>
+                <td style="font-weight: bold;">Nomor Kontrak</td>
                 <td>:</td>
-                <td colspan="4"><b>{nomor_kontrak}</b></td>
+                <td><b>{nomor_kontrak}</b></td>
+                <td style="font-weight: bold;">Nomor PO</td>
+                <td>:</td>
+                <td><b>{nomor_po_opsional}</b></td>
             </tr>
             <tr>
                 <td style="font-weight: bold;">Proyek</td>
@@ -370,6 +412,7 @@ def tampilkan_timesheet(transaksi_list):
             <script>
                 function printDoc() {{
                     var win = window.open('', '_blank');
+                    win.document.open();
                     win.document.write(atob("{b64_html}"));
                     win.document.close();
                     win.focus();
