@@ -68,8 +68,14 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 body {{
                     -webkit-print-color-adjust: exact;
                 }}
-                /* Menghilangkan header & footer otomatis browser (tanggal, URL, about:blank) */
-                header, footer {{
+                /* Menghilangkan header & footer otomatis browser secara mutlak */
+                @page {{
+                    margin: 0;
+                }}
+                body {{
+                    margin: 10mm;
+                }}
+                header, footer, .no-print {{
                     display: none !important;
                 }}
             }}
@@ -77,7 +83,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 font-family: Arial, sans-serif; 
                 background-color: #ffffff; 
                 color: #000000; 
-                padding: 20px; 
+                padding: 15px; 
                 margin: 0; 
                 font-size: 10px;
                 line-height: 1.2;
@@ -94,7 +100,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
             table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 5px 8px; font-size: 9px; text-align: left; }}
             table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
 
-            /* Penyesuaian ukuran teks tanda tangan agar proporsional dan tidak terlalu besar */
             .sign-table {{ border: none; width: 100%; margin-top: 25px; }}
             .sign-table td {{ border: none; text-align: center; width: 50%; font-size: 9px; vertical-align: top; }}
             .sign-title {{ font-weight: bold; font-size: 9px; text-transform: uppercase; margin-bottom: 35px; }}
@@ -221,7 +226,8 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         print_script = f"""
             <script>
                 function printDoc() {{
-                    var win = window.open('', '_blank');
+                    var win = window.open('about:blank', '_blank');
+                    win.document.open();
                     win.document.write(atob("{b64_html}"));
                     win.document.close();
                     win.focus();

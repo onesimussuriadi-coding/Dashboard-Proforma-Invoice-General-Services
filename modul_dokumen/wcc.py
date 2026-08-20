@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
+from datetime import datetime
 
 def terbilang(n):
     n = int(n)
@@ -52,9 +53,9 @@ def tampilkan_wcc(transaksi_list):
     
     col_sel1, col_sel2 = st.columns([2, 1])
     with col_sel1:
-        selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
+        selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x], key="wcc_sel_idx")
     with col_sel2:
-        lokasi_office = st.text_input("📍 Lokasi Office (Tempat WCC):", value="Paisubololi")
+        lokasi_office = st.text_input("📍 Lokasi Office (Tempat WCC):", value="Paisubololi", key="wcc_lok_office")
 
     if 'persisted_logo_1' not in st.session_state:
         st.session_state.persisted_logo_1 = None
@@ -64,11 +65,11 @@ def tampilkan_wcc(transaksi_list):
     st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen WCC (Tersimpan Otomatis)")
     c_log1, c_log2 = st.columns(2)
     with c_log1:
-        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama (PT BSS)", type=["png", "jpg", "jpeg"], key="logo_wcc_1")
+        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama (PT BSS)", type=["png", "jpg", "jpeg"], key="logo_wcc_1_u")
         if uploaded_logo_1 is not None:
             st.session_state.persisted_logo_1 = uploaded_logo_1.getvalue()
     with c_log2:
-        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua / Instansi (JOB Pertamina)", type=["png", "jpg", "jpeg"], key="logo_wcc_2")
+        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua / Instansi (JOB Pertamina)", type=["png", "jpg", "jpeg"], key="logo_wcc_2_u")
         if uploaded_logo_2 is not None:
             st.session_state.persisted_logo_2 = uploaded_logo_2.getvalue()
 
@@ -87,22 +88,30 @@ def tampilkan_wcc(transaksi_list):
         except:
             pass
 
-    nomor_kontrak_str = str(t_data.get('Nomor Kontrak', ''))
-    wcc_no = str(matched_db_row.get('Nomor WCC', nomor_kontrak_str + '-BSS-WCC-2026'))
-    wcc_date = str(matched_db_row.get('Tanggal WCC', t_data.get('Tanggal PI', '')))
-    wo_no = str(matched_db_row.get('Nomor WO', nomor_kontrak_str + '-BSS-WO-2026'))
-    ctr_no = str(matched_db_row.get('Nomor CTR', nomor_kontrak_str + '-BSS-CTR-2026'))
+    nomor_kontrak_str = str(t_data.get('Nomor Kontrak', '7201250141'))
+    wcc_no = str(matched_db_row.get('Nomor WCC', f"WCC-{nomor_kontrak_str}-{datetime.now().strftime('%m-%Y')}"))
+    
+    raw_date = matched_db_row.get('Tanggal WCC', t_data.get('Tanggal PI', datetime.now().strftime('%d %B %Y')))
+    try:
+        if isinstance(raw_date, str) and len(raw_date) >= 10:
+            parsed_date = pd.to_datetime(raw_date)
+            wcc_date = parsed_date.strftime('%d %B %Y')
+        else:
+            wcc_date = datetime.now().strftime('%d %B %Y')
+    except:
+        wcc_date = str(raw_date)
+
+    wo_no = str(matched_db_row.get('Nomor WO', f"WO-{nomor_kontrak_str}"))
+    ctr_no = str(matched_db_row.get('Nomor CTR', f"CTR-{nomor_kontrak_str}"))
     
     wo_title = str(matched_db_row.get('Keterangan WO', ''))
     if not wo_title:
-        wo_title = str(t_data.get('Deskripsi PO', t_data.get('Nama Kontrak', '')))
+        wo_title = str(t_data.get('Deskripsi PO', t_data.get('Nama Kontrak', 'General Services Supporting Well Workover and Maintenance')))
 
     progress_val = str(matched_db_row.get('Progress Pekerjaan', '100%'))
-    
-    # PERBAIKAN: Menggunakan simbol HTML universal aman-PDF pengganti kotak-kotak
     progress_desc = f"[&#10003;] {progress_val} - Penyelesaian Pekerjaan"
 
-    prepared_name = str(matched_db_row.get('Prepared by Name', 'Onesimus Suriadi'))
+    prepared_name = str(matched_db_row.get('Prepared by Name', 'Onesimus Suryadi'))
     prepared_title = str(matched_db_row.get('Prepared by Title', 'General Service Manager'))
     reviewed_name = str(matched_db_row.get('Diwakili Oleh', 'Ronny Dwi Purnomo / Rafik Hidayat'))
     approved_name = str(matched_db_row.get('Pejabat berwenang', 'Imron Maulana / Moh Bazarul Aqhsa'))
@@ -125,6 +134,24 @@ def tampilkan_wcc(transaksi_list):
         <meta charset="utf-8">
         <title>Work Completion Certificate - PT BSS</title>
         <style>
+            @page {{
+                size: A4;
+                margin: 10mm;
+            }}
+            @media print {{
+                body {{
+                    -webkit-print-color-adjust: exact;
+                }}
+                @page {{
+                    margin: 0;
+                }}
+                body {{
+                    margin: 10mm;
+                }}
+                header, footer, .no-print {{
+                    display: none !important;
+                }}
+            }}
             body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 25px; margin: 0; font-size: 11px; line-height: 1.4; }}
             .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }}
             .header-table td {{ border: none; vertical-align: middle; padding: 0 10px; }}
@@ -242,7 +269,8 @@ def tampilkan_wcc(transaksi_list):
         print_script = f"""
             <script>
                 function printDoc() {{
-                    var win = window.open('', '_blank');
+                    var win = window.open('about:blank', '_blank');
+                    win.document.open();
                     win.document.write(atob("{b64_html}"));
                     win.document.close();
                     win.focus();
@@ -257,5 +285,5 @@ def tampilkan_wcc(transaksi_list):
 
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
-        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="WCC_{t_data["PI No."].replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File WCC</button></a>'
+        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="WCC_{str(t_data["PI No."]).replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File WCC</button></a>'
         st.markdown(download_link, unsafe_allow_html=True)

@@ -7,7 +7,7 @@ from datetime import datetime
 def tampilkan_tkdn(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📋 Pratinjau, Cetak & Download Formulir TKDN (Self-Assessment)</h3>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📋 Pratinjau, Cetak & Download Formulir TKDN (Permen ESDM No. 15 Tahun 2013)</h3>
         </div>
     """, unsafe_allow_html=True)
 
@@ -47,7 +47,7 @@ def tampilkan_tkdn(transaksi_list):
 
     aktual_total_tagihan = float(t_data.get('Total Harga', 0.0))
 
-    # --- INISIALISASI SESSION STATE AMAN (MENCEGAH ERROR ATTRIBUTE) ---
+    # --- INISIALISASI SESSION STATE AMAN ---
     if 'master_tagihan_val' not in st.session_state:
         st.session_state.master_tagihan_val = aktual_total_tagihan
 
@@ -98,7 +98,7 @@ def tampilkan_tkdn(transaksi_list):
         kdn_1 = (p_kdn_1 / 100.0) * total_tagihan_rujukan
         st.caption(f"-> Nilai KDN: Rp {kdn_1:,.2f}")
     with c_b2:
-        p_kln_1 = st.number_input("Persentase KLN Bahan (%):", value=st.session_state.val_p_kln_1, step=0.1, key="input_p_kln_1")
+        p_kln_1 = st.number_input("Persentase KLN Bahan (%):", value=st.session_state.val_p_kln_1, step=0.1, key="input_p_kln_1_kln")
         st.session_state.val_p_kln_1 = p_kln_1
         kln_1 = (p_kln_1 / 100.0) * total_tagihan_rujukan
         st.caption(f"-> Nilai KLN: Rp {kln_1:,.2f}")
@@ -114,7 +114,7 @@ def tampilkan_tkdn(transaksi_list):
         kdn_2 = (p_kdn_2 / 100.0) * total_tagihan_rujukan
         st.caption(f"-> Nilai KDN: Rp {kdn_2:,.2f}")
     with c_t2:
-        p_kln_2 = st.number_input("Persentase KLN Tenaga Kerja (%):", value=st.session_state.val_p_kln_2, step=0.1, key="input_p_kln_2")
+        p_kln_2 = st.number_input("Persentase KLN Tenaga Kerja (%):", value=st.session_state.val_p_kln_2, step=0.1, key="input_p_kln_2_kln")
         st.session_state.val_p_kln_2 = p_kln_2
         kln_2 = (p_kln_2 / 100.0) * total_tagihan_rujukan
         st.caption(f"-> Nilai KLN: Rp {kln_2:,.2f}")
@@ -130,7 +130,7 @@ def tampilkan_tkdn(transaksi_list):
         kdn_3 = (p_kdn_3 / 100.0) * total_tagihan_rujukan
         st.caption(f"-> Nilai KDN: Rp {kdn_3:,.2f}")
     with c_a2:
-        p_kln_3 = st.number_input("Persentase KLN Alat Kerja (%):", value=st.session_state.val_p_kln_3, step=0.1, key="input_p_kln_3")
+        p_kln_3 = st.number_input("Persentase KLN Alat Kerja (%):", value=st.session_state.val_p_kln_3, step=0.1, key="input_p_kln_3_kln")
         st.session_state.val_p_kln_3 = p_kln_3
         kln_3 = (p_kln_3 / 100.0) * total_tagihan_rujukan
         st.caption(f"-> Nilai KLN: Rp {kln_3:,.2f}")
@@ -146,7 +146,7 @@ def tampilkan_tkdn(transaksi_list):
         kdn_4 = (p_kdn_4 / 100.0) * total_tagihan_rujukan
         st.caption(f"-> Nilai KDN: Rp {kdn_4:,.2f}")
         
-        p_kln_4 = st.number_input("Persentase KLN Jasa Umum (%):", value=st.session_state.val_p_kln_4, step=0.1, key="input_p_kln_4")
+        p_kln_4 = st.number_input("Persentase KLN Jasa Umum (%):", value=st.session_state.val_p_kln_4, step=0.1, key="input_p_kln_4_kln")
         st.session_state.val_p_kln_4 = p_kln_4
         kln_4 = (p_kln_4 / 100.0) * total_tagihan_rujukan
         st.caption(f"-> Nilai KLN: Rp {kln_4:,.2f}")
@@ -158,7 +158,7 @@ def tampilkan_tkdn(transaksi_list):
         komponen_bukan_biaya = (p_non_cost / 100.0) * total_tagihan_rujukan
         st.caption(f"-> Nilai Bukan Biaya: Rp {komponen_bukan_biaya:,.2f}")
 
-    # --- PERHITUNGAN OTOMATIS ---
+    # --- PERHITUNGAN OTOMATIS FORMULA PERMEN ESDM NO. 15 / 2013 ---
     tot_kdn_biaya = kdn_1 + kdn_2 + kdn_3 + kdn_4
     tot_kln_biaya = kln_1 + kln_2 + kln_3 + kln_4
     
@@ -177,72 +177,21 @@ def tampilkan_tkdn(transaksi_list):
     judul_kontrak = str(t_data.get('Nama Kontrak', matched_db_row.get('Nama Kontrak', 'Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka'))).strip()
     mata_uang = str(t_data.get('Mata Uang', 'IDR')).strip()
 
-    # --- FITUR SIMPAN KE DATABASE EXCEL KHUSUS TKDN (ANTI-DUPLIKASI) ---
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("💾 Simpan Data TKDN ke Database Historis", use_container_width=True, type="primary"):
-        db_folder = "database_penyimpanan_aman"
-        os.makedirs(db_folder, exist_ok=True)
-        tkdn_db_path = os.path.join(db_folder, "database_tkdn_history.xlsx")
-
-        new_record = {
-            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "PI No.": pi_sekarang,
-            "Nomor Kontrak": nomor_kontrak,
-            "Nomor PO": nomor_po,
-            "Judul Kontrak": judul_kontrak,
-            "Tanggal Dokumen": tgl_dokumen,
-            "Total Tagihan": total_tagihan_rujukan,
-            "Total KDN Biaya": tot_kdn_biaya,
-            "Total KLN Biaya": tot_kln_biaya,
-            "Jumlah Biaya Total": jumlah_biaya_total,
-            "Komponen Bukan Biaya": komponen_bukan_biaya,
-            "Jumlah Nilai Total": jumlah_nilai_total,
-            "Capaian TKDN (%)": round(persen_tkdn_akhir, 2),
-            "Direktur": nama_direktur
-        }
-
-        try:
-            if os.path.exists(tkdn_db_path):
-                df_hist = pd.read_excel(tkdn_db_path)
-                if "PI No." in df_hist.columns:
-                    df_hist = df_hist[df_hist["PI No."].astype(str).str.strip() != pi_sekarang]
-                df_hist = pd.concat([df_hist, pd.DataFrame([new_record])], ignore_index=True)
-            else:
-                df_hist = pd.DataFrame([new_record])
-            
-            df_hist.to_excel(tkdn_db_path, index=False)
-            st.success(f"✅ Data kalkulasi TKDN untuk PI {pi_sekarang} berhasil disimpan dan diperbarui tanpa duplikasi!")
-        except Exception as e:
-            st.error(f"Gagal menyimpan data TKDN: {e}")
-
-    # Tampilkan Histori Tersimpan Jika Ada
-    tkdn_db_path = os.path.join("database_penyimpanan_aman", "database_tkdn_history.xlsx")
-    if os.path.exists(tkdn_db_path):
-        with st.expander("📂 Lihat Riwayat (Histori) Perhitungan TKDN Tersimpan"):
-            try:
-                df_view = pd.read_excel(tkdn_db_path)
-                st.dataframe(df_view, use_container_width=True)
-
-                with open(tkdn_db_path, "rb") as f:
-                    excel_bytes = f.read()
-                st.download_button(
-                    label="📥 Download Rekapitulasi Excel Histori TKDN",
-                    data=excel_bytes,
-                    file_name="Rekap_Histori_TKDN_PTBSS.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.info("Belum ada histori data yang dapat dimuat.")
-
     # --- HTML RENDER DOKUMEN RESMI ---
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Formulir TKDN - PT BSS</title>
+        <title>Formulir TKDN - Permen ESDM No. 15 Tahun 2013</title>
         <style>
+            @page {{ size: A4; margin: 10mm; }}
+            @media print {{
+                body {{ -webkit-print-color-adjust: exact; }}
+                @page {{ margin: 0; }}
+                body {{ margin: 10mm; }}
+                header, footer, .no-print {{ display: none !important; }}
+            }}
             body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 25px; margin: 0; font-size: 10px; line-height: 1.3; }}
             .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }}
             .title {{ text-align: center; font-weight: bold; font-size: 12px; margin-bottom: 5px; text-transform: uppercase; }}
@@ -254,8 +203,9 @@ def tampilkan_tkdn(transaksi_list):
             table.tkdn-grid {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; }}
             table.tkdn-grid th, table.tkdn-grid td {{ border: 1px solid #000; padding: 5px 6px; font-size: 9px; vertical-align: middle; }}
             .th-header {{ background-color: #f1f5f9; font-weight: bold; text-align: center; text-transform: uppercase; }}
+            .col-yellow {{ background-color: #fef08a !important; }}
             
-            .footer-notes {{ font-size: 8px; margin-top: 10px; }}
+            .footer-notes {{ font-size: 9px; margin-top: 15px; line-height: 1.4; }}
             .sign-section {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
             .sign-section td {{ border: none; font-size: 10px; vertical-align: top; }}
         </style>
@@ -267,7 +217,7 @@ def tampilkan_tkdn(transaksi_list):
         </div>
 
         <div class="title">TABEL PERHITUNGAN TINGKAT KOMPONEN DALAM NEGERI - JASA</div>
-        <div class="subtitle">SELF - ASSESSMENT</div>
+        <div class="subtitle">SELF - ASSESSMENT (PERMEN ESDM NO. 15 TAHUN 2013)</div>
 
         <table class="info-table">
             <tr>
@@ -298,76 +248,154 @@ def tampilkan_tkdn(transaksi_list):
 
         <table class="tkdn-grid">
             <tr>
-                <th class="th-header" style="width: 35%;">Perincian Nilai Biaya (Cost Summary)<br>A. Komponen Biaya (Cost Component)</th>
-                <th class="th-header" style="width: 13%;">KDN<br>(a)</th>
-                <th class="th-header" style="width: 13%;">KLN<br>(b)</th>
+                <th class="th-header" style="width: 30%;">A. Komponen Biaya<br>(Cost Component)</th>
+                <th class="th-header" style="width: 8%;">Mata Uang</th>
+                <th class="th-header" style="width: 14%;">KDN<br>(a)</th>
+                <th class="th-header" style="width: 14%;">KLN<br>(b)</th>
                 <th class="th-header" style="width: 14%;">TOTAL<br>(c = a+b)</th>
-                <th class="th-header" style="width: 11%;">% Nilai TKDN<br>(d = a/c)</th>
-                <th class="th-header" style="width: 14%;">Nilai TKDN<br>(e = c x d)</th>
+                <th class="th-header" style="width: 10%;">% Nilai TKDN<br>(d = a/c)</th>
+                <th class="th-header" style="width: 10%;">Nilai TKDN<br>(e = c x d)</th>
             </tr>
+            <!-- I. BIAYA BAHAN -->
             <tr>
-                <td><b>I. Biaya Bahan (Material) Terpakai</b></td>
-                <td style="text-align: right;">Rp {kdn_1:,.2f}</td>
-                <td style="text-align: right;">Rp {kln_1:,.2f}</td>
+                <td rowspan="2"><b>I. Biaya Bahan (Material) Terpakai</b><br><span style="font-size:7px; color:#555;">(material used cost)</span></td>
+                <td style="text-align: center;"><b>Rp</b></td>
+                <td class="col-yellow" style="text-align: right;">Rp {kdn_1:,.2f}</td>
+                <td class="col-yellow" style="text-align: right;">Rp {kln_1:,.2f}</td>
                 <td style="text-align: right;">Rp {tot_biaya_1:,.2f}</td>
                 <td style="text-align: center;">{(kdn_1/tot_biaya_1*100) if tot_biaya_1>0 else 0:.2f}%</td>
                 <td style="text-align: right;">Rp {kdn_1:,.2f}</td>
             </tr>
             <tr>
-                <td><b>II. Biaya Tenaga Kerja & Konsultan</b></td>
-                <td style="text-align: right;">Rp {kdn_2:,.2f}</td>
-                <td style="text-align: right;">Rp {kln_2:,.2f}</td>
+                <td style="text-align: center;"><i>US$</i></td>
+                <td class="col-yellow" style="text-align: right;">0.00</td>
+                <td class="col-yellow" style="text-align: right;">0.00</td>
+                <td style="text-align: right;">0.00</td>
+                <td style="text-align: center;">0.00%</td>
+                <td style="text-align: right;">0.00</td>
+            </tr>
+
+            <!-- II. BIAYA TENAGA KERJA -->
+            <tr>
+                <td rowspan="2"><b>II. Biaya Tenaga Kerja & Konsultan</b><br><span style="font-size:7px; color:#555;">(personnel & consultant cost)</span></td>
+                <td style="text-align: center;"><b>Rp</b></td>
+                <td class="col-yellow" style="text-align: right;">Rp {kdn_2:,.2f}</td>
+                <td class="col-yellow" style="text-align: right;">Rp {kln_2:,.2f}</td>
                 <td style="text-align: right;">Rp {tot_biaya_2:,.2f}</td>
                 <td style="text-align: center;">{(kdn_2/tot_biaya_2*100) if tot_biaya_2>0 else 0:.2f}%</td>
                 <td style="text-align: right;">Rp {kdn_2:,.2f}</td>
             </tr>
             <tr>
-                <td><b>III. Biaya Alat Kerja / Fasilitas Kerja</b></td>
-                <td style="text-align: right;">Rp {kdn_3:,.2f}</td>
-                <td style="text-align: right;">Rp {kln_3:,.2f}</td>
+                <td style="text-align: center;"><i>US$</i></td>
+                <td class="col-yellow" style="text-align: right;">0.00</td>
+                <td class="col-yellow" style="text-align: right;">0.00</td>
+                <td style="text-align: right;">0.00</td>
+                <td style="text-align: center;">0.00%</td>
+                <td style="text-align: right;">0.00</td>
+            </tr>
+
+            <!-- III. BIAYA ALAT KERJA -->
+            <tr>
+                <td rowspan="2"><b>III. Biaya Alat Kerja / Fasilitas Kerja</b><br><span style="font-size:7px; color:#555;">(equipment & work facility cost)</span></td>
+                <td style="text-align: center;"><b>Rp</b></td>
+                <td class="col-yellow" style="text-align: right;">Rp {kdn_3:,.2f}</td>
+                <td class="col-yellow" style="text-align: right;">Rp {kln_3:,.2f}</td>
                 <td style="text-align: right;">Rp {tot_biaya_3:,.2f}</td>
                 <td style="text-align: center;">{(kdn_3/tot_biaya_3*100) if tot_biaya_3>0 else 0:.2f}%</td>
                 <td style="text-align: right;">Rp {kdn_3:,.2f}</td>
             </tr>
             <tr>
-                <td><b>IV. Biaya Jasa Umum</b></td>
-                <td style="text-align: right;">Rp {kdn_4:,.2f}</td>
-                <td style="text-align: right;">Rp {kln_4:,.2f}</td>
+                <td style="text-align: center;"><i>US$</i></td>
+                <td class="col-yellow" style="text-align: right;">0.00</td>
+                <td class="col-yellow" style="text-align: right;">0.00</td>
+                <td style="text-align: right;">0.00</td>
+                <td style="text-align: center;">0.00%</td>
+                <td style="text-align: right;">0.00</td>
+            </tr>
+
+            <!-- IV. BIAYA JASA UMUM -->
+            <tr>
+                <td rowspan="2"><b>IV. Biaya Jasa Umum</b><br><span style="font-size:7px; color:#555;">(other services cost)</span></td>
+                <td style="text-align: center;"><b>Rp</b></td>
+                <td class="col-yellow" style="text-align: right;">Rp {kdn_4:,.2f}</td>
+                <td class="col-yellow" style="text-align: right;">Rp {kln_4:,.2f}</td>
                 <td style="text-align: right;">Rp {tot_biaya_4:,.2f}</td>
                 <td style="text-align: center;">{(kdn_4/tot_biaya_4*100) if tot_biaya_4>0 else 0:.2f}%</td>
                 <td style="text-align: right;">Rp {kdn_4:,.2f}</td>
             </tr>
+            <tr>
+                <td style="text-align: center;"><i>US$</i></td>
+                <td class="col-yellow" style="text-align: right;">0.00</td>
+                <td class="col-yellow" style="text-align: right;">0.00</td>
+                <td style="text-align: right;">0.00</td>
+                <td style="text-align: center;">0.00%</td>
+                <td style="text-align: right;">0.00</td>
+            </tr>
+
+            <!-- V. JUMLAH BIAYA -->
             <tr style="background-color: #f8fafc; font-weight: bold;">
-                <td>V. JUMLAH BIAYA (Σ I s/d IV)<br><span style="font-size:8px; color:#555;">(Total Cost)</span></td>
+                <td rowspan="2">V. JUMLAH BIAYA (Σ I s/d IV)<br><span style="font-size:7px; color:#555;">(Total Cost)</span></td>
+                <td style="text-align: center;"><b>Rp</b></td>
                 <td style="text-align: right;">Rp {tot_kdn_biaya:,.2f}</td>
                 <td style="text-align: right;">Rp {tot_kln_biaya:,.2f}</td>
                 <td style="text-align: right;">Rp {jumlah_biaya_total:,.2f}</td>
                 <td style="text-align: center;">{(tot_kdn_biaya/jumlah_biaya_total*100) if jumlah_biaya_total>0 else 0:.2f}%</td>
                 <td style="text-align: right;">Rp {tot_kdn_biaya:,.2f}</td>
             </tr>
+            <tr style="background-color: #f8fafc; font-weight: bold;">
+                <td style="text-align: center;"><i>US$</i></td>
+                <td style="text-align: right;">0.00</td>
+                <td style="text-align: right;">0.00</td>
+                <td style="text-align: right;">0.00</td>
+                <td style="text-align: center;">0.00%</td>
+                <td style="text-align: right;">0.00</td>
+            </tr>
+
+            <!-- B. KOMPONEN BUKAN BIAYA -->
             <tr>
-                <td colspan="3"><b>B. KOMPONEN BUKAN BIAYA</b> (Non-cost Component)</td>
-                <td colspan="3" style="text-align: right;"><b>Rp {komponen_bukan_biaya:,.2f}</b></td>
+                <td rowspan="2"><b>B. KOMPONEN BUKAN BIAYA</b><br><span style="font-size:7px; color:#555;">(Non-cost Component)</span></td>
+                <td style="text-align: center;"><b>Rp</b></td>
+                <td colspan="2"></td>
+                <td class="col-yellow" style="text-align: right;"><b>Rp {komponen_bukan_biaya:,.2f}</b></td>
+                <td colspan="2"></td>
+            </tr>
+            <tr>
+                <td style="text-align: center;"><i>US$</i></td>
+                <td colspan="2"></td>
+                <td class="col-yellow" style="text-align: right;">0.00</td>
+                <td colspan="2"></td>
+            </tr>
+
+            <!-- C. JUMLAH NILAI TOTAL -->
+            <tr style="background-color: #f1f5f9; font-weight: bold; font-size: 10px;">
+                <td rowspan="2">C. JUMLAH NILAI TOTAL (A + B)</td>
+                <td style="text-align: center;"><b>Rp</b></td>
+                <td colspan="3" style="text-align: right;"><b>Rp {jumlah_nilai_total:,.2f}</b></td>
+                <td colspan="2"></td>
             </tr>
             <tr style="background-color: #f1f5f9; font-weight: bold; font-size: 10px;">
-                <td colspan="3">C. JUMLAH NILAI TOTAL (Total Value: A + B)</td>
-                <td colspan="3" style="text-align: right;">Rp {jumlah_nilai_total:,.2f}</td>
+                <td style="text-align: center;"><i>US$</i></td>
+                <td colspan="3" style="text-align: right;">0.00</td>
+                <td colspan="2"></td>
             </tr>
+
             <tr style="background-color: #e2e8f0; font-weight: bold; font-size: 11px; color: #065f46;">
-                <td colspan="3">CAPAIAN PERSENTASE TKDN AKHIR (%)</td>
-                <td colspan="3" style="text-align: right; font-size: 13px;">{persen_tkdn_akhir:.2f} %</td>
+                <td colspan="5">CAPAIAN PERSENTASE TKDN AKHIR (%)</td>
+                <td colspan="2" style="text-align: right; font-size: 12px;">{persen_tkdn_akhir:.2f} %</td>
             </tr>
         </table>
 
         <div class="footer-notes">
-            <b>Catatan:</b> Seluruh nilai komponen dihitung otomatis berdasarkan persentase (%) terhadap Total Tagihan (Rp {total_tagihan_rujukan:,.2f}).
+            <b>Catatan:</b><br>
+            &bull; Isi hanya pada kolom yang berwarna kuning pastel.<br>
+            &bull; Formulasi perhitungan mengacu pada Permen ESDM No. 15 Tahun 2013.
         </div>
 
         <table class="sign-section">
             <tr>
                 <td style="width: 60%;"></td>
                 <td style="width: 40%; text-align: center;">
-                    Luwuk, {tgl_dokumen}<br>
+                    {lokasi_office}, {tgl_dokumen}<br>
                     <b>PT. Banggai Sentral Sulawesi</b><br><br><br><br>
                     <u><b>{nama_direktur}</b></u><br>
                     Direktur
@@ -391,6 +419,7 @@ def tampilkan_tkdn(transaksi_list):
             <script>
                 function printDoc() {{
                     var win = window.open('', '_blank');
+                    win.document.open();
                     win.document.write(atob("{b64_html}"));
                     win.document.close();
                     win.focus();
@@ -398,7 +427,7 @@ def tampilkan_tkdn(transaksi_list):
                 }}
             </script>
             <button onclick="printDoc()" style="width: 100%; background-color: #10b981; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-                🖨️ Cetak / Print Formulir TKDN (Klik Disini)
+                🖨️ Cetak / Print Formulir TKDN (Permen ESDM 15/2013)
             </button>
         """
         st.components.v1.html(print_script, height=50)

@@ -59,9 +59,9 @@ def tampilkan_opname(transaksi_list):
     
     col_sel1, col_sel2 = st.columns([2, 1])
     with col_sel1:
-        selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
+        selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x], key="opname_sel_idx")
     with col_sel2:
-        lokasi_office = st.text_input("📍 Lokasi Office (Tempat Opname):", value="Paisubololi")
+        lokasi_office = st.text_input("📍 Lokasi Office (Tempat Opname):", value="Paisubololi", key="opname_lok_office")
 
     t_data = unique_tx_list[selected_idx]
     
@@ -82,14 +82,14 @@ def tampilkan_opname(transaksi_list):
     c_p1, c_p2, c_p3, c_p4 = st.columns(4)
     with c_p1:
         default_po_vol = float(matched_db_row.get('Volume PO', 3.0))
-        po_volume = st.number_input("📦 Volume Total (PO):", value=default_po_vol, step=0.1, format="%.2f")
+        po_volume = st.number_input("📦 Volume Total (PO):", value=default_po_vol, step=0.1, format="%.2f", key="opn_po_vol")
     with c_p2:
         default_unit_price = float(t_data['Total Harga'])
-        unit_price = st.number_input("💵 Unit Price (Rp):", value=default_unit_price, step=10000.0, format="%.2f")
+        unit_price = st.number_input("💵 Unit Price (Rp):", value=default_unit_price, step=10000.0, format="%.2f", key="opn_unit_price")
     with c_p3:
-        prev_vol = st.number_input("📉 Volume Lalu (Previous):", value=0.0, step=0.1, format="%.2f")
+        prev_vol = st.number_input("📉 Volume Lalu (Previous):", value=0.0, step=0.1, format="%.2f", key="opn_prev_vol")
     with c_p4:
-        current_vol = st.number_input("📈 Volume Aktual (Bulan Ini):", value=1.0, step=0.1, format="%.2f")
+        current_vol = st.number_input("📈 Volume Aktual (Bulan Ini):", value=1.0, step=0.1, format="%.2f", key="opn_curr_vol")
 
     # --- TOMBOL UPLOAD LOGO (TERHUBUNG KE SESSION STATE PERSISTEN) ---
     if 'persisted_logo_1' not in st.session_state:
@@ -100,11 +100,11 @@ def tampilkan_opname(transaksi_list):
     st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen Opname (Tersimpan Otomatis)")
     c_log1, c_log2 = st.columns(2)
     with c_log1:
-        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama (PT BSS)", type=["png", "jpg", "jpeg"], key="logo_opname_1")
+        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama (PT BSS)", type=["png", "jpg", "jpeg"], key="logo_opname_1_u")
         if uploaded_logo_1 is not None:
             st.session_state.persisted_logo_1 = uploaded_logo_1.getvalue()
     with c_log2:
-        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua / Instansi (JOB Pertamina)", type=["png", "jpg", "jpeg"], key="logo_opname_2")
+        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua / Instansi (JOB Pertamina)", type=["png", "jpg", "jpeg"], key="logo_opname_2_u")
         if uploaded_logo_2 is not None:
             st.session_state.persisted_logo_2 = uploaded_logo_2.getvalue()
 
@@ -131,7 +131,7 @@ def tampilkan_opname(transaksi_list):
     item_desc = str(matched_db_row.get('Item Deskripsi', 'Jasa Sewa Alat Berat Monthly Basis (Include Operator, Rigger, Helper, BBM & Sertifikasi), Backhoe Loader 70 - 100 HP'))
     uom_str = str(matched_db_row.get('Uom', 'Month'))
 
-    prepared_name = str(matched_db_row.get('Prepared by Name', 'Onesimus Suriadi'))
+    prepared_name = str(matched_db_row.get('Prepared by Name', 'Onesimus Suryadi'))
     prepared_title = str(matched_db_row.get('Prepared by Title', 'General Service Manager'))
     reviewed_name = str(matched_db_row.get('Diwakili Oleh', 'Ronny Dwi Purnomo / Rafik Hidayat'))
     approved_name = str(matched_db_row.get('Pejabat berwenang', 'Imron Maulana / Moh Bazarul Aqhsa'))
@@ -154,6 +154,24 @@ def tampilkan_opname(transaksi_list):
         <meta charset="utf-8">
         <title>Berita Acara Pekerjaan / Opname - PT BSS</title>
         <style>
+            @page {{
+                size: A4 landscape;
+                margin: 10mm;
+            }}
+            @media print {{
+                body {{
+                    -webkit-print-color-adjust: exact;
+                }}
+                @page {{
+                    margin: 0;
+                }}
+                body {{
+                    margin: 10mm;
+                }}
+                header, footer, .no-print {{
+                    display: none !important;
+                }}
+            }}
             body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 25px; margin: 0; font-size: 10px; line-height: 1.3; }}
             .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }}
             .header-table td {{ border: none; vertical-align: middle; padding: 0 10px; }}
@@ -307,7 +325,8 @@ def tampilkan_opname(transaksi_list):
         print_script = f"""
             <script>
                 function printDoc() {{
-                    var win = window.open('', '_blank');
+                    var win = window.open('about:blank', '_blank');
+                    win.document.open();
                     win.document.write(atob("{b64_html}"));
                     win.document.close();
                     win.focus();
