@@ -253,10 +253,11 @@ if periksa_login():
 
     # --- SIDEBAR: NAVIGASI & WAKTU LOKAL ---
     st.sidebar.markdown("### 🗂️ Navigasi Dashboard Utama")
-    current_time_str = datetime.now().strftime("%d %b %Y, %H:%M:%S")
-    st.sidebar.markdown(f"🕒 **Waktu Sistem:**<br>`{current_time_str}`", unsafe_allow_html=True)
-    st.sidebar.markdown("---")
+    from datetime import datetime, timedelta, date
 
+# Menyesuaikan waktu server UTC ke Waktu Indonesia Tengah (WITA / UTC+8)
+waktu_wita = datetime.utcnow() + timedelta(hours=8)
+current_time_str = waktu_wita.strftime("%d %b %Y, %H:%M:%S")
     modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
         "📁 Modul 0: Master Referensi Harga & Pekerjaan",
         "📁 Modul 1: Database & Master Kontrak",
