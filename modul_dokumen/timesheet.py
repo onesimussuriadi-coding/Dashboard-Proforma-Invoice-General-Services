@@ -1,60 +1,119 @@
-import streamlit as st
-import pandas as pd
-import os
-import base64
-from datetime import datetime
-import calendar
-
-def hitung_volume_bayar(total_O, total_S, total_R, total_M, hari_dalam_bulan, skema_sewa):
-    """
-    Logika perhitungan dinamis berdasarkan pilihan skema sewa:
-    - Monthly: Full bulan dikurangi hari rusak (R) / prorata
-    - Daily: Operation (O) + Mobilisasi (M)
-    - Mobilisasi: Berdasarkan hari mobilisasi (M)
-    - Provisional Sum: Berdasarkan realisasi aktual
-    """
-    if skema_sewa == "Monthly":
-        volume_bayar = hari_dalam_bulan - total_R
-        return max(0, volume_bayar)
-    elif skema_sewa == "Daily":
-        return total_O + total_M
-    elif skema_sewa == "Mobilisasi":
-        return total_M
-    elif skema_sewa == "Provisional Sum":
-        return total_O
-    return total_O
-
 def tampilkan_timesheet(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">🕒 Pengelolaan Timesheet Peralatan Berbasis Kalender & Pilihan Tahun (FM-GS-06 Rev.03)</h3>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">🕒 Pengelolaan & History Timesheet Peralatan Berbasis Kalender (FM-GS-06 Rev.03)</h3>
         </div>
     """, unsafe_allow_html=True)
 
+    db_folder = "database_penyimpanan_aman"
+    os.makedirs(db_folder, exist_ok=True)
+    ts_db_path = os.path.join(db_folder, "database_timesheet_history.xlsx")
+
+    # --- FITUR TABEL LIHAT & HAPUS HISTORY TERSIMPAN ---
+    with st.expander("📋 Lihat Daftar Seluruh History Timesheet Tersimpan & Manajemen Data", expanded=False):
+        if os.path.exists(ts_db_path):
+            try:
+                df_all_hist = pd.read_excel(ts_db_path)
+                if not df_all_hist.empty:
+                    st.dataframe(df_all_hist[["Nomor Kontrak", "Sub Pekerjaan", "Periode", "Skema Sewa", "Volume_Quantity", "Timestamp"]], use_container_width=True)
+                    
+                    st.markdown("##### 🗑️ Hapus Data Timesheet yang Keliru")
+                    del_options = [f"Idx {idx}: Kontrak {row.get('Nomor Kontrak','')} - {row.get('Sub Pekerjaan','')} ({row.get('Periode','')})" for idx, row in df_all_hist.iterrows()]
+                    selected_to_delete = st.selectbox("Pilih data yang ingin dihapus:", ["-- Pilih Data --"] + del_options, key="select_del_timesheet")
+                    
+                    if selected_to_delete != "-- Pilih Data --":
+                        if st.button("🗑️ Hapus Data Terpilih", type="primary", key="btn_execute_delete_ts"):
+                            idx_to_del = int(selected_to_delete.split(":")[0].replace("Idx", "").strip())
+                            df_all_hist = df_all_hist.drop(idx_to_del).reset_index(drop=True)
+                            df_all_hist.to_excel(ts_db_path, index=False)
+                            st.success("✅ Data timesheet berhasil dihapus dari database!")
+                            st.rerun()
+                else:
+                    st.info("Belum ada riwayat data timesheet di database.")
+            except Exception as e:
+                st.warning(f"Gagal memuat tabel riwayat: {e}")
+        else:
+            st.info("Database history timesheet belum terbentuk.")
+
+    # --- INISIALISASI SESSION STATE HARIAN ---
+    if 'daily_status' not in st.session_state:
+        st.session_state.daily_status = {str(i): "O" for i in range(1, 32)}
+
+    # --- FITUR PEMANGGILAN HISTORY / LOAD DATA TERSIMPAN ---
+    st.markdown("#### 📂 Panggil History Timesheet Tersimpan (Untuk Update Harian)")
+    loaded_record = None
+    
+    if os.path.exists(ts_db_path):
+        try:
+            df_hist_check = pd.read_excel(ts_db_path)
+            if not df_hist_check.empty:
+                df_hist_check['Label_History'] = df_hist_check['Nomor Kontrak'].astype(str) + " | " + df_hist_check['Sub Pekerjaan'].astype(str) + " | Periode: " + df_hist_check['Periode'].astype(str)
+                list_history_opt = df_hist_check['Label_History'].tolist()
+                
+                c_load1, c_load2 = st.columns([3, 1])
+                with c_load1:
+                    selected_hist_label = st.selectbox("Pilih Riwayat Timesheet Tersimpan:", list_history_opt, key="select_history_timesheet")
+                with c_load2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if st.button("📂 Load / Panggil Data", key="btn_execute_load_history", type="secondary"):
+                        matched_row = df_hist_check[df_hist_check['Label_History'] == selected_hist_label]
+                        if not matched_row.empty:
+                            loaded_record = matched_row.iloc[0].to_dict()
+                            st.session_state.loaded_ts_record = loaded_record
+                            # Sinkronisasi langsung status harian ke session_state agar form langsung terisi
+                            for i in range(1, 32):
+                                k_day = f"Day_{i}"
+                                if k_day in loaded_record:
+                                    st.session_state.daily_status[str(i)] = str(loaded_record[k_day])
+                            st.success("✅ History timesheet berhasil dimuat ke form!")
+                            st.rerun()
+        except Exception as e:
+            pass
+
+    if 'loaded_ts_record' in st.session_state:
+        loaded_record = st.session_state.loaded_ts_record
+
     # 1. Pilihan Bulan & Tahun sebagai basis utama periode
     col_bln1, col_bln2 = st.columns(2)
+    daftar_bulan = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+    default_bulan_idx = 6
+    if loaded_record and 'Periode' in loaded_record:
+        for idx, b in enumerate(daftar_bulan):
+            if b.lower() in str(loaded_record['Periode']).lower():
+                default_bulan_idx = idx
+                break
+
     with col_bln1:
-        daftar_bulan = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
-        pilih_bulan = st.selectbox("📅 Pilih Bulan:", daftar_bulan, index=6, key="ts_pilih_bulan")
+        pilih_bulan = st.selectbox("📅 Pilih Bulan:", daftar_bulan, index=default_bulan_idx, key="ts_pilih_bulan")
     with col_bln2:
         pilih_tahun = st.selectbox("📆 Pilih Tahun:", [str(y) for y in range(2026, 2036)], index=0, key="ts_pilih_tahun")
 
-    # --- KONFIGURASI KONTRAK & SKEMA SEWA (TANPA RUJUKAN PI DI AWAL) ---
+    # --- KONFIGURASI KONTRAK & SKEMA SEWA ---
     st.markdown("---")
     st.markdown("#### 📋 Konfigurasi Kontrak & Skema Perhitungan Timesheet")
+    
+    default_no_kontrak = str(loaded_record.get('Nomor Kontrak', '7207250142')) if loaded_record else '7207250142'
+    default_no_po = str(loaded_record.get('Nomor PO', '4500011424')) if loaded_record else '4500011424'
+    default_skema = str(loaded_record.get('Skema Sewa', 'Monthly')) if loaded_record else 'Monthly'
+    skema_list = ["Monthly", "Daily", "Mobilisasi", "Provisional Sum"]
+    default_skema_idx = skema_list.index(default_skema) if default_skema in skema_list else 0
+
     c_cfg1, c_cfg2, c_cfg3 = st.columns(3)
     with c_cfg1:
-        nomor_kontrak = st.text_input("Nomor Kontrak Rujukan:", value="7207250142", key="ts_input_no_kontrak")
+        nomor_kontrak = st.text_input("Nomor Kontrak Rujukan:", value=default_no_kontrak, key="ts_input_no_kontrak")
     with c_cfg2:
-        nomor_po_opsional = st.text_input("Nomor PO (Opsional):", value="4500011424", key="ts_input_no_po")
+        nomor_po_opsional = st.text_input("Nomor PO (Opsional):", value=default_no_po, key="ts_input_no_po")
     with c_cfg3:
-        skema_sewa_pilihan = st.selectbox("Skema Perhitungan Sewa:", ["Monthly", "Daily", "Mobilisasi", "Provisional Sum"], index=0, key="ts_skema_sewa_pilihan")
+        skema_sewa_pilihan = st.selectbox("Skema Perhitungan Sewa:", skema_list, index=default_skema_idx, key="ts_skema_sewa_pilihan")
+
+    default_cust = str(loaded_record.get('Customer', 'JOB Pertamina - Medco E&P Tomori Sulawesi')) if loaded_record else 'JOB Pertamina - Medco E&P Tomori Sulawesi'
+    default_proyek = str(loaded_record.get('Proyek', 'Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka')) if loaded_record else 'Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka'
 
     c_usr1, c_usr2 = st.columns(2)
     with c_usr1:
-        customer_user = st.text_input("Customer / User:", value="JOB Pertamina - Medco E&P Tomori Sulawesi", key="ts_input_customer")
+        customer_user = st.text_input("Customer / User:", value=default_cust, key="ts_input_customer")
     with c_usr2:
-        proyek_teks = st.text_input("Nama Proyek / Kontrak:", value="Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka", key="ts_input_proyek")
+        proyek_teks = st.text_input("Nama Proyek / Kontrak:", value=default_proyek, key="ts_input_proyek")
 
     st.markdown("---")
     st.markdown("#### 🗓️ Rentang Tanggal Kalender Periode Timesheet")
@@ -69,10 +128,7 @@ def tampilkan_timesheet(transaksi_list):
     st.markdown("---")
     
     # MANAJEMEN MASTER NAMA ALAT DINAMIS
-    db_folder = "database_penyimpanan_aman"
-    os.makedirs(db_folder, exist_ok=True)
     master_alat_path = os.path.join(db_folder, "database_master_nama_alat.xlsx")
-
     master_alat_list = [
         "Truck Mounted Crane (TMC) Capacity 8 T",
         "Man Lift Capacity 227 Kg",
@@ -87,6 +143,9 @@ def tampilkan_timesheet(transaksi_list):
                 master_alat_list = df_m_alat["Nama Alat"].dropna().astype(str).tolist()
         except:
             pass
+
+    default_sub_alat = str(loaded_record.get('Sub Pekerjaan', master_alat_list[0])) if loaded_record else master_alat_list[0]
+    default_alat_idx = master_alat_list.index(default_sub_alat) if default_sub_alat in master_alat_list else 0
 
     col_m1, col_m2 = st.columns([3, 1])
     with col_m1:
@@ -108,34 +167,9 @@ def tampilkan_timesheet(transaksi_list):
                 df_save_m.to_excel(master_alat_path, index=False)
                 st.success("✅ Master diperbarui!")
 
-    sub_pekerjaan_teks = st.selectbox("📋 Pilih Sub Pekerjaan / Nama Alat Aktual:", master_alat_list, key="ts_dropdown_alat_dinamis")
-    note_teks = st.text_input("Catatan / Note:", value="", key="ts_note_input")
-
-    # SIMPAN, LOAD, UPDATE TIMESHEET (Berbasis Kontrak & Periode)
-    ts_db_path = os.path.join(db_folder, "database_timesheet_history.xlsx")
-    loaded_record = None
-
-    if os.path.exists(ts_db_path):
-        try:
-            df_check = pd.read_excel(ts_db_path)
-            match_rec = df_check[(df_check["Nomor Kontrak"].astype(str).str.strip() == nomor_kontrak) & (df_check["Periode"].astype(str).str.strip() == periode_teks_input) & (df_check["Sub Pekerjaan"].astype(str).str.strip() == sub_pekerjaan_teks)]
-            if not match_rec.empty:
-                st.info(f"📂 Ditemukan riwayat timesheet tersimpan untuk Kontrak: {nomor_kontrak} ({sub_pekerjaan_teks}).")
-                if st.button("📂 Panggil Kembali Data Tersimpan (Load Data)", key="btn_load_ts"):
-                    loaded_record = match_rec.iloc[0].to_dict()
-                    st.success("✅ Data timesheet berhasil dimuat kembali!")
-        except Exception as e:
-            pass
-
-    if 'daily_status' not in st.session_state:
-        st.session_state.daily_status = {str(i): "O" for i in range(1, 32)}
-
-    if loaded_record and 'loaded_ts_id' not in st.session_state:
-        st.session_state.loaded_ts_id = True
-        for i in range(1, 32):
-            key_day = f"Day_{i}"
-            if key_day in loaded_record:
-                st.session_state.daily_status[str(i)] = str(loaded_record[key_day])
+    sub_pekerjaan_teks = st.selectbox("📋 Pilih Sub Pekerjaan / Nama Alat Aktual:", master_alat_list, index=default_alat_idx, key="ts_dropdown_alat_dinamis")
+    default_note = str(loaded_record.get('Note', '')) if loaded_record else ''
+    note_teks = st.text_input("Catatan / Note:", value=default_note, key="ts_note_input")
 
     st.markdown("---")
     st.markdown("#### ⚙️ Input Status Operasional Harian (1 s/d 31)")
@@ -147,42 +181,52 @@ def tampilkan_timesheet(transaksi_list):
     cols_1 = st.columns(8)
     for i in range(1, 9):
         with cols_1[i-1]:
-            st.session_state.daily_status[str(i)] = st.selectbox(f"Tgl {i}", status_options, index=status_options.index(st.session_state.daily_status.get(str(i), "O")), key=f"ts_tgl_{i}")
+            cur_val = st.session_state.daily_status.get(str(i), "O")
+            idx_val = status_options.index(cur_val) if cur_val in status_options else 0
+            st.session_state.daily_status[str(i)] = st.selectbox(f"Tgl {i}", status_options, index=idx_val, key=f"ts_tgl_{i}")
     cols_2 = st.columns(8)
     for i in range(9, 17):
         with cols_2[i-9]:
-            st.session_state.daily_status[str(i)] = st.selectbox(f"Tgl {i}", status_options, index=status_options.index(st.session_state.daily_status.get(str(i), "O")), key=f"ts_tgl_{i}")
+            cur_val = st.session_state.daily_status.get(str(i), "O")
+            idx_val = status_options.index(cur_val) if cur_val in status_options else 0
+            st.session_state.daily_status[str(i)] = st.selectbox(f"Tgl {i}", status_options, index=idx_val, key=f"ts_tgl_{i}")
 
     st.markdown("**Tanggal 17 s.d. 31:**")
     cols_3 = st.columns(8)
     for i in range(17, 25):
         with cols_3[i-17]:
-            st.session_state.daily_status[str(i)] = st.selectbox(f"Tgl {i}", status_options, index=status_options.index(st.session_state.daily_status.get(str(i), "O")), key=f"ts_tgl_{i}")
+            cur_val = st.session_state.daily_status.get(str(i), "O")
+            idx_val = status_options.index(cur_val) if cur_val in status_options else 0
+            st.session_state.daily_status[str(i)] = st.selectbox(f"Tgl {i}", status_options, index=idx_val, key=f"ts_tgl_{i}")
     cols_4 = st.columns(8)
     for i in range(25, 32):
         with cols_4[i-25]:
-            st.session_state.daily_status[str(i)] = st.selectbox(f"Tgl {i}", status_options, index=status_options.index(st.session_state.daily_status.get(str(i), "O")), key=f"ts_tgl_{i}")
+            cur_val = st.session_state.daily_status.get(str(i), "O")
+            idx_val = status_options.index(cur_val) if cur_val in status_options else 0
+            st.session_state.daily_status[str(i)] = st.selectbox(f"Tgl {i}", status_options, index=idx_val, key=f"ts_tgl_{i}")
 
     total_O = sum(1 for i in range(1, 32) if st.session_state.daily_status.get(str(i)) == "O")
     total_S = sum(1 for i in range(1, 32) if st.session_state.daily_status.get(str(i)) == "S")
     total_R = sum(1 for i in range(1, 32) if st.session_state.daily_status.get(str(i)) == "R")
     total_M = sum(1 for i in range(1, 32) if st.session_state.daily_status.get(str(i)) == "M")
 
-    # Hitung jumlah hari dalam bulan terpilih untuk perhitungan prorata
     _, last_day = calendar.monthrange(int(pilih_tahun), daftar_bulan.index(pilih_bulan) + 1)
-    
-    # Kalkulasi Volume Final Berdasarkan Pilihan Skema Sewa
     volume_final = hitung_volume_bayar(total_O, total_S, total_R, total_M, last_day, skema_sewa_pilihan)
 
     st.markdown("---")
     st.markdown("#### 👥 Otoritas Penandatangan Dokumen")
+    
+    default_buat = str(loaded_record.get('Dibuat', 'Elvira Sutrisno')) if loaded_record else 'Elvira Sutrisno'
+    default_cek = str(loaded_record.get('Diperiksa', 'Ireine Langi')) if loaded_record else 'Ireine Langi'
+    default_setuju = str(loaded_record.get('Disetujui', 'Onesimus Suriadi')) if loaded_record else 'Onesimus Suriadi'
+
     c_sign1, c_sign2, c_sign3 = st.columns(3)
     with c_sign1:
-        dibuat_oleh = st.text_input("Dibuat Oleh (BSS):", value="Elvira Sutrisno")
+        dibuat_oleh = st.text_input("Dibuat Oleh (BSS):", value=default_buat, key="ts_sign_dibuat")
     with c_sign2:
-        diperiksa_oleh = st.text_input("Diperiksa Oleh (BSS):", value="Ireine Langi")
+        diperiksa_oleh = st.text_input("Diperiksa Oleh (BSS):", value=default_cek, key="ts_sign_diperiksa")
     with c_sign3:
-        disetujui_oleh = st.text_input("Disetujui Oleh (BSS):", value="Onesimus Suriadi")
+        disetujui_oleh = st.text_input("Disetujui Oleh (BSS):", value=default_setuju, key="ts_sign_disetujui")
 
     st.markdown("<br>", unsafe_allow_html=True)
     c_btn_s1, c_btn_s2 = st.columns(2)
@@ -202,7 +246,7 @@ def tampilkan_timesheet(transaksi_list):
             "Sub Pekerjaan": sub_pekerjaan_teks,
             "Periode": periode_teks_input,
             "Note": note_teks,
-            "Volume_Quantity": volume_final,  # Volume final hasil rekap untuk ditarik ke PI nantinya
+            "Volume_Quantity": volume_final,
             "Satuan": "Hari" if skema_sewa_pilihan == "Monthly" else "Unit",
             "Total Operation (O)": total_O,
             "Total Standby (S)": total_S,
@@ -226,7 +270,8 @@ def tampilkan_timesheet(transaksi_list):
                 df_ts = pd.DataFrame([record])
             
             df_ts.to_excel(ts_db_path, index=False)
-            st.success(f"✅ Data timesheet berhasil disimpan! Skema: {skema_sewa_pilihan} | Volume Tertagih: {volume_final}")
+            st.success(f"✅ Data timesheet berhasil disimpan / di-update! Skema: {skema_sewa_pilihan} | Volume Tertagih: {volume_final}")
+            st.rerun()
         except Exception as e:
             st.error(f"Gagal menyimpan data timesheet: {e}")
 
@@ -408,4 +453,4 @@ def tampilkan_timesheet(transaksi_list):
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
         download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="Timesheet_ISO_{nomor_kontrak}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File Timesheet (ISO)</button></a>'
-        st.markdown(download_link, unsafe_allow_html=True)
+        st.markdown(download_link, unsafe_import_html=True if "unsafe_import_html" in globals() else True)

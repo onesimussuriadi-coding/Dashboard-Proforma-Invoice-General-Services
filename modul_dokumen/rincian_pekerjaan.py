@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import base64
+import os
 
 def terbilang(n):
     n = int(n)
@@ -35,6 +36,18 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         </div>
     """, unsafe_allow_html=True)
 
+    # --- LOGIKA INTEGRASI TIMESHEET (PENAMBAHAN) ---
+    st.sidebar.markdown("### 🔄 Sinkronisasi Timesheet")
+    db_ts_path = "database_penyimpanan_aman/database_timesheet_history.xlsx"
+    if os.path.exists(db_ts_path):
+        df_ts = pd.read_excel(db_ts_path)
+        kontrak_pil = st.sidebar.selectbox("Pilih Kontrak:", df_ts["Nomor Kontrak"].unique())
+        periode_pil = st.sidebar.selectbox("Pilih Periode:", df_ts[df_ts["Nomor Kontrak"] == kontrak_pil]["Periode"].unique())
+        if st.sidebar.button("Tarik Data Timesheet"):
+            st.session_state.sync_df = df_ts[(df_ts["Nomor Kontrak"] == kontrak_pil) & (df_ts["Periode"] == periode_pil)]
+            st.sidebar.success("Data berhasil ditarik!")
+    # -----------------------------------------------
+
     if not transaksi_list:
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
@@ -51,6 +64,38 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
     
     t_data = unique_tx_list[selected_idx]
+    
+    # --- LOGIKA PENGISI TABEL DINAMIS ---
+    rows_data = ""
+    if 'sync_df' in st.session_state:
+        for idx, row in st.session_state.sync_df.iterrows():
+            rows_data += f"""
+            <tr>
+                <td style="text-align: center;">{idx+1}</td>
+                <td>MONTHLY</td>
+                <td>Jasa Sewa {row['Sub Pekerjaan']}</td>
+                <td style="text-align: center;">{row['Volume_Quantity']:,.2f}</td>
+                <td style="text-align: center;">{row['Satuan']}</td>
+                <td style="text-align: center;">-</td><td style="text-align: center;">-</td>
+                <td style="text-align: right;">0.00</td><td style="text-align: right;">0.00</td>
+                <td>{row['Periode']}</td>
+            </tr>"""
+    else:
+        rows_data = f"""
+            <tr>
+                <td style="text-align: center;">1</td>
+                <td>{t_data.get('Kategori', '-')}</td>
+                <td>{t_data['Deskripsi Pekerjaan']}</td>
+                <td style="text-align: center;">{t_data['Qty']:,.2f}</td>
+                <td style="text-align: center;">{t_data['Unit']}</td>
+                <td style="text-align: center;">{t_data.get('Tanggal Mulai', '-')}</td>
+                <td style="text-align: center;">{t_data.get('Tanggal Selesai', '-')}</td>
+                <td style="text-align: right;">{t_data['Harga Satuan']:,.2f}</td>
+                <td style="text-align: right;">{t_data['Total Harga']:,.2f}</td>
+                <td>{t_data['Keterangan']}</td>
+            </tr>"""
+    # ------------------------------------
+
     terbilang_str = terbilang(t_data['Total Harga']).strip() + " Rupiah"
 
     html_content = f"""
@@ -60,46 +105,23 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         <meta charset="utf-8">
         <title>Rincian Pekerjaan - PT BSS</title>
         <style>
-            @page {{
-                size: A4;
-                margin: 10mm;
-            }}
+            @page {{ size: A4; margin: 10mm; }}
             @media print {{
-                body {{
-                    -webkit-print-color-adjust: exact;
-                }}
-                /* Menghilangkan header & footer otomatis browser secara mutlak */
-                @page {{
-                    margin: 0;
-                }}
-                body {{
-                    margin: 10mm;
-                }}
-                header, footer, .no-print {{
-                    display: none !important;
-                }}
+                body {{ -webkit-print-color-adjust: exact; }}
+                @page {{ margin: 0; }}
+                body {{ margin: 10mm; }}
+                header, footer, .no-print {{ display: none !important; }}
             }}
-            body {{ 
-                font-family: Arial, sans-serif; 
-                background-color: #ffffff; 
-                color: #000000; 
-                padding: 15px; 
-                margin: 0; 
-                font-size: 10px;
-                line-height: 1.2;
-            }}
+            body {{ font-family: Arial, sans-serif; padding: 15px; margin: 0; font-size: 10px; line-height: 1.2; }}
             .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; }}
             .title {{ text-align: center; font-weight: bold; font-size: 13px; margin-bottom: 15px; text-transform: uppercase; text-decoration: underline; }}
-            
             table.info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; border: none; }}
             table.info-table td {{ border: none; padding: 3px 5px; font-size: 10px; vertical-align: top; }}
             .label-col {{ width: 150px; font-weight: bold; }}
             .colon-col {{ width: 10px; font-weight: bold; text-align: center; }}
-            
             table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 8px; }}
             table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 5px 8px; font-size: 9px; text-align: left; }}
             table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
-
             .sign-table {{ border: none; width: 100%; margin-top: 25px; }}
             .sign-table td {{ border: none; text-align: center; width: 50%; font-size: 9px; vertical-align: top; }}
             .sign-title {{ font-weight: bold; font-size: 9px; text-transform: uppercase; margin-bottom: 35px; }}
@@ -113,101 +135,43 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
             <p style="margin: 2px 0; font-size: 8px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
         </div>
         <div class="title">Rincian Pekerjaan</div>
-        
         <table class="info-table">
             <tr>
-                <td class="label-col">Rincian Pekerjaan</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Nomor Kontrak']}-BSS-WCC-2026</td>
-                <td class="label-col">Ditujukan Kepada</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Ditujukan Kepada']}</td>
+                <td class="label-col">Rincian Pekerjaan</td><td class="colon-col">:</td><td>{t_data['Nomor Kontrak']}-BSS-WCC-2026</td>
+                <td class="label-col">Ditujukan Kepada</td><td class="colon-col">:</td><td>{t_data['Ditujukan Kepada']}</td>
             </tr>
             <tr>
-                <td class="label-col">Nomor Kontrak</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Nomor Kontrak']}</td>
-                <td class="label-col">Nomor Purchase Order</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Nomor PO']}</td>
+                <td class="label-col">Nomor Kontrak</td><td class="colon-col">:</td><td>{t_data['Nomor Kontrak']}</td>
+                <td class="label-col">Nomor Purchase Order</td><td class="colon-col">:</td><td>{t_data['Nomor PO']}</td>
             </tr>
             <tr>
-                <td class="label-col">Nama Kontrak</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Nama Kontrak']}</td>
-                <td class="label-col">Lingkup Pekerjaan</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Deskripsi PO']}</td>
+                <td class="label-col">Nama Kontrak</td><td class="colon-col">:</td><td>{t_data['Nama Kontrak']}</td>
+                <td class="label-col">Lingkup Pekerjaan</td><td class="colon-col">:</td><td>{t_data['Deskripsi PO']}</td>
             </tr>
             <tr>
-                <td class="label-col">Nomor Tender</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Nomor Tender']}</td>
-                <td class="label-col">Tanggal Purchase Order</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Tanggal PO']}</td>
+                <td class="label-col">Nomor Tender</td><td class="colon-col">:</td><td>{t_data['Nomor Tender']}</td>
+                <td class="label-col">Tanggal Purchase Order</td><td class="colon-col">:</td><td>{t_data['Tanggal PO']}</td>
             </tr>
             <tr>
-                <td class="label-col">Tanggal Proforma</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Tanggal PI']}</td>
-                <td class="label-col">Mata Uang</td>
-                <td class="colon-col">:</td>
-                <td>{t_data['Mata Uang']}</td>
+                <td class="label-col">Tanggal Proforma</td><td class="colon-col">:</td><td>{t_data['Tanggal PI']}</td>
+                <td class="label-col">Mata Uang</td><td class="colon-col">:</td><td>{t_data['Mata Uang']}</td>
             </tr>
         </table>
-        
         <table class="data-table">
-            <tr>
-                <th>No.</th>
-                <th>Kategori</th>
-                <th>Uraian Pekerjaan</th>
-                <th>Qty</th>
-                <th>Unit</th>
-                <th>Tanggal Mulai</th>
-                <th>Tanggal Selesai</th>
-                <th>Harga Satuan</th>
-                <th>Total Harga</th>
-                <th>Keterangan</th>
-            </tr>
-            <tr>
-                <td style="text-align: center;">1</td>
-                <td>{t_data.get('Kategori', '-')}</td>
-                <td>{t_data['Deskripsi Pekerjaan']}</td>
-                <td style="text-align: center;">{t_data['Qty']:,.2f}</td>
-                <td style="text-align: center;">{t_data['Unit']}</td>
-                <td style="text-align: center; white-space: nowrap;">{t_data.get('Tanggal Mulai', '-')}</td>
-                <td style="text-align: center; white-space: nowrap;">{t_data.get('Tanggal Selesai', '-')}</td>
-                <td style="text-align: right;">{t_data['Harga Satuan']:,.2f}</td>
-                <td style="text-align: right;">{t_data['Total Harga']:,.2f}</td>
-                <td>{t_data['Keterangan']}</td>
-            </tr>
+            <tr><th>No.</th><th>Kategori</th><th>Uraian Pekerjaan</th><th>Qty</th><th>Unit</th><th>Tanggal Mulai</th><th>Tanggal Selesai</th><th>Harga Satuan</th><th>Total Harga</th><th>Keterangan</th></tr>
+            {rows_data}
         </table>
-        
         <table style="width: 100%; border: none; margin-top: 10px;">
             <tr>
-                <td style="border: none; text-align: left; font-size: 10px; vertical-align: top; width: 60%;">
-                    <b>Terbilang :</b> <i>{terbilang_str}</i>
-                </td>
-                <td style="border: none; text-align: right; font-weight: bold; font-size: 11px; width: 40%; vertical-align: top;">
-                    TOTAL TAGIHAN: Rp {t_data['Total Harga']:,.2f}
-                </td>
+                <td style="border: none; text-align: left; font-size: 10px; vertical-align: top; width: 60%;"><b>Terbilang :</b> <i>{terbilang_str}</i></td>
+                <td style="border: none; text-align: right; font-weight: bold; font-size: 11px; width: 40%; vertical-align: top;">TOTAL TAGIHAN: Rp {t_data['Total Harga']:,.2f}</td>
             </tr>
         </table>
         <br>
-        
         <table class="sign-table">
             <tr>
-                <td>
-                    <div class="sign-title">DIBUAT OLEH</div>
-                    <div class="sign-name">Yanuar Wiranata / Ireine Langi</div>
-                    <div class="sign-pos">Supervisor</div>
-                </td>
-                <td>
-                    <div class="sign-title">DIPERIKSA</div>
-                    <div class="sign-name">Onesimus Suriadi</div>
-                    <div class="sign-pos">Manager General Services</div>
-                </td>
+                <td><div class="sign-title">DIBUAT OLEH</div><div class="sign-name">Yanuar Wiranata / Ireine Langi</div><div class="sign-pos">Supervisor</div></td>
+                <td><div class="sign-title">DIPERIKSA</div><div class="sign-name">Onesimus Suriadi</div><div class="sign-pos">Manager General Services</div></td>
             </tr>
         </table>
     </body>
@@ -217,7 +181,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     st.markdown('<div class="document-preview">', unsafe_allow_html=True)
     st.components.v1.html(html_content, height=550, scrolling=True)
     st.markdown('</div>', unsafe_allow_html=True)
-
     st.markdown("<br>", unsafe_allow_html=True)
 
     col_btn1, col_btn2 = st.columns(2)

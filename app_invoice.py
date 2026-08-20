@@ -6,6 +6,11 @@ import glob
 # Konfigurasi Halaman Khusus Modul Proforma Invoice & Dokumen Turunan
 st.set_page_config(page_title="Modul Proforma Invoice & Dokumen - PT. Banggai Sentral Sulawesi", layout="wide")
 
+# Pastikan folder database ada
+DIR_DATABASE = "database_penyimpanan_aman"
+if not os.path.exists(DIR_DATABASE):
+    os.makedirs(DIR_DATABASE)
+
 # CSS Styling Profesional & Print View Ready
 st.markdown("""
     <style>
@@ -50,6 +55,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 EXCEL_TRANSAKSI = "database_transaksi_rincian.xlsx"
+TS_DB_PATH = os.path.join(DIR_DATABASE, "database_timesheet_history.xlsx")
 
 def muat_data_transaksi():
     if os.path.exists(EXCEL_TRANSAKSI):
@@ -65,6 +71,8 @@ def simpan_data_transaksi(data_list):
 
 if "db_transaksi" not in st.session_state:
     st.session_state["db_transaksi"] = muat_data_transaksi()
+if "sync" not in st.session_state:
+    st.session_state["sync"] = None
 
 # --- HEADER UTAMA ---
 st.markdown("""
@@ -82,29 +90,42 @@ menu_inv = st.sidebar.selectbox("Pilih Aktivitas:", [
     "Lihat Akumulasi Riwayat Transaksi"
 ])
 st.sidebar.markdown("---")
-st.sidebar.success("📂 **Status File:** Terpisah & Aman dari File Utama")
+st.sidebar.success("📂 **Status File:** Terhubung ke Database Timesheet")
 
 # --- 1. INPUT & PROSES RINCIAN PEKERJAAN ---
 if menu_inv == "Input & Proses Rincian Pekerjaan":
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📝 Lembar Kerja & Pemrosesan Rincian Pekerjaan</h3>
-            <p style="color:#047857; font-size:13px; margin:0;">Isi form rincian pekerjaan di bawah ini. Tombol proses akan mendistribusikan data secara otomatis ke Proforma Invoice, WCC, Opname, BAMP, BASP, TKDN, dan Rekap Biaya.</p>
+            <p style="color:#047857; font-size:13px; margin:0;">Isi form rincian pekerjaan di bawah ini. Tombol proses akan mendistribusikan data secara otomatis.</p>
         </div>
     """, unsafe_allow_html=True)
 
+    # Fitur Sinkronisasi Timesheet
+    with st.expander("🔄 Tarik Data dari Timesheet (Sinkronisasi Otomatis)"):if os.path.exists(TS_DB_PATH):
+            df_ts = pd.read_excel(TS_DB_PATH)
+            c_s1, c_s2 = st.columns(2)
+            kontrak_pil = c_s1.selectbox("Pilih Kontrak:", df_ts["Nomor Kontrak"].unique())
+            periode_pil = c_s2.selectbox("Pilih Periode:", df_ts[df_ts["Nomor Kontrak"] == kontrak_pil]["Periode"].unique())
+            if st.button("Tarik Data Timesheet Sekarang"):
+                st.session_state["sync"] = df_ts[(df_ts["Nomor Kontrak"] == kontrak_pil) & (df_ts["Periode"] == periode_pil)].iloc[0]
+                st.success("Data berhasil ditarik!")
+        else:
+            st.warning("Database Timesheet tidak ditemukan.")
+
     with st.form("form_proses_rincian"):
+        s = st.session_state["sync"]
         col1, col2 = st.columns(2)
         with col1:
-            nomor_kontrak = st.text_input("Nomor Kontrak", "7207250142")
-            nama_kontrak = st.text_input("Nama Kontrak", "Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka")
-            nomor_tender = st.text_input("Nomor Tender", "S250551FLD-R1")
+            nomor_kontrak = st.text_input("Nomor Kontrak", value=s['Nomor Kontrak'] if s is not None else "7207250142")
+            nama_kontrak = st.text_input("Nama Kontrak", value=s.get('Nama Kontrak', 'Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka') if s is not None else "Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka")
+            nomor_tender = st.text_input("Nomor Tender", value=s.get('Nomor Tender', 'S250551FLD-R1') if s is not None else "S250551FLD-R1")
             pi_no = st.text_input("Nomor Proforma Invoice (PI)", "042/BSS-JOB/AB/VII/2026")
             tanggal_pi = st.text_input("Tanggal Proforma Invoice", "31 Jul 2026")
         with col2:
-            ditujukan_kepada = st.text_input("Ditujukan Kepada", "JOB Pertamina - Medco E&P Tomori Sulawesi")
-            nomor_po = st.text_input("Nomor PO", "4500011424")
-            desc_po = st.text_area("Deskripsi PO", "Jasa Sewa Backhoe Loader Untuk support Kegiatan Operation & Maintenance di Area Senoro dan Tiaka Periode Juli - September 2026")
+            ditujukan_kepada = st.text_input("Ditujukan Kepada", value=s.get('Ditujukan Kepada', 'JOB Pertamina - Medco E&P Tomori Sulawesi') if s is not None else "JOB Pertamina - Medco E&P Tomori Sulawesi")
+            nomor_po = st.text_input("Nomor PO", value=s.get('Nomor PO', '4500011424') if s is not None else "4500011424")
+            desc_po = st.text_area("Deskripsi PO", value=s.get('Deskripsi PO', 'Jasa Sewa Backhoe Loader Untuk support Kegiatan Operation & Maintenance di Area Senoro dan Tiaka Periode Juli - September 2026') if s is not None else "Jasa Sewa Backhoe Loader Untuk support Kegiatan Operation & Maintenance di Area Senoro dan Tiaka Periode Juli - September 2026")
             tanggal_po = st.text_input("Tanggal PO", "1 Jul 2026")
             mata_uang = st.text_input("Mata Uang", "IDR")
 
@@ -113,15 +134,15 @@ if menu_inv == "Input & Proses Rincian Pekerjaan":
         
         c_item1, c_item2, c_item3, c_item4 = st.columns([3, 1, 1, 1])
         with c_item1:
-            deskripsi_pekerjaan = st.text_input("Spesifikasi / Deskripsi Pekerjaan", "Jasa Sewa Alat Berat Monthly Basis (Include Operator, Rigger, Helper, BBM & Sertifikasi), Backhoe Loader 70 - 100 HP")
+            deskripsi_pekerjaan = st.text_input("Spesifikasi / Deskripsi Pekerjaan", value=f"Jasa Sewa {s['Sub Pekerjaan']}" if s is not None else "Jasa Sewa Alat Berat Monthly Basis (Include Operator, Rigger, Helper, BBM & Sertifikasi), Backhoe Loader 70 - 100 HP")
         with c_item2:
-            qty = st.number_input("Qty Out", value=1.0)
+            qty = st.number_input("Qty", value=float(s['Volume_Quantity']) if s is not None else 1.0)
         with c_item3:
-            unit = st.text_input("Unit", "Month")
+            unit = st.text_input("Unit", value=s['Satuan'] if s is not None else "Month")
         with c_item4:
-            harga_satuan = st.number_input("Harga Satuan (Rp)", value=75538000.0, format="%.2f")
+            harga_satuan = st.number_input("Harga Satuan (Rp)", value=float(s.get('Harga Satuan', 75538000.0)) if s is not None else 75538000.0, format="%.2f")
 
-        keterangan_pekerjaan = st.text_input("Keterangan Pekerjaan", "Alat Beroperasi Periode 01 sd 31 Juli 2026")
+        keterangan_pekerjaan = st.text_input("Keterangan Pekerjaan", value=s.get('Periode', 'Alat Beroperasi Periode 01 sd 31 Juli 2026') if s is not None else "Alat Beroperasi Periode 01 sd 31 Juli 2026")
 
         st.markdown("---")
         submit_proses = st.form_submit_button("🚀 Proses & Distribusikan Data ke Semua Dokumen Turunan")
@@ -190,9 +211,7 @@ elif menu_inv == "Pratinjau & Cetak Dokumen Turunan (Hardcopy)":
                 <h3 style="margin: 0; color: #0f172a;">PT. BANGGAI SENTRAL SULAWESI</h3>
                 <p style="margin: 2px 0; font-size: 12px; color: #334155;">Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</p>
             </div>
-        """, unsafe_allow_html=True)
-
-        if doc_type == "Rincian Pekerjaan (Sheet Rincian Pek)":
+        """, unsafe_allow_html=True)if doc_type == "Rincian Pekerjaan (Sheet Rincian Pek)":
             st.markdown("<h4 style='text-align: center; margin-bottom: 20px;'>RINCIAN PEKERJAAN</h4>", unsafe_allow_html=True)
             
             c1, c2 = st.columns(2)
@@ -213,7 +232,7 @@ elif menu_inv == "Pratinjau & Cetak Dokumen Turunan (Hardcopy)":
                 "No": 1,
                 "Kategori": "MONTHLY BASIS",
                 "Spesifikasi / Deskripsi": t_data['Deskripsi Pekerjaan'],
-                "Out Qty": t_data['Qty'],
+                "Qty": t_data['Qty'],
                 "Unit": t_data['Unit'],
                 "Harga Satuan (Rp)": f"Rp {t_data['Harga Satuan']:,.2f}",
                 "Total Harga (Rp)": f"Rp {t_data['Total Harga']:,.2f}",
@@ -306,3 +325,4 @@ elif menu_inv == "Lihat Akumulasi Riwayat Transaksi":
         st.dataframe(pd.DataFrame(tx_records), use_container_width=True)
     else:
         st.info("Belum ada riwayat transaksi rincian pekerjaan tersimpan.")
+        
