@@ -36,13 +36,13 @@ def form_login_sistem():
         st.session_state.current_role = ""
 
     if not st.session_state.logged_in:
-        # Menambahkan kolom untuk mempercantik dan merampingkan tampilan login
-        col1, col2, col3 = st.columns([1, 2, 1])
+        # Menggunakan kolom untuk membatasi lebar form agar tidak full-width
+        col1, col2, col3 = st.columns([1, 1.2, 1])
         with col2:
             st.markdown("""
-                <div style="padding: 30px; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-top: 5px solid #065f46;">
-                    <h3 style="text-align: center; color: #065f46; margin-top: 0;">🔐 PT BSS - Internal Corporate Login</h3>
-                    <p style="text-align: center; font-size: 13px; color: #475569; font-weight: 500;">Sistem Pengendalian Berjenjang Terbatas</p>
+                <div style="padding: 25px 25px 10px 25px; background: #ffffff; border-radius: 12px 12px 0 0; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-top: 5px solid #065f46; text-align: center;">
+                    <h3 style="color: #065f46; margin: 0; font-size: 20px;">🔐 PT BSS - Internal Corporate Login</h3>
+                    <p style="font-size: 12px; color: #475569; margin-top: 5px;">Sistem Pengendalian Berjenjang Terbatas</p>
                 </div>
             """, unsafe_allow_html=True)
             
@@ -109,7 +109,7 @@ def render_panel_manajemen_akun():
                             st.success(f"Akun {new_user} berhasil dibuat!")
                             st.rerun()
         
-        # Logout button
+        # Logout
         if st.sidebar.button("🔒 Keluar / Logout Sistem", use_container_width=True):
             st.session_state.logged_in = False
             st.session_state.current_user = ""
