@@ -18,7 +18,7 @@ def muat_data_pengguna():
             df = pd.read_excel(EXCEL_PENGGUNA)
             if df is not None and not df.empty:
                 return df.to_dict(orient="records")
-        except:
+        except Exception:
             pass
     
     # Jika file Excel belum ada, buatkan otomatis filenya di folder penyimpanan aman
@@ -95,20 +95,21 @@ def render_panel_manajemen_akun():
                 
                 if btn_tambah:
                     if not new_user or not new_pass:
-                        st.error("Isi semua kolom!")
+                        st.error("⚠️ Username dan Password tidak boleh kosong!")
                     else:
                         existing_users = muat_data_pengguna()
-                        if any(str(u.get("Username")).lower() == new_user.lower() for u in existing_users):
-                            st.error("Username sudah ada!")
+                        if any(str(u.get("Username")).strip().lower() == new_user.strip().lower() for u in existing_users):
+                            st.error("⚠️ Username tersebut sudah terdaftar!")
                         else:
                             existing_users.append({
                                 "Username": new_user.strip(),
                                 "Password": new_pass.strip(),
                                 "Role": new_role
                             })
+                            # Perintah mutlak menyimpan ke folder fisik Excel
                             simpan_data_pengguna(existing_users)
-                            st.success(f"Akun {new_user} berhasil dibuat!")
-                            st.rerun()
+                            st.success(f"🎉 Akun {new_user} berhasil dibuat dan disimpan!")
+                            st.balloons()
         
         # Logout
         if st.sidebar.button("🔒 Keluar / Logout Sistem", use_container_width=True):
