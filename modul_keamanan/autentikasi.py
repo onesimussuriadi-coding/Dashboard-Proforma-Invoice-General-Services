@@ -78,24 +78,23 @@ def render_panel_manajemen_akun():
         
         if st.session_state.get('current_role') in ["Manajer Operasional", "Administrator"]:
             st.markdown("---")
-            st.markdown("**Daftar Akun Terdaftar:**")
             
-            # Tampilkan tabel akun langsung di dashboard/sidebar
-            daftar_user = muat_data_pengguna()
-            if daftar_user:
-                for idx, u in enumerate(daftar_user):
-                    c_info, c_del = st.columns([3, 1])
-                    c_info.markdown(f"<small><b>{u.get('Username')}</b><br><i>{u.get('Role')}</i></small>", unsafe_allow_html=True)
-                    with c_del:
-                        # Tombol hapus akun (kecuali akun admin utama agar tidak terkunci)
-                        if u.get('Username') != "admin":
-                            if st.button("🗑️", key=f"del_user_{idx}"):
-                                daftar_user.pop(idx)
-                                simpan_data_pengguna(daftar_user)
-                                st.success("Akun dihapus!")
-                                st.rerun()
-                        else:
-                            st.markdown("<small><i>Utama</i></small>", unsafe_allow_html=True)
+            # Dibungkus dalam expander agar bisa dibuka-tutup secara rapi
+            with st.expander("📂 Lihat & Kelola Akun Terdaftar"):
+                daftar_user = muat_data_pengguna()
+                if daftar_user:
+                    for idx, u in enumerate(daftar_user):
+                        c_info, c_del = st.columns([3, 1])
+                        c_info.markdown(f"<small><b>{u.get('Username')}</b><br><i>{u.get('Role')}</i></small>", unsafe_allow_html=True)
+                        with c_del:
+                            if u.get('Username') != "admin":
+                                if st.button("🗑️", key=f"del_user_{idx}"):
+                                    daftar_user.pop(idx)
+                                    simpan_data_pengguna(daftar_user)
+                                    st.success("Akun dihapus!")
+                                    st.rerun()
+                            else:
+                                st.markdown("<small><i>Utama</i></small>", unsafe_allow_html=True)
             
             st.markdown("---")
             st.markdown("**Tambah Akun Baru:**")
