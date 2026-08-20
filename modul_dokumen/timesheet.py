@@ -1,3 +1,22 @@
+import streamlit as st
+import pandas as pd
+import os
+import base64
+from datetime import datetime
+import calendar
+
+def hitung_volume_bayar(total_O, total_S, total_R, total_M, hari_dalam_bulan, skema_sewa):
+    if skema_sewa == "Monthly":
+        volume_bayar = hari_dalam_bulan - total_R
+        return max(0, volume_bayar)
+    elif skema_sewa == "Daily":
+        return total_O + total_M
+    elif skema_sewa == "Mobilisasi":
+        return total_M
+    elif skema_sewa == "Provisional Sum":
+        return total_O
+    return total_O
+
 def tampilkan_timesheet(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
@@ -8,6 +27,13 @@ def tampilkan_timesheet(transaksi_list):
     db_folder = "database_penyimpanan_aman"
     os.makedirs(db_folder, exist_ok=True)
     ts_db_path = os.path.join(db_folder, "database_timesheet_history.xlsx")
+
+    # --- INISIALISASI SESSION STATE HARIAN ---
+    if 'daily_status' not in st.session_state:
+        st.session_state.daily_status = {str(i): "O" for i in range(1, 32)}
+
+    if 'loaded_ts_record' not in st.session_state:
+        st.session_state.loaded_ts_record = None
 
     # --- FITUR TABEL LIHAT & HAPUS HISTORY TERSIMPAN ---
     with st.expander("📋 Lihat Daftar Seluruh History Timesheet Tersimpan & Manajemen Data", expanded=False):
@@ -35,13 +61,8 @@ def tampilkan_timesheet(transaksi_list):
         else:
             st.info("Database history timesheet belum terbentuk.")
 
-    # --- INISIALISASI SESSION STATE HARIAN ---
-    if 'daily_status' not in st.session_state:
-        st.session_state.daily_status = {str(i): "O" for i in range(1, 32)}
-
     # --- FITUR PEMANGGILAN HISTORY / LOAD DATA TERSIMPAN ---
     st.markdown("#### 📂 Panggil History Timesheet Tersimpan (Untuk Update Harian)")
-    loaded_record = None
     
     if os.path.exists(ts_db_path):
         try:
@@ -60,18 +81,24 @@ def tampilkan_timesheet(transaksi_list):
                         if not matched_row.empty:
                             loaded_record = matched_row.iloc[0].to_dict()
                             st.session_state.loaded_ts_record = loaded_record
-                            # Sinkronisasi langsung status harian ke session_state agar form langsung terisi
+                            
+                            # SINKRONISASI MUTLAK KE SESSION STATE & WIDGET KEY
                             for i in range(1, 32):
                                 k_day = f"Day_{i}"
-                                if k_day in loaded_record:
-                                    st.session_state.daily_status[str(i)] = str(loaded_record[k_day])
-                            st.success("✅ History timesheet berhasil dimuat ke form!")
+                                val_day = str(loaded_record.get(k_day, "O"))
+                                if val_day in ["O", "S", "R", "M"]:
+                                    st.session_state.daily_status[str(i)] = val_day
+                                    st.session_state[f"ts_tgl_{i}"] = val_day  
+                                else:
+                                    st.session_state.daily_status[str(i)] = "O"
+                                    st.session_state[f"ts_tgl_{i}"] = "O"
+                                    
+                            st.success("✅ History timesheet berhasil dimuat ke form dan status harian!")
                             st.rerun()
         except Exception as e:
-            pass
+            st.warning(f"Terjadi kesalahan saat memuat data: {e}")
 
-    if 'loaded_ts_record' in st.session_state:
-        loaded_record = st.session_state.loaded_ts_record
+    loaded_record = st.session_state.loaded_ts_record
 
     # 1. Pilihan Bulan & Tahun sebagai basis utama periode
     col_bln1, col_bln2 = st.columns(2)
@@ -263,8 +290,8 @@ def tampilkan_timesheet(transaksi_list):
             if os.path.exists(ts_db_path):
                 df_ts = pd.read_excel(ts_db_path)
                 if simpan_mode:
-                    if "Nomor Kontrak" in df_ts.columns and "Sub Pekerjaan" in df_ts.columns:
-                        df_ts = df_ts[~((df_ts["Nomor Kontrak"].astype(str).str.strip() == nomor_kontrak) & (df_ts["Sub Pekerjaan"].astype(str).str.strip() == sub_pekerjaan_teks) & (df_ts["Periode"].astype(str).str.strip() == periode_teks_input))]
+                    if "Nomor Kontrak" in df_ts.columns and "Sub Pekerjaan" in df_ts.columns and "Periode" in df_ts.columns:
+                        df_ts = df_ts[~((df_ts["Nomor Kontrak"].astype(str).str.strip() == str(nomor_kontrak)) & (df_ts["Sub Pekerjaan"].astype(str).str.strip() == str(sub_pekerjaan_teks)) & (df_ts["Periode"].astype(str).str.strip() == str(periode_teks_input)))]
                 df_ts = pd.concat([df_ts, pd.DataFrame([record])], ignore_index=True)
             else:
                 df_ts = pd.DataFrame([record])
@@ -284,10 +311,13 @@ def tampilkan_timesheet(transaksi_list):
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Rekap Timesheet Peralatan - FM-GS-06 Rev.03</title>
+        <title>Rekap Timesheet Peralatan</title>
         <style>
-            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 15px; margin: 0; font-size: 9px; line-height: 1.2; }}
-            .iso-code {{ text-align: right; font-weight: bold; font-size: 9px; margin-bottom: 2px; }}
+            @page {{ size: auto; margin: 5mm; }}
+            @media print {{
+                body {{ margin: 0; }}
+            }}
+            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 15px; margin: 0; font-size: 9px; line-height: 1.2; position: relative; min-height: 95vh; }}
             .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 6px; }}
             .title {{ text-align: center; font-weight: bold; font-size: 11px; margin-bottom: 10px; text-transform: uppercase; text-decoration: underline; }}
             
@@ -298,12 +328,19 @@ def tampilkan_timesheet(transaksi_list):
             table.ts-grid th, table.ts-grid td {{ border: 1px solid #000; vertical-align: middle; }}
             .th-header {{ background-color: #f1f5f9; font-weight: bold; text-align: center; font-size: 8px; padding: 3px; }}
             
-            .bottom-section {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+            .bottom-section {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 25px; }}
             .bottom-section td {{ border: 1px solid #000; vertical-align: top; padding: 4px; font-size: 8px; }}
+
+            .iso-footer-left {{
+                position: absolute;
+                bottom: 2px;
+                left: 15px;
+                font-size: 8px;
+                font-weight: bold;
+            }}
         </style>
     </head>
     <body>
-        <div class="iso-code">FM-GS-06 Rev.03</div>
         <div class="header">
             <h2 style="margin: 0; font-size: 12px;">PT. BANGGAI SENTRAL SULAWESI</h2>
             <p style="margin: 1px 0; font-size: 7px;">JL. URIP SUMOHARJO NO. 53, TELP 0461-21025, 21185, 21307. LUWUK</p>
@@ -420,6 +457,8 @@ def tampilkan_timesheet(transaksi_list):
                 </td>
             </tr>
         </table>
+
+        <div class="iso-footer-left">FM-GS-06 Rev.03</div>
     </body>
     </html>
     """
@@ -453,4 +492,4 @@ def tampilkan_timesheet(transaksi_list):
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
         download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="Timesheet_ISO_{nomor_kontrak}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File Timesheet (ISO)</button></a>'
-        st.markdown(download_link, unsafe_import_html=True if "unsafe_import_html" in globals() else True)
+        st.markdown(download_link, unsafe_allow_html=True)

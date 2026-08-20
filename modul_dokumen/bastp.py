@@ -64,25 +64,18 @@ def tampilkan_bastp(transaksi_list):
                 return str(v).strip()
         return fallback
 
-    # Pemetaan Data Induk Berdasarkan Indeks Presisi Lembar Input 29 Kolom
     nomor_kontrak_str = get_induk(1, 'Nomor Kontrak', t_data.get('Nomor Kontrak', '-'))
     tgl_kontrak = get_induk(4, 'Tanggal Kontrak', '-')
     lingkup_pekerjaan = get_induk(3, 'Lingkup Pekerjaan', t_data.get('Deskripsi PO', '-'))
     no_po_auto = get_induk(8, 'Nomor Purchase Order', t_data.get('Nomor PO', '-'))
     tgl_po_auto = get_induk(9, 'Tanggal Purchase Order', t_data.get('Tanggal PO', '-'))
 
-    # Pihak Pertama
     p1_nama = get_induk(10, 'Pihak Pertama', 'JOB Pertamina - Medco E&P Tomori Sulawesi')
     p1_alamat = get_induk(11, 'Alamat Pihak Pertama', 'Bidakara Office Tower I 4Th Floor, Jl. Gatot Subroto Kav. 71 - 73, Jakarta 12870, Indonesia')
     p1_wakil_lengkap = get_induk(12, 'Diwakili Oleh', 'Ronny Dwi Purnomo / Rafik Hidayat')
     p1_jabatan = get_induk(13, 'Selaku', 'Maintenance Support Supervisor')
+    p1_wakil_sign = p1_wakil_lengkap
 
-    if "/" in p1_wakil_lengkap:
-        p1_wakil_sign = p1_wakil_lengkap.split("/")[0].strip()
-    else:
-        p1_wakil_sign = p1_wakil_lengkap
-
-    # Pihak Kedua
     p2_nama = get_induk(14, 'Pihak Kedua', 'PT Banggai Sentral Sulawesi')
     p2_alamat = get_induk(15, 'Alamat Pihak Kedua', 'Jl. Urip Sumoharjo No. 53, Luwuk, Kabupaten Banggai, Provinsi Sulawesi Tengah (94715), Indonesia')
     p2_wakil = get_induk(16, 'Diwakili Oleh (P2)', 'Ir. Ferry Tatimu')
@@ -128,49 +121,68 @@ def tampilkan_bastp(transaksi_list):
         uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua", type=["png", "jpg", "jpeg"], key="logo_bastp_2")
         if uploaded_logo_2 is not None: st.session_state.persisted_logo_2 = uploaded_logo_2.getvalue()
 
-    logo1_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_1).decode()}" style="max-height: 45px; max-width: 120px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_1 is not None else ""
-    logo2_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_2).decode()}" style="max-height: 45px; max-width: 120px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_2 is not None else ""
+    logo1_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_1).decode()}" style="max-height: 42px; max-width: 110px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_1 is not None else ""
+    logo2_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_2).decode()}" style="max-height: 42px; max-width: 110px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_2 is not None else ""
 
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Berita Acara Selesai Pekerjaan (BASTP) - PT BSS</title>
+        <title>Berita Acara Selesai Pekerjaan</title>
         <style>
-            @page {{ size: A4; margin: 10mm; }}
-            @media print {{
-                body {{ -webkit-print-color-adjust: exact; }}
-                @page {{ margin: 0; }}
-                body {{ margin: 10mm; }}
-                header, footer, .no-print {{ display: none !important; }}
+            @page {{ 
+                size: A4; 
+                margin: 8mm; 
             }}
-            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 15px; margin: 0; font-size: 10px; line-height: 1.4; }}
-            .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }}
-            .header-table td {{ border: none; vertical-align: middle; padding: 0 5px; }}
-            .doc-meta {{ text-align: right; font-size: 9px; font-weight: bold; margin-bottom: 10px; }}
-            .section-title {{ font-weight: bold; font-size: 10px; text-transform: uppercase; margin-top: 10px; margin-bottom: 5px; text-decoration: underline; }}
-            .info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 10px; }}
-            .info-table td {{ padding: 2px 4px; border: none; vertical-align: top; }}
+            @media print {{
+                body {{ -webkit-print-color-adjust: exact; margin: 0; }}
+                @page {{ size: A4; margin: 8mm; }}
+                .iso-footer-left {{
+                    position: fixed;
+                    bottom: 0;
+                    left: 0;
+                }}
+            }}
+            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 10px; margin: 0; font-size: 9.5px; line-height: 1.35; }}
+            .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }}
+            .header-table td {{ border: none; vertical-align: middle; padding: 0 4px; }}
+            
+            /* Header Judul Utama Diperbesar dan Lebih Cantik */
+            .main-doc-title {{ font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; text-align: center; }}
+            
+            .section-title {{ font-weight: bold; font-size: 9.5px; text-transform: uppercase; margin-top: 8px; margin-bottom: 3px; text-decoration: underline; }}
+            .info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 9.5px; }}
+            .info-table td {{ padding: 1.5px 3px; border: none; vertical-align: top; }}
             .col-label {{ width: 22%; }}
             .col-colon {{ width: 2%; text-align: center; }}
             .col-value {{ width: 76%; }}
-            table.item-grid {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; }}
-            table.item-grid th, table.item-grid td {{ border: 1px solid #000; padding: 6px 8px; font-size: 9px; vertical-align: middle; }}
+            table.item-grid {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
+            table.item-grid th, table.item-grid td {{ border: 1px solid #000; padding: 5px 6px; font-size: 9px; vertical-align: middle; }}
             .th-header {{ background-color: #f1f5f9; font-weight: bold; text-transform: uppercase; text-align: center; }}
-            .content-text {{ margin-bottom: 12px; font-size: 10px; text-align: justify; }}
-            table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 25px; border: none; }}
-            table.sig-table td {{ border: none; vertical-align: top; font-size: 10px; padding: 5px; }}
+            .content-text {{ margin-bottom: 10px; font-size: 9.5px; text-align: justify; }}
+            
+            /* Kolom Tanda Tangan Standar Internasional (Baris Lebih Lebar / Luas) */
+            table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 15px; border: none; }}
+            table.sig-table td {{ border: none; vertical-align: top; font-size: 9.5px; padding: 6px; }}
+            .sig-space {{ height: 50px; }}
+            
+            /* Footer ISO di sudut kiri bawah */
+            .iso-footer-left {{ 
+                font-size: 8px; 
+                font-weight: bold; 
+                text-align: left; 
+                margin-top: 15px; 
+                padding-top: 4px; 
+            }}
         </style>
     </head>
     <body>
-        <div class="doc-meta">Dokumen No: FM-GS-15 Rev:03</div>
-
         <table class="header-table">
             <tr>
                 <td style="width: 25%; text-align: left;">{logo1_html}</td>
                 <td style="width: 50%; text-align: center;">
-                    <h3 style="margin: 0; font-size: 11px; font-weight: bold; text-transform: uppercase;">BERITA ACARA SELESAI PEKERJAAN (BASTP)</h3>
+                    <div class="main-doc-title">BERITA ACARA SELESAI PEKERJAAN (BASTP)</div>
                 </td>
                 <td style="width: 25%; text-align: right;">{logo2_html}</td>
             </tr>
@@ -188,7 +200,7 @@ def tampilkan_bastp(transaksi_list):
             <tr><td class="col-label">Jabatan</td><td class="col-colon">:</td><td class="col-value"><b>{p1_jabatan}</b></td></tr>
         </table>
 
-        <div class="section-title" style="margin-top: 10px;">02. PIHAK KEDUA</div>
+        <div class="section-title" style="margin-top: 8px;">02. PIHAK KEDUA</div>
         <table class="info-table">
             <tr><td class="col-label">Nama Perusahaan</td><td class="col-colon">:</td><td class="col-value"><b>{p2_nama}</b></td></tr>
             <tr><td class="col-label">Alamat</td><td class="col-colon">:</td><td class="col-value">{p2_alamat}</td></tr>
@@ -196,7 +208,7 @@ def tampilkan_bastp(transaksi_list):
             <tr><td class="col-label">Jabatan</td><td class="col-colon">:</td><td class="col-value"><b>{p2_jabatan}</b></td></tr>
         </table>
 
-        <div class="section-title" style="margin-top: 15px;">DASAR PELAKSANAAN PEKERJAAN</div>
+        <div class="section-title" style="margin-top: 10px;">DASAR PELAKSANAAN PEKERJAAN</div>
         <table class="info-table">
             <tr><td class="col-label" style="font-weight: bold;">Nomor Kontrak</td><td class="col-colon">:</td><td class="col-value"><b>{nomor_kontrak_str}</b></td></tr>
             <tr><td class="col-label" style="font-weight: bold;">Tanggal Kontrak</td><td class="col-colon">:</td><td class="col-value">{tgl_kontrak}</td></tr>
@@ -205,7 +217,7 @@ def tampilkan_bastp(transaksi_list):
             <tr><td class="col-label" style="font-weight: bold; vertical-align: top;">Lingkup Pekerjaan</td><td class="col-colon" style="vertical-align: top;">:</td><td class="col-value"><b>{lingkup_pekerjaan}</b></td></tr>
         </table>
 
-        <div class="content-text" style="margin-top: 10px;">
+        <div class="content-text" style="margin-top: 8px;">
             Dengan ini <b>PIHAK KEDUA</b> menyatakan telah menyelesaikan seluruh pekerjaan secara baik dan lengkap terhitung sampai dengan tanggal <b>{bastp_date}</b> dengan rincian sebagai berikut:
         </div>
 
@@ -232,16 +244,20 @@ def tampilkan_bastp(transaksi_list):
 
         <table class="sig-table">
             <tr>
-                <td style="width: 50%; text-align: left; padding-left: 20px;">
-                    <b>{p1_nama}</b><br><b>PIHAK PERTAMA</b><br><br><br><br>
+                <td style="width: 50%; text-align: left; padding-left: 15px;">
+                    <b>{p1_nama}</b><br><b>PIHAK PERTAMA</b>
+                    <div class="sig-space"></div>
                     <u><b>{p1_wakil_sign}</b></u><br>{p1_jabatan}
                 </td>
-                <td style="width: 50%; text-align: left; padding-left: 20px;">
-                    <b>{p2_nama}</b><br><b>PIHAK KEDUA</b><br><br><br><br>
+                <td style="width: 50%; text-align: left; padding-left: 15px;">
+                    <b>{p2_nama}</b><br><b>PIHAK KEDUA</b>
+                    <div class="sig-space"></div>
                     <u><b>{p2_wakil}</b></u><br>{p2_jabatan}
                 </td>
             </tr>
         </table>
+
+        <div class="iso-footer-left">Dokumen No: FM-GS-15 Rev:03</div>
     </body>
     </html>
     """
@@ -250,14 +266,15 @@ def tampilkan_bastp(transaksi_list):
     st.components.v1.html(html_content, height=650, scrolling=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
+    st.markdown("<br>", unsafe_allow_html=True)
+
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
         b64_html = base64.b64encode(html_content.encode()).decode()
-        st.components.v1.html(f"""
+        print_script = f"""
             <script>
                 function printDoc() {{
-                    var win = window.open('about:blank', '_blank');
-                    win.document.open();
+                    var win = window.open('', '_blank');
                     win.document.write(atob("{b64_html}"));
                     win.document.close();
                     win.focus();
@@ -265,9 +282,12 @@ def tampilkan_bastp(transaksi_list):
                 }}
             </script>
             <button onclick="printDoc()" style="width: 100%; background-color: #10b981; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-                🖨️ Cetak / Print Berita Acara Selesai Pekerjaan
+                🖨️ Cetak / Print Dokumen ke PDF (Klik Disini)
             </button>
-        """, height=50)
+        """
+        st.components.v1.html(print_script, height=50)
+        
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
-        st.markdown(f'<a href="data:text/html;base64,{b64_pdf}" download="BASTP_{nomor_kontrak_str}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File BASTP</button></a>', unsafe_allow_html=True)
+        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="BASTP_{nomor_kontrak_str.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File HTML/PDF</button></a>'
+        st.markdown(download_link, unsafe_allow_html=True)
