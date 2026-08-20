@@ -4,7 +4,7 @@ import os
 import glob
 import base64
 import sys
-from datetime import datetime, date
+from datetime import datetime, timedelta, date
 
 from modul_dokumen import tkdn
 
@@ -46,7 +46,6 @@ def periksa_login():
             submit_btn = st.form_submit_button("Masuk ke Dashboard", use_container_width=True)
             
             if submit_btn:
-                # Anda dapat mengubah username dan password sesuai kebutuhan tim internal Anda
                 if username_input.strip().lower() == "admin" and password_input == "bss2026":
                     st.session_state.logged_in = True
                     st.success("Login Berhasil! Memuat sistem...")
@@ -177,7 +176,7 @@ if periksa_login():
         return []
 
     def simpan_data_invoice(data_list):
-        waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
         for item in data_list:
             if isinstance(item, dict):
                 item["Update Terakhir"] = waktu_sekarang
@@ -197,7 +196,7 @@ if periksa_login():
         return []
 
     def simpan_data_transaksi(data_list):
-        waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
         for item in data_list:
             if isinstance(item, dict):
                 item["Update Terakhir"] = waktu_sekarang
@@ -216,7 +215,7 @@ if periksa_login():
         return []
 
     def simpan_master_referensi(data_list):
-        waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
         for item in data_list:
             if isinstance(item, dict):
                 item["Update Terakhir"] = waktu_sekarang
@@ -251,13 +250,13 @@ if periksa_login():
         </div>
     """, unsafe_allow_html=True)
 
-    # --- SIDEBAR: NAVIGASI & WAKTU LOKAL ---
+    # --- SIDEBAR: NAVIGASI & WAKTU LOKAL (WITA / UTC+8) ---
     st.sidebar.markdown("### 🗂️ Navigasi Dashboard Utama")
-    from datetime import datetime, timedelta, date
+    waktu_wita = datetime.utcnow() + timedelta(hours=8)
+    current_time_str = waktu_wita.strftime("%d %b %Y, %H:%M:%S")
+    st.sidebar.markdown(f"🕒 **Waktu Sistem (WITA):**<br>`{current_time_str}`", unsafe_allow_html=True)
+    st.sidebar.markdown("---")
 
-# Menyesuaikan waktu server UTC ke Waktu Indonesia Tengah (WITA / UTC+8)
-waktu_wita = datetime.utcnow() + timedelta(hours=8)
-current_time_str = waktu_wita.strftime("%d %b %Y, %H:%M:%S")
     modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
         "📁 Modul 0: Master Referensi Harga & Pekerjaan",
         "📁 Modul 1: Database & Master Kontrak",
@@ -286,7 +285,6 @@ current_time_str = waktu_wita.strftime("%d %b %Y, %H:%M:%S")
     st.sidebar.markdown("---")
     st.sidebar.success("📂 **Status Sistem:** Terhubung ke Folder Aman (`database_penyimpanan_aman`)")
 
-    # Tombol Logout di sidebar untuk keamanan tambahan
     if st.sidebar.button("🔒 Keluar / Logout Sistem"):
         st.session_state.logged_in = False
         st.rerun()
@@ -365,7 +363,7 @@ current_time_str = waktu_wita.strftime("%d %b %Y, %H:%M:%S")
                             "Uraian Pekerjaan": uraian_ref,
                             "Unit": unit_ref,
                             "Harga Satuan": harga_satuan_ref,
-                            "Update Terakhir": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            "Update Terakhir": (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
                         }
                         
                         if submit_master_update and st.session_state["edit_master_index"] is not None and st.session_state["edit_master_index"] < len(master_data):
@@ -552,7 +550,7 @@ current_time_str = waktu_wita.strftime("%d %b %Y, %H:%M:%S")
                     submit_update = st.form_submit_button("📝 Update Data Ini")
                 
                 if submit_baru or submit_save_as or submit_update:
-                    waktu_aksi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    waktu_aksi = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
                     
                     data_terinput = {
                         0: val_6,   # Kolom 0: Proforma Invoice No.
@@ -832,7 +830,7 @@ current_time_str = waktu_wita.strftime("%d %b %Y, %H:%M:%S")
                     submit_proses = st.form_submit_button("🚀 Proses & Distribusikan Data ke Dokumen Turunan")
 
                     if submit_proses:
-                        waktu_aksi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        waktu_aksi = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
                         total_harga = (qty * harga_satuan) * (persen_val / 100.0)
                         data_transaksi = {
                             "Nomor Kontrak": selected_kontrak,
