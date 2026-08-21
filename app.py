@@ -387,40 +387,9 @@ if form_login_sistem():
                     </div>
                 """, unsafe_allow_html=True)
 
-                # ... (Sisipkan bagian ini menggantikan blok elif menu == "Lihat Daftar Master Referensi Tersimpan": pada app.py Anda)
-
-            elif menu == "Lihat Daftar Master Referensi Tersimpan":
-                st.markdown("""
-                    <div class="dashboard-card">
-                        <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Tabel Master Referensi Harga & Pekerjaan</h3>
-                    </div>
-                """, unsafe_allow_html=True)
-
                 master_records = muat_master_referensi()
                 if master_records:
-                    # --- FITUR PENCARIAN & FILTER ---
-                    st.markdown("#### 🔍 Filter Data")
-                    col_f1, col_f2, col_f3 = st.columns(3)
-                    
-                    # Ambil daftar unik untuk filter
-                    list_kontrak_f = sorted(list(set([str(m.get('Nomor Kontrak', '')) for m in master_records])))
-                    list_kategori_f = sorted(list(set([str(m.get('Kategori', '')) for m in master_records])))
-                    
-                    filter_kontrak = col_f1.selectbox("Filter by Nomor Kontrak:", ["Semua"] + list_kontrak_f)
-                    filter_kategori = col_f2.selectbox("Filter by Kategori:", ["Semua"] + list_kategori_f)
-                    search_query = col_f3.text_input("Cari Uraian Pekerjaan:")
-
-                    # Logika Penyaringan Data
-                    filtered_records = master_records
-                    if filter_kontrak != "Semua":
-                        filtered_records = [m for m in filtered_records if str(m.get('Nomor Kontrak')) == filter_kontrak]
-                    if filter_kategori != "Semua":
-                        filtered_records = [m for m in filtered_records if str(m.get('Kategori')) == filter_kategori]
-                    if search_query:
-                        filtered_records = [m for m in filtered_records if search_query.lower() in str(m.get('Uraian Pekerjaan', '')).lower()]
-
-                    # Tampilan Tabel Hasil Filter
-                    for idx, item in enumerate(filtered_records):
+                    for idx, item in enumerate(master_records):
                         c_no, c_kon, c_kat, c_pek, c_unit, c_hrg, c_act1, c_act2 = st.columns([0.6, 1.8, 1.8, 4.0, 0.8, 1.5, 0.7, 0.7])
                         c_no.write(f"**{idx+1}**")
                         c_kon.write(str(item.get('Nomor Kontrak', '')))
@@ -430,17 +399,25 @@ if form_login_sistem():
                         c_hrg.write(f"Rp {item.get('Harga Satuan', 0):,.2f}")
                         
                         with c_act1:
-                            if st.button("✏️", key=f"edit_m_{idx}"):
-                                st.session_state["edit_master_index"] = master_records.index(item)
+                            if st.button("✏️", key=f"edit_m_{idx}", help="Edit baris ini"):
+                                st.session_state["edit_master_index"] = idx
                                 st.rerun()
                         with c_act2:
-                            if st.button("🗑️", key=f"del_m_{idx}"):
-                                master_records.remove(item)
+                            if st.button("🗑️", key=f"del_m_{idx}", help="Hapus baris ini"):
+                                master_records.pop(idx)
                                 simpan_master_referensi(master_records)
                                 st.rerun()
                         st.markdown("<hr style='margin:4px 0; border-color:#e2e8f0;'>", unsafe_allow_html=True)
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if st.button("🗑️ Reset / Hapus Semua Master Referensi"):
+                        if os.path.exists(EXCEL_MASTER_REF):
+                            os.remove(EXCEL_MASTER_REF)
+                        st.session_state["db_master_ref"] = []
+                        st.success("Semua data master berhasil direset.")
+                        st.rerun()
                 else:
-                    st.info("Belum ada data master referensi tersimpan.")
+                    st.info("Belum ada data master referensi tersimpan di folder aman.")
 
         # =========================================================================
         # LOGIKA MODUL 1: DATABASE & MASTER KONTRAK
