@@ -84,12 +84,13 @@ def tampilkan_bastp(transaksi_list):
     kategori_item = str(t_data.get('Kategori', '')).strip()
     deskripsi_item = str(t_data.get('Deskripsi Pekerjaan', '')).strip()
     item_desc_final = f"<b>{kategori_item}</b><br>{deskripsi_item}" if kategori_item else deskripsi_item
-    uom_str = str(t_data.get('Unit', '')).strip()
     
+    # Murni mengambil data aktual dari input transaksi awal (rekapitulasi)
+    uom_str_bastp = str(t_data.get('Unit', 'Month')).strip()
     try:
-        qty_val = float(t_data.get('Qty', 1.0))
+        qty_val_bastp = float(t_data.get('Qty', 1.0))
     except:
-        qty_val = 1.0
+        qty_val_bastp = 1.0
 
     st.markdown("#### ⚙️ Pengaturan Parameter Detail Berita Acara Selesai Pekerjaan (BASTP)")
     
@@ -103,7 +104,7 @@ def tampilkan_bastp(transaksi_list):
         bastp_date = f"{selected_date.day:02d} {bulan_indo[selected_date.month]} {selected_date.year}"
 
     with c_b2:
-        tambahan_opsional = st.text_input("Keterangan Tambahan / Opsional (Catatan BASTP):", value="", placeholder="Opsional", key="bastp_catatan")
+        tambahan_opsional = st.text_input("Catatan BASTP (Opsional):", value="", placeholder="Opsional", key="bastp_catatan")
 
     catatan_final = f"Selesai Operasi Tanggal {bastp_date}"
     if tambahan_opsional.strip():
@@ -144,30 +145,93 @@ def tampilkan_bastp(transaksi_list):
                     left: 0;
                 }}
             }}
-            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 10px; margin: 0; font-size: 9.5px; line-height: 1.35; }}
-            .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }}
-            .header-table td {{ border: none; vertical-align: middle; padding: 0 4px; }}
-            
-            /* Header Judul Utama Diperbesar dan Lebih Cantik */
-            .main-doc-title {{ font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; text-align: center; }}
-            
-            .section-title {{ font-weight: bold; font-size: 9.5px; text-transform: uppercase; margin-top: 8px; margin-bottom: 3px; text-decoration: underline; }}
-            .info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 9.5px; }}
-            .info-table td {{ padding: 1.5px 3px; border: none; vertical-align: top; }}
+            body {{ 
+                font-family: Arial, sans-serif; 
+                background-color: #ffffff; 
+                color: #000000; 
+                padding: 10px; 
+                margin: 0; 
+                font-size: 9.5px; 
+                line-height: 1.35; 
+            }}
+            .header-table {{ 
+                width: 100%; 
+                border-collapse: collapse; 
+                border-bottom: 2px solid #000; 
+                padding-bottom: 6px; 
+                margin-bottom: 10px; 
+            }}
+            .header-table td {{ 
+                border: none; 
+                vertical-align: middle; 
+                padding: 0 4px; 
+            }}
+            .main-doc-title {{ 
+                font-size: 13px; 
+                font-weight: bold; 
+                text-transform: uppercase; 
+                letter-spacing: 0.5px; 
+                margin: 0; 
+                text-align: center; 
+            }}
+            .section-title {{ 
+                font-weight: bold; 
+                font-size: 9.5px; 
+                text-transform: uppercase; 
+                margin-top: 8px; 
+                margin-bottom: 3px; 
+                text-decoration: underline; 
+            }}
+            .info-table {{ 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin-bottom: 8px; 
+                font-size: 9.5px; 
+            }}
+            .info-table td {{ 
+                padding: 1.5px 3px; 
+                border: none; 
+                vertical-align: top; 
+            }}
             .col-label {{ width: 22%; }}
             .col-colon {{ width: 2%; text-align: center; }}
             .col-value {{ width: 76%; }}
-            table.item-grid {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
-            table.item-grid th, table.item-grid td {{ border: 1px solid #000; padding: 5px 6px; font-size: 9px; vertical-align: middle; }}
-            .th-header {{ background-color: #f1f5f9; font-weight: bold; text-transform: uppercase; text-align: center; }}
-            .content-text {{ margin-bottom: 10px; font-size: 9.5px; text-align: justify; }}
-            
-            /* Kolom Tanda Tangan Standar Internasional (Baris Lebih Lebar / Luas) */
-            table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 15px; border: none; }}
-            table.sig-table td {{ border: none; vertical-align: top; font-size: 9.5px; padding: 6px; }}
+            table.item-grid {{ 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin-bottom: 12px; 
+            }}
+            table.item-grid th, table.item-grid td {{ 
+                border: 1px solid #000; 
+                padding: 5px 6px; 
+                font-size: 9px; 
+                vertical-align: middle; 
+            }}
+            .th-header {{ 
+                background-color: #f1f5f9; 
+                font-weight: bold; 
+                text-transform: uppercase; 
+                text-align: center; 
+            }}
+            .content-text {{ 
+                margin-bottom: 10px; 
+                font-size: 9.5px; 
+                text-align: justify; 
+            }}
+            table.sig-table {{ 
+                width: 100%; 
+                border-collapse: collapse; 
+                margin-top: 20px; 
+                margin-bottom: 15px; 
+                border: none; 
+            }}
+            table.sig-table td {{ 
+                border: none; 
+                vertical-align: top; 
+                font-size: 9.5px; 
+                padding: 6px; 
+            }}
             .sig-space {{ height: 50px; }}
-            
-            /* Footer ISO di sudut kiri bawah */
             .iso-footer-left {{ 
                 font-size: 8px; 
                 font-weight: bold; 
@@ -232,8 +296,8 @@ def tampilkan_bastp(transaksi_list):
             <tr>
                 <td style="text-align: center;">1</td>
                 <td style="text-align: left;">{item_desc_final}</td>
-                <td style="text-align: center;">{qty_val:.2f}</td>
-                <td style="text-align: center;">{uom_str}</td>
+                <td style="text-align: center;">{qty_val_bastp:.2f}</td>
+                <td style="text-align: center;">{uom_str_bastp}</td>
                 <td style="text-align: center;"><b>{catatan_final}</b></td>
             </tr>
         </table>

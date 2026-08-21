@@ -12,16 +12,46 @@ from modul_keamanan.autentikasi import form_login_sistem, render_panel_manajemen
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 # Import fungsi dokumen terisolasi dari folder modul_dokumen
+# Import fungsi dokumen terisolasi dari folder modul_dokumen secara aman per modul
 try:
     from modul_dokumen.rincian_pekerjaan import tampilkan_rincian_pekerjaan
+except ImportError as e:
+    st.error(f"Gagal memuat modul rincian_pekerjaan: {e}")
+
+try:
     from modul_dokumen.proforma_invoice import tampilkan_proforma_invoice
+except ImportError as e:
+    st.error(f"Gagal memuat modul proforma_invoice: {e}")
+
+try:
     from modul_dokumen.bamp import tampilkan_bamp
+except ImportError as e:
+    st.error(f"Gagal memuat modul bamp: {e}")
+
+try:
     from modul_dokumen.bastp import tampilkan_bastp
+except ImportError as e:
+    st.error(f"Gagal memuat modul bastp: {e}")
+
+try:
     from modul_dokumen.wcc import tampilkan_wcc
+except ImportError as e:
+    st.error(f"Gagal memuat modul wcc: {e}")
+
+try:
     from modul_dokumen.tkdn import tampilkan_tkdn
+except ImportError as e:
+    st.error(f"Gagal memuat modul tkdn: {e}")
+
+try:
     from modul_dokumen.timesheet import tampilkan_timesheet
+except ImportError as e:
+    st.error(f"Gagal memuat modul timesheet: {e}")
+
+try:
     from modul_dokumen.opname_pekerjaan import tampilkan_opname
-except ImportError:
+except ImportError as e:
+    st.error(f"Gagal memuat modul opname_pekerjaan: {e}")
     pass
 
 # Konfigurasi Halaman
@@ -809,7 +839,7 @@ if form_login_sistem():
                     with st.form("form_proses_rincian_sub"):
                         c_item1, c_item2, c_item3, c_item4 = st.columns([1, 1, 1, 1])
                         with c_item1:
-                            qty = st.number_input("Qty Out", value=float(get_tval("Qty", 1.0)))
+                            qty = st.number_input("Qty", value=float(get_tval("Qty", 1.0)))
                         with c_item2:
                             def_unit = get_tval("Unit", unit_otomatis)
                             u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam"]

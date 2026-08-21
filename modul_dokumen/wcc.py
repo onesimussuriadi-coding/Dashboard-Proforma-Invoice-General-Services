@@ -78,18 +78,27 @@ def tampilkan_wcc(transaksi_list):
     
     db_invoice_path = os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx")
     matched_db_row = {}
+    wcc_no = "DATA WCC BELUM DIINPUT"
+    wo_no = "DATA WO BELUM DIINPUT"
+    ctr_no = "DATA CTR BELUM DIINPUT"
+    
     if os.path.exists(db_invoice_path):
         try:
             df_inv = pd.read_excel(db_invoice_path)
-            pi_sekarang = str(t_data.get('PI No.', '')).strip()
-            row_match = df_inv[df_inv['Proforma Invoice No.'].astype(str).str.strip() == pi_sekarang]
-            if not row_match.empty:
-                matched_db_row = row_match.iloc[0].to_dict()
+            pi_sekarang = str(t_data.get('PI No.', '')).strip().lower()
+            
+            for idx, row in df_inv.iterrows():
+                val_pi_0 = str(row.iloc[0]).strip().lower()
+                if val_pi_0 == pi_sekarang:
+                    matched_db_row = row.to_dict()
+                    wcc_no = str(row.iloc[19]) if len(row) > 19 and pd.notnull(row.iloc[19]) else "DATA WCC BELUM DIINPUT"
+                    wo_no = str(row.iloc[21]) if len(row) > 21 and pd.notnull(row.iloc[21]) else "DATA WO BELUM DIINPUT"
+                    ctr_no = str(row.iloc[23]) if len(row) > 23 and pd.notnull(row.iloc[23]) else "DATA CTR BELUM DIINPUT"
+                    break
         except:
             pass
 
     nomor_kontrak_str = str(t_data.get('Nomor Kontrak', '7201250141'))
-    wcc_no = str(matched_db_row.get('Nomor WCC', f"WCC-{nomor_kontrak_str}-{datetime.now().strftime('%m-%Y')}"))
     
     raw_date = matched_db_row.get('Tanggal WCC', t_data.get('Tanggal PI', datetime.now().strftime('%d %B %Y')))
     try:
@@ -101,9 +110,6 @@ def tampilkan_wcc(transaksi_list):
     except:
         wcc_date = str(raw_date)
 
-    wo_no = str(matched_db_row.get('Nomor WO', f"WO-{nomor_kontrak_str}"))
-    ctr_no = str(matched_db_row.get('Nomor CTR', f"CTR-{nomor_kontrak_str}"))
-    
     wo_title = str(matched_db_row.get('Keterangan WO', ''))
     if not wo_title:
         wo_title = str(t_data.get('Deskripsi PO', t_data.get('Nama Kontrak', 'General Services Supporting Well Workover and Maintenance')))
@@ -203,7 +209,7 @@ def tampilkan_wcc(transaksi_list):
             <tr>
                 <td class="col-label">CTR NUMBER</td>
                 <td class="col-colon">:</td>
-                <td class="col-val">{ctr_no}</td>
+                <td class="col-val"><b>{ctr_no}</b></td>
             </tr>
             <tr>
                 <td class="col-label">DESCRIPTION</td>

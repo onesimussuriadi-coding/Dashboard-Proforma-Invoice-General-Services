@@ -84,16 +84,12 @@ def tampilkan_bamp(transaksi_list):
     kategori_item = str(t_data.get('Kategori', '')).strip()
     deskripsi_item = str(t_data.get('Deskripsi Pekerjaan', '')).strip()
     item_desc_final = f"<b>{kategori_item}</b><br>{deskripsi_item}" if kategori_item else deskripsi_item
-    uom_str = str(t_data.get('Unit', '')).strip()
     
-    try:
-        qty_val = float(t_data.get('Qty', 1.0))
-    except:
-        qty_val = 1.0
+    default_uom = str(t_data.get('Unit', 'Day')).strip()
 
     st.markdown("#### ⚙️ Pengaturan Parameter Detail Berita Acara Mulai Pekerjaan (BAMP)")
     
-    c_b1, c_b2 = st.columns(2)
+    c_b1, c_b2, c_b3, c_b4 = st.columns(4)
     with c_b1:
         selected_date = st.date_input("📅 Mulai Operasi Tanggal:", value=datetime(2026, 7, 1), key="bamp_date_picker")
         bulan_indo = {
@@ -103,7 +99,22 @@ def tampilkan_bamp(transaksi_list):
         bamp_date = f"{selected_date.day:02d} {bulan_indo[selected_date.month]} {selected_date.year}"
 
     with c_b2:
-        tambahan_opsional = st.text_input("Keterangan Tambahan / Opsional (Catatan BAMP):", value="", placeholder="Opsional", key="bamp_catatan")
+        qty_val = st.number_input(
+            "🔢 Jumlah / Qty BAMP:", 
+            min_value=0.0, 
+            value=1.0, 
+            step=1.0, 
+            format="%.2f"
+        )
+
+    with c_b3:
+        # Ditambahkan pilihan satuan "AU" di dalam daftar dropdown
+        uom_options = ["Month", "Day", "AU", "Ls", "Unit", "Trip", "Jam", "Orang", "Set"]
+        default_idx = uom_options.index(default_uom) if default_uom in uom_options else 1
+        uom_str = st.selectbox("🏷️ Satuan Unit:", uom_options, index=default_idx)
+
+    with c_b4:
+        tambahan_opsional = st.text_input("Catatan BAMP:", value="", placeholder="Opsional", key="bamp_catatan")
 
     catatan_final = f"Mulai Operasi Tanggal {bamp_date}"
     if tambahan_opsional.strip():
