@@ -508,7 +508,11 @@ if form_login_sistem():
                     c2.write("Diwakili Oleh")
                     pilihan_p1 = [
                         "Ronny Dwi Purnomo / Rafik Hidayat",
-                        "Rafik Hidayat / Ronny Dwi Purnomo"
+                        "Rafik Hidayat / Ronny Dwi Purnomo",
+                        "Irwan / Budi Bernadi",
+                        "Budi Bernadi / Irwan",
+                        "Aldito Fauzi Roe / Aryanto Yoga",
+                        "Aryanto Yoga / Aldito Fauzi Roe",
                     ]
                     def_p1 = get_val(12, "Diwakili Oleh")
                     idx_p1 = pilihan_p1.index(def_p1) if def_p1 in pilihan_p1 else 0
