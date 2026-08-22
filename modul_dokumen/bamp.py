@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
 import base64
-from datetime import datetime
+from datetime import datetime, date
 
 def tampilkan_bamp(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📋 Pratinjau, Cetak & Download Berita Acara Mulai Pekerjaan (BAMP)</h3>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📋 Pratinjau, Cetak & Download Berita Acara Mulai Pekerjaan (BAMP - Multi-Item Ready)</h3>
         </div>
     """, unsafe_allow_html=True)
 
@@ -15,23 +15,28 @@ def tampilkan_bamp(transaksi_list):
         return
 
     seen_pi_dd = set()
-    unique_tx_list = []
+    unique_pi_list = []
     for t in transaksi_list:
         pi_key = str(t.get('PI No.', '')).strip()
-        if pi_key not in seen_pi_dd:
+        if pi_key and pi_key not in seen_pi_dd:
             seen_pi_dd.add(pi_key)
-            unique_tx_list.append(t)
+            unique_pi_list.append(pi_key)
 
-    pilihan_tx = [f"PI: {t['PI No.']} | Kontrak: {t['Nomor Kontrak']} | Total: Rp {t['Total Harga']:,.0f}" for t in unique_tx_list]
+    selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list)
     
+    # Saring seluruh mutasi berdasarkan PI yang dipilih
+    mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == str(selected_pi).strip()]
+    
+    if not mutasi_terpilih:
+        st.warning("⚠️ Tidak ada item mutasi ditemukan untuk PI ini.")
+        return
+
+    t_data_utama = mutasi_terpilih[0]
+    current_pi_no = str(selected_pi).strip().lower()
+
     col_sel1, col_sel2 = st.columns([2, 1])
-    with col_sel1:
-        selected_idx = st.selectbox("Pilih Dokumen Transaksi Berdasarkan PI:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
     with col_sel2:
         lokasi_office = st.text_input("📍 Lokasi Office (Tempat BAMP):", value="Luwuk", key="bamp_lokasi")
-
-    t_data = unique_tx_list[selected_idx]
-    current_pi_no = str(t_data.get('PI No.', '')).strip().lower()
 
     # --- PENGAMBILAN DATABASE INDUK MODUL 1 ---
     try:
@@ -64,11 +69,11 @@ def tampilkan_bamp(transaksi_list):
                 return str(v).strip()
         return fallback
 
-    nomor_kontrak_str = get_induk(1, 'Nomor Kontrak', t_data.get('Nomor Kontrak', '-'))
+    nomor_kontrak_str = get_induk(1, 'Nomor Kontrak', t_data_utama.get('Nomor Kontrak', '-'))
     tgl_kontrak = get_induk(4, 'Tanggal Kontrak', '-')
-    lingkup_pekerjaan = get_induk(3, 'Lingkup Pekerjaan', t_data.get('Deskripsi PO', '-'))
-    no_po_auto = get_induk(8, 'Nomor Purchase Order', t_data.get('Nomor PO', '-'))
-    tgl_po_auto = get_induk(9, 'Tanggal Purchase Order', t_data.get('Tanggal PO', '-'))
+    lingkup_pekerjaan = get_induk(3, 'Lingkup Pekerjaan', t_data_utama.get('Deskripsi PO', '-'))
+    no_po_auto = get_induk(8, 'Nomor Purchase Order', t_data_utama.get('Nomor PO', '-'))
+    tgl_po_auto = get_induk(9, 'Tanggal Purchase Order', t_data_utama.get('Tanggal PO', '-'))
 
     p1_nama = get_induk(10, 'Pihak Pertama', 'JOB Pertamina - Medco E&P Tomori Sulawesi')
     p1_alamat = get_induk(11, 'Alamat Pihak Pertama', 'Bidakara Office Tower I 4Th Floor, Jl. Gatot Subroto Kav. 71 - 73, Jakarta 12870, Indonesia')
@@ -81,48 +86,65 @@ def tampilkan_bamp(transaksi_list):
     p2_wakil = get_induk(16, 'Diwakili Oleh (P2)', 'Ir. Ferry Tatimu')
     p2_jabatan = get_induk(17, 'Selaku (P2)', 'Direktur Utama')
 
-    kategori_item = str(t_data.get('Kategori', '')).strip()
-    deskripsi_item = str(t_data.get('Deskripsi Pekerjaan', '')).strip()
-    item_desc_final = f"<b>{kategori_item}</b><br>{deskripsi_item}" if kategori_item else deskripsi_item
+    # Tanggal Utama BAMP (mengambil dari item pertama atau default)
+    selected_date = st.date_input("📅 Tanggal Utama Berita Acara (BAMP):", value=date(2026, 7, 1), key="bamp_main_date")
+    bulan_indo = {
+        1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
+        7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+    }
+    bamp_date = f"{selected_date.day:02d} {bulan_indo[selected_date.month]} {selected_date.year}"
+
+    st.markdown("---")
+    st.markdown("#### ⚙️ Pengaturan Parameter Detail per Baris Pekerjaan BAMP")
     
-    default_uom = str(t_data.get('Unit', 'Day')).strip()
+    # Session state untuk menyimpan konfigurasi opsional tiap baris item
+    if "bamp_item_configs" not in st.session_state:
+        st.session_state.bamp_item_configs = {}
 
-    st.markdown("#### ⚙️ Pengaturan Parameter Detail Berita Acara Mulai Pekerjaan (BAMP)")
-    
-    c_b1, c_b2, c_b3, c_b4 = st.columns(4)
-    with c_b1:
-        selected_date = st.date_input("📅 Mulai Operasi Tanggal:", value=datetime(2026, 7, 1), key="bamp_date_picker")
-        bulan_indo = {
-            1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
-            7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"
-        }
-        bamp_date = f"{selected_date.day:02d} {bulan_indo[selected_date.month]} {selected_date.year}"
+    rows_html = ""
+    uom_options = ["Month", "Day", "AU", "Ls", "Unit", "Trip", "Jam", "Orang", "Set"]
 
-    with c_b2:
-        qty_val = st.number_input(
-            "🔢 Jumlah / Qty BAMP:", 
-            min_value=0.0, 
-            value=1.0, 
-            step=1.0, 
-            format="%.2f"
-        )
+    for idx, m in enumerate(mutasi_terpilih, start=1):
+        st.markdown(f"**Item {idx}: {m.get('Kategori')} - {m.get('Deskripsi Pekerjaan')}**")
+        c_b1, c_b2, c_b3, c_b4 = st.columns(4)
+        
+        with c_b1:
+            row_date = st.date_input(f"Mulai Operasi (Item {idx})", value=date(2026, 7, 1), key=f"bamp_date_{selected_pi}_{idx}")
+        with c_b2:
+            row_qty = st.number_input(f"Jumlah / Qty (Item {idx})", min_value=0.0, value=float(m.get('Qty', 1.0)), step=1.0, format="%.2f", key=f"bamp_qty_{selected_pi}_{idx}")
+        with c_b3:
+            default_uom = str(m.get('Unit', 'Day')).strip()
+            default_idx = uom_options.index(default_uom) if default_uom in uom_options else 1
+            row_uom = st.selectbox(f"Satuan (Item {idx})", uom_options, index=default_idx, key=f"bamp_uom_{selected_pi}_{idx}")
+        with c_b4:
+            row_catatan = st.text_input(f"Catatan (Item {idx})", value="", placeholder="Opsional", key=f"bamp_cat_{selected_pi}_{idx}")
 
-    with c_b3:
-        # Ditambahkan pilihan satuan "AU" di dalam daftar dropdown
-        uom_options = ["Month", "Day", "AU", "Ls", "Unit", "Trip", "Jam", "Orang", "Set"]
-        default_idx = uom_options.index(default_uom) if default_uom in uom_options else 1
-        uom_str = st.selectbox("🏷️ Satuan Unit:", uom_options, index=default_idx)
+        row_date_str = f"{row_date.day:02d} {bulan_indo[row_date.month]} {row_date.year}"
+        catatan_row_final = f"Mulai Operasi Tanggal {row_date_str}"
+        if row_catatan.strip():
+            catatan_row_final += f" - {row_catatan.strip()}"
 
-    with c_b4:
-        tambahan_opsional = st.text_input("Catatan BAMP:", value="", placeholder="Opsional", key="bamp_catatan")
+        kategori_m = str(m.get('Kategori', '')).strip()
+        deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
+        desc_final_m = f"<b>{kategori_m}</b><br>{deskripsi_m}" if kategori_m else deskripsi_m
+        if m.get('Keterangan'):
+            desc_final_m += f"<br><span style='font-size: 8.5px; color: #334155;'>{m.get('Keterangan')}</span>"
 
-    catatan_final = f"Mulai Operasi Tanggal {bamp_date}"
-    if tambahan_opsional.strip():
-        catatan_final += f" - {tambahan_opsional.strip()}"
+        rows_html += f"""
+            <tr>
+                <td style="text-align: center;">{idx}</td>
+                <td style="text-align: left;">{desc_final_m}</td>
+                <td style="text-align: center;">{row_qty:.2f}</td>
+                <td style="text-align: center;">{row_uom}</td>
+                <td style="text-align: center;"><b>{catatan_row_final}</b></td>
+            </tr>
+        """
+        st.markdown("<br>", unsafe_allow_html=True)
 
     if 'persisted_logo_1' not in st.session_state: st.session_state.persisted_logo_1 = None
     if 'persisted_logo_2' not in st.session_state: st.session_state.persisted_logo_2 = None
 
+    st.markdown("---")
     st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen BAMP")
     c_log1, c_log2 = st.columns(2)
     with c_log1:
@@ -156,7 +178,7 @@ def tampilkan_bamp(transaksi_list):
                 }}
             }}
             body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 10px; margin: 0; font-size: 9.5px; line-height: 1.35; }}
-            .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }}
+            .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10mm; }}
             .header-table td {{ border: none; vertical-align: middle; padding: 0 4px; }}
             
             .main-doc-title {{ font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; text-align: center; }}
@@ -232,18 +254,12 @@ def tampilkan_bamp(transaksi_list):
         <table class="item-grid">
             <tr>
                 <th class="th-header" style="width: 8%;">NO</th>
-                <th class="th-header" style="width: 45%;">KETERANGAN PEKERJAAN</th>
+                <th class="th-header" style="width: 42%;">KETERANGAN PEKERJAAN</th>
                 <th class="th-header" style="width: 12%;">JUMLAH</th>
                 <th class="th-header" style="width: 12%;">SATUAN</th>
-                <th class="th-header" style="width: 23%;">CATATAN</th>
+                <th class="th-header" style="width: 26%;">CATATAN</th>
             </tr>
-            <tr>
-                <td style="text-align: center;">1</td>
-                <td style="text-align: left;">{item_desc_final}</td>
-                <td style="text-align: center;">{qty_val:.2f}</td>
-                <td style="text-align: center;">{uom_str}</td>
-                <td style="text-align: center;"><b>{catatan_final}</b></td>
-            </tr>
+            {rows_html}
         </table>
 
         <div class="content-text">

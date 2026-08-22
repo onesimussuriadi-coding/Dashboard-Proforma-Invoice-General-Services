@@ -11,7 +11,6 @@ from modul_keamanan.autentikasi import form_login_sistem, render_panel_manajemen
 # Menambahkan path untuk pemanggilan folder modul_dokumen
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-# Import fungsi dokumen terisolasi dari folder modul_dokumen
 # Import fungsi dokumen terisolasi dari folder modul_dokumen secara aman per modul
 try:
     from modul_dokumen.rincian_pekerjaan import tampilkan_rincian_pekerjaan
@@ -278,7 +277,7 @@ if form_login_sistem():
             "📁 Modul 0: Master Referensi Harga & Pekerjaan",
             "📁 Modul 1: Database & Master Kontrak",
             "📄 Modul 2: Invoice & Dokumen Turunan",
-            "Timesheet Peralatan"
+            
         ])
 
     st.sidebar.markdown("---")
@@ -326,6 +325,32 @@ if form_login_sistem():
         # LOGIKA MODUL 0: MASTER REFERENSI HARGA & PEKERJAAN
         # =========================================================================
         if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
+            
+            query_params = st.query_params
+            if "delete_master_idx" in query_params:
+                try:
+                    del_idx = int(query_params["delete_master_idx"])
+                    all_m = muat_master_referensi()
+                    if 0 <= del_idx < len(all_m):
+                        all_m.pop(del_idx)
+                        simpan_master_referensi(all_m)
+                        st.success("✅ Berhasil menghapus baris master referensi secara permanen!")
+                        st.query_params.clear()
+                        st.rerun()
+                except:
+                    pass
+
+            if "edit_master_idx" in query_params:
+                try:
+                    ed_idx = int(query_params["edit_master_idx"])
+                    all_m = muat_master_referensi()
+                    if 0 <= ed_idx < len(all_m):
+                        st.session_state["edit_master_index"] = ed_idx
+                        st.query_params.clear()
+                        st.rerun()
+                except:
+                    pass
+
             if menu == "Input & Kelola Master Referensi":
                 st.markdown("""
                     <div class="dashboard-card">
@@ -357,23 +382,42 @@ if form_login_sistem():
                     st.info("📋 **Mode Edit Aktif:** Anda sedang mengubah data referensi yang dipanggil.")
 
                 saved_db = muat_data_invoice()
-                list_kontrak_db = list(set([str(item.get(1, item.get("Nomor Kontrak", ""))) for item in saved_db if item.get(1) or item.get("Nomor Kontrak")]))
+                
+                # --- PENGUMPULAN RIWAYAT NOMOR KONTRAK OTOMATIS ---
+                kontrak_from_invoice = [str(item.get(1, item.get("Nomor Kontrak", ""))) for item in saved_db if item.get(1) or item.get("Nomor Kontrak")]
+                kontrak_from_master = [str(m.get("Nomor Kontrak", "")) for m in master_data_live if m.get("Nomor Kontrak")]
+                combined_kontrak_list = sorted(list(set(kontrak_from_invoice + kontrak_from_master))) + ["-- Ketik Nomor Kontrak Baru --"]
+
+                # Ambil daftar Kategori & Satuan yang sudah ada + opsi default
+                default_kat_list = ["MONTHLY BASIS", "ON-CALL BASIS", "JASA MOBILISASI", "PROFESSIONAL SUM", "LAINNYA"]
+                existing_kat_from_db = list(set([str(m.get("Kategori")) for m in master_data_live if m.get("Kategori")]))
+                combined_kat_list = sorted(list(set(default_kat_list + existing_kat_from_db))) + ["-- Ketik Kategori Baru --"]
+
+                default_unit_list = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU"]
+                existing_unit_from_db = list(set([str(m.get("Unit")) for m in master_data_live if m.get("Unit")]))
+                combined_unit_list = sorted(list(set(default_unit_list + existing_unit_from_db))) + ["-- Ketik Satuan Baru --"]
 
                 with st.form("form_master_referensi"):
                     col1, col2 = st.columns(2)
                     with col1:
-                        def_kontrak_val = def_ref.get("Nomor Kontrak", list_kontrak_db[0] if list_kontrak_db else "")
-                        nomor_kontrak_ref = st.text_input("Nomor Kontrak Rujukan", value=def_kontrak_val)
+                        def_kontrak_val = def_ref.get("Nomor Kontrak", combined_kontrak_list[0] if combined_kontrak_list else "")
+                        idx_kontrak_ref = combined_kontrak_list.index(def_kontrak_val) if def_kontrak_val in combined_kontrak_list else 0
+                        kontrak_pilih = st.selectbox("Nomor Kontrak Rujukan", combined_kontrak_list, index=idx_kontrak_ref)
                         
-                        kat_opts = ["MONTHLY BASIS", "ON-CALL BASIS", "JASA MOBILISASI", "PROFESSIONAL SUM", "LAINNYA"]
-                        def_kat_val = def_ref.get("Kategori", kat_opts[0])
-                        idx_kat_ref = kat_opts.index(def_kat_val) if def_kat_val in kat_opts else 0
-                        kategori_ref = st.selectbox("Kategori Pekerjaan", kat_opts, index=idx_kat_ref)
+                        kontrak_manual = st.text_input("✍️ Ketik Nomor Kontrak Baru (Jika memilih opsi 'Kontrak Baru' di atas):")
                         
-                        unit_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam"]
-                        def_unit_val = def_ref.get("Unit", unit_opts[0])
-                        idx_unit_ref = unit_opts.index(def_unit_val) if def_unit_val in unit_opts else 0
-                        unit_ref = st.selectbox("Satuan Unit", unit_opts, index=idx_unit_ref)
+                        def_kat_val = def_ref.get("Kategori", combined_kat_list[0])
+                        idx_kat_ref = combined_kat_list.index(def_kat_val) if def_kat_val in combined_kat_list else 0
+                        kategori_pilih = st.selectbox("Kategori Pekerjaan", combined_kat_list, index=idx_kat_ref)
+                        
+                        kategori_manual = st.text_input("✍️ Ketik Nama Kategori Baru (Jika memilih 'Kategori Baru' di atas):")
+
+                        def_unit_val = def_ref.get("Unit", combined_unit_list[0])
+                        idx_unit_ref = combined_unit_list.index(def_unit_val) if def_unit_val in combined_unit_list else 0
+                        unit_pilih = st.selectbox("Satuan Unit", combined_unit_list, index=idx_unit_ref)
+                        
+                        unit_manual = st.text_input("✍️ Ketik Nama Satuan Baru (Jika memilih 'Satuan Baru' di atas, misal: m3, EA, AU):")
+
                     with col2:
                         uraian_ref = st.text_area("Uraian Pekerjaan / Spesifikasi Alat", value=def_ref.get("Uraian Pekerjaan", ""), height=105)
                         harga_satuan_ref = st.number_input("Harga Satuan Tetap (Rp)", min_value=0.0, value=float(def_ref.get("Harga Satuan", 0.0)), step=1000.0, format="%.2f")
@@ -386,15 +430,30 @@ if form_login_sistem():
                         submit_master_update = st.form_submit_button("📝 Update Data Dipanggil / Save As")
 
                     if submit_master_baru or submit_master_update:
-                        if not nomor_kontrak_ref or not uraian_ref:
-                            st.error("⚠️ Nomor Kontrak dan Uraian Pekerjaan tidak boleh kosong!")
+                        if kontrak_pilih == "-- Ketik Nomor Kontrak Baru --":
+                            final_kontrak = kontrak_manual.strip()
+                        else:
+                            final_kontrak = kontrak_pilih
+
+                        if kategori_pilih == "-- Ketik Kategori Baru --":
+                            final_kategori = kategori_manual.strip()
+                        else:
+                            final_kategori = kategori_pilih
+
+                        if unit_pilih == "-- Ketik Satuan Baru --":
+                            final_unit = unit_manual.strip()
+                        else:
+                            final_unit = unit_pilih
+
+                        if not final_kontrak or not uraian_ref or not final_kategori or not final_unit:
+                            st.error("⚠️ Nomor Kontrak, Kategori, Satuan, dan Uraian Pekerjaan tidak boleh kosong!")
                         else:
                             master_data = muat_master_referensi()
                             item_baru = {
-                                "Nomor Kontrak": nomor_kontrak_ref,
-                                "Kategori": kategori_ref,
+                                "Nomor Kontrak": final_kontrak,
+                                "Kategori": final_kategori.upper(),
                                 "Uraian Pekerjaan": uraian_ref,
-                                "Unit": unit_ref,
+                                "Unit": final_unit,
                                 "Harga Satuan": harga_satuan_ref,
                                 "Update Terakhir": (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
                             }
@@ -404,7 +463,7 @@ if form_login_sistem():
                                 st.success("✨ Data Master Referensi berhasil di-update!")
                             else:
                                 master_data.append(item_baru)
-                                st.success("🎉 Data Master Referensi baru berhasil disimpan!")
+                                st.success("🎉 Data Master Referensi baru beserta riwayat kontrak fleksibel berhasil disimpan!")
                             
                             simpan_master_referensi(master_data)
                             st.session_state["edit_master_index"] = None
@@ -413,41 +472,164 @@ if form_login_sistem():
             elif menu == "Lihat Daftar Master Referensi Tersimpan":
                 st.markdown("""
                     <div class="dashboard-card">
-                        <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Tabel Master Referensi Harga & Pekerjaan (Tampilan Satu Baris)</h3>
+                        <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Master Referensi Harga & Pekerjaan Tersimpan (Dengan Tombol Edit & Hapus per Baris)</h3>
                     </div>
                 """, unsafe_allow_html=True)
 
                 master_records = muat_master_referensi()
-                if master_records:
-                    for idx, item in enumerate(master_records):
-                        c_no, c_kon, c_kat, c_pek, c_unit, c_hrg, c_act1, c_act2 = st.columns([0.6, 1.8, 1.8, 4.0, 0.8, 1.5, 0.7, 0.7])
-                        c_no.write(f"**{idx+1}**")
-                        c_kon.write(str(item.get('Nomor Kontrak', '')))
-                        c_kat.write(str(item.get('Kategori', '')))
-                        c_pek.write(str(item.get('Uraian Pekerjaan', '')))
-                        c_unit.write(str(item.get('Unit', '')))
-                        c_hrg.write(f"Rp {item.get('Harga Satuan', 0):,.2f}")
+                if not master_records:
+                    st.info("ℹ️ Belum ada data master referensi harga tersimpan di folder aman.")
+                else:
+                    df_master = pd.DataFrame(master_records)
+
+                    kolom_kontrak = None
+                    for col in ['Nomor Kontrak', 'No Kontrak', 'Kontrak']:
+                        if col in df_master.columns:
+                            kolom_kontrak = col
+                            break
+
+                    if kolom_kontrak:
+                        list_kontrak = ["-- Semua Kontrak --"] + list(df_master[kolom_kontrak].dropna().unique())
+                        selected_kontrak = st.selectbox("🔍 Filter Berdasarkan Nomor Kontrak:", list_kontrak, key="filter_kontrak_master")
+
+                        if selected_kontrak != "-- Semua Kontrak --":
+                            df_filtered = df_master[df_master[kolom_kontrak] == selected_kontrak]
+                        else:
+                            df_filtered = df_master
+                    else:
+                        df_filtered = df_master
+                        selected_kontrak = "-- Semua Kontrak --"
+
+                    html_table_rows = ""
+                    for original_idx, row in df_filtered.iterrows():
+                        html_table_rows += "<tr>"
+                        html_table_rows += f"<td style='border: 1px solid #cbd5e1; padding: 10px; text-align: center; font-size: 13px;'>{original_idx+1}</td>"
+                        for col_name, val in row.items():
+                            if any(k in str(col_name).lower() for k in ['harga', 'satuan', 'total', 'nominal', 'nilai']):
+                                try:
+                                    num_val = float(val)
+                                    val_str = f"{num_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                except:
+                                    val_str = str(val)
+                            else:
+                                val_str = str(val)
+                                
+                            if 'uraian' in str(col_name).lower() or 'deskripsi' in str(col_name).lower():
+                                html_table_rows += f"<td style='border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; min-width: 400px; white-space: normal; word-wrap: break-word;'>{val_str}</td>"
+                            else:
+                                html_table_rows += f"<td style='border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; white-space: nowrap;'>{val_str}</td>"
                         
-                        with c_act1:
-                            if st.button("✏️", key=f"edit_m_{idx}", help="Edit baris ini"):
-                                st.session_state["edit_master_index"] = idx
-                                st.rerun()
-                        with c_act2:
-                            if st.button("🗑️", key=f"del_m_{idx}", help="Hapus baris ini"):
-                                master_records.pop(idx)
-                                simpan_master_referensi(master_records)
-                                st.rerun()
-                        st.markdown("<hr style='margin:4px 0; border-color:#e2e8f0;'>", unsafe_allow_html=True)
-                    
-                    st.markdown("<br>", unsafe_allow_html=True)
+                        action_buttons = f"""
+                            <td style='border: 1px solid #cbd5e1; padding: 8px; text-align: center; white-space: nowrap;'>
+                                <a href='?edit_master_idx={original_idx}' target='_self' style='text-decoration: none;'>
+                                    <button style='background-color: #3b82f6; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 4px;'>✏️ Edit</button>
+                                </a>
+                                <a href='?delete_master_idx={original_idx}' target='_self' style='text-decoration: none;'>
+                                    <button style='background-color: #ef4444; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;'>🗑️ Hapus</button>
+                                </a>
+                            </td>
+                        """
+                        html_table_rows += action_buttons
+                        html_table_rows += "</tr>"
+
+                    headers_html = "<th style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px;'>No</th>"
+                    for col in df_filtered.columns:
+                        headers_html += f"<th style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px;'>{col}</th>"
+                    headers_html += "<th style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px; text-align: center;'>Aksi</th>"
+
+                    full_interactive_table_html = f"""
+                    <div style="max-height: 550px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 20px;">
+                        <table style="width: 100%; border-collapse: collapse; background-color: #ffffff; color: #0f172a;">
+                            <thead>
+                                <tr>{headers_html}</tr>
+                            </thead>
+                            <tbody>
+                                {html_table_rows}
+                            </tbody>
+                        </table>
+                    </div>
+                    """
+                    st.components.v1.html(full_interactive_table_html, height=500, scrolling=True)
+
+                    st.markdown("---")
+                    st.markdown("#### 🖨️ Pratinjau & Cetak Dokumen Master Referensi")
+
+                    print_table_rows = ""
+                    for _, row in df_filtered.iterrows():
+                        print_table_rows += "<tr>"
+                        for col_name, val in row.items():
+                            if any(k in str(col_name).lower() for k in ['harga', 'satuan', 'total', 'nominal', 'nilai']):
+                                try:
+                                    num_val = float(val)
+                                    val_str = f"{num_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                except:
+                                    val_str = str(val)
+                            else:
+                                val_str = str(val)
+                            print_table_rows += f"<td style='border: 1px solid #333; padding: 6px; font-size: 10px;'>{val_str}</td>"
+                        print_table_rows += "</tr>"
+
+                    print_headers_clean = "".join([f"<th style='border: 1px solid #333; padding: 6px; background-color: #f1f5f9; font-size: 10px;'>{col}</th>" for col in df_filtered.columns])
+
+                    print_html_content = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <title>Master Referensi Harga - PT BSS</title>
+                        <style>
+                            @page {{ size: A4 landscape; margin: 10mm; }}
+                            body {{ font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 10px; }}
+                            .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px; }}
+                            table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h2 style="margin: 0; font-size: 14px;">PT. BANGGAI SENTRAL SULAWESI</h2>
+                            <p style="margin: 2px 0; font-size: 10px;">Master Referensi Harga & Pekerjaan - Filter Kontrak: {selected_kontrak}</p>
+                        </div>
+                        <table>
+                            <tr>{print_headers_clean}</tr>
+                            {print_table_rows}
+                        </table>
+                    </body>
+                    </html>
+                    """
+
+                    with st.expander("👁️ Klik Disini untuk Melihat Pratinjau Dokumen Cetak"):
+                        st.components.v1.html(print_html_content, height=450, scrolling=True)
+
+                    col_btn1, col_btn2 = st.columns(2)
+                    with col_btn1:
+                        b64_print = base64.b64encode(print_html_content.encode()).decode()
+                        print_script = f"""
+                            <script>
+                                function printMaster() {{
+                                    var win = window.open('about:blank', '_blank');
+                                    win.document.write(atob("{b64_print}"));
+                                    win.document.close();
+                                    win.focus();
+                                    setTimeout(function(){{ win.print(); }}, 500);
+                                }}
+                            </script>
+                            <button onclick="printMaster()" style="width: 100%; background-color: #10b981; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                                🖨️ Cetak / Print Master Referensi
+                            </button>
+                        """
+                        st.components.v1.html(print_script, height=50)
+
+                    with col_btn2:
+                        download_link = f'<a href="data:text/html;base64,{b64_print}" download="Master_Referensi_{str(selected_kontrak).replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File HTML</button></a>'
+                        st.markdown(download_link, unsafe_allow_html=True)
+
+                    st.markdown("---")
                     if st.button("🗑️ Reset / Hapus Semua Master Referensi"):
                         if os.path.exists(EXCEL_MASTER_REF):
                             os.remove(EXCEL_MASTER_REF)
                         st.session_state["db_master_ref"] = []
                         st.success("Semua data master berhasil direset.")
                         st.rerun()
-                else:
-                    st.info("Belum ada data master referensi tersimpan di folder aman.")
 
         # =========================================================================
         # LOGIKA MODUL 1: DATABASE & MASTER KONTRAK
@@ -842,7 +1024,7 @@ if form_login_sistem():
                             qty = st.number_input("Qty", value=float(get_tval("Qty", 1.0)))
                         with c_item2:
                             def_unit = get_tval("Unit", unit_otomatis)
-                            u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam"]
+                            u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU"]
                             idx_u = u_opts.index(def_unit) if def_unit in u_opts else 0
                             unit = st.selectbox("Unit", u_opts, index=idx_u)
                         with c_item3:
@@ -926,7 +1108,7 @@ if form_login_sistem():
                         "Berita Acara Opname pekerjaan",
                     ])
 
-                    if doc_type == "Rincian Pekerjaan":
+                    if  doc_type == "Rincian Pekerjaan":
                         tampilkan_rincian_pekerjaan(transaksi_list)
                     elif doc_type == "Proforma Invoice":
                         tampilkan_proforma_invoice(transaksi_list)

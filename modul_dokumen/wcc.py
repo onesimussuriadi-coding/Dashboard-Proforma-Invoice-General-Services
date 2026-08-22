@@ -33,7 +33,7 @@ def terbilang(n):
 def tampilkan_wcc(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">🖨️ Pratinjau, Cetak & Download Work Completion Certificate (WCC)</h3>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">🖨️ Pratinjau, Cetak & Download Work Completion Certificate (WCC - Multi-Item Ready)</h3>
         </div>
     """, unsafe_allow_html=True)
 
@@ -42,20 +42,31 @@ def tampilkan_wcc(transaksi_list):
         return
 
     seen_pi_dd = set()
-    unique_tx_list = []
+    unique_pi_list = []
     for t in transaksi_list:
-        pi_key = str(t.get('PI No.', ''))
-        if pi_key not in seen_pi_dd:
+        pi_key = str(t.get('PI No.', '')).strip()
+        if pi_key and pi_key not in seen_pi_dd:
             seen_pi_dd.add(pi_key)
-            unique_tx_list.append(t)
+            unique_pi_list.append(pi_key)
 
-    pilihan_tx = [f"PI: {t['PI No.']} | Kontrak: {t['Nomor Kontrak']} | Total: Rp {t['Total Harga']:,.0f}" for t in unique_tx_list]
-    
     col_sel1, col_sel2 = st.columns([2, 1])
     with col_sel1:
-        selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x], key="wcc_sel_idx")
+        selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list, key="wcc_sel_pi")
     with col_sel2:
         lokasi_office = st.text_input("📍 Lokasi Office (Tempat WCC):", value="Paisubololi", key="wcc_lok_office")
+
+    # Saring seluruh baris mutasi berdasarkan PI yang dipilih
+    mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == str(selected_pi).strip()]
+    
+    if not mutasi_terpilih:
+        st.warning("⚠️ Tidak ada item mutasi ditemukan untuk PI ini.")
+        return
+
+    t_data_utama = mutasi_terpilih[0]
+    
+    # Hitung Grand Total dari seluruh baris mutasi terpilih
+    grand_total_wcc = sum([float(m.get('Total Harga', 0.0)) for m in mutasi_terpilih])
+    terbilang_str = terbilang(grand_total_wcc).strip() + " Rupiah"
 
     if 'persisted_logo_1' not in st.session_state:
         st.session_state.persisted_logo_1 = None
@@ -73,9 +84,6 @@ def tampilkan_wcc(transaksi_list):
         if uploaded_logo_2 is not None:
             st.session_state.persisted_logo_2 = uploaded_logo_2.getvalue()
 
-    t_data = unique_tx_list[selected_idx]
-    terbilang_str = terbilang(t_data['Total Harga']).strip() + " Rupiah"
-    
     db_invoice_path = os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx")
     matched_db_row = {}
     wcc_no = "DATA WCC BELUM DIINPUT"
@@ -85,7 +93,7 @@ def tampilkan_wcc(transaksi_list):
     if os.path.exists(db_invoice_path):
         try:
             df_inv = pd.read_excel(db_invoice_path)
-            pi_sekarang = str(t_data.get('PI No.', '')).strip().lower()
+            pi_sekarang = str(selected_pi).strip().lower()
             
             for idx, row in df_inv.iterrows():
                 val_pi_0 = str(row.iloc[0]).strip().lower()
@@ -98,9 +106,9 @@ def tampilkan_wcc(transaksi_list):
         except:
             pass
 
-    nomor_kontrak_str = str(t_data.get('Nomor Kontrak', '7201250141'))
+    nomor_kontrak_str = str(t_data_utama.get('Nomor Kontrak', '7201250141'))
     
-    raw_date = matched_db_row.get('Tanggal WCC', t_data.get('Tanggal PI', datetime.now().strftime('%d %B %Y')))
+    raw_date = matched_db_row.get('Tanggal WCC', t_data_utama.get('Tanggal PI', datetime.now().strftime('%d %B %Y')))
     try:
         if isinstance(raw_date, str) and len(raw_date) >= 10:
             parsed_date = pd.to_datetime(raw_date)
@@ -112,7 +120,7 @@ def tampilkan_wcc(transaksi_list):
 
     wo_title = str(matched_db_row.get('Keterangan WO', ''))
     if not wo_title:
-        wo_title = str(t_data.get('Deskripsi PO', t_data.get('Nama Kontrak', 'General Services Supporting Well Workover and Maintenance')))
+        wo_title = str(t_data_utama.get('Deskripsi PO', t_data_utama.get('Nama Kontrak', 'General Services Supporting Well Workover and Maintenance')))
 
     progress_val = str(matched_db_row.get('Progress Pekerjaan', '100%'))
     progress_desc = f"[&#10003;] {progress_val} - Penyelesaian Pekerjaan"
@@ -218,7 +226,7 @@ def tampilkan_wcc(transaksi_list):
                     <table style="width:100%; border:none;">
                         <tr>
                             <td style="border:none; padding:0; width:65%;">{progress_desc}</td>
-                            <td style="border:none; padding:0; width:35%; text-align:right; font-weight:bold;">Rp {t_data['Total Harga']:,.2f}</td>
+                            <td style="border:none; padding:0; width:35%; text-align:right; font-weight:bold;">Rp {grand_total_wcc:,.2f}</td>
                         </tr>
                     </table>
                 </td>
@@ -291,5 +299,5 @@ def tampilkan_wcc(transaksi_list):
 
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
-        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="WCC_{str(t_data["PI No."]).replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File WCC</button></a>'
+        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="WCC_{str(selected_pi).replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File WCC</button></a>'
         st.markdown(download_link, unsafe_allow_html=True)
