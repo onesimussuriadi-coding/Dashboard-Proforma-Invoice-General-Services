@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
+from datetime import datetime
 
 def terbilang(n):
     n = float(n)
@@ -47,7 +48,6 @@ def tampilkan_opname(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi yang diproses.")
         return
 
-    # 1. Pilih Nomor Proforma Invoice (PI) terlebih dahulu
     seen_pi_dd = set()
     unique_pi_list = []
     for t in transaksi_list:
@@ -56,14 +56,13 @@ def tampilkan_opname(transaksi_list):
             seen_pi_dd.add(pi_key)
             unique_pi_list.append(pi_key)
 
-    col_sel1, col_sel2, col_sel3 = st.columns([1.5, 1.5, 1])
+    # Ditambahkan widget pemilihan tanggal dinamis di baris filter atas
+    col_sel1, col_sel2, col_sel3, col_sel4 = st.columns([1.3, 1.3, 0.9, 1.1])
     with col_sel1:
         selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list, key="opname_sel_pi")
     
-    # Saring transaksi berdasarkan PI yang dipilih
     transaksi_by_pi = [t for t in transaksi_list if str(t.get('PI No.')).strip() == str(selected_pi).strip()]
 
-    # 2. Ambil daftar Nomor PO yang terkait dengan PI tersebut untuk pelacakan akumulasi PO
     unique_po_list = []
     for t in transaksi_by_pi:
         po_key = str(t.get('Nomor PO', t.get('No PO', ''))).strip()
@@ -77,6 +76,11 @@ def tampilkan_opname(transaksi_list):
         selected_po = st.selectbox("Pilih Nomor Purchase Order (PO):", unique_po_list, key="opname_sel_po")
     with col_sel3:
         lokasi_office = st.text_input("📍 Lokasi Office:", value="Paisubololi", key="opname_lok_office")
+    with col_sel4:
+        selected_date_obj = st.date_input("📅 Tanggal Opname:", value=datetime.now(), key="opname_tanggal_picker")
+
+    # Format tanggal terpilih ke string (contoh: 31 August 2026 atau sesuai format yang diinginkan)
+    opname_date = selected_date_obj.strftime('%d %B %Y')
 
     mutasi_terpilih = transaksi_by_pi
     if selected_po != "-":
@@ -92,7 +96,6 @@ def tampilkan_opname(transaksi_list):
     pi_sekarang = str(selected_pi).strip()
     po_sekarang = str(selected_po).strip()
 
-    # PEMECAHAN DATA PRESISI DARI DATABASE EXCEL UTAMA
     db_invoice_path = os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx")
     matched_db_row = {}
     row_values = []
@@ -219,17 +222,96 @@ def tampilkan_opname(transaksi_list):
         if uploaded_logo_2 is not None:
             st.session_state.persisted_logo_2 = uploaded_logo_2.getvalue()
 
-    opname_date = str(matched_db_row.get('Tanggal Opname', '31 Jul 2026'))
     wo_title = str(matched_db_row.get('Keterangan WO', t_data_utama.get('Deskripsi PO', 'General Services')))
 
-    prepared_name = str(matched_db_row.get('Prepared by Name', 'Onesimus Suryadi'))
-    prepared_title = str(matched_db_row.get('Prepared by Title', 'General Service Manager'))
-    reviewed_name = str(matched_db_row.get('Diwakili Oleh', 'Ronny Dwi Purnomo / Rafik Hidayat'))
-    approved_name = str(matched_db_row.get('Pejabat berwenang', 'Imron Maulana / Moh Bazarul Aqhsa'))
-    field_mgr_title = str(matched_db_row.get('Jabatan Field Manager', 'Field Senior Manager'))
+    def get_db_val(idx_num, key_name, fallback=""):
+        if idx_num in matched_db_row and pd.notnull(matched_db_row[idx_num]):
+            val = str(matched_db_row[idx_num]).strip()
+            if val and val.lower() != "nan":
+                return val
+        if key_name in matched_db_row and pd.notnull(matched_db_row[key_name]):
+            val = str(matched_db_row[key_name]).strip()
+            if val and val.lower() != "nan":
+                return val
+        return fallback
+
+    prepared_name = get_db_val(25, 'Prepared by Name', 'Onesimus Suryadi')
+    prepared_title = get_db_val(26, 'Prepared by Title', 'General Service Manager')
+    
+    reviewed_name = get_db_val(12, 'Diwakili Oleh', '')
+    reviewed_title = get_db_val(13, 'Selaku', '')
+
+    app1_name = get_db_val(27, 'Approved by 1', 'Imron Maulana / Moh Bazarul Aqhsa')
+    app1_title = get_db_val(28, 'Approved by Title 1', 'Maintenance Superintendent')
+    
+    app2_name = get_db_val(29, 'Approved by 2', '')
+    app2_title = get_db_val(30, 'Approved by Title 2', 'Field Senior Manager')
+
+    is_app2_valid = bool(app2_name and app2_name != "--- (Tidak Ada / Kosong) ---" and app2_name.lower() != "nan")
+    if is_app2_valid:
+        final_app_name = app2_name
+        final_app_title = app2_title if app2_title else "Field Senior Manager"
+    else:
+        final_app_name = app1_name if app1_name and app1_name != "--- (Tidak Ada / Kosong) ---" else "Imron Maulana / Moh Bazarul Aqhsa"
+        final_app_title = app1_title if app1_title else "Maintenance Superintendent"
+
+    is_same_person = (
+        str(reviewed_name).strip().lower() == str(final_app_name).strip().lower() and
+        str(reviewed_title).strip().lower() == str(final_app_title).strip().lower()
+    )
 
     logo1_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_1).decode()}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_1 is not None else ""
     logo2_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_2).decode()}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_2 is not None else ""
+
+    if is_same_person or not reviewed_name or str(reviewed_name).strip() == "" or str(reviewed_name).strip().lower() == "nan":
+        sig_table_html = f"""
+        <table class="sig-table">
+            <tr>
+                <td style="width: 50%; text-align: left; padding-left: 10px;">
+                    {lokasi_office}, {opname_date}<br>
+                    <b>PT Banggai Sentral Sulawesi</b><br>
+                    Prepared by,<br><br><br><br><br>
+                    <u><b>{prepared_name}</b></u><br>
+                    {prepared_title}
+                </td>
+                <td style="width: 50%; text-align: center;">
+                    <br>
+                    <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
+                    Approved by,<br><br><br><br><br>
+                    <u><b>{final_app_name}</b></u><br>
+                    {final_app_title}
+                </td>
+            </tr>
+        </table>
+        """
+    else:
+        sig_table_html = f"""
+        <table class="sig-table">
+            <tr>
+                <td style="width: 33.3%; text-align: left; padding-left: 10px;">
+                    {lokasi_office}, {opname_date}<br>
+                    <b>PT Banggai Sentral Sulawesi</b><br>
+                    Prepared by,<br><br><br><br><br>
+                    <u><b>{prepared_name}</b></u><br>
+                    {prepared_title}
+                </td>
+                <td style="width: 33.3%; text-align: center;">
+                    <br>
+                    <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
+                    Reviewed by,<br><br><br><br><br>
+                    <u><b>{reviewed_name}</b></u><br>
+                    {reviewed_title}
+                </td>
+                <td style="width: 33.3%; text-align: center;">
+                    <br>
+                    <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
+                    Approved by,<br><br><br><br><br>
+                    <u><b>{final_app_name}</b></u><br>
+                    {final_app_title}
+                </td>
+            </tr>
+        </table>
+        """
 
     html_content = f"""
     <!DOCTYPE html>
@@ -240,7 +322,7 @@ def tampilkan_opname(transaksi_list):
         <style>
             @page {{ 
                 size: A4 landscape; 
-                margin: 0mm; 
+                margin: 6mm; 
             }}
             @media print {{
                 body {{ 
@@ -249,7 +331,7 @@ def tampilkan_opname(transaksi_list):
                 }}
                 @page {{ 
                     size: A4 landscape; 
-                    margin: 0mm; 
+                    margin: 6mm; 
                 }}
                 header, footer, .no-print {{
                     display: none !important;
@@ -259,31 +341,31 @@ def tampilkan_opname(transaksi_list):
                 font-family: Arial, sans-serif; 
                 background-color: #ffffff; 
                 color: #000000; 
-                padding: 15mm; 
+                padding: 0mm; 
                 margin: 0; 
-                font-size: 10px; 
-                line-height: 1.3; 
+                font-size: 9.5px; 
+                line-height: 1.25; 
             }}
-            .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }}
+            .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 6px; }}
             .header-table td {{ border: none; vertical-align: middle; padding: 0 10px; }}
-            .title-box {{ background-color: #dbeafe; border: 1px solid #000; text-align: center; font-weight: bold; font-size: 12px; padding: 6px; margin-bottom: 15px; text-transform: uppercase; }}
-            .info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 10px; }}
-            .info-table td {{ padding: 3px 5px; border: none; }}
-            table.opname-grid {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; }}
-            table.opname-grid th, table.opname-grid td {{ border: 1px solid #000; padding: 6px 6px; font-size: 9px; vertical-align: middle; text-align: center; }}
+            .title-box {{ background-color: #dbeafe; border: 1px solid #000; text-align: center; font-weight: bold; font-size: 11px; padding: 4px; margin-bottom: 6px; text-transform: uppercase; }}
+            .info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 6px; font-size: 9.5px; }}
+            .info-table td {{ padding: 2px 4px; border: none; }}
+            table.opname-grid {{ width: 100%; border-collapse: collapse; margin-bottom: 6px; }}
+            table.opname-grid th, table.opname-grid td {{ border: 1px solid #000; padding: 4px 5px; font-size: 9px; vertical-align: middle; text-align: center; }}
             .th-header {{ background-color: #f1f5f9; font-weight: bold; text-transform: uppercase; }}
             .text-left {{ text-align: left !important; }}
             .text-right {{ text-align: right !important; }}
-            .summary-box {{ margin-top: 10px; font-size: 11px; font-weight: bold; }}
-            table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 30px; border: none; }}
-            table.sig-table td {{ border: none; vertical-align: top; font-size: 10px; padding: 5px; }}
+            .summary-box {{ margin-top: 4px; font-size: 10px; font-weight: bold; }}
+            table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; border: none; page-break-inside: avoid; }}
+            table.sig-table td {{ border: none; vertical-align: top; font-size: 9.5px; padding: 2px; }}
         </style>
     </head>
     <body>
         <table class="header-table">
             <tr>
                 <td style="width: 22%; text-align: center;">{logo1_html}</td>
-                <td style="width: 56%; text-align: center;"><h3 style="margin: 0; font-size: 12px; font-weight: bold; text-transform: uppercase;">BERITA ACARA PEKERJAAN / OPNAME</h3></td>
+                <td style="width: 56%; text-align: center;"><h3 style="margin: 0; font-size: 11px; font-weight: bold; text-transform: uppercase;">BERITA ACARA PEKERJAAN / OPNAME</h3></td>
                 <td style="width: 22%; text-align: center;">{logo2_html}</td>
             </tr>
         </table>
@@ -341,13 +423,7 @@ def tampilkan_opname(transaksi_list):
             Sisa Nilai Anggaran PO (Deviasi): Rp {sum_sisa_tot:,.2f}
         </div>
 
-        <table class="sig-table">
-            <tr>
-                <td style="width: 33%; text-align: left; padding-left: 10px;">{lokasi_office}, {opname_date}<br><b>PT Banggai Sentral Sulawesi</b><br>Prepared by,<br><br><br><br><u><b>{prepared_name}</b></u><br>{prepared_title}</td>
-                <td style="width: 34%; text-align: center;"><br><b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>Reviewed by,<br><br><br><br><u><b>{reviewed_name}</b></u><br>Maintenance Support Supervisor</td>
-                <td style="width: 33%; text-align: center;"><br><b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>Approved by,<br><br><br><br><u><b>{approved_name}</b></u><br>{field_mgr_title}</td>
-            </tr>
-        </table>
+        {sig_table_html}
     </body>
     </html>
     """

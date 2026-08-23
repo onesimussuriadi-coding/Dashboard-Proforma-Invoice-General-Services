@@ -40,7 +40,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
-    # Ambil daftar unik PI No. untuk pilihan dropdown
     seen_pi_dd = set()
     unique_pi_list = []
     for t in transaksi_list:
@@ -55,13 +54,32 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     t_data_ref = unique_pi_list[selected_idx]
     current_pi_no = str(t_data_ref.get('PI No.', '')).strip()
 
-    # --- MENARIK SELURUH BARIS MUTASI YANG MEMILIKI PI NO. YANG SAMA ---
+    st.markdown("#### ✍️ Pengaturan Tanda Tangan Dokumen")
+    col_sig1, col_sig2 = st.columns(2)
+    with col_sig1:
+        uploaded_sig_dibuat = st.file_uploader("Upload Gambar Tanda Tangan (DIBUAT OLEH)", type=["png", "jpg", "jpeg"], key="sig_dibuat")
+    with col_sig2:
+        uploaded_sig_diperiksa = st.file_uploader("Upload Gambar Tanda Tangan (DIPERIKSA)", type=["png", "jpg", "jpeg"], key="sig_diperiksa")
+
+    sig_dibuat_html = ""
+    if uploaded_sig_dibuat is not None:
+        bytes_data = uploaded_sig_dibuat.getvalue()
+        b64_sig = base64.b64encode(bytes_data).decode()
+        sig_dibuat_html = f'<div style="margin-bottom: 8px; height: 50px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{b64_sig}" style="max-height: 50px; object-fit: contain;"></div>'
+    else:
+        sig_dibuat_html = '<div style="height: 50px;"></div>'
+
+    sig_diperiksa_html = ""
+    if uploaded_sig_diperiksa is not None:
+        bytes_data_2 = uploaded_sig_diperiksa.getvalue()
+        b64_sig_2 = base64.b64encode(bytes_data_2).decode()
+        sig_diperiksa_html = f'<div style="margin-bottom: 8px; height: 50px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{b64_sig_2}" style="max-height: 50px; object-fit: contain;"></div>'
+    else:
+        sig_diperiksa_html = '<div style="height: 50px;"></div>'
+
     matching_mutasi_list = [item for item in transaksi_list if str(item.get('PI No.', '')).strip() == current_pi_no]
-    
-    # Hitung total keseluruhan harga dari semua mutasi
     grand_total = sum(float(m.get('Total Harga', 0.0)) for m in matching_mutasi_list)
 
-    # --- PENGAMBILAN DATABASE INDUK MODUL 1 ---
     try:
         from __main__ import muat_data_invoice
         saved_db_induk = muat_data_invoice()
@@ -95,7 +113,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     nomor_wcc_full = get_induk(19, 'Nomor WCC', f"{t_data_ref.get('Nomor Kontrak', '')}-BSS-WCC-2026")
     terbilang_str = terbilang(grand_total).strip() + " Rupiah"
 
-    # --- MEMBUAT BARIS TABEL HTML SECARA DINAMIS (MULTI-MUTASI) ---
     rows_html = ""
     for idx, m in enumerate(matching_mutasi_list, start=1):
         rows_html += f"""
@@ -118,24 +135,47 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     <html>
     <head>
         <meta charset="utf-8">
-        <title>Rincian Pekerjaan - PT BSS</title>
         <style>
-            @page {{ size: A4 landscape; margin: 10mm; }}
-            body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 15px; margin: 0; font-size: 10px; line-height: 1.2; }}
-            .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 12px; }}
-            .title {{ text-align: center; font-weight: bold; font-size: 13px; margin-bottom: 15px; text-transform: uppercase; text-decoration: underline; }}
-            table.info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; border: none; }}
+            @page {{ 
+                size: A4 landscape; 
+                margin: 6mm; 
+            }}
+            @media print {{
+                html, body {{
+                    width: 297mm;
+                    height: 210mm;
+                    margin: 0 !important;
+                    padding: 6mm !important;
+                    background: #fff !important;
+                    -webkit-print-color-adjust: exact;
+                }}
+                @page {{
+                    margin: 0;
+                }}
+            }}
+            body {{ 
+                font-family: Arial, sans-serif; 
+                background-color: #ffffff; 
+                color: #000000; 
+                padding: 6mm; 
+                margin: 0; 
+                font-size: 10px; 
+                line-height: 1.3; 
+            }}
+            .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }}
+            .title {{ text-align: center; font-weight: bold; font-size: 13px; margin-bottom: 12px; text-transform: uppercase; text-decoration: underline; }}
+            table.info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; border: none; }}
             table.info-table td {{ border: none; padding: 3px 5px; font-size: 10px; vertical-align: top; }}
-            .label-col {{ width: 150px; font-weight: bold; }}
+            .label-col {{ width: 140px; font-weight: bold; }}
             .colon-col {{ width: 10px; font-weight: bold; text-align: center; }}
-            table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 8px; margin-bottom: 8px; }}
-            table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 5px 8px; font-size: 9px; text-align: left; }}
+            table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 6px; margin-bottom: 8px; }}
+            table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 6px 8px; font-size: 9.5px; text-align: left; }}
             table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
-            .sign-table {{ border: none; width: 100%; margin-top: 25px; }}
-            .sign-table td {{ border: none; text-align: center; width: 50%; font-size: 9px; vertical-align: top; }}
-            .sign-title {{ font-weight: bold; font-size: 9px; text-transform: uppercase; margin-bottom: 35px; }}
-            .sign-name {{ font-weight: bold; font-size: 9px; text-decoration: underline; }}
-            .sign-pos {{ font-size: 8px; margin-top: 2px; }}
+            .sign-table {{ border: none; width: 100%; margin-top: 22px; page-break-inside: avoid; }}
+            .sign-table td {{ border: none; text-align: center; width: 50%; font-size: 9.5px; vertical-align: top; }}
+            .sign-title {{ font-weight: bold; font-size: 9.5px; text-transform: uppercase; margin-bottom: 8px; }}
+            .sign-name {{ font-weight: bold; font-size: 9.5px; text-decoration: underline; margin-top: 4px; }}
+            .sign-pos {{ font-size: 8.5px; margin-top: 2px; }}
         </style>
     </head>
     <body>
@@ -194,7 +234,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <th>Kategori</th>
                 <th>Uraian Pekerjaan</th>
                 <th>Qty</th>
-                <th>Unit</th>
+                <th>Satuan</th>
                 <th>Tanggal Mulai</th>
                 <th>Tanggal Selesai</th>
                 <th>Harga Satuan</th>
@@ -204,7 +244,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
             {rows_html}
         </table>
         
-        <table style="width: 100%; border: none; margin-top: 10px;">
+        <table style="width: 100%; border: none; margin-top: 8px;">
             <tr>
                 <td style="border: none; text-align: left; font-size: 10px; vertical-align: top; width: 60%;">
                     <b>Terbilang :</b> <i>{terbilang_str}</i>
@@ -214,17 +254,18 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 </td>
             </tr>
         </table>
-        <br>
         
         <table class="sign-table">
             <tr>
                 <td>
                     <div class="sign-title">DIBUAT OLEH</div>
+                    {sig_dibuat_html}
                     <div class="sign-name">Yanuar Wiranata / Ireine Langi</div>
                     <div class="sign-pos">Supervisor</div>
                 </td>
                 <td>
                     <div class="sign-title">DIPERIKSA</div>
+                    {sig_diperiksa_html}
                     <div class="sign-name">Onesimus Suriadi</div>
                     <div class="sign-pos">Manager General Services</div>
                 </td>
@@ -235,7 +276,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     """
 
     st.markdown('<div class="document-preview">', unsafe_allow_html=True)
-    st.components.v1.html(html_content, height=600, scrolling=True)
+    st.components.v1.html(html_content, height=580, scrolling=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)

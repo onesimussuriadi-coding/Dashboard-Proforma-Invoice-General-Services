@@ -68,7 +68,7 @@ def tampilkan_proforma_invoice(transaksi_list):
     nama_pejabat = t_data_utama.get('Penandatangan Nama', 'Onesimus Suriadi')
     jabatan_pejabat = t_data_utama.get('Penandatangan Jabatan', 'Manager General Services')
 
-    # Buat baris tabel HTML secara dinamis untuk semua item mutasi
+    # Buat baris tabel HTML secara dinamis untuk semua item mutasi (Tanpa awalan Rp pada Unit Price & Total)
     rows_html = ""
     for idx, m in enumerate(mutasi_terpilih, start=1):
         desc_text = f"<b>{m.get('Kategori', 'MONTHLY BASIS')}</b><br>{m.get('Deskripsi Pekerjaan', '-')}"
@@ -77,8 +77,6 @@ def tampilkan_proforma_invoice(transaksi_list):
         
         qty_val = float(m.get('Qty', 0.0))
         unit_val = str(m.get('Unit', 'Unit'))
-        duration_val = f"{qty_val:,.1f} {unit_val}"
-        percent_val = f"{float(m.get('Percent', 100.0))}%"
         unit_price = float(m.get('Harga Satuan', 0.0))
         total_item = float(m.get('Total Harga', 0.0))
 
@@ -88,10 +86,8 @@ def tampilkan_proforma_invoice(transaksi_list):
                 <td>{desc_text}</td>
                 <td style="text-align: center;">{qty_val:,.2f}</td>
                 <td style="text-align: center;">{unit_val}</td>
-                <td style="text-align: center; white-space: nowrap;">{duration_val}</td>
-                <td style="text-align: center;">{percent_val}</td>
-                <td style="text-align: right;">Rp {unit_price:,.2f}</td>
-                <td style="text-align: right;">Rp {total_item:,.2f}</td>
+                <td style="text-align: right;">{unit_price:,.2f}</td>
+                <td style="text-align: right;">{total_item:,.2f}</td>
             </tr>
         """
 
@@ -170,14 +166,12 @@ def tampilkan_proforma_invoice(transaksi_list):
 
         <table class="data-table">
             <tr>
-                <th>Item</th>
-                <th>Description</th>
-                <th>Qty</th>
-                <th>Unit</th>
-                <th>Duration</th>
-                <th>Percent</th>
-                <th>Unit Price<br>(IDR)</th>
-                <th>TOTAL (IDR)</th>
+                <th style="width: 6%;">Item</th>
+                <th style="width: 42%;">Description</th>
+                <th style="width: 10%;">Qty</th>
+                <th style="width: 10%;">Satuan</th>
+                <th style="width: 16%;">Unit Price<br>(IDR)</th>
+                <th style="width: 16%;">TOTAL (IDR)</th>
             </tr>
             {rows_html}
         </table>

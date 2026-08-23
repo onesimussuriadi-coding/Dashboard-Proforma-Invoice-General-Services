@@ -86,8 +86,7 @@ def tampilkan_bamp(transaksi_list):
     p2_wakil = get_induk(16, 'Diwakili Oleh (P2)', 'Ir. Ferry Tatimu')
     p2_jabatan = get_induk(17, 'Selaku (P2)', 'Direktur Utama')
 
-    # Tanggal Utama BAMP (mengambil dari item pertama atau default)
-    selected_date = st.date_input("📅 Tanggal Utama Berita Acara (BAMP):", value=date(2026, 7, 1), key="bamp_main_date")
+    selected_date = st.date_input("📅 Tanggal Utama Berita Acara (BAMP):", value=date.today(), key="bamp_main_date")
     bulan_indo = {
         1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
         7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"
@@ -97,27 +96,50 @@ def tampilkan_bamp(transaksi_list):
     st.markdown("---")
     st.markdown("#### ⚙️ Pengaturan Parameter Detail per Baris Pekerjaan BAMP")
     
-    # Session state untuk menyimpan konfigurasi opsional tiap baris item
-    if "bamp_item_configs" not in st.session_state:
-        st.session_state.bamp_item_configs = {}
+    # Inisialisasi storage session state untuk menyimpan perubahan manual per PI
+    if "bamp_saved_data" not in st.session_state:
+        st.session_state.bamp_saved_data = {}
+
+    pi_storage_key = str(selected_pi)
+    if pi_storage_key not in st.session_state.bamp_saved_data:
+        st.session_state.bamp_saved_data[pi_storage_key] = {}
 
     rows_html = ""
-    uom_options = ["Month", "Day", "AU", "Ls", "Unit", "Trip", "Jam", "Orang", "Set"]
+    uom_options = ["Month", "Day", "AU", "Ls", "Unit", "Trip", "Jam", "Orang", "Set", "Pallet", "man-days"]
 
     for idx, m in enumerate(mutasi_terpilih, start=1):
         st.markdown(f"**Item {idx}: {m.get('Kategori')} - {m.get('Deskripsi Pekerjaan')}**")
         c_b1, c_b2, c_b3, c_b4 = st.columns(4)
         
+        # Ambil tanggal mulai dari data rincian pekerjaan (Modul 1) sebagai default sinkronisasi
+        raw_tgl_mulai = m.get('Tanggal Mulai', str(date.today()))
+        try:
+            default_row_date = pd.to_datetime(raw_tgl_mulai).date()
+        except:
+            default_row_date = date.today()
+
+        saved_item_data = st.session_state.bamp_saved_data[pi_storage_key].get(idx, {})
+
         with c_b1:
-            row_date = st.date_input(f"Mulai Operasi (Item {idx})", value=date(2026, 7, 1), key=f"bamp_date_{selected_pi}_{idx}")
+            row_date = st.date_input(f"Mulai Operasi (Item {idx})", value=saved_item_data.get('date', default_row_date), key=f"bamp_date_{selected_pi}_{idx}")
         with c_b2:
-            row_qty = st.number_input(f"Jumlah / Qty (Item {idx})", min_value=0.0, value=float(m.get('Qty', 1.0)), step=1.0, format="%.2f", key=f"bamp_qty_{selected_pi}_{idx}")
+            row_qty = st.number_input(f"Jumlah / Qty (Item {idx})", min_value=0.0, value=float(saved_item_data.get('qty', m.get('Qty', 1.0))), step=1.0, format="%.2f", key=f"bamp_qty_{selected_pi}_{idx}")
         with c_b3:
-            default_uom = str(m.get('Unit', 'Day')).strip()
-            default_idx = uom_options.index(default_uom) if default_uom in uom_options else 1
+            default_uom = str(saved_item_data.get('uom', m.get('Unit', 'Day'))).strip()
+            if default_uom not in uom_options:
+                uom_options.append(default_uom)
+            default_idx = uom_options.index(default_uom) if default_uom in uom_options else 0
             row_uom = st.selectbox(f"Satuan (Item {idx})", uom_options, index=default_idx, key=f"bamp_uom_{selected_pi}_{idx}")
         with c_b4:
-            row_catatan = st.text_input(f"Catatan (Item {idx})", value="", placeholder="Opsional", key=f"bamp_cat_{selected_pi}_{idx}")
+            row_catatan = st.text_input(f"Catatan (Item {idx})", value=saved_item_data.get('catatan', ''), placeholder="Opsional", key=f"bamp_cat_{selected_pi}_{idx}")
+
+        # Simpan pembaruan ke session state secara otomatis
+        st.session_state.bamp_saved_data[pi_storage_key][idx] = {
+            'date': row_date,
+            'qty': row_qty,
+            'uom': row_uom,
+            'catatan': row_catatan
+        }
 
         row_date_str = f"{row_date.day:02d} {bulan_indo[row_date.month]} {row_date.year}"
         catatan_row_final = f"Mulai Operasi Tanggal {row_date_str}"

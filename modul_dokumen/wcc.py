@@ -55,7 +55,6 @@ def tampilkan_wcc(transaksi_list):
     with col_sel2:
         lokasi_office = st.text_input("📍 Lokasi Office (Tempat WCC):", value="Paisubololi", key="wcc_lok_office")
 
-    # Saring seluruh baris mutasi berdasarkan PI yang dipilih
     mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == str(selected_pi).strip()]
     
     if not mutasi_terpilih:
@@ -63,8 +62,6 @@ def tampilkan_wcc(transaksi_list):
         return
 
     t_data_utama = mutasi_terpilih[0]
-    
-    # Hitung Grand Total dari seluruh baris mutasi terpilih
     grand_total_wcc = sum([float(m.get('Total Harga', 0.0)) for m in mutasi_terpilih])
     terbilang_str = terbilang(grand_total_wcc).strip() + " Rupiah"
 
@@ -125,21 +122,95 @@ def tampilkan_wcc(transaksi_list):
     progress_val = str(matched_db_row.get('Progress Pekerjaan', '100%'))
     progress_desc = f"[&#10003;] {progress_val} - Penyelesaian Pekerjaan"
 
-    prepared_name = str(matched_db_row.get('Prepared by Name', 'Onesimus Suryadi'))
-    prepared_title = str(matched_db_row.get('Prepared by Title', 'General Service Manager'))
-    reviewed_name = str(matched_db_row.get('Diwakili Oleh', 'Ronny Dwi Purnomo / Rafik Hidayat'))
-    approved_name = str(matched_db_row.get('Pejabat berwenang', 'Imron Maulana / Moh Bazarul Aqhsa'))
-    field_mgr_title = str(matched_db_row.get('Jabatan Field Manager', 'Field Senior Manager'))
+    def get_db_val(idx_num, key_name, fallback=""):
+        if idx_num in matched_db_row and pd.notnull(matched_db_row[idx_num]):
+            val = str(matched_db_row[idx_num]).strip()
+            if val and val.lower() != "nan":
+                return val
+        if key_name in matched_db_row and pd.notnull(matched_db_row[key_name]):
+            val = str(matched_db_row[key_name]).strip()
+            if val and val.lower() != "nan":
+                return val
+        return fallback
 
-    logo1_html = ""
-    if st.session_state.persisted_logo_1 is not None:
-        b64_l1 = base64.b64encode(st.session_state.persisted_logo_1).decode()
-        logo1_html = f'<img src="data:image/png;base64,{b64_l1}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">'
+    prepared_name = get_db_val(25, 'Prepared by Name', 'Onesimus Suryadi')
+    prepared_title = get_db_val(26, 'Prepared by Title', 'General Service Manager')
+    
+    reviewed_name = get_db_val(12, 'Diwakili Oleh', '')
+    reviewed_title = get_db_val(13, 'Selaku', '')
 
-    logo2_html = ""
-    if st.session_state.persisted_logo_2 is not None:
-        b64_l2 = base64.b64encode(st.session_state.persisted_logo_2).decode()
-        logo2_html = f'<img src="data:image/png;base64,{b64_l2}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">'
+    app1_name = get_db_val(27, 'Approved by 1', 'Imron Maulana / Moh Bazarul Aqhsa')
+    app1_title = get_db_val(28, 'Approved by Title 1', 'Maintenance Superintendent')
+    
+    app2_name = get_db_val(29, 'Approved by 2', '')
+    app2_title = get_db_val(30, 'Approved by Title 2', 'Field Senior Manager')
+
+    is_app2_valid = bool(app2_name and app2_name != "--- (Tidak Ada / Kosong) ---" and app2_name.lower() != "nan")
+    if is_app2_valid:
+        final_app_name = app2_name
+        final_app_title = app2_title if app2_title else "Field Senior Manager"
+    else:
+        final_app_name = app1_name if app1_name and app1_name != "--- (Tidak Ada / Kosong) ---" else "Imron Maulana / Moh Bazarul Aqhsa"
+        final_app_title = app1_title if app1_title else "Maintenance Superintendent"
+
+    # --- LOGIKA OTOMATIS: CEK KESAMAAN REVIEWER & APPROVER ---
+    is_same_person = (
+        str(reviewed_name).strip().lower() == str(final_app_name).strip().lower() and
+        str(reviewed_title).strip().lower() == str(final_app_title).strip().lower()
+    )
+
+    logo1_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_1).decode()}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_1 is not None else ""
+    logo2_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_2).decode()}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_2 is not None else ""
+
+    if is_same_person or not reviewed_name or str(reviewed_name).strip() == "" or str(reviewed_name).strip().lower() == "nan":
+        sig_table_html = f"""
+        <table class="sig-table">
+            <tr>
+                <td style="width: 50%; text-align: left; padding-left: 10px;">
+                    {lokasi_office}, {wcc_date}<br>
+                    <b>PT Banggai Sentral Sulawesi</b><br>
+                    Prepared by,<br><br><br><br>
+                    <u><b>{prepared_name}</b></u><br>
+                    {prepared_title}
+                </td>
+                <td style="width: 50%; text-align: center;">
+                    <br>
+                    <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
+                    Approved by,<br><br><br><br>
+                    <u><b>{final_app_name}</b></u><br>
+                    {final_app_title}
+                </td>
+            </tr>
+        </table>
+        """
+    else:
+        sig_table_html = f"""
+        <table class="sig-table">
+            <tr>
+                <td style="width: 33.3%; text-align: left; padding-left: 10px;">
+                    {lokasi_office}, {wcc_date}<br>
+                    <b>PT Banggai Sentral Sulawesi</b><br>
+                    Prepared by,<br><br><br><br>
+                    <u><b>{prepared_name}</b></u><br>
+                    {prepared_title}
+                </td>
+                <td style="width: 33.3%; text-align: center;">
+                    <br>
+                    <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
+                    Reviewed by,<br><br><br><br>
+                    <u><b>{reviewed_name}</b></u><br>
+                    {reviewed_title}
+                </td>
+                <td style="width: 33.3%; text-align: center;">
+                    <br>
+                    <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
+                    Approved by,<br><br><br><br>
+                    <u><b>{final_app_name}</b></u><br>
+                    {final_app_title}
+                </td>
+            </tr>
+        </table>
+        """
 
     html_content = f"""
     <!DOCTYPE html>
@@ -148,37 +219,23 @@ def tampilkan_wcc(transaksi_list):
         <meta charset="utf-8">
         <title>Work Completion Certificate - PT BSS</title>
         <style>
-            @page {{
-                size: A4;
-                margin: 10mm;
-            }}
+            @page {{ size: A4; margin: 10mm; }}
             @media print {{
-                body {{
-                    -webkit-print-color-adjust: exact;
-                }}
-                @page {{
-                    margin: 0;
-                }}
-                body {{
-                    margin: 10mm;
-                }}
-                header, footer, .no-print {{
-                    display: none !important;
-                }}
+                body {{ -webkit-print-color-adjust: exact; }}
+                @page {{ margin: 0; }}
+                body {{ margin: 10mm; }}
+                header, footer, .no-print {{ display: none !important; }}
             }}
             body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 25px; margin: 0; font-size: 11px; line-height: 1.4; }}
             .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }}
             .header-table td {{ border: none; vertical-align: middle; padding: 0 10px; }}
-            
             .title-box {{ background-color: #dbeafe; border: 1px solid #000; text-align: center; font-weight: bold; font-size: 13px; padding: 6px; margin-bottom: 4px; text-transform: uppercase; }}
             .cert-box {{ background-color: #f1f5f9; border: 1px solid #000; text-align: center; font-weight: bold; font-size: 12px; padding: 6px; margin-bottom: 20px; }}
-            
             table.grid-table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; }}
             table.grid-table th, table.grid-table td {{ border: 1px solid #000; padding: 8px 10px; font-size: 11px; vertical-align: middle; }}
             .col-label {{ width: 25%; font-weight: bold; background-color: #fafafa; }}
             .col-colon {{ width: 3%; text-align: center; font-weight: bold; }}
             .col-val {{ width: 72%; }}
-            
             .content-text {{ margin-bottom: 15px; font-size: 11px; }}
             table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 30px; border: none; }}
             table.sig-table td {{ border: none; vertical-align: top; font-size: 11px; padding: 5px; }}
@@ -195,78 +252,18 @@ def tampilkan_wcc(transaksi_list):
                 <td style="width: 22%; text-align: center;">{logo2_html}</td>
             </tr>
         </table>
-
         <div class="title-box">WORK COMPLETION CERTIFICATE</div>
         <div class="cert-box">CERTIFICATE NO : {wcc_no}</div>
-
-        <div class="content-text">
-            On the date of <b>{wcc_date}</b> we on behalf of <b>PT Banggai Sentral Sulawesi</b> have completed the following job:
-        </div>
-
+        <div class="content-text">On the date of <b>{wcc_date}</b> we on behalf of <b>PT Banggai Sentral Sulawesi</b> have completed the following job:</div>
         <table class="grid-table">
-            <tr>
-                <td class="col-label">WORK ORDER NUMBER</td>
-                <td class="col-colon">:</td>
-                <td class="col-val"><b>{wo_no}</b></td>
-            </tr>
-            <tr>
-                <td class="col-label">WORK ORDER TITLE</td>
-                <td class="col-colon">:</td>
-                <td class="col-val">{wo_title}</td>
-            </tr>
-            <tr>
-                <td class="col-label">CTR NUMBER</td>
-                <td class="col-colon">:</td>
-                <td class="col-val"><b>{ctr_no}</b></td>
-            </tr>
-            <tr>
-                <td class="col-label">DESCRIPTION</td>
-                <td class="col-colon">:</td>
-                <td class="col-val">
-                    <table style="width:100%; border:none;">
-                        <tr>
-                            <td style="border:none; padding:0; width:65%;">{progress_desc}</td>
-                            <td style="border:none; padding:0; width:35%; text-align:right; font-weight:bold;">Rp {grand_total_wcc:,.2f}</td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-            <tr>
-                <td class="col-label">AMOUNT TOTAL</td>
-                <td class="col-colon">:</td>
-                <td class="col-val"><b>{terbilang_str}</b></td>
-            </tr>
+            <tr><td class="col-label">WORK ORDER NUMBER</td><td class="col-colon">:</td><td class="col-val"><b>{wo_no}</b></td></tr>
+            <tr><td class="col-label">WORK ORDER TITLE</td><td class="col-colon">:</td><td class="col-val">{wo_title}</td></tr>
+            <tr><td class="col-label">CTR NUMBER</td><td class="col-colon">:</td><td class="col-val"><b>{ctr_no}</b></td></tr>
+            <tr><td class="col-label">DESCRIPTION</td><td class="col-colon">:</td><td class="col-val"><table style="width:100%; border:none;"><tr><td style="border:none; padding:0; width:65%;">{progress_desc}</td><td style="border:none; padding:0; width:35%; text-align:right; font-weight:bold;">Rp {grand_total_wcc:,.2f}</td></tr></table></td></tr>
+            <tr><td class="col-label">AMOUNT TOTAL</td><td class="col-colon">:</td><td class="col-val"><b>{terbilang_str}</b></td></tr>
         </table>
-
-        <div class="content-text">
-            The work has been properly completed as per requirement, witnessed and accepted by <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b>.
-        </div>
-
-        <table class="sig-table">
-            <tr>
-                <td style="width: 33%; text-align: left; padding-left: 10px;">
-                    {lokasi_office}, {wcc_date}<br>
-                    <b>PT Banggai Sentral Sulawesi</b><br>
-                    Prepared by,<br><br><br><br>
-                    <u><b>{prepared_name}</b></u><br>
-                    {prepared_title}
-                </td>
-                <td style="width: 34%; text-align: center;">
-                    <br>
-                    <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
-                    Reviewed by,<br><br><br><br>
-                    <u><b>{reviewed_name}</b></u><br>
-                    Maintenance Support Supervisor
-                </td>
-                <td style="width: 33%; text-align: center;">
-                    <br>
-                    <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
-                    Approved by,<br><br><br><br>
-                    <u><b>{approved_name}</b></u><br>
-                    {field_mgr_title}
-                </td>
-            </tr>
-        </table>
+        <div class="content-text">The work has been properly completed as per requirement, witnessed and accepted by <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b>.</div>
+        {sig_table_html}
     </body>
     </html>
     """
@@ -276,28 +273,10 @@ def tampilkan_wcc(transaksi_list):
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
         b64_html = base64.b64encode(html_content.encode()).decode()
-        print_script = f"""
-            <script>
-                function printDoc() {{
-                    var win = window.open('about:blank', '_blank');
-                    win.document.open();
-                    win.document.write(atob("{b64_html}"));
-                    win.document.close();
-                    win.focus();
-                    setTimeout(function(){{ win.print(); }}, 500);
-                }}
-            </script>
-            <button onclick="printDoc()" style="width: 100%; background-color: #10b981; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-                🖨️ Cetak / Print Dokumen WCC (Klik Disini)
-            </button>
-        """
-        st.components.v1.html(print_script, height=50)
-
+        st.components.v1.html(f'<script>function printDoc(){{var win=window.open("about:blank","_blank");win.document.write(atob("{b64_html}"));win.document.close();win.print();}}</script><button onclick="printDoc()" style="width: 100%; background-color: #10b981; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">🖨️ Cetak Dokumen WCC</button>', height=50)
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
-        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="WCC_{str(selected_pi).replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File WCC</button></a>'
-        st.markdown(download_link, unsafe_allow_html=True)
+        st.markdown(f'<a href="data:text/html;base64,{b64_pdf}" download="WCC_{str(selected_pi).replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File WCC</button></a>', unsafe_allow_html=True)
