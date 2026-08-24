@@ -49,30 +49,55 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
             unique_pi_list.append(t)
 
     pilihan_tx = [f"PI: {t.get('PI No.', '')} | Kontrak: {t.get('Nomor Kontrak', '')}" for t in unique_pi_list]
-    selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x])
+    
+    # Inisialisasi penyimpanan session state
+    if "rincian_saved_data" not in st.session_state:
+        st.session_state.rincian_saved_data = {}
+
+    # Dropdown di luar form agar reaktif (langsung mengubah data saat dipilih)
+    selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x], key="rincian_sel_idx")
     
     t_data_ref = unique_pi_list[selected_idx]
     current_pi_no = str(t_data_ref.get('PI No.', '')).strip()
 
-    st.markdown("#### ✍️ Pengaturan Tanda Tangan Dokumen")
-    col_sig1, col_sig2 = st.columns(2)
-    with col_sig1:
-        uploaded_sig_dibuat = st.file_uploader("Upload Gambar Tanda Tangan (DIBUAT OLEH)", type=["png", "jpg", "jpeg"], key="sig_dibuat")
-    with col_sig2:
-        uploaded_sig_diperiksa = st.file_uploader("Upload Gambar Tanda Tangan (DIPERIKSA)", type=["png", "jpg", "jpeg"], key="sig_diperiksa")
+    # Form khusus untuk pengaturan tanda tangan dan tombol simpan
+    with st.form(key=f"form_rincian_sig_{current_pi_no}"):
+        st.markdown("#### ✍️ Pengaturan Tanda Tangan Dokumen")
+        col_sig1, col_sig2 = st.columns(2)
+        with col_sig1:
+            uploaded_sig_dibuat = st.file_uploader("Upload Gambar Tanda Tangan (DIBUAT OLEH)", type=["png", "jpg", "jpeg"], key="sig_dibuat")
+        with col_sig2:
+            uploaded_sig_diperiksa = st.file_uploader("Upload Gambar Tanda Tangan (DIPERIKSA)", type=["png", "jpg", "jpeg"], key="sig_diperiksa")
+
+        submit_save_rincian = st.form_submit_button("💾 Simpan & Kunci Dokumen Rincian Pekerjaan Ini", type="primary")
+        if submit_save_rincian:
+            st.session_state.rincian_saved_data[current_pi_no] = {
+                'sig_dibuat': uploaded_sig_dibuat.getvalue() if uploaded_sig_dibuat is not None else None,
+                'sig_diperiksa': uploaded_sig_diperiksa.getvalue() if uploaded_sig_diperiksa is not None else None
+            }
+            st.success(f"✅ Data rincian pekerjaan untuk PI [{current_pi_no}] berhasil disimpan dan dikunci!")
+
+    # Ambil data dari penyimpanan session state jika ada
+    saved_rincian_item = st.session_state.rincian_saved_data.get(current_pi_no, {})
+    
+    sig_dibuat_bytes = saved_rincian_item.get('sig_dibuat', None)
+    if uploaded_sig_dibuat is not None:
+        sig_dibuat_bytes = uploaded_sig_dibuat.getvalue()
+
+    sig_diperiksa_bytes = saved_rincian_item.get('sig_diperiksa', None)
+    if uploaded_sig_diperiksa is not None:
+        sig_diperiksa_bytes = uploaded_sig_diperiksa.getvalue()
 
     sig_dibuat_html = ""
-    if uploaded_sig_dibuat is not None:
-        bytes_data = uploaded_sig_dibuat.getvalue()
-        b64_sig = base64.b64encode(bytes_data).decode()
+    if sig_dibuat_bytes is not None:
+        b64_sig = base64.b64encode(sig_dibuat_bytes).decode()
         sig_dibuat_html = f'<div style="margin-bottom: 8px; height: 50px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{b64_sig}" style="max-height: 50px; object-fit: contain;"></div>'
     else:
         sig_dibuat_html = '<div style="height: 50px;"></div>'
 
     sig_diperiksa_html = ""
-    if uploaded_sig_diperiksa is not None:
-        bytes_data_2 = uploaded_sig_diperiksa.getvalue()
-        b64_sig_2 = base64.b64encode(bytes_data_2).decode()
+    if sig_diperiksa_bytes is not None:
+        b64_sig_2 = base64.b64encode(sig_diperiksa_bytes).decode()
         sig_diperiksa_html = f'<div style="margin-bottom: 8px; height: 50px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{b64_sig_2}" style="max-height: 50px; object-fit: contain;"></div>'
     else:
         sig_diperiksa_html = '<div style="height: 50px;"></div>'
@@ -162,16 +187,29 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 font-size: 10px; 
                 line-height: 1.3; 
             }}
-            .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }}
+            .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 6mm; margin-bottom: 10px; }}
             .title {{ text-align: center; font-weight: bold; font-size: 13px; margin-bottom: 12px; text-transform: uppercase; text-decoration: underline; }}
             table.info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; border: none; }}
             table.info-table td {{ border: none; padding: 3px 5px; font-size: 10px; vertical-align: top; }}
             .label-col {{ width: 140px; font-weight: bold; }}
             .colon-col {{ width: 10px; font-weight: bold; text-align: center; }}
-            table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 6px; margin-bottom: 8px; }}
+            table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 6mm; margin-bottom: 0px; }}
             table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 6px 8px; font-size: 9.5px; text-align: left; }}
-            table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
-            .sign-table {{ border: none; width: 100%; margin-top: 22px; page-break-inside: avoid; }}
+            table.data-table th {{ background-color: #f1f5f9; text-align: center; vertical-align: middle; }}
+            
+            .total-row td {{
+                font-weight: bold;
+                background-color: #f8fafc;
+                font-size: 10.5px;
+            }}
+            
+            .terbilang-box {{
+                margin-top: 8px;
+                margin-bottom: 15px;
+                font-size: 10px;
+            }}
+
+            .sign-table {{ border: none; width: 100%; margin-top: 15px; page-break-inside: avoid; }}
             .sign-table td {{ border: none; text-align: center; width: 50%; font-size: 9.5px; vertical-align: top; }}
             .sign-title {{ font-weight: bold; font-size: 9.5px; text-transform: uppercase; margin-bottom: 8px; }}
             .sign-name {{ font-weight: bold; font-size: 9.5px; text-decoration: underline; margin-top: 4px; }}
@@ -237,23 +275,21 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <th>Satuan</th>
                 <th>Tanggal Mulai</th>
                 <th>Tanggal Selesai</th>
-                <th>Harga Satuan</th>
-                <th>Total Harga</th>
+                <th>Harga Satuan<br><span style="font-size: 8px; font-weight: normal;">(IDR)</span></th>
+                <th>Total Harga<br><span style="font-size: 8px; font-weight: normal;">(IDR)</span></th>
                 <th>Keterangan</th>
             </tr>
             {rows_html}
-        </table>
-        
-        <table style="width: 100%; border: none; margin-top: 8px;">
-            <tr>
-                <td style="border: none; text-align: left; font-size: 10px; vertical-align: top; width: 60%;">
-                    <b>Terbilang :</b> <i>{terbilang_str}</i>
-                </td>
-                <td style="border: none; text-align: right; font-weight: bold; font-size: 11px; width: 40%; vertical-align: top;">
-                    TOTAL TAGIHAN: Rp {grand_total:,.2f}
-                </td>
+            <tr class="total-row">
+                <td colspan="8" style="text-align: right; text-transform: uppercase;">TOTAL TAGIHAN :</td>
+                <td style="text-align: right;">{grand_total:,.2f}</td>
+                <td></td>
             </tr>
         </table>
+        
+        <div class="terbilang-box">
+            <b>Terbilang :</b> <i>{terbilang_str}</i>
+        </div>
         
         <table class="sign-table">
             <tr>
@@ -302,5 +338,5 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
 
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
-        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="Rincian_Pekerjaan_{current_pi_no.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download Dokumen</button></a>'
+        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="Rincian_Pekerjaan_{current_pi_no.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download Dokumen</button></a>'
         st.markdown(download_link, unsafe_allow_html=True)

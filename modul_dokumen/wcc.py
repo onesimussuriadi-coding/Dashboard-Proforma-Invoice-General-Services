@@ -49,11 +49,39 @@ def tampilkan_wcc(transaksi_list):
             seen_pi_dd.add(pi_key)
             unique_pi_list.append(pi_key)
 
-    col_sel1, col_sel2 = st.columns([2, 1])
+    # Inisialisasi penyimpanan session state khusus WCC
+    if "wcc_saved_data" not in st.session_state:
+        st.session_state.wcc_saved_data = {}
+
+    col_sel1 = st.columns([1])[0]
     with col_sel1:
         selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list, key="wcc_sel_pi")
-    with col_sel2:
-        lokasi_office = st.text_input("📍 Lokasi Office (Tempat WCC):", value="Paisubololi", key="wcc_lok_office")
+
+    pi_storage_key = str(selected_pi).strip()
+
+    # Inisialisasi default session state untuk PI terpilih jika belum ada
+    if pi_storage_key not in st.session_state.wcc_saved_data:
+        st.session_state.wcc_saved_data[pi_storage_key] = {
+            'lokasi': "Paisubololi"
+        }
+
+    saved_wcc = st.session_state.wcc_saved_data[pi_storage_key]
+
+    # Form khusus tombol save / simpan dokumen WCC beserta input lokasi yang terkunci
+    with st.form(key=f"form_wcc_save_{pi_storage_key}"):
+        lokasi_office = st.text_input("📍 Lokasi Office (Tempat WCC):", value=str(saved_wcc.get('lokasi', 'Paisubololi')), key=f"wcc_lok_office_{pi_storage_key}")
+        
+        st.markdown(f"**Konfirmasi Dokumen WCC (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi.")
+        submit_save_wcc = st.form_submit_button("💾 Simpan & Kunci Dokumen WCC Ini", type="primary")
+        
+        if submit_save_wcc:
+            st.session_state.wcc_saved_data[pi_storage_key] = {
+                'lokasi': lokasi_office
+            }
+            st.success(f"✅ Dokumen WCC untuk PI [{selected_pi}] berhasil disimpan dan dikunci!")
+
+    # Ambil nilai lokasi aktif yang sudah tersimpan/terkunci
+    active_lokasi = st.session_state.wcc_saved_data[pi_storage_key].get('lokasi', 'Paisubololi')
 
     mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == str(selected_pi).strip()]
     
@@ -153,7 +181,6 @@ def tampilkan_wcc(transaksi_list):
         final_app_name = app1_name if app1_name and app1_name != "--- (Tidak Ada / Kosong) ---" else "Imron Maulana / Moh Bazarul Aqhsa"
         final_app_title = app1_title if app1_title else "Maintenance Superintendent"
 
-    # --- LOGIKA OTOMATIS: CEK KESAMAAN REVIEWER & APPROVER ---
     is_same_person = (
         str(reviewed_name).strip().lower() == str(final_app_name).strip().lower() and
         str(reviewed_title).strip().lower() == str(final_app_title).strip().lower()
@@ -167,7 +194,7 @@ def tampilkan_wcc(transaksi_list):
         <table class="sig-table">
             <tr>
                 <td style="width: 50%; text-align: left; padding-left: 10px;">
-                    {lokasi_office}, {wcc_date}<br>
+                    {active_lokasi}, {wcc_date}<br>
                     <b>PT Banggai Sentral Sulawesi</b><br>
                     Prepared by,<br><br><br><br>
                     <u><b>{prepared_name}</b></u><br>
@@ -188,7 +215,7 @@ def tampilkan_wcc(transaksi_list):
         <table class="sig-table">
             <tr>
                 <td style="width: 33.3%; text-align: left; padding-left: 10px;">
-                    {lokasi_office}, {wcc_date}<br>
+                    {active_lokasi}, {wcc_date}<br>
                     <b>PT Banggai Sentral Sulawesi</b><br>
                     Prepared by,<br><br><br><br>
                     <u><b>{prepared_name}</b></u><br>

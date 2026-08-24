@@ -22,21 +22,131 @@ def tampilkan_bamp(transaksi_list):
             seen_pi_dd.add(pi_key)
             unique_pi_list.append(pi_key)
 
-    selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list)
+    # Inisialisasi penyimpanan session state khusus BAMP
+    if "bamp_saved_data" not in st.session_state:
+        st.session_state.bamp_saved_data = {}
+
+    selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list, key="bamp_sel_pi")
     
-    # Saring seluruh mutasi berdasarkan PI yang dipilih
-    mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == str(selected_pi).strip()]
+    pi_storage_key = str(selected_pi).strip()
+    if pi_storage_key not in st.session_state.bamp_saved_data:
+        st.session_state.bamp_saved_data[pi_storage_key] = {
+            'lokasi': "Luwuk",
+            'main_date': date.today(),
+            'items': {}
+        }
+
+    saved_global = st.session_state.bamp_saved_data[pi_storage_key]
+
+    mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == pi_storage_key]
     
     if not mutasi_terpilih:
         st.warning("⚠️ Tidak ada item mutasi ditemukan untuk PI ini.")
         return
 
     t_data_utama = mutasi_terpilih[0]
-    current_pi_no = str(selected_pi).strip().lower()
+    current_pi_no = pi_storage_key.lower()
 
     col_sel1, col_sel2 = st.columns([2, 1])
     with col_sel2:
-        lokasi_office = st.text_input("📍 Lokasi Office (Tempat BAMP):", value="Luwuk", key="bamp_lokasi")
+        lokasi_office = st.text_input("📍 Lokasi Office (Tempat BAMP):", value=str(saved_global.get('lokasi', 'Luwuk')), key=f"bamp_lokasi_{pi_storage_key}")
+
+    selected_date = st.date_input("📅 Tanggal Utama Berita Acara (BAMP):", value=saved_global.get('main_date', date.today()), key=f"bamp_main_date_{pi_storage_key}")
+    
+    bulan_indo = {
+        1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
+        7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+    }
+    bamp_date = f"{selected_date.day:02d} {bulan_indo[selected_date.month]} {selected_date.year}"
+
+    st.markdown("---")
+    st.markdown("#### ⚙️ Pengaturan Parameter Detail & Catatan Fleksibel per Baris Pekerjaan BAMP")
+
+    uom_options = ["Month", "Day", "AU", "Ls", "Unit", "Trip", "Jam", "Orang", "Set", "Pallet", "man-days"]
+    rows_html = ""
+    temp_items_storage = {}
+
+    for idx, m in enumerate(mutasi_terpilih, start=1):
+        st.markdown(f"**Item {idx}: {m.get('Kategori')} - {m.get('Deskripsi Pekerjaan')}**")
+        c_b1, c_b2, c_b3, c_b4 = st.columns(4)
+        
+        raw_tgl_mulai = m.get('Tanggal Mulai', str(date.today()))
+        try:
+            default_row_date = pd.to_datetime(raw_tgl_mulai).date()
+        except:
+            default_row_date = date.today()
+
+        saved_item_data = saved_global.get('items', {}).get(idx, {})
+
+        with c_b1:
+            row_date = st.date_input(f"Tanggal Efektif / Mulai (Item {idx})", value=saved_item_data.get('date', default_row_date), key=f"bamp_date_{pi_storage_key}_{idx}")
+        with c_b2:
+            row_qty = st.number_input(f"Jumlah / Qty (Item {idx})", min_value=0.0, value=float(saved_item_data.get('qty', m.get('Qty', 1.0))), step=1.0, format="%.2f", key=f"bamp_qty_{pi_storage_key}_{idx}")
+        with c_b3:
+            default_uom = str(saved_item_data.get('uom', m.get('Unit', 'Day'))).strip()
+            if default_uom not in uom_options:
+                uom_options.append(default_uom)
+            default_idx = uom_options.index(default_uom) if default_uom in uom_options else 0
+            row_uom = st.selectbox(f"Satuan (Item {idx})", uom_options, index=default_idx, key=f"bamp_uom_{pi_storage_key}_{idx}")
+        with c_b4:
+            row_catatan = st.text_input(f"Catatan Bebas / Fleksibel (Item {idx})", value=saved_item_data.get('catatan', ''), placeholder="Contoh: Mulai Efektif", key=f"bamp_cat_{pi_storage_key}_{idx}")
+
+        temp_items_storage[idx] = {
+            'date': row_date,
+            'qty': row_qty,
+            'uom': row_uom,
+            'catatan': row_catatan
+        }
+
+        row_date_str = f"{row_date.day:02d} {bulan_indo[row_date.month]} {row_date.year}"
+        
+        if row_catatan.strip():
+            catatan_row_final = row_catatan.strip()
+        else:
+            catatan_row_final = f"Mulai Berlaku Tanggal {row_date_str}"
+
+        kategori_m = str(m.get('Kategori', '')).strip()
+        deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
+        desc_final_m = f"<b>{kategori_m}</b><br>{deskripsi_m}" if kategori_m else deskripsi_m
+
+        rows_html += f"""
+            <tr>
+                <td style="text-align: center;">{idx}</td>
+                <td style="text-align: left;">{desc_final_m}</td>
+                <td style="text-align: center;">{row_qty:.2f}</td>
+                <td style="text-align: center;">{row_uom}</td>
+                <td style="text-align: center;"><b>{catatan_row_final}</b></td>
+            </tr>
+        """
+        st.markdown("<br>", unsafe_allow_html=True)
+
+    # Form khusus tombol save / simpan dokumen BAMP
+    with st.form(key=f"form_bamp_save_{pi_storage_key}"):
+        st.markdown(f"**Konfirmasi Dokumen BAMP (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi.")
+        submit_save_bamp = st.form_submit_button("💾 Simpan & Kunci Dokumen BAMP Ini", type="primary")
+        if submit_save_bamp:
+            st.session_state.bamp_saved_data[pi_storage_key] = {
+                'lokasi': lokasi_office,
+                'main_date': selected_date,
+                'items': temp_items_storage
+            }
+            st.success(f"✅ Dokumen BAMP untuk PI [{selected_pi}] berhasil disimpan dan dikunci!")
+
+    if 'persisted_logo_1' not in st.session_state: st.session_state.persisted_logo_1 = None
+    if 'persisted_logo_2' not in st.session_state: st.session_state.persisted_logo_2 = None
+
+    st.markdown("---")
+    st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen BAMP")
+    c_log1, c_log2 = st.columns(2)
+    with c_log1:
+        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama", type=["png", "jpg", "jpeg"], key="logo_bamp_1")
+        if uploaded_logo_1 is not None: st.session_state.persisted_logo_1 = uploaded_logo_1.getvalue()
+    with c_log2:
+        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua", type=["png", "jpg", "jpeg"], key="logo_bamp_2")
+        if uploaded_logo_2 is not None: st.session_state.persisted_logo_2 = uploaded_logo_2.getvalue()
+
+    logo1_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_1).decode()}" style="max-height: 42px; max-width: 110px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_1 is not None else ""
+    logo2_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_2).decode()}" style="max-height: 42px; max-width: 110px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_2 is not None else ""
 
     # --- PENGAMBILAN DATABASE INDUK MODUL 1 ---
     try:
@@ -85,99 +195,6 @@ def tampilkan_bamp(transaksi_list):
     p2_alamat = get_induk(15, 'Alamat Pihak Kedua', 'Jl. Urip Sumoharjo No. 53, Luwuk, Kabupaten Banggai, Provinsi Sulawesi Tengah (94715), Indonesia')
     p2_wakil = get_induk(16, 'Diwakili Oleh (P2)', 'Ir. Ferry Tatimu')
     p2_jabatan = get_induk(17, 'Selaku (P2)', 'Direktur Utama')
-
-    selected_date = st.date_input("📅 Tanggal Utama Berita Acara (BAMP):", value=date.today(), key="bamp_main_date")
-    bulan_indo = {
-        1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
-        7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"
-    }
-    bamp_date = f"{selected_date.day:02d} {bulan_indo[selected_date.month]} {selected_date.year}"
-
-    st.markdown("---")
-    st.markdown("#### ⚙️ Pengaturan Parameter Detail per Baris Pekerjaan BAMP")
-    
-    # Inisialisasi storage session state untuk menyimpan perubahan manual per PI
-    if "bamp_saved_data" not in st.session_state:
-        st.session_state.bamp_saved_data = {}
-
-    pi_storage_key = str(selected_pi)
-    if pi_storage_key not in st.session_state.bamp_saved_data:
-        st.session_state.bamp_saved_data[pi_storage_key] = {}
-
-    rows_html = ""
-    uom_options = ["Month", "Day", "AU", "Ls", "Unit", "Trip", "Jam", "Orang", "Set", "Pallet", "man-days"]
-
-    for idx, m in enumerate(mutasi_terpilih, start=1):
-        st.markdown(f"**Item {idx}: {m.get('Kategori')} - {m.get('Deskripsi Pekerjaan')}**")
-        c_b1, c_b2, c_b3, c_b4 = st.columns(4)
-        
-        # Ambil tanggal mulai dari data rincian pekerjaan (Modul 1) sebagai default sinkronisasi
-        raw_tgl_mulai = m.get('Tanggal Mulai', str(date.today()))
-        try:
-            default_row_date = pd.to_datetime(raw_tgl_mulai).date()
-        except:
-            default_row_date = date.today()
-
-        saved_item_data = st.session_state.bamp_saved_data[pi_storage_key].get(idx, {})
-
-        with c_b1:
-            row_date = st.date_input(f"Mulai Operasi (Item {idx})", value=saved_item_data.get('date', default_row_date), key=f"bamp_date_{selected_pi}_{idx}")
-        with c_b2:
-            row_qty = st.number_input(f"Jumlah / Qty (Item {idx})", min_value=0.0, value=float(saved_item_data.get('qty', m.get('Qty', 1.0))), step=1.0, format="%.2f", key=f"bamp_qty_{selected_pi}_{idx}")
-        with c_b3:
-            default_uom = str(saved_item_data.get('uom', m.get('Unit', 'Day'))).strip()
-            if default_uom not in uom_options:
-                uom_options.append(default_uom)
-            default_idx = uom_options.index(default_uom) if default_uom in uom_options else 0
-            row_uom = st.selectbox(f"Satuan (Item {idx})", uom_options, index=default_idx, key=f"bamp_uom_{selected_pi}_{idx}")
-        with c_b4:
-            row_catatan = st.text_input(f"Catatan (Item {idx})", value=saved_item_data.get('catatan', ''), placeholder="Opsional", key=f"bamp_cat_{selected_pi}_{idx}")
-
-        # Simpan pembaruan ke session state secara otomatis
-        st.session_state.bamp_saved_data[pi_storage_key][idx] = {
-            'date': row_date,
-            'qty': row_qty,
-            'uom': row_uom,
-            'catatan': row_catatan
-        }
-
-        row_date_str = f"{row_date.day:02d} {bulan_indo[row_date.month]} {row_date.year}"
-        catatan_row_final = f"Mulai Operasi Tanggal {row_date_str}"
-        if row_catatan.strip():
-            catatan_row_final += f" - {row_catatan.strip()}"
-
-        kategori_m = str(m.get('Kategori', '')).strip()
-        deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
-        desc_final_m = f"<b>{kategori_m}</b><br>{deskripsi_m}" if kategori_m else deskripsi_m
-        if m.get('Keterangan'):
-            desc_final_m += f"<br><span style='font-size: 8.5px; color: #334155;'>{m.get('Keterangan')}</span>"
-
-        rows_html += f"""
-            <tr>
-                <td style="text-align: center;">{idx}</td>
-                <td style="text-align: left;">{desc_final_m}</td>
-                <td style="text-align: center;">{row_qty:.2f}</td>
-                <td style="text-align: center;">{row_uom}</td>
-                <td style="text-align: center;"><b>{catatan_row_final}</b></td>
-            </tr>
-        """
-        st.markdown("<br>", unsafe_allow_html=True)
-
-    if 'persisted_logo_1' not in st.session_state: st.session_state.persisted_logo_1 = None
-    if 'persisted_logo_2' not in st.session_state: st.session_state.persisted_logo_2 = None
-
-    st.markdown("---")
-    st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen BAMP")
-    c_log1, c_log2 = st.columns(2)
-    with c_log1:
-        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama", type=["png", "jpg", "jpeg"], key="logo_bamp_1")
-        if uploaded_logo_1 is not None: st.session_state.persisted_logo_1 = uploaded_logo_1.getvalue()
-    with c_log2:
-        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua", type=["png", "jpg", "jpeg"], key="logo_bamp_2")
-        if uploaded_logo_2 is not None: st.session_state.persisted_logo_2 = uploaded_logo_2.getvalue()
-
-    logo1_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_1).decode()}" style="max-height: 42px; max-width: 110px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_1 is not None else ""
-    logo2_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_2).decode()}" style="max-height: 42px; max-width: 110px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_2 is not None else ""
 
     html_content = f"""
     <!DOCTYPE html>

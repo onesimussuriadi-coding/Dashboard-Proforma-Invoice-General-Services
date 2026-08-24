@@ -53,6 +53,12 @@ except ImportError as e:
     st.error(f"Gagal memuat modul opname_pekerjaan: {e}")
     pass
 
+# Import Modul Master Paket Dokumen Lengkap (1-Click Batch Export)
+try:
+    from modul_dokumen.paket_dokumen_lengkap import tampilkan_paket_lengkap
+except ImportError as e:
+    st.error(f"Gagal memuat modul paket_dokumen_lengkap: {e}")
+
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
 
@@ -189,6 +195,9 @@ if form_login_sistem():
                 df = pd.read_excel(EXCEL_INVOICE)
                 if df is not None and not df.empty:
                     df = df.dropna(how='all')
+                    # Pembersihan global format .0 pada semua kolom string/angka
+                    for col in df.columns:
+                        df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else x)
                     return df.to_dict(orient="records")
             except:
                 pass
@@ -209,6 +218,10 @@ if form_login_sistem():
                 df = pd.read_excel(EXCEL_TRANSAKSI)
                 if df is not None and not df.empty:
                     df = df.dropna(how='all')
+                    # Pembersihan global format .0 pada semua kolom transaksi
+                    for col in df.columns:
+                        if col not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']:
+                            df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else x)
                     return df.to_dict(orient="records")
             except:
                 pass
@@ -228,6 +241,9 @@ if form_login_sistem():
             try:
                 df = pd.read_excel(EXCEL_MASTER_REF)
                 if df is not None and not df.empty:
+                    for col in df.columns:
+                        if col not in ['Harga Satuan']:
+                            df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else x)
                     return df.to_dict(orient="records")
             except:
                 pass
@@ -256,6 +272,8 @@ if form_login_sistem():
             try:
                 df = pd.read_excel(EXCEL_BANK)
                 if df is not None and not df.empty:
+                    for col in df.columns:
+                        df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else x)
                     return df.to_dict(orient="records")
             except:
                 pass
@@ -425,7 +443,7 @@ if form_login_sistem():
                 kontrak_from_master = [str(m.get("Nomor Kontrak", "")) for m in master_data_live if m.get("Nomor Kontrak")]
                 combined_kontrak_list = sorted(list(set(kontrak_from_invoice + kontrak_from_master))) + ["-- Ketik Nomor Kontrak Baru --"]
 
-                default_kat_list = ["MONTHLY BASIS", "ON-CALL BASIS", "JASA MOBILISASI", "PROFESSIONAL SUM", "LAINNYA"]
+                default_kat_list = ["MONTHLY BASIS", "ON-CALL BASIS", "JASA MOBILISASI", "PROFESSIONAL SUM", "PROVISIONAL SUM", "LAINNYA"]
                 existing_kat_from_db = list(set([str(m.get("Kategori")) for m in master_data_live if m.get("Kategori")]))
                 combined_kat_list = sorted(list(set(default_kat_list + existing_kat_from_db))) + ["-- Ketik Kategori Baru --"]
 
@@ -589,7 +607,7 @@ if form_login_sistem():
                     st.components.v1.html(full_interactive_table_html, height=500, scrolling=True)
 
         # =========================================================================
-        # LOGIKA MODUL 1: DATABASE & MASTER KONTRAK
+        # LOGIKA MODUL 1: DATABASE & MASTER KONTRAK (DENGAN DATE PICKER DINAMIS)
         # =========================================================================
         elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
             if menu == "Input Database & Invoice (31 Kolom)":
@@ -633,6 +651,16 @@ if form_login_sistem():
                         return bersih_angka(def_data[idx_key])
                     return bersih_angka(def_data.get(text_key, ""))
 
+                def parse_date_safely(val_str):
+                    if not val_str:
+                        return date.today()
+                    for fmt in ("%d %b %Y", "%Y-%m-%d", "%d/%m/%Y"):
+                        try:
+                            return datetime.strptime(str(val_str).strip(), fmt).date()
+                        except ValueError:
+                            continue
+                    return date.today()
+
                 with st.form("form_input_database"):
                     col_no, col_item, col_input = st.columns([0.8, 3.5, 7])
                     with col_no: st.markdown("**No**")
@@ -650,15 +678,24 @@ if form_login_sistem():
                             else:
                                 return st.text_input(f"input_{no}", value=str(default_val), label_visibility="collapsed")
 
+                    def baris_input_tanggal(no, label, default_str=""):
+                        c1, c2, c3 = st.columns([0.8, 3.5, 7])
+                        with c1: c1.write(f"**{no}.**")
+                        with c2: c2.write(label)
+                        with c3:
+                            d_val = parse_date_safely(default_str)
+                            dt_res = st.date_input(f"input_{no}", value=d_val, label_visibility="collapsed")
+                            return dt_res.strftime("%d %b %Y")
+
                     val_1  = baris_input_bersih(1, "Nomor Kontrak", default_val=get_val(1, "Nomor Kontrak"))
                     val_2  = baris_input_bersih(2, "Nomor Tender", default_val=get_val(2, "Nomor Tender"))
                     val_3  = baris_input_bersih(3, "Judul Kontrak", default_val=get_val(7, "Judul Kontrak"), is_area=True)
-                    val_4  = baris_input_bersih(4, "Tanggal Kontrak", default_val=get_val(4, "Tanggal Kontrak"))
+                    val_4  = baris_input_tanggal(4, "Tanggal Kontrak", default_str=get_val(4, "Tanggal Kontrak"))
                     val_5  = baris_input_bersih(5, "Jangka Waktu Kontrak", default_val=get_val(5, "Jangka Waktu Kontrak"))
                     val_6  = baris_input_bersih(6, "Proforma Invoice No.", default_val=get_val(0, "Proforma Invoice No."))
-                    val_7  = baris_input_bersih(7, "Tanggal Performa Invoice", default_val=get_val(6, "Tanggal Performa Invoice"))
+                    val_7  = baris_input_tanggal(7, "Tanggal Performa Invoice", default_str=get_val(6, "Tanggal Performa Invoice"))
                     val_8  = baris_input_bersih(8, "Nomor Purchase Order", default_val=get_val(8, "Nomor Purchase Order"))
-                    val_9  = baris_input_bersih(9, "Tanggal Purchase Order", default_val=get_val(9, "Tanggal Purchase Order"))
+                    val_9  = baris_input_tanggal(9, "Tanggal Purchase Order", default_str=get_val(9, "Tanggal Purchase Order"))
                     val_10 = baris_input_bersih(10, "Lingkup Pekerjaan", default_val=get_val(3, "Lingkup Pekerjaan"), is_area=True)
                     val_11 = baris_input_bersih(11, "Pihak Pertama", default_val=get_val(10, "Pihak Pertama"))
                     val_12 = baris_input_bersih(12, "Alamat Pihak Pertama", default_val=get_val(11, "Alamat Pihak Pertama"), is_area=True)
@@ -685,7 +722,7 @@ if form_login_sistem():
                     val_18 = baris_input_bersih(18, "Selaku (P2)", default_val=get_val(17, "Selaku (P2)"))
                     val_19 = baris_input_bersih(19, "Periode Pekerjaan", default_val=get_val(18, "Periode Pekerjaan"))
                     val_20 = baris_input_bersih(20, "Nomor WCC", default_val=get_val(19, "Nomor WCC"))
-                    val_21 = baris_input_bersih(21, "Tanggal WCC", default_val=get_val(20, "Tanggal WCC"))
+                    val_21 = baris_input_tanggal(21, "Tanggal WCC", default_str=get_val(20, "Tanggal WCC"))
                     val_22 = baris_input_bersih(22, "Nomor WO", default_val=get_val(21, "Nomor WO"))
                     val_23 = baris_input_bersih(23, "Keterangan WO", default_val=get_val(22, "Keterangan WO"), is_area=True)
                     val_24 = baris_input_bersih(24, "Nomor CTR", default_val=get_val(23, "Nomor CTR"))
@@ -779,7 +816,7 @@ if form_login_sistem():
                     st.dataframe(df_saved, use_container_width=True)
 
         # =========================================================================
-        # LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN
+        # LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN (DENGAN PROVISIONAL SUM)
         # =========================================================================
         elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
             if menu == "Input & Proses Rincian Pekerjaan":
@@ -956,6 +993,8 @@ if form_login_sistem():
                         df_ref_kontrak = df_ref 
 
                     list_kat = sorted(df_ref_kontrak["Kategori Clean"].dropna().unique().tolist())
+                    if "PROFESSIONAL SUM" not in list_kat and "PROVISIONAL SUM" not in list_kat:
+                        list_kat.append("PROVISIONAL SUM")
 
                     if "num_rows" not in st.session_state:
                         st.session_state.num_rows = len(loaded_tx_items) if loaded_tx_items else 1
@@ -979,31 +1018,40 @@ if form_login_sistem():
                                 key=f"kat_{i}"
                             )
                         
+                        is_provisional = "provisional" in str(kat_pilih).lower() or "professional" in str(kat_pilih).lower()
+
                         with c_k2:
-                            df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
-                            list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
-                            
-                            def_spek_item = default_item_data.get("Deskripsi Pekerjaan", list_spek[0] if list_spek else "-")
-                            idx_spek = list_spek.index(def_spek_item) if def_spek_item in list_spek else 0
-                            
-                            spek_pilih = st.selectbox(
-                                f"Uraian Pekerjaan / Spesifikasi {i+1}", 
-                                list_spek, 
-                                index=idx_spek,
-                                key=f"spek_{i}"
-                            )
+                            if is_provisional:
+                                spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_item_data.get("Deskripsi Pekerjaan", "Provisional Sum (At Cost + 15% Fee)"), key=f"spek_manual_{i}")
+                            else:
+                                df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
+                                list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
+                                
+                                def_spek_item = default_item_data.get("Deskripsi Pekerjaan", list_spek[0] if list_spek else "-")
+                                idx_spek = list_spek.index(def_spek_item) if def_spek_item in list_spek else 0
+                                
+                                spek_pilih = st.selectbox(
+                                    f"Uraian Pekerjaan / Spesifikasi {i+1}", 
+                                    list_spek, 
+                                    index=idx_spek,
+                                    key=f"spek_{i}"
+                                )
 
                         hs_otomatis = 0.0
                         unit_otomatis = "Month"
-                        if not df_f_kat.empty and spek_pilih != "- (Tidak ada data uraian)":
-                            m_row = df_f_kat[df_f_kat["Uraian Clean"] == str(spek_pilih).strip()]
-                            if not m_row.empty:
-                                row_m = m_row.iloc[0]
-                                try:
-                                    hs_otomatis = float(row_m.get("Harga Satuan", 0.0))
-                                except:
-                                    hs_otomatis = 0.0
-                                unit_otomatis = str(row_m.get("Unit", "Month"))
+                        if is_provisional:
+                            hs_otomatis = 0.0 
+                            unit_otomatis = "Ls"
+                        else:
+                            if not df_f_kat.empty and spek_pilih != "- (Tidak ada data uraian)":
+                                m_row = df_f_kat[df_f_kat["Uraian Clean"] == str(spek_pilih).strip()]
+                                if not m_row.empty:
+                                    row_m = m_row.iloc[0]
+                                    try:
+                                        hs_otomatis = float(row_m.get("Harga Satuan", 0.0))
+                                    except:
+                                        hs_otomatis = 0.0
+                                    unit_otomatis = str(row_m.get("Unit", "Month"))
 
                         c_item1, c_item2, c_item3, c_item4 = st.columns([1, 1, 1, 1])
                         with c_item1:
@@ -1031,7 +1079,15 @@ if form_login_sistem():
                                 def_ts = date.today()
                             ts_val = st.date_input(f"Tanggal Selesai {i+1}", value=def_ts, key=f"ts_{i}")
 
-                        st.markdown(f"**Harga Satuan Tetap:** Rp {hs_otomatis:,.2f}")
+                        if is_provisional:
+                            def_harga_manual = float(default_item_data.get("Harga Satuan", 0.0))
+                            hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i+1} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}")
+                            hs_final = hs_manual
+                            st.info("ℹ️ *Catatan Provisional Sum:* Total nilai baris ini akan diakumulasikan secara total keseluruhan sebelum ditambahkan 15% management fee.")
+                        else:
+                            st.markdown(f"**Harga Satuan Tetap:** Rp {hs_otomatis:,.2f}")
+                            hs_final = hs_otomatis
+
                         def_ket = default_item_data.get("Keterangan", "")
                         ket_val = st.text_input(f"Keterangan / Deskripsi Tambahan {i+1}", value=def_ket, key=f"ket_{i}")
                         st.markdown("---")
@@ -1043,11 +1099,11 @@ if form_login_sistem():
                             "unit": u_val,
                             "tgl_mulai": tm_val.strftime("%d %b %Y"),
                             "tgl_selesai": ts_val.strftime("%d %b %Y"),
-                            "harga_satuan": hs_otomatis,
-                            "keterangan": ket_val
+                            "harga_satuan": hs_final,
+                            "keterangan": ket_val,
+                            "is_provisional": is_provisional
                         })
 
-                    # --- TOMBOL TAMBAH & KURANG BARIS DIPINDAHKAN KE BAGIAN BAWAH ---
                     col_m1, col_m2 = st.columns(2)
                     with col_m1:
                         if st.button("➕ Tambah Baris Pekerjaan"):
@@ -1069,8 +1125,19 @@ if form_login_sistem():
                             
                             existing_tx = [t for t in existing_tx if bersih_angka(t.get("PI No.")) != pi_target_simpan]
 
+                            prov_items = [it for it in items_data_input if it.get("is_provisional")]
+                            subtotal_prov = sum([it["qty"] * it["harga_satuan"] for it in prov_items])
+                            total_prov_with_fee = subtotal_prov * 1.15 
+
                             for item in items_data_input:
-                                total_harga = (item["qty"] * item["harga_satuan"]) * (persen_val / 100.0)
+                                if item.get("is_provisional"):
+                                    if len(prov_items) > 0 and item == prov_items[0]:
+                                        total_harga = total_prov_with_fee * (persen_val / 100.0)
+                                    else:
+                                        total_harga = 0.0 
+                                else:
+                                    total_harga = (item["qty"] * item["harga_satuan"]) * (persen_val / 100.0)
+
                                 data_transaksi = {
                                     "Nomor Kontrak": selected_kontrak,
                                     "Nama Kontrak": nama_kontrak,
@@ -1114,8 +1181,19 @@ if form_login_sistem():
                             
                             existing_tx = [t for t in existing_tx if bersih_angka(t.get("PI No.")) != pi_baru]
 
+                            prov_items = [it for it in items_data_input if it.get("is_provisional")]
+                            subtotal_prov = sum([it["qty"] * it["harga_satuan"] for it in prov_items])
+                            total_prov_with_fee = subtotal_prov * 1.15
+
                             for item in items_data_input:
-                                total_harga = (item["qty"] * item["harga_satuan"]) * (persen_val / 100.0)
+                                if item.get("is_provisional"):
+                                    if len(prov_items) > 0 and item == prov_items[0]:
+                                        total_harga = total_prov_with_fee * (persen_val / 100.0)
+                                    else:
+                                        total_harga = 0.0
+                                else:
+                                    total_harga = (item["qty"] * item["harga_satuan"]) * (persen_val / 100.0)
+
                                 data_transaksi = {
                                     "Nomor Kontrak": selected_kontrak,
                                     "Nama Kontrak": nama_kontrak,
@@ -1167,6 +1245,7 @@ if form_login_sistem():
                         "Formulir tkdn",
                         "Timesheet Peralatan",
                         "Berita Acara Opname pekerjaan",
+                        "📦 Master Paket Dokumen Lengkap (1-Click Batch)" 
                     ])
 
                     if doc_type == "Rincian Pekerjaan":
@@ -1185,6 +1264,8 @@ if form_login_sistem():
                          tampilkan_opname(transaksi_list)
                     elif doc_type.lower() == "timesheet peralatan" or doc_type.lower() == "timesheet":
                          tampilkan_timesheet(transaksi_list)
+                    elif doc_type == "📦 Master Paket Dokumen Lengkap (1-Click Batch)":
+                         tampilkan_paket_lengkap(transaksi_list)
 
             elif menu == "Lihat Akumulasi Riwayat Transaksi":
                 st.markdown("""

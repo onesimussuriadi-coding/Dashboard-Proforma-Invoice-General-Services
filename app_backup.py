@@ -329,7 +329,7 @@ if form_login_sistem():
         ])
     elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
         menu = st.sidebar.radio("Pilih Menu:", [
-            "Input Database & Invoice (29 Kolom)",
+            "Input Database & Invoice (31 Kolom)",
             "Lihat Database Tersimpan"
         ])
     else:
@@ -592,7 +592,7 @@ if form_login_sistem():
         # LOGIKA MODUL 1: DATABASE & MASTER KONTRAK
         # =========================================================================
         elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
-            if menu == "Input Database & Invoice (29 Kolom)":
+            if menu == "Input Database & Invoice (31 Kolom)":
                 st.markdown("""
                     <div class="dashboard-card">
                         <h4 style="margin-top:0; color:#065f46; font-size:15px;">🔍 Panggil Ulang atau Buat Database Identifikasi Kontrak & PI</h4>
@@ -693,18 +693,40 @@ if form_login_sistem():
                     val_26 = baris_input_bersih(26, "Prepared by Name", default_val=get_val(25, "Prepared by Name"))
                     val_27 = baris_input_bersih(27, "Prepared by Title", default_val=get_val(26, "Prepared by Title"))
 
+                    # --- APPROVED BY 1 (DENGAN OPSI KOSONG) ---
                     c1, c2, c3 = st.columns([0.8, 3.5, 7])
                     c1.write("**28.**")
-                    c2.write("Pejabat berwenang")
-                    pilihan_pj = [
+                    c2.write("Approved by 1")
+                    pilihan_app1 = [
+                        "--- (Tidak Ada / Kosong) ---",
                         "Imron Maulana / Moh Bazarul Aqhsa",
-                        "Moh Bazarul Aqhsa / Imron Maulana"
+                        "Moh Bazarul Aqhsa / Imron Maulana",
+                        "Irwan / Budi Bernadi",
+                        "Budi Bernadi / Irwan",
+                        "Aldito Fauzi Roe / Aryanto Yoga",
+                        "Aryanto Yoga / Aldito Fauzi Roe"
                     ]
-                    def_pj = get_val(27, "Pejabat berwenang")
-                    idx_pj = pilihan_pj.index(def_pj) if def_pj in pilihan_pj else 0
-                    val_28 = c3.selectbox("Pejabat berwenang", pilihan_pj, index=idx_pj, label_visibility="collapsed")
+                    def_app1 = get_val(27, "Approved by 1")
+                    idx_app1 = pilihan_app1.index(def_app1) if def_app1 in pilihan_app1 else 0
+                    val_28 = c3.selectbox("Approved by 1", pilihan_app1, index=idx_app1, label_visibility="collapsed")
 
-                    val_29 = baris_input_bersih(29, "Jabatan Field Manager", default_val=get_val(28, "Jabatan Field Manager"))
+                    val_29 = baris_input_bersih(29, "Approved by Title 1", default_val=get_val(28, "Approved by Title 1"))
+
+                    # --- APPROVED BY 2 (DENGAN OPSI KOSONG) ---
+                    c1, c2, c3 = st.columns([0.8, 3.5, 7])
+                    c1.write("**30.**")
+                    c2.write("Approved by 2")
+                    pilihan_app2 = [
+                        "--- (Tidak Ada / Kosong) ---",
+                        "Abidsar",
+                        "Imron Maulana",
+                        "Moh Bazarul Aqhsa"
+                    ]
+                    def_app2 = get_val(29, "Approved by 2")
+                    idx_app2 = pilihan_app2.index(def_app2) if def_app2 in pilihan_app2 else 0
+                    val_30 = c3.selectbox("Approved by 2", pilihan_app2, index=idx_app2, label_visibility="collapsed")
+
+                    val_31 = baris_input_bersih(31, "Approved by Title 2", default_val=get_val(30, "Approved by Title 2"))
 
                     st.markdown("---")
                     
@@ -723,6 +745,7 @@ if form_login_sistem():
                             8: bersih_angka(val_8), 9: val_9, 10: val_11, 11: val_12, 12: val_13, 13: val_14, 14: val_15, 
                             15: val_16, 16: val_17, 17: val_18, 18: val_19, 19: bersih_angka(val_20), 20: val_21, 21: bersih_angka(val_22), 
                             22: val_23, 23: bersih_angka(val_24), 24: val_25, 25: val_26, 26: val_27, 27: val_28, 28: val_29,
+                            29: val_30, 30: val_31,
                             "Update Terakhir": waktu_aksi
                         }
                         current_data = muat_data_invoice()

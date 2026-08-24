@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
-from datetime import datetime
+from datetime import datetime, date
 
 def terbilang(n):
     n = float(n)
@@ -56,8 +56,7 @@ def tampilkan_opname(transaksi_list):
             seen_pi_dd.add(pi_key)
             unique_pi_list.append(pi_key)
 
-    # Ditambahkan widget pemilihan tanggal dinamis di baris filter atas
-    col_sel1, col_sel2, col_sel3, col_sel4 = st.columns([1.3, 1.3, 0.9, 1.1])
+    col_sel1, col_sel2 = st.columns([2, 2])
     with col_sel1:
         selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list, key="opname_sel_pi")
     
@@ -74,13 +73,23 @@ def tampilkan_opname(transaksi_list):
 
     with col_sel2:
         selected_po = st.selectbox("Pilih Nomor Purchase Order (PO):", unique_po_list, key="opname_sel_po")
-    with col_sel3:
-        lokasi_office = st.text_input("📍 Lokasi Office:", value="Paisubololi", key="opname_lok_office")
-    with col_sel4:
-        selected_date_obj = st.date_input("📅 Tanggal Opname:", value=datetime.now(), key="opname_tanggal_picker")
 
-    # Format tanggal terpilih ke string (contoh: 31 August 2026 atau sesuai format yang diinginkan)
-    opname_date = selected_date_obj.strftime('%d %B %Y')
+    pi_sekarang = str(selected_pi).strip()
+    po_sekarang = str(selected_po).strip()
+    opname_storage_key = f"{pi_sekarang}_{po_sekarang}"
+
+    # --- INISIALISASI SESSION STATE PERMANEN UNTUK OPNAME ---
+    if "opname_saved_data" not in st.session_state:
+        st.session_state.opname_saved_data = {}
+
+    if opname_storage_key not in st.session_state.opname_saved_data:
+        st.session_state.opname_saved_data[opname_storage_key] = {
+            'lokasi_office': "Paisubololi",
+            'tanggal_opname': date.today(),
+            'items': {}
+        }
+
+    saved_global = st.session_state.opname_saved_data[opname_storage_key]
 
     mutasi_terpilih = transaksi_by_pi
     if selected_po != "-":
@@ -93,8 +102,6 @@ def tampilkan_opname(transaksi_list):
         return
 
     t_data_utama = mutasi_terpilih[0]
-    pi_sekarang = str(selected_pi).strip()
-    po_sekarang = str(selected_po).strip()
 
     db_invoice_path = os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx")
     matched_db_row = {}
@@ -120,13 +127,71 @@ def tampilkan_opname(transaksi_list):
     ctr_wo_po_str = " / ".join(ref_list_bawah) if ref_list_bawah else "-"
 
     st.markdown("---")
-    st.markdown("#### ⚙️ Pengaturan Parameter Detail per Baris Pekerjaan Opname")
     
-    if 'persisted_logo_1' not in st.session_state:
-        st.session_state.persisted_logo_1 = None
-    if 'persisted_logo_2' not in st.session_state:
-        st.session_state.persisted_logo_2 = None
+    # Form interaktif untuk parameter utama dan rincian per baris opname
+    with st.form(key=f"form_opname_params_{opname_storage_key}"):
+        st.markdown("#### ⚙️ Pengaturan Parameter & Rincian Baris Opname (Terkunci & Persisten)")
+        
+        c_head1, c_head2 = st.columns(2)
+        with c_head1:
+            lokasi_office = st.text_input("📍 Lokasi Office:", value=str(saved_global.get('lokasi_office', 'Paisubololi')), key=f"opn_lok_{opname_storage_key}")
+        with c_head2:
+            selected_date_obj = st.date_input("📅 Tanggal Opname:", value=saved_global.get('tanggal_opname', date.today()), key=f"opn_date_{opname_storage_key}")
 
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        temp_items_storage = {}
+        for idx, m in enumerate(mutasi_terpilih, start=1):
+            kategori_m = str(m.get('Kategori', '')).strip()
+            deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
+            ket_m = str(m.get('Keterangan', '')).strip()
+            
+            item_label = f"{kategori_m} - {deskripsi_m}"
+            if ket_m:
+                item_label += f" ({ket_m})"
+
+            st.markdown(f"**Item {idx}: {item_label}**")
+            c_p1, c_p2, c_p3, c_p4 = st.columns(4)
+            
+            default_qty = float(m.get('Qty', 1.0))
+            # Jika Provisional Sum, gunakan Total Harga transaksi sebagai default unit price / nilai total
+            is_prov_sum = "provisional" in kategori_m.lower() or "provisional" in deskripsi_m.lower()
+            default_price = float(m.get('Total Harga', m.get('Harga Satuan', 0.0))) if is_prov_sum else float(m.get('Harga Satuan', 0.0))
+
+            saved_item_opn = saved_global.get('items', {}).get(idx, {})
+
+            with c_p1:
+                po_vol = st.number_input(f"📦 Volume PO / Kontrak (Item {idx})", value=float(saved_item_opn.get('po_vol', 0.0)), step=0.1, format="%.2f", key=f"opn_po_vol_{opname_storage_key}_{idx}")
+            with c_p2:
+                unit_price = st.number_input(f"💵 Unit Price / Total Tagihan (Item {idx})", value=float(saved_item_opn.get('unit_price', default_price)), step=1000.0, format="%.2f", key=f"opn_unit_price_{opname_storage_key}_{idx}")
+            with c_p3:
+                prev_vol = st.number_input(f"📉 Volume Lalu / Previous (Item {idx})", value=float(saved_item_opn.get('prev_vol', 0.0)), step=0.1, format="%.2f", key=f"opn_prev_vol_{opname_storage_key}_{idx}")
+            with c_p4:
+                current_vol = st.number_input(f"📈 Volume Aktual Bulan Ini (Item {idx})", value=float(saved_item_opn.get('current_vol', default_qty)), step=0.1, format="%.2f", key=f"opn_curr_vol_{opname_storage_key}_{idx}")
+
+            temp_items_storage[idx] = {
+                'po_vol': po_vol,
+                'unit_price': unit_price,
+                'prev_vol': prev_vol,
+                'current_vol': current_vol
+            }
+            st.markdown("<br>", unsafe_allow_html=True)
+
+        submit_save_opname = st.form_submit_button("💾 Simpan / Kunci Parameter Opname Ini", type="primary")
+        if submit_save_opname:
+            st.session_state.opname_saved_data[opname_storage_key] = {
+                'lokasi_office': lokasi_office,
+                'tanggal_opname': selected_date_obj,
+                'items': temp_items_storage
+            }
+            st.success("✅ Parameter opname berhasil disimpan dan dikunci secara permanen!")
+
+    # Ambil data aktif yang tersimpan
+    active_lokasi = saved_global.get('lokasi_office', 'Paisubololi')
+    active_date_obj = saved_global.get('tanggal_opname', date.today())
+    opname_date = active_date_obj.strftime('%d %B %Y')
+
+    # Kalkulasi nilai menggunakan data yang tersimpan/terkunci
     rows_html = ""
     sum_po_vol = 0.0
     sum_base_price = 0.0
@@ -144,29 +209,19 @@ def tampilkan_opname(transaksi_list):
         kategori_m = str(m.get('Kategori', '')).strip()
         deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
         ket_m = str(m.get('Keterangan', '')).strip()
-        
-        item_label = f"{kategori_m} - {deskripsi_m}"
-        if ket_m:
-            item_label += f" ({ket_m})"
 
-        st.markdown(f"**Item {idx}: {item_label}**")
-        c_p1, c_p2, c_p3, c_p4 = st.columns(4)
-        
-        default_qty = float(m.get('Qty', 1.0))
-        default_price = float(m.get('Harga Satuan', 0.0))
+        is_prov_sum = "provisional" in kategori_m.lower() or "provisional" in deskripsi_m.lower()
+        default_price_calc = float(m.get('Total Harga', m.get('Harga Satuan', 0.0))) if is_prov_sum else float(m.get('Harga Satuan', 0.0))
 
-        with c_p1:
-            po_vol = st.number_input(f"📦 Volume PO / Kontrak (Item {idx})", value=default_qty * 12.0, step=0.1, format="%.2f", key=f"opn_po_vol_{pi_sekarang}_{idx}")
-        with c_p2:
-            unit_price = st.number_input(f"💵 Unit Price (Item {idx})", value=default_price, step=1000.0, format="%.2f", key=f"opn_unit_price_{pi_sekarang}_{idx}")
-        with c_p3:
-            prev_vol = st.number_input(f"📉 Volume Lalu / Previous (Item {idx})", value=0.0, step=0.1, format="%.2f", key=f"opn_prev_vol_{pi_sekarang}_{idx}")
-        with c_p4:
-            current_vol = st.number_input(f"📈 Volume Aktual Bulan Ini (Item {idx})", value=default_qty, step=0.1, format="%.2f", key=f"opn_curr_vol_{pi_sekarang}_{idx}")
+        active_item_data = saved_global.get('items', {}).get(idx, {})
+        po_vol = float(active_item_data.get('po_vol', 0.0))
+        unit_price = float(active_item_data.get('unit_price', default_price_calc))
+        prev_vol = float(active_item_data.get('prev_vol', 0.0))
+        current_vol = float(active_item_data.get('current_vol', float(m.get('Qty', 1.0))))
 
         base_price = po_vol * unit_price
         prev_tot = prev_vol * unit_price
-        curr_tot = float(m.get('Total Harga', current_vol * unit_price))
+        curr_tot = current_vol * unit_price
         cum_vol = prev_vol + current_vol
         cum_tot = prev_tot + curr_tot
         sisa_vol = po_vol - cum_vol
@@ -185,7 +240,7 @@ def tampilkan_opname(transaksi_list):
         sum_cum_vol_tot += cum_vol
         sum_sisa_vol_tot += sisa_vol
 
-        actual_unit = str(m.get('Unit', 'Day'))
+        actual_unit = str(m.get('Unit', 'AU' if is_prov_sum else 'Day'))
         desc_full = f"<b>{kategori_m}</b><br>{deskripsi_m}"
         if ket_m:
             desc_full += f"<br><span style='font-size: 8.5px; color: #334155;'>{ket_m}</span>"
@@ -208,10 +263,15 @@ def tampilkan_opname(transaksi_list):
                 <td class="text-right">{sisa_tot:,.2f}</td>
             </tr>
         """
-        st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen Opname (Tersimpan Otomatis)")
+    
+    if 'persisted_logo_1' not in st.session_state:
+        st.session_state.persisted_logo_1 = None
+    if 'persisted_logo_2' not in st.session_state:
+        st.session_state.persisted_logo_2 = None
+
     c_log1, c_log2 = st.columns(2)
     with c_log1:
         uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama (PT BSS)", type=["png", "jpg", "jpeg"], key="logo_opname_1_u")
@@ -268,7 +328,7 @@ def tampilkan_opname(transaksi_list):
         <table class="sig-table">
             <tr>
                 <td style="width: 50%; text-align: left; padding-left: 10px;">
-                    {lokasi_office}, {opname_date}<br>
+                    {active_lokasi}, {opname_date}<br>
                     <b>PT Banggai Sentral Sulawesi</b><br>
                     Prepared by,<br><br><br><br><br>
                     <u><b>{prepared_name}</b></u><br>
@@ -289,7 +349,7 @@ def tampilkan_opname(transaksi_list):
         <table class="sig-table">
             <tr>
                 <td style="width: 33.3%; text-align: left; padding-left: 10px;">
-                    {lokasi_office}, {opname_date}<br>
+                    {active_lokasi}, {opname_date}<br>
                     <b>PT Banggai Sentral Sulawesi</b><br>
                     Prepared by,<br><br><br><br><br>
                     <u><b>{prepared_name}</b></u><br>

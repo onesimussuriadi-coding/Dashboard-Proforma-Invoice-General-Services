@@ -39,7 +39,6 @@ def tampilkan_proforma_invoice(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
-    # Ambil daftar PI unik untuk dropdown pilihan
     seen_pi_dd = set()
     unique_pi_list = []
     for t in transaksi_list:
@@ -48,9 +47,23 @@ def tampilkan_proforma_invoice(transaksi_list):
             seen_pi_dd.add(pi_key)
             unique_pi_list.append(pi_key)
 
-    selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list)
+    # Inisialisasi penyimpanan session state khusus Proforma Invoice
+    if "proforma_saved_data" not in st.session_state:
+        st.session_state.proforma_saved_data = {}
+
+    # Dropdown di luar form agar reaktif (langsung merespons perubahan pilihan PI)
+    selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list, key="proforma_sel_pi")
     
-    # Saring semua baris mutasi yang memiliki PI No. yang sama
+    # Form khusus untuk tombol simpan dokumen Proforma Invoice
+    with st.form(key=f"form_proforma_save_{selected_pi}"):
+        st.markdown(f"**Status Dokumen PI:** `{selected_pi}` siap dikunci.")
+        submit_save_proforma = st.form_submit_button("💾 Simpan & Kunci Proforma Invoice Ini", type="primary")
+        if submit_save_proforma:
+            st.session_state.proforma_saved_data[selected_pi] = {
+                'locked_at': True
+            }
+            st.success(f"✅ Proforma Invoice untuk nomor PI [{selected_pi}] berhasil disimpan dan dikunci!")
+
     mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')) == str(selected_pi)]
     
     if not mutasi_terpilih:
@@ -59,16 +72,13 @@ def tampilkan_proforma_invoice(transaksi_list):
 
     t_data_utama = mutasi_terpilih[0]
 
-    # Hitung Grand Total dari seluruh baris mutasi terpilih
     grand_total_pi = sum([float(m.get('Total Harga', 0.0)) for m in mutasi_terpilih])
     terbilang_str = terbilang(grand_total_pi).strip() + " Rupiah"
 
-    # Pengambilan data penandatangan
     nama_pt_sign = t_data_utama.get('Nama PT Sign', 'PT. BANGGAI SENTRAL SULAWESI')
     nama_pejabat = t_data_utama.get('Penandatangan Nama', 'Onesimus Suriadi')
     jabatan_pejabat = t_data_utama.get('Penandatangan Jabatan', 'Manager General Services')
 
-    # Buat baris tabel HTML secara dinamis untuk semua item mutasi (Tanpa awalan Rp pada Unit Price & Total)
     rows_html = ""
     for idx, m in enumerate(mutasi_terpilih, start=1):
         desc_text = f"<b>{m.get('Kategori', 'MONTHLY BASIS')}</b><br>{m.get('Deskripsi Pekerjaan', '-')}"
@@ -115,9 +125,22 @@ def tampilkan_proforma_invoice(transaksi_list):
             .header-title {{ font-size: 15px; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; text-align: center; }}
             table.two-col {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; border: none; }}
             table.two-col td {{ border: none; padding: 2px 0; vertical-align: top; font-size: 11px; }}
-            table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 10px; }}
+            table.data-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 0px; }}
             table.data-table th, table.data-table td {{ border: 1px solid #333; padding: 6px 8px; font-size: 11px; text-align: left; }}
-            table.data-table th {{ background-color: #f1f5f9; text-align: center; }}
+            table.data-table th {{ background-color: #f1f5f9; text-align: center; vertical-align: middle; }}
+            
+            .total-row td {{
+                font-weight: bold;
+                background-color: #f8fafc;
+                font-size: 11.5px;
+            }}
+            
+            .terbilang-box {{
+                margin-top: 8px;
+                margin-bottom: 15px;
+                font-size: 11px;
+            }}
+
             .bank-section {{ font-size: 11px; line-height: 1.4; }}
         </style>
     </head>
@@ -170,15 +193,18 @@ def tampilkan_proforma_invoice(transaksi_list):
                 <th style="width: 42%;">Description</th>
                 <th style="width: 10%;">Qty</th>
                 <th style="width: 10%;">Satuan</th>
-                <th style="width: 16%;">Unit Price<br>(IDR)</th>
-                <th style="width: 16%;">TOTAL (IDR)</th>
+                <th style="width: 16%;">Unit Price<br><span style="font-size: 8.5px; font-weight: normal;">(IDR)</span></th>
+                <th style="width: 16%;">TOTAL<br><span style="font-size: 8.5px; font-weight: normal;">(IDR)</span></th>
             </tr>
             {rows_html}
+            <tr class="total-row">
+                <td colspan="5" style="text-align: right; text-transform: uppercase;">GRAND TOTAL :</td>
+                <td style="text-align: right;">{grand_total_pi:,.2f}</td>
+            </tr>
         </table>
 
-        <div style="margin-bottom: 15px; font-size: 11px; display: flex; justify-content: space-between;">
-            <div><b>Terbilang :</b> <i>{terbilang_str}</i></div>
-            <div style="font-size: 12px; font-weight: bold;">GRAND TOTAL: Rp {grand_total_pi:,.2f}</div>
+        <div class="terbilang-box">
+            <b>Terbilang :</b> <i>{terbilang_str}</i>
         </div>
 
         <table style="width: 100%; border: none; margin-top: 10px;">

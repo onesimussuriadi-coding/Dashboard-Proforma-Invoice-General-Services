@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
-from datetime import datetime
+from datetime import datetime, date
 
 def tampilkan_tkdn(transaksi_list):
     st.markdown("""
@@ -25,11 +25,7 @@ def tampilkan_tkdn(transaksi_list):
 
     pilihan_tx = [f"PI: {t['PI No.']} | Kontrak: {t['Nomor Kontrak']} | Total: Rp {t['Total Harga']:,.0f}" for t in unique_tx_list]
     
-    col_sel1, col_sel2 = st.columns([2, 1])
-    with col_sel1:
-        selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x], key="tkdn_select_pi_dropdown")
-    with col_sel2:
-        lokasi_office = st.text_input("📍 Lokasi Office (Tempat Dokumen):", value="Luwuk", key="tkdn_lokasi_office")
+    selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x], key="tkdn_select_pi_dropdown")
 
     t_data = unique_tx_list[selected_idx]
     pi_sekarang = str(t_data.get('PI No.', '')).strip()
@@ -47,118 +43,140 @@ def tampilkan_tkdn(transaksi_list):
 
     aktual_total_tagihan = float(t_data.get('Total Harga', 0.0))
 
-    # --- INISIALISASI SESSION STATE AMAN ---
-    if 'master_tagihan_val' not in st.session_state:
-        st.session_state.master_tagihan_val = aktual_total_tagihan
+    # --- INISIALISASI SESSION STATE PER PI AGAR DATA TERKUNCI PERMANEN ---
+    if 'tkdn_saved_data' not in st.session_state:
+        st.session_state.tkdn_saved_data = {}
 
-    if 'current_pi_tracking' not in st.session_state or st.session_state.current_pi_tracking != pi_sekarang:
-        st.session_state.current_pi_tracking = pi_sekarang
-        st.session_state.master_tagihan_val = aktual_total_tagihan
-
-    if 'val_p_kdn_1' not in st.session_state: st.session_state.val_p_kdn_1 = 15.09
-    if 'val_p_kln_1' not in st.session_state: st.session_state.val_p_kln_1 = 1.51
-    if 'val_p_kdn_2' not in st.session_state: st.session_state.val_p_kdn_2 = 28.26
-    if 'val_p_kln_2' not in st.session_state: st.session_state.val_p_kln_2 = 0.0
-    if 'val_p_kdn_3' not in st.session_state: st.session_state.val_p_kdn_3 = 47.18
-    if 'val_p_kln_3' not in st.session_state: st.session_state.val_p_kln_3 = 1.51
-    if 'val_p_kdn_4' not in st.session_state: st.session_state.val_p_kdn_4 = 1.55
-    if 'val_p_kln_4' not in st.session_state: st.session_state.val_p_kln_4 = 0.0
-    if 'val_p_non_cost' not in st.session_state: st.session_state.val_p_non_cost = 4.89
-
-    st.markdown("#### ⚙️ Pengaturan Parameter & Rujukan Perhitungan TKDN")
-    
-    c_master1, c_master2, c_master3 = st.columns(3)
-    with c_master1:
-        total_tagihan_rujukan = st.number_input(
-            "💰 Rujukan Total Tagihan (Rp):", 
-            value=st.session_state.master_tagihan_val, 
-            step=100000.0, 
-            key="master_tagihan_val"
-        )
-    with c_master2:
-        selected_date_tkdn = st.date_input("📅 Tanggal Dokumen TKDN:", value=datetime.now(), key="tkdn_date_picker_val")
-        bulan_indo = {
-            1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
-            7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+    if pi_sekarang not in st.session_state.tkdn_saved_data:
+        st.session_state.tkdn_saved_data[pi_sekarang] = {
+            'lokasi_office': "Luwuk",
+            'tanggal_dokumen': date.today(),
+            'nama_direktur': "Ir. Ferry Tatimu",
+            'total_tagihan': aktual_total_tagihan,
+            'p_kdn_1': 15.09, 'p_kln_1': 1.51,
+            'p_kdn_2': 28.26, 'p_kln_2': 0.0,
+            'p_kdn_3': 47.18, 'p_kln_3': 1.51,
+            'p_kdn_4': 1.55, 'p_kln_4': 0.0,
+            'p_non_cost': 4.89
         }
-        tgl_dokumen = f"{selected_date_tkdn.day:02d} {bulan_indo[selected_date_tkdn.month]} {selected_date_tkdn.year}"
-    with c_master3:
-        nama_direktur = st.text_input("Nama Direktur / Penandatangan:", value="Ir. Ferry Tatimu", key="tkdn_nama_dir")
 
-    st.markdown("---")
-    st.markdown("#### 🧮 Rincian Komponen Biaya & Non-Biaya (Berbasis Persentase)")
-    st.info("💡 Masukkan persentase (%) untuk setiap komponen. Nilai nominal dihitung otomatis dari Total Tagihan aktual PI.")
+    saved_tkdn = st.session_state.tkdn_saved_data[pi_sekarang]
 
-    # --- I. BIAYA BAHAN ---
-    st.markdown("**I. Biaya Bahan (Material)**")
-    c_b1, c_b2 = st.columns(2)
-    with c_b1:
-        p_kdn_1 = st.number_input("Persentase KDN Bahan (%):", value=st.session_state.val_p_kdn_1, step=0.1, key="input_p_kdn_1")
-        st.session_state.val_p_kdn_1 = p_kdn_1
-        kdn_1 = (p_kdn_1 / 100.0) * total_tagihan_rujukan
-        st.caption(f"-> Nilai KDN: Rp {kdn_1:,.2f}")
-    with c_b2:
-        p_kln_1 = st.number_input("Persentase KLN Bahan (%):", value=st.session_state.val_p_kln_1, step=0.1, key="input_p_kln_1_kln")
-        st.session_state.val_p_kln_1 = p_kln_1
-        kln_1 = (p_kln_1 / 100.0) * total_tagihan_rujukan
-        st.caption(f"-> Nilai KLN: Rp {kln_1:,.2f}")
-
-    st.markdown("---")
-
-    # --- II. BIAYA TENAGA KERJA ---
-    st.markdown("**II. Biaya Tenaga Kerja & Konsultan**")
-    c_t1, c_t2 = st.columns(2)
-    with c_t1:
-        p_kdn_2 = st.number_input("Persentase KDN Tenaga Kerja (%):", value=st.session_state.val_p_kdn_2, step=0.1, key="input_p_kdn_2")
-        st.session_state.val_p_kdn_2 = p_kdn_2
-        kdn_2 = (p_kdn_2 / 100.0) * total_tagihan_rujukan
-        st.caption(f"-> Nilai KDN: Rp {kdn_2:,.2f}")
-    with c_t2:
-        p_kln_2 = st.number_input("Persentase KLN Tenaga Kerja (%):", value=st.session_state.val_p_kln_2, step=0.1, key="input_p_kln_2_kln")
-        st.session_state.val_p_kln_2 = p_kln_2
-        kln_2 = (p_kln_2 / 100.0) * total_tagihan_rujukan
-        st.caption(f"-> Nilai KLN: Rp {kln_2:,.2f}")
-
-    st.markdown("---")
-
-    # --- III. BIAYA ALAT KERJA ---
-    st.markdown("**III. Biaya Alat Kerja / Fasilitas Kerja**")
-    c_a1, c_a2 = st.columns(2)
-    with c_a1:
-        p_kdn_3 = st.number_input("Persentase KDN Alat Kerja (%):", value=st.session_state.val_p_kdn_3, step=0.1, key="input_p_kdn_3")
-        st.session_state.val_p_kdn_3 = p_kdn_3
-        kdn_3 = (p_kdn_3 / 100.0) * total_tagihan_rujukan
-        st.caption(f"-> Nilai KDN: Rp {kdn_3:,.2f}")
-    with c_a2:
-        p_kln_3 = st.number_input("Persentase KLN Alat Kerja (%):", value=st.session_state.val_p_kln_3, step=0.1, key="input_p_kln_3_kln")
-        st.session_state.val_p_kln_3 = p_kln_3
-        kln_3 = (p_kln_3 / 100.0) * total_tagihan_rujukan
-        st.caption(f"-> Nilai KLN: Rp {kln_3:,.2f}")
-
-    st.markdown("---")
-
-    # --- IV. BIAYA JASA UMUM & BUKAN BIAYA ---
-    c_j1, c_j2 = st.columns(2)
-    with c_j1:
-        st.markdown("**IV. Biaya Jasa Umum**")
-        p_kdn_4 = st.number_input("Persentase KDN Jasa Umum (%):", value=st.session_state.val_p_kdn_4, step=0.1, key="input_p_kdn_4")
-        st.session_state.val_p_kdn_4 = p_kdn_4
-        kdn_4 = (p_kdn_4 / 100.0) * total_tagihan_rujukan
-        st.caption(f"-> Nilai KDN: Rp {kdn_4:,.2f}")
+    # Form khusus untuk menyimpan dan mengunci parameter agar tidak tereset
+    with st.form(key=f"form_tkdn_save_{pi_sekarang}"):
+        st.markdown("#### ⚙️ Pengaturan Parameter & Rujukan Perhitungan TKDN")
         
-        p_kln_4 = st.number_input("Persentase KLN Jasa Umum (%):", value=st.session_state.val_p_kln_4, step=0.1, key="input_p_kln_4_kln")
-        st.session_state.val_p_kln_4 = p_kln_4
-        kln_4 = (p_kln_4 / 100.0) * total_tagihan_rujukan
-        st.caption(f"-> Nilai KLN: Rp {kln_4:,.2f}")
+        c_master1, c_master2, c_master3, c_master4 = st.columns(4)
+        with c_master1:
+            lokasi_office = st.text_input("📍 Lokasi Office:", value=str(saved_tkdn.get('lokasi_office', 'Luwuk')), key=f"tkdn_lok_{pi_sekarang}")
+        with c_master2:
+            selected_date_tkdn = st.date_input("📅 Tanggal Dokumen:", value=saved_tkdn.get('tanggal_dokumen', date.today()), key=f"tkdn_date_{pi_sekarang}")
+        with c_master3:
+            total_tagihan_rujukan = st.number_input("💰 Rujukan Total Tagihan (Rp):", value=float(saved_tkdn.get('total_tagihan', aktual_total_tagihan)), step=100000.0, key=f"master_tagihan_{pi_sekarang}")
+        with c_master4:
+            nama_direktur = st.text_input("Nama Direktur:", value=str(saved_tkdn.get('nama_direktur', 'Ir. Ferry Tatimu')), key=f"tkdn_dir_{pi_sekarang}")
 
-    with c_j2:
-        st.markdown("**B. Komponen Bukan Biaya**")
-        p_non_cost = st.number_input("Persentase Komponen Bukan Biaya (%):", value=st.session_state.val_p_non_cost, step=0.1, key="input_p_non_cost")
-        st.session_state.val_p_non_cost = p_non_cost
-        komponen_bukan_biaya = (p_non_cost / 100.0) * total_tagihan_rujukan
-        st.caption(f"-> Nilai Bukan Biaya: Rp {komponen_bukan_biaya:,.2f}")
+        st.markdown("---")
+        st.markdown("#### 🧮 Rincian Komponen Biaya & Non-Biaya (Berbasis Persentase)")
+        st.info("💡 Masukkan persentase (%) untuk setiap komponen. Nilai nominal dihitung otomatis dari Total Tagihan aktual PI.")
 
-    # --- PERHITUNGAN OTOMATIS FORMULA PERMEN ESDM NO. 15 / 2013 ---
+        # --- I. BIAYA BAHAN ---
+        st.markdown("**I. Biaya Bahan (Material)**")
+        c_b1, c_b2 = st.columns(2)
+        with c_b1:
+            p_kdn_1 = st.number_input("Persentase KDN Bahan (%):", value=float(saved_tkdn.get('p_kdn_1', 15.09)), step=0.1, key=f"input_p_kdn_1_{pi_sekarang}")
+            temp_kdn_1 = (p_kdn_1 / 100.0) * total_tagihan_rujukan
+            st.caption(f"-> Nilai KDN: Rp {temp_kdn_1:,.2f}")
+        with c_b2:
+            p_kln_1 = st.number_input("Persentase KLN Bahan (%):", value=float(saved_tkdn.get('p_kln_1', 1.51)), step=0.1, key=f"input_p_kln_1_{pi_sekarang}")
+            temp_kln_1 = (p_kln_1 / 100.0) * total_tagihan_rujukan
+            st.caption(f"-> Nilai KLN: Rp {temp_kln_1:,.2f}")
+
+        st.markdown("---")
+
+        # --- II. BIAYA TENAGA KERJA ---
+        st.markdown("**II. Biaya Tenaga Kerja & Konsultan**")
+        c_t1, c_t2 = st.columns(2)
+        with c_t1:
+            p_kdn_2 = st.number_input("Persentase KDN Tenaga Kerja (%):", value=float(saved_tkdn.get('p_kdn_2', 28.26)), step=0.1, key=f"input_p_kdn_2_{pi_sekarang}")
+            temp_kdn_2 = (p_kdn_2 / 100.0) * total_tagihan_rujukan
+            st.caption(f"-> Nilai KDN: Rp {temp_kdn_2:,.2f}")
+        with c_t2:
+            p_kln_2 = st.number_input("Persentase KLN Tenaga Kerja (%):", value=float(saved_tkdn.get('p_kln_2', 0.0)), step=0.1, key=f"input_p_kln_2_{pi_sekarang}")
+            temp_kln_2 = (p_kln_2 / 100.0) * total_tagihan_rujukan
+            st.caption(f"-> Nilai KLN: Rp {temp_kln_2:,.2f}")
+
+        st.markdown("---")
+
+        # --- III. BIAYA ALAT KERJA ---
+        st.markdown("**III. Biaya Alat Kerja / Fasilitas Kerja**")
+        c_a1, c_a2 = st.columns(2)
+        with c_a1:
+            p_kdn_3 = st.number_input("Persentase KDN Alat Kerja (%):", value=float(saved_tkdn.get('p_kdn_3', 47.18)), step=0.1, key=f"input_p_kdn_3_{pi_sekarang}")
+            temp_kdn_3 = (p_kdn_3 / 100.0) * total_tagihan_rujukan
+            st.caption(f"-> Nilai KDN: Rp {temp_kdn_3:,.2f}")
+        with c_a2:
+            p_kln_3 = st.number_input("Persentase KLN Alat Kerja (%):", value=float(saved_tkdn.get('p_kln_3', 1.51)), step=0.1, key=f"input_p_kln_3_{pi_sekarang}")
+            temp_kln_3 = (p_kln_3 / 100.0) * total_tagihan_rujukan
+            st.caption(f"-> Nilai KLN: Rp {temp_kln_3:,.2f}")
+
+        st.markdown("---")
+
+        # --- IV. BIAYA JASA UMUM & BUKAN BIAYA ---
+        c_j1, c_j2 = st.columns(2)
+        with c_j1:
+            st.markdown("**IV. Biaya Jasa Umum**")
+            p_kdn_4 = st.number_input("Persentase KDN Jasa Umum (%):", value=float(saved_tkdn.get('p_kdn_4', 1.55)), step=0.1, key=f"input_p_kdn_4_{pi_sekarang}")
+            temp_kdn_4 = (p_kdn_4 / 100.0) * total_tagihan_rujukan
+            st.caption(f"-> Nilai KDN: Rp {temp_kdn_4:,.2f}")
+            
+            p_kln_4 = st.number_input("Persentase KLN Jasa Umum (%):", value=float(saved_tkdn.get('p_kln_4', 0.0)), step=0.1, key=f"input_p_kln_4_{pi_sekarang}")
+            temp_kln_4 = (p_kln_4 / 100.0) * total_tagihan_rujukan
+            st.caption(f"-> Nilai KLN: Rp {temp_kln_4:,.2f}")
+
+        with c_j2:
+            st.markdown("**B. Komponen Bukan Biaya**")
+            p_non_cost = st.number_input("Persentase Komponen Bukan Biaya (%):", value=float(saved_tkdn.get('p_non_cost', 4.89)), step=0.1, key=f"input_p_non_cost_{pi_sekarang}")
+            temp_non_cost = (p_non_cost / 100.0) * total_tagihan_rujukan
+            st.caption(f"-> Nilai Bukan Biaya: Rp {temp_non_cost:,.2f}")
+
+        submit_save_tkdn = st.form_submit_button("💾 Simpan & Kunci Dokumen TKDN Ini", type="primary")
+        if submit_save_tkdn:
+            st.session_state.tkdn_saved_data[pi_sekarang] = {
+                'lokasi_office': lokasi_office,
+                'tanggal_dokumen': selected_date_tkdn,
+                'total_tagihan': total_tagihan_rujukan,
+                'nama_direktur': nama_direktur,
+                'p_kdn_1': p_kdn_1, 'p_kln_1': p_kln_1,
+                'p_kdn_2': p_kdn_2, 'p_kln_2': p_kln_2,
+                'p_kdn_3': p_kdn_3, 'p_kln_3': p_kln_3,
+                'p_kdn_4': p_kdn_4, 'p_kln_4': p_kln_4,
+                'p_non_cost': p_non_cost
+            }
+            st.success(f"✅ Dokumen TKDN untuk PI [{pi_sekarang}] berhasil disimpan dan dikunci!")
+
+    # Mengambil nilai yang sudah dikunci untuk perhitungan dan render
+    active_lokasi = saved_tkdn.get('lokasi_office', 'Luwuk')
+    active_date = saved_tkdn.get('tanggal_dokumen', date.today())
+    active_tagihan = saved_tkdn.get('total_tagihan', aktual_total_tagihan)
+    active_direktur = saved_tkdn.get('nama_direktur', 'Ir. Ferry Tatimu')
+
+    bulan_indo = {
+        1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
+        7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+    }
+    tgl_dokumen = f"{active_date.day:02d} {bulan_indo[active_date.month]} {active_date.year}"
+
+    kdn_1 = (saved_tkdn.get('p_kdn_1', 15.09) / 100.0) * active_tagihan
+    kln_1 = (saved_tkdn.get('p_kln_1', 1.51) / 100.0) * active_tagihan
+    kdn_2 = (saved_tkdn.get('p_kdn_2', 28.26) / 100.0) * active_tagihan
+    kln_2 = (saved_tkdn.get('p_kln_2', 0.0) / 100.0) * active_tagihan
+    kdn_3 = (saved_tkdn.get('p_kdn_3', 47.18) / 100.0) * active_tagihan
+    kln_3 = (saved_tkdn.get('p_kln_3', 1.51) / 100.0) * active_tagihan
+    kdn_4 = (saved_tkdn.get('p_kdn_4', 1.55) / 100.0) * active_tagihan
+    kln_4 = (saved_tkdn.get('p_kln_4', 0.0) / 100.0) * active_tagihan
+    komponen_bukan_biaya = (saved_tkdn.get('p_non_cost', 4.89) / 100.0) * active_tagihan
+
     tot_kdn_biaya = kdn_1 + kdn_2 + kdn_3 + kdn_4
     tot_kln_biaya = kln_1 + kln_2 + kln_3 + kln_4
     
@@ -395,9 +413,9 @@ def tampilkan_tkdn(transaksi_list):
             <tr>
                 <td style="width: 60%;"></td>
                 <td style="width: 40%; text-align: center;">
-                    {lokasi_office}, {tgl_dokumen}<br>
+                    {active_lokasi}, {tgl_dokumen}<br>
                     <b>PT. Banggai Sentral Sulawesi</b><br><br><br><br>
-                    <u><b>{nama_direktur}</b></u><br>
+                    <u><b>{active_direktur}</b></u><br>
                     Direktur
                 </td>
             </tr>
