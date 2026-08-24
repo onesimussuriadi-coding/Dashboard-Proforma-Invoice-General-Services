@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
-from datetime import datetime
+from datetime import datetime, date
 
 def terbilang(n):
     n = float(n)
@@ -41,13 +41,38 @@ def tampilkan_paket_lengkap(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📦 Master Bundle: Cetak & Download Seluruh Paket Dokumen Penagihan (1-Click Batch Export)</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Modul ini menggabungkan Proforma Invoice, BAMP, BASP, Opname Pekerjaan, dan TKDN secara utuh dan lengkap sesuai standar dokumen perusahaan.</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Modul ini menggabungkan Rincian Pekerjaan, Proforma Invoice, BAMP, BASP, Opname Pekerjaan, dan TKDN secara utuh, rapi, dan profesional.</p>
         </div>
     """, unsafe_allow_html=True)
 
     if not transaksi_list:
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
+
+    # --- PANEL PENGATURAN TANDA TANGAN & LOGO (OPSIONAL) ---
+    with st.expander("⚙️ Pengaturan Tambahan: Upload Logo & Tanda Tangan", expanded=False):
+        col_up1, col_up2 = st.columns(2)
+        with col_up1:
+            logo_p1_file = st.file_uploader("Upload Logo Pihak Pertama (SKK Migas - Pertamina - Medco)", type=["png", "jpg", "jpeg"], key="up_logo_p1")
+            logo_p2_file = st.file_uploader("Upload Logo Pihak Kedua (BSS)", type=["png", "jpg", "jpeg"], key="up_logo_p2")
+        with col_up2:
+            ttd_supervisor_file = st.file_uploader("Upload Tanda Tangan Supervisor (Rincian Pekerjaan)", type=["png", "jpg", "jpeg"], key="up_ttd_supervisor")
+            ttd_onesimus_file = st.file_uploader("Upload Tanda Tangan Onesimus Suriadi (Proforma & Opname)", type=["png", "jpg", "jpeg"], key="up_ttd_onesimus")
+            ttd_ferry_file = st.file_uploader("Upload Tanda Tangan Ir. Ferry Tatimu (BAMP, BASP, TKDN)", type=["png", "jpg", "jpeg"], key="up_ttd_ferry")
+
+    def img_to_base64_str(uploaded_file):
+        if uploaded_file is not None:
+            bytes_data = uploaded_file.getvalue()
+            b64_str = base64.b64encode(bytes_data).decode()
+            mime = uploaded_file.type
+            return f"data:{mime};base64,{b64_str}"
+        return None
+
+    custom_logo_p1 = img_to_base64_str(logo_p1_file) or "https://i.ibb.co.com/7t1g2y6/skkmigas-pertamina-medco.png"
+    custom_logo_p2 = img_to_base64_str(logo_p2_file) or "https://i.ibb.co.com/84N3q5P/bss-logo.png"
+    custom_ttd_supervisor = img_to_base64_str(ttd_supervisor_file)
+    custom_ttd_onesimus = img_to_base64_str(ttd_onesimus_file)
+    custom_ttd_ferry = img_to_base64_str(ttd_ferry_file)
 
     seen_pi_dd = set()
     unique_pi_list = []
@@ -57,23 +82,45 @@ def tampilkan_paket_lengkap(transaksi_list):
             seen_pi_dd.add(pi_key)
             unique_pi_list.append(pi_key)
 
-    col_opt1, col_opt2, col_opt3 = st.columns([2, 1, 1])
-    with col_opt1:
-        selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI) untuk Paket Dokumen:", unique_pi_list, key="bundle_pi_select")
-    with col_opt2:
-        lokasi_office = st.text_input("📍 Lokasi Dokumen:", value="Paisubololi", key="bundle_lokasi")
-    with col_opt3:
-        selected_date_obj = st.date_input("📅 Tanggal Dokumen Bersama:", value=datetime.now(), key="bundle_tanggal")
-
-    tanggal_str = selected_date_obj.strftime('%d %B %Y')
-
-    mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == str(selected_pi).strip()]
+    selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI) untuk Paket Dokumen:", unique_pi_list, key="bundle_pi_select")
+    
+    current_pi_no = str(selected_pi).strip()
+    mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == current_pi_no]
     if not mutasi_terpilih:
         st.warning("⚠️ Tidak ada item ditemukan untuk PI ini.")
         return
 
     t_data_utama = mutasi_terpilih[0]
-    current_pi_no = str(selected_pi).strip()
+
+    # --- AMBIL DATA DARI SESSION STATE MASING-MASING MODUL (FINAL) ---
+    bamp_saved = st.session_state.get("bamp_saved_data", {}).get(current_pi_no, {})
+    basp_saved = st.session_state.get("basp_saved_data", {}).get(current_pi_no, {})
+    tkdn_saved = st.session_state.get("tkdn_saved_data", {}).get(current_pi_no, {})
+
+    bamp_date_obj = bamp_saved.get('main_date', t_data_utama.get('Tanggal Mulai', datetime.now()))
+    basp_date_obj = basp_saved.get('main_date', t_data_utama.get('Tanggal Selesai', datetime.now()))
+    tkdn_date_obj = tkdn_saved.get('tanggal_dokumen', datetime.now())
+    
+    lokasi_bamp = bamp_saved.get('lokasi', 'Luwuk')
+    lokasi_basp = basp_saved.get('lokasi', 'Luwuk')
+    lokasi_tkdn = tkdn_saved.get('lokasi_office', 'Luwuk')
+
+    bulan_indo = {
+        1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
+        7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+    }
+    
+    def format_tgl_indo(dt_val):
+        try:
+            if isinstance(dt_val, str):
+                dt_val = pd.to_datetime(dt_val)
+            return f"{dt_val.day:02d} {bulan_indo[dt_val.month]} {dt_val.year}"
+        except:
+            return str(dt_val)
+
+    bamp_date_str = format_tgl_indo(bamp_date_obj)
+    basp_date_str = format_tgl_indo(basp_date_obj)
+    tkdn_date_str = format_tgl_indo(tkdn_date_obj)
 
     # --- PENGAMBILAN DATABASE INDUK ---
     db_invoice_path = os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx")
@@ -103,13 +150,20 @@ def tampilkan_paket_lengkap(transaksi_list):
         return fallback
 
     nomor_kontrak = get_induk(1, 'Nomor Kontrak', t_data_utama.get('Nomor Kontrak', '-'))
+    nama_kontrak = get_induk(7, 'Nama Kontrak', t_data_utama.get('Nama Kontrak', '-'))
+    nomor_tender = get_induk(2, 'Nomor Tender', '-')
     tgl_kontrak = get_induk(4, 'Tanggal Kontrak', '-')
     jangka_waktu = get_induk(5, 'Jangka Waktu Kontrak', '2 tahun')
-    tgl_pi = get_induk(6, 'Tanggal Performa Invoice', tanggal_str)
+    tgl_pi = get_induk(6, 'Tanggal Performa Invoice', format_tgl_indo(datetime.now()))
     lingkup_pekerjaan = get_induk(3, 'Lingkup Pekerjaan', t_data_utama.get('Deskripsi PO', '-'))
-    no_po = get_induk(8, 'Nomor Purchase Order', t_data_utama.get('Nomor PO', '-'))
+    
+    raw_po = get_induk(8, 'Nomor Purchase Order', t_data_utama.get('Nomor PO', '-'))
+    if raw_po.endswith('.0'):
+        no_po = raw_po[:-2]
+    else:
+        no_po = raw_po
+
     tgl_po = get_induk(9, 'Tanggal Purchase Order', t_data_utama.get('Tanggal PO', '-'))
-    nomor_tender = get_induk(2, 'Nomor Tender', '-')
 
     p1_nama = get_induk(10, 'Pihak Pertama', 'JOB Pertamina - Medco E&P Tomori Sulawesi')
     p1_alamat = get_induk(11, 'Alamat Pihak Pertama', 'Bidakara Office Tower I 4Th Floor, Jl. Gatot Subroto Kav. 71 - 73, Jakarta 12870, Indonesia')
@@ -118,9 +172,7 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     p2_nama = get_induk(14, 'Pihak Kedua', 'PT Banggai Sentral Sulawesi')
     p2_alamat = get_induk(15, 'Alamat Pihak Kedua', 'Jl. Urip Sumoharjo No. 53, Luwuk, Kabupaten Banggai, Provinsi Sulawesi Tengah (94715), Indonesia')
-    p2_wakil = get_induk(16, 'Diwakili Oleh (P2)', 'Ir. Ferry Tatimu')
-    p2_jabatan = get_induk(17, 'Selaku (P2)', 'Direktur Utama')
-
+    
     bank_name = t_data_utama.get('Bank Name', 'BANK RAKYAT INDONESIA (PERSERO) Tbk.')
     bank_branch = t_data_utama.get('Bank Branch', 'Cabang Luwuk')
     bank_acc_no = t_data_utama.get('Account No', '0167 0167 8888 303')
@@ -129,7 +181,12 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     # --- HITUNG TOTAL ---
     grand_total = 0.0
+    rincian_rows_html = ""
     pi_rows_html = ""
+    bamp_rows_html = ""
+    basp_rows_html = ""
+    opname_rows_html = ""
+
     for idx, m in enumerate(mutasi_terpilih, start=1):
         kat = str(m.get('Kategori', '')).strip()
         desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
@@ -140,14 +197,31 @@ def tampilkan_paket_lengkap(transaksi_list):
         tot = float(m.get('Total Harga', qty * price))
         grand_total += tot
 
-        desc_full = f"<b>{kat}</b><br>{desc}"
-        if ket:
-            desc_full += f"<br>{ket}"
+        tgl_mulai_item = str(m.get('Tanggal Mulai', tgl_pi))
+        tgl_selesai_item = str(m.get('Tanggal Selesai', tgl_pi))
 
+        rincian_rows_html += f"""
+            <tr>
+                <td>{idx}</td>
+                <td>{kat}</td>
+                <td style="text-align: left;">{desc}</td>
+                <td>{qty:.2f}</td>
+                <td>{unit}</td>
+                <td>{tgl_mulai_item}</td>
+                <td>{tgl_selesai_item}</td>
+                <td style="text-align: right;">{price:,.2f}</td>
+                <td style="text-align: right;">{tot:,.2f}</td>
+                <td style="text-align: left;">{ket}</td>
+            </tr>
+        """
+
+        desc_full_pi = f"<b>{kat}</b><br>{desc}"
+        if ket:
+            desc_full_pi += f"<br>{ket}"
         pi_rows_html += f"""
             <tr>
                 <td>{idx}</td>
-                <td style="text-align: left;">{desc_full}</td>
+                <td style="text-align: left;">{desc_full_pi}</td>
                 <td>{qty:.2f}</td>
                 <td>{unit}</td>
                 <td style="text-align: right;">{price:,.2f}</td>
@@ -155,15 +229,136 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
+        catatan_bamp = f"Mulai Berlaku Tanggal {bamp_date_str}"
+        if ket:
+            catatan_bamp = f"{catatan_bamp}<br>{ket}"
+        bamp_rows_html += f"""
+            <tr>
+                <td>{idx}</td>
+                <td style='text-align:left;'><b>{kat}</b><br>{desc}</td>
+                <td>{qty:.2f}</td>
+                <td>{unit}</td>
+                <td style='text-align:left;'>{catatan_bamp}</td>
+            </tr>
+        """
+
+        catatan_basp = f"Selesai Pelaksanaan Pekerjaan Tanggal {basp_date_str}"
+        if ket:
+            catatan_basp = f"{catatan_basp}<br>{ket}"
+        basp_rows_html += f"""
+            <tr>
+                <td>{idx}</td>
+                <td style='text-align:left;'><b>{kat}</b><br>{desc}</td>
+                <td>{qty:.2f}</td>
+                <td>{unit}</td>
+                <td style='text-align:left;'>{catatan_basp}</td>
+            </tr>
+        """
+
+        desc_full_opname = f"<b>{kat}</b><br>{desc}"
+        if ket:
+            desc_full_opname += f"<br>{ket}"
+        opname_rows_html += f"""
+            <tr>
+                <td>1.{idx}</td>
+                <td style="text-align: left;">{desc_full_opname}</td>
+                <td>{unit}</td>
+                <td>{qty:.2f}</td>
+                <td style="text-align: right;">{price:,.2f}</td>
+                <td style="text-align: right;">{tot:,.2f}</td>
+                <td>0.00</td>
+                <td style="text-align: right;">0.00</td>
+                <td>{qty:.2f}</td>
+                <td style="text-align: right;">{tot:,.2f}</td>
+                <td>{qty:.2f}</td>
+                <td style="text-align: right;">{tot:,.2f}</td>
+                <td>0.00</td>
+                <td style="text-align: right;">0.00</td>
+            </tr>
+        """
+
     terbilang_str = terbilang(grand_total)
 
+    # Perbaikan sintaks kutip di dalam f-string agar bebas dari SyntaxError
+    ttd_supervisor_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_supervisor}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Supervisor"></div>' if custom_ttd_supervisor else '<div style="height: 55px;"></div>'
+    
+    ttd_onesimus_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_onesimus}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Onesimus"></div>' if custom_ttd_onesimus else '<div style="height: 55px;"></div>'
+    
+    ttd_ferry_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_ferry}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Ferry"></div>' if custom_ttd_ferry else '<div style="height: 55px;"></div>'
+
     # ==========================================
-    # 1. HALAMAN PROFORMA INVOICE
+    # 1. HALAMAN RINCIAN PEKERJAAN
+    # ==========================================
+    rincian_html = f"""
+    <div class="page-break">
+        <div style="text-align: center; font-weight: bold; font-size: 11px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
+        <div style="text-align: center; font-size: 8.5px; color: #4b5563; margin-bottom: 10px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
+        <h2 style="text-align: center; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 15px;">RINCIAN PEKERJAAN</h2>
+        
+        <table style="width: 100%; font-size: 9.5px; margin-bottom: 15px; border-collapse: collapse;">
+            <tr>
+                <td style="width: 18%; font-weight: bold;">Rincian Pekerjaan</td><td style="width: 2%;">:</td><td style="width: 35%;"><b>{current_pi_no}</b></td>
+                <td style="width: 18%; font-weight: bold;">Ditujukan Kepada</td><td style="width: 2%;">:</td><td style="width: 25%;"><b>{p1_nama}</b></td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">Nomor Kontrak</td><td>:</td><td>{nomor_kontrak}</td>
+                <td style="font-weight: bold;">Nomor Purchase Order</td><td>:</td><td><b>{no_po}</b></td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">Nama Kontrak</td><td>:</td><td>{nama_kontrak}</td>
+                <td style="font-weight: bold;">Lingkup Pekerjaan</td><td>:</td><td>{lingkup_pekerjaan}</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">Nomor Tender</td><td>:</td><td>{nomor_tender}</td>
+                <td style="font-weight: bold;">Tanggal Purchase Order</td><td>:</td><td>{tgl_po}</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">Tanggal Proforma</td><td>:</td><td>{tgl_pi}</td>
+                <td style="font-weight: bold;">Mata Uang</td><td>:</td><td>IDR</td>
+            </tr>
+        </table>
+
+        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 8px;">
+            <tr>
+                <th>No.</th><th>Kategori</th><th>Uraian Pekerjaan</th><th>Qty</th><th>Satuan</th>
+                <th>Tanggal Mulai</th><th>Tanggal Selesai</th><th>Harga Satuan (IDR)</th><th>Total Harga (IDR)</th><th>Keterangan</th>
+            </tr>
+            {rincian_rows_html}
+            <tr style="font-weight: bold; background: #f9fafb;">
+                <td colspan="8" style="text-align: right;">TOTAL TAGIHAN :</td>
+                <td style="text-align: right;">{grand_total:,.2f}</td>
+                <td></td>
+            </tr>
+        </table>
+
+        <div style="font-size: 9.5px; margin-bottom: 20px;">
+            <b>Terbilang :</b> <i>{terbilang_str}</i>
+        </div>
+
+        <table style="width: 100%; table-layout: fixed; margin-top: 30px; border-collapse: collapse; page-break-inside: avoid;">
+            <tr>
+                <td style="width: 50%; text-align: center; vertical-align: top;">
+                    <b>DIBUAT OLEH</b>
+                    {ttd_supervisor_html}
+                    <u><b>Yanuar Wiranata / Ireine Langi</b></u><br>Supervisor
+                </td>
+                <td style="width: 50%; text-align: center; vertical-align: top;">
+                    <b>DIPERIKSA</b>
+                    {ttd_onesimus_html}
+                    <u><b>Onesimus Suriadi</b></u><br>Manager General Services
+                </td>
+            </tr>
+        </table>
+    </div>
+    """
+
+    # ==========================================
+    # 2. HALAMAN PROFORMA INVOICE
     # ==========================================
     pi_html = f"""
     <div class="page-break">
-        <div style="font-weight: bold; font-size: 10px; margin-bottom: 5px;">PT. BANGGAI SENTRAL SULAWESI</div>
-        <div style="font-size: 8.5px; color: #4b5563; margin-bottom: 10px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
+        <div style="text-align: center; font-weight: bold; font-size: 10px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
+        <div style="text-align: center; font-size: 8.5px; color: #4b5563; margin-bottom: 10px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
         <h2 style="text-align: center; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 10px;">PROFORMA INVOICE</h2>
         
         <table style="width: 100%; font-size: 9.5px; margin-bottom: 15px; border-collapse: collapse;">
@@ -171,7 +366,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="width: 55%; vertical-align: top;">
                     <b>TO:</b><br>
                     <b>{p1_nama}</b><br>
-                    {p1_alamat}<br>
+                    {p1_alamat}<br><br>
                     <b>Attn.:</b> {attn_to}
                 </td>
                 <td style="width: 45%; vertical-align: top;">
@@ -215,13 +410,14 @@ def tampilkan_paket_lengkap(transaksi_list):
             <b>Account Name:</b> {bank_acc_name}
         </div>
 
-        <table style="width: 100%; margin-top: 20px; border-collapse: collapse;">
+        <table style="width: 100%; table-layout: fixed; margin-top: 20px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
-                <td style="width: 50%;"></td>
-                <td style="width: 50%; text-align: center;">
-                    <b>PT. BANGGAI SENTRAL SULAWESI</b><br><br><br><br>
-                    <u><b>{p2_wakil}</b></u><br>
-                    {p2_jabatan}
+                <td style="width: 50%; text-align: center; vertical-align: top;"></td>
+                <td style="width: 50%; text-align: center; vertical-align: top;">
+                    <b>{p2_nama}</b>
+                    {ttd_onesimus_html}
+                    <u><b>Onesimus Suriadi</b></u><br>
+                    Manager General Services
                 </td>
             </tr>
         </table>
@@ -229,20 +425,26 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 2. HALAMAN BAMP (Berita Acara Mulai Pekerjaan)
+    # 3. HALAMAN BAMP
     # ==========================================
-    bamp_rows = ""
-    for idx, m in enumerate(mutasi_terpilih, start=1):
-        kat = str(m.get('Kategori', '')).strip()
-        desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
-        qty = float(m.get('Qty', 1.0))
-        unit = str(m.get('Unit', 'AU'))
-        bamp_rows += f"<tr><td>{idx}</td><td style='text-align:left;'><b>{kat}</b><br>{desc}</td><td>{qty:.2f}</td><td>{unit}</td><td>Mulai Berlaku Tanggal {tanggal_str}</td></tr>"
-
     bamp_html = f"""
     <div class="page-break">
-        <h2 style="text-align: center; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 10px;">BERITA ACARA MULAI PEKERJAAN (BAMP)</h2>
-        <p style="font-size: 9.5px;">Pada hari ini, tanggal <b>{tanggal_str}</b>, yang bertanda tangan di bawah ini:</p>
+        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
+            <tr>
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
+                    <img src="{custom_logo_p1}" style="height: 35px;" alt="Logo Pihak Pertama">
+                </td>
+                <td style="width: 50%; text-align: center; vertical-align: middle;">
+                    <h2 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">BERITA ACARA MULAI PEKERJAAN (BAMP)</h2>
+                </td>
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
+                    <img src="{custom_logo_p2}" style="height: 35px;" alt="Logo Pihak Kedua">
+                </td>
+            </tr>
+        </table>
+        <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
+
+        <p style="font-size: 9.5px;">Pada hari ini, tanggal <b>{bamp_date_str}</b>, yang bertanda tangan di bawah ini:</p>
         
         <table style="width: 100%; font-size: 9.5px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 25%; font-weight: bold;">01. PIHAK PERTAMA</td><td></td></tr>
@@ -253,8 +455,8 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td style="font-weight: bold; padding-top: 5px;">02. PIHAK KEDUA</td><td></td></tr>
             <tr><td>Nama Perusahaan</td><td>: {p2_nama}</td></tr>
             <tr><td>Alamat</td><td>: {p2_alamat}</td></tr>
-            <tr><td>Diwakili oleh</td><td>: {p2_wakil}</td></tr>
-            <tr><td>Jabatan</td><td>: {p2_jabatan}</td></tr>
+            <tr><td>Diwakili oleh</td><td>: Ir. Ferry Tatimu</td></tr>
+            <tr><td>Jabatan</td><td>: Direktur</td></tr>
         </table>
 
         <div style="font-size: 9.5px; font-weight: bold; margin-top: 10px; margin-bottom: 5px;">DASAR PELAKSANAAN PEKERJAAN</div>
@@ -266,28 +468,26 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td>Lingkup Pekerjaan</td><td>: {lingkup_pekerjaan}</td></tr>
         </table>
 
-        <p style="font-size: 9.5px;">Dengan ini PIHAK KEDUA menyatakan mulai melaksanakan seluruh pekerjaan secara baik dan siap terhitung mulai tanggal <b>{tanggal_str}</b> dengan rincian sebagai berikut:</p>
+        <p style="font-size: 9.5px;">Dengan ini PIHAK KEDUA menyatakan mulai melaksanakan seluruh pekerjaan secara baik dan siap terhitung mulai tanggal <b>{bamp_date_str}</b> dengan rincian sebagai berikut:</p>
 
         <table class="doc-table" style="width:100%; border-collapse:collapse; margin-top:10px; margin-bottom: 20px;">
             <tr><th style="width: 8%;">NO</th><th style="width: 42%;">KETERANGAN PEKERJAAN</th><th style="width: 10%;">JUMLAH</th><th style="width: 10%;">SATUAN</th><th style="width: 30%;">CATATAN</th></tr>
-            {bamp_rows}
+            {bamp_rows_html}
         </table>
 
         <p style="font-size: 9.5px;">Demikian Berita Acara Mulai Pekerjaan ini dibuat dan ditandatangani oleh kedua belah pihak untuk dipergunakan sebagaimana mestinya.</p>
 
-        <table style="width: 100%; margin-top: 30px; border-collapse: collapse; page-break-inside: avoid;">
+        <table style="width: 100%; table-layout: fixed; margin-top: 30px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
-                <td style="width: 50%; text-align: center;">
-                    <b>{p1_nama}</b><br>
-                    PIHAK PERTAMA<br><br><br><br>
-                    <u><b>{p1_wakil}</b></u><br>
-                    {p1_jabatan}
+                <td style="width: 50%; text-align: center; vertical-align: top;">
+                    <b>{p1_nama}</b><br>PIHAK PERTAMA
+                    <div style="height: 55px;"></div>
+                    <u><b>{p1_wakil}</b></u><br>{p1_jabatan}
                 </td>
-                <td style="width: 50%; text-align: center;">
-                    <b>{p2_nama}</b><br>
-                    PIHAK KEDUA<br><br><br><br>
-                    <u><b>{p2_wakil}</b></u><br>
-                    {p2_jabatan}
+                <td style="width: 50%; text-align: center; vertical-align: top;">
+                    <b>{p2_nama}</b><br>PIHAK KEDUA
+                    {ttd_ferry_html}
+                    <u><b>Ir. Ferry Tatimu</b></u><br>Direktur
                 </td>
             </tr>
         </table>
@@ -295,20 +495,26 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 3. HALAMAN BASP (Berita Acara Selesai Pekerjaan)
+    # 4. HALAMAN BASP
     # ==========================================
-    basp_rows = ""
-    for idx, m in enumerate(mutasi_terpilih, start=1):
-        kat = str(m.get('Kategori', '')).strip()
-        desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
-        qty = float(m.get('Qty', 1.0))
-        unit = str(m.get('Unit', 'AU'))
-        basp_rows += f"<tr><td>{idx}</td><td style='text-align:left;'><b>{kat}</b><br>{desc}</td><td>{qty:.2f}</td><td>{unit}</td><td>Selesai Pelaksanaan Pekerjaan Tanggal {tanggal_str}</td></tr>"
-
     basp_html = f"""
     <div class="page-break">
-        <h2 style="text-align: center; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 10px;">BERITA ACARA SELESAI PEKERJAAN (BASP)</h2>
-        <p style="font-size: 9.5px;">Pada hari ini, tanggal <b>{tanggal_str}</b>, yang bertanda tangan di bawah ini:</p>
+        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
+            <tr>
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
+                    <img src="{custom_logo_p1}" style="height: 35px;" alt="Logo Pihak Pertama">
+                </td>
+                <td style="width: 50%; text-align: center; vertical-align: middle;">
+                    <h2 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">BERITA ACARA SELESAI PEKERJAAN (BASP)</h2>
+                </td>
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
+                    <img src="{custom_logo_p2}" style="height: 35px;" alt="Logo Pihak Kedua">
+                </td>
+            </tr>
+        </table>
+        <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
+
+        <p style="font-size: 9.5px;">Pada hari ini, tanggal <b>{basp_date_str}</b>, yang bertanda tangan di bawah ini:</p>
         
         <table style="width: 100%; font-size: 9.5px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 25%; font-weight: bold;">01. PIHAK PERTAMA</td><td></td></tr>
@@ -319,8 +525,8 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td style="font-weight: bold; padding-top: 5px;">02. PIHAK KEDUA</td><td></td></tr>
             <tr><td>Nama Perusahaan</td><td>: {p2_nama}</td></tr>
             <tr><td>Alamat</td><td>: {p2_alamat}</td></tr>
-            <tr><td>Diwakili oleh</td><td>: {p2_wakil}</td></tr>
-            <tr><td>Jabatan</td><td>: {p2_jabatan}</td></tr>
+            <tr><td>Diwakili oleh</td><td>: Ir. Ferry Tatimu</td></tr>
+            <tr><td>Jabatan</td><td>: Direktur</td></tr>
         </table>
 
         <div style="font-size: 9.5px; font-weight: bold; margin-top: 10px; margin-bottom: 5px;">DASAR PELAKSANAAN PEKERJAAN</div>
@@ -332,28 +538,26 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td>Lingkup Pekerjaan</td><td>: {lingkup_pekerjaan}</td></tr>
         </table>
 
-        <p style="font-size: 9.5px;">Dengan ini PIHAK KEDUA menyatakan telah menyelesaikan seluruh pekerjaan secara baik dan lengkap terhitung sampai dengan tanggal <b>{tanggal_str}</b> dengan rincian sebagai berikut:</p>
+        <p style="font-size: 9.5px;">Dengan ini PIHAK KEDUA menyatakan telah menyelesaikan seluruh pekerjaan secara baik dan lengkap terhitung sampai dengan tanggal <b>{basp_date_str}</b> dengan rincian sebagai berikut:</p>
 
         <table class="doc-table" style="width:100%; border-collapse:collapse; margin-top:10px; margin-bottom: 20px;">
             <tr><th style="width: 8%;">NO</th><th style="width: 42%;">KETERANGAN PEKERJAAN</th><th style="width: 10%;">JUMLAH</th><th style="width: 10%;">SATUAN</th><th style="width: 30%;">CATATAN</th></tr>
-            {basp_rows}
+            {basp_rows_html}
         </table>
 
         <p style="font-size: 9.5px;">Demikian Berita Acara Selesai Pekerjaan ini dibuat dan ditandatangani oleh kedua belah pihak untuk dipergunakan sebagaimana mestinya.</p>
 
-        <table style="width: 100%; margin-top: 30px; border-collapse: collapse; page-break-inside: avoid;">
+        <table style="width: 100%; table-layout: fixed; margin-top: 30px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
-                <td style="width: 50%; text-align: center;">
-                    <b>{p1_nama}</b><br>
-                    PIHAK PERTAMA<br><br><br><br>
-                    <u><b>{p1_wakil}</b></u><br>
-                    {p1_jabatan}
+                <td style="width: 50%; text-align: center; vertical-align: top;">
+                    <b>{p1_nama}</b><br>PIHAK PERTAMA
+                    <div style="height: 55px;"></div>
+                    <u><b>{p1_wakil}</b></u><br>{p1_jabatan}
                 </td>
-                <td style="width: 50%; text-align: center;">
-                    <b>{p2_nama}</b><br>
-                    PIHAK KEDUA<br><br><br><br>
-                    <u><b>{p2_wakil}</b></u><br>
-                    {p2_jabatan}
+                <td style="width: 50%; text-align: center; vertical-align: top;">
+                    <b>{p2_nama}</b><br>PIHAK KEDUA
+                    {ttd_ferry_html}
+                    <u><b>Ir. Ferry Tatimu</b></u><br>Direktur
                 </td>
             </tr>
         </table>
@@ -361,97 +565,75 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 4. HALAMAN OPNAME PEKERJAAN
+    # 5. HALAMAN OPNAME PEKERJAAN
     # ==========================================
-    opname_rows = ""
-    for idx, m in enumerate(mutasi_terpilih, start=1):
-        kat = str(m.get('Kategori', '')).strip()
-        desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
-        qty = float(m.get('Qty', 1.0))
-        unit = str(m.get('Unit', 'AU'))
-        price = float(m.get('Harga Satuan', 0.0))
-        tot = float(m.get('Total Harga', qty * price))
-        
-        desc_full = f"<b>{kat}</b><br>{desc}"
-        opname_rows += f"""
-            <tr>
-                <td>1.{idx}</td>
-                <td style="text-align: left;">{desc_full}</td>
-                <td>{unit}</td>
-                <td>0.00</td>
-                <td style="text-align: right;">{price:,.2f}</td>
-                <td>0.00</td>
-                <td>0.00</td>
-                <td>0.00</td>
-                <td>{qty:.2f}</td>
-                <td style="text-align: right;">{tot:,.2f}</td>
-                <td>{qty:.2f}</td>
-                <td style="text-align: right;">{tot:,.2f}</td>
-                <td>-1.00</td>
-                <td style="text-align: right;">-{{tot:,.2f}}</td>
-            </tr>
-        """
-
     opname_html = f"""
     <div class="page-break">
-        <h2 style="text-align: center; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 10px;">BERITA ACARA PEKERJAAN / OPNAME</h2>
+        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
+            <tr>
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
+                    <img src="{custom_logo_p1}" style="height: 35px;" alt="Logo Pihak Pertama">
+                </td>
+                <td style="width: 50%; text-align: center; vertical-align: middle;">
+                    <h2 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">BERITA ACARA PEKERJAAN / OPNAME</h2>
+                </td>
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
+                    <img src="{custom_logo_p2}" style="height: 35px;" alt="Logo Pihak Kedua">
+                </td>
+            </tr>
+        </table>
+        <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
         
         <table style="width: 100%; font-size: 9.5px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 25%; font-weight: bold;">JOB TITLE / WO / PO</td><td>: {lingkup_pekerjaan}</td></tr>
             <tr><td style="font-weight: bold;">CTR / WO / PO No.</td><td>: {no_po}</td></tr>
-            <tr><td style="font-weight: bold;">DATE</td><td>: {tanggal_str}</td></tr>
+            <tr><td style="font-weight: bold;">DATE</td><td>: {bamp_date_str}</td></tr>
             <tr><td style="font-weight: bold; color: #065f46;">PROFORMA INVOICE No.</td><td>: <b>{current_pi_no}</b></td></tr>
         </table>
 
         <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 8px;">
             <tr>
-                <th rowspan="2">NO</th>
-                <th rowspan="2">ITEM - DESCRIPTION</th>
-                <th rowspan="2">UOM</th>
+                <th rowspan="2">NO</th><th rowspan="2">ITEM - DESCRIPTION</th><th rowspan="2">UOM</th>
                 <th colspan="3">BASE ON CTR / PO</th>
-                <th colspan="2">PREVIOUS OPNAME</th>
-                <th colspan="2">AKTUAL OPNAME (BULAN INI)</th>
-                <th colspan="2">CUMMULATIVE OPNAME</th>
-                <th colspan="2">SISA ANGGARAN (DEVIASI)</th>
+                <th colspan="2">PREVIOUS OPNAME (IDR)</th>
+                <th colspan="2">AKTUAL OPNAME (BULAN INI) (IDR)</th>
+                <th colspan="2">CUMMULATIVE OPNAME (IDR)</th>
+                <th colspan="2">SISA ANGGARAN (DEVIASI) (IDR)</th>
             </tr>
             <tr>
-                <th>VOLUME</th><th>UNIT PRICE</th><th>TOTAL PRICE</th>
+                <th>VOLUME</th><th>UNIT PRICE (IDR)</th><th>TOTAL PRICE (IDR)</th>
                 <th>VOLUME</th><th>TOTAL PRICE</th>
                 <th>VOLUME</th><th>TOTAL PRICE</th>
                 <th>VOLUME</th><th>TOTAL PRICE</th>
                 <th>VOLUME</th><th>TOTAL PRICE</th>
             </tr>
-            {opname_rows}
+            {opname_rows_html}
             <tr style="font-weight: bold; background: #f9fafb;">
-                <td colspan="3" style="text-align: right;">TOTAL:</td>
-                <td>0.00</td><td>-</td><td style="text-align: right;">0.00</td>
+                <td colspan="3" style="text-align: right;">TOTAL :</td>
+                <td>{float(t_data_utama.get('Qty', 1.0)):.2f}</td><td>-</td><td style="text-align: right;">{grand_total:,.2f}</td>
                 <td>0.00</td><td style="text-align: right;">0.00</td>
                 <td>{float(t_data_utama.get('Qty', 1.0)):.2f}</td><td style="text-align: right;">{grand_total:,.2f}</td>
                 <td>{float(t_data_utama.get('Qty', 1.0)):.2f}</td><td style="text-align: right;">{grand_total:,.2f}</td>
-                <td>-1.00</td><td style="text-align: right;">-{{grand_total:,.2f}}</td>
+                <td>0.00</td><td style="text-align: right;">0.00</td>
             </tr>
         </table>
 
         <div style="font-size: 9.5px; font-weight: bold; margin-bottom: 20px;">
             Total Akumulasi Penyerapan (Cumulative Opname): Rp {grand_total:,.2f}<br>
-            Sisa Nilai Anggaran PO (Deviasi): Rp -{{grand_total:,.2f}}
+            Sisa Nilai Anggaran PO (Deviasi): Rp 0.00
         </div>
 
-        <table style="width: 100%; margin-top: 20px; border-collapse: collapse; page-break-inside: avoid;">
+        <table style="width: 100%; table-layout: fixed; margin-top: 20px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
-                <td style="width: 50%; text-align: left;">
-                    {lokasi_office}, {tanggal_str}<br>
-                    <b>{p2_nama}</b><br>
-                    Prepared by,<br><br><br><br>
-                    <u><b>Onesimus Suriadi</b></u><br>
-                    Manager General Services
+                <td style="width: 50%; text-align: center; vertical-align: top;">
+                    {lokasi_bamp}, {bamp_date_str}<br><b>{p2_nama}</b><br>Prepared by,
+                    {ttd_onesimus_html}
+                    <u><b>Onesimus Suriadi</b></u><br>Manager General Services
                 </td>
-                <td style="width: 50%; text-align: center;">
-                    <br>
-                    <b>{p1_nama}</b><br>
-                    Approved by,<br><br><br><br>
-                    <u><b>{p1_wakil}</b></u><br>
-                    {p1_jabatan}
+                <td style="width: 50%; text-align: center; vertical-align: top;">
+                    <br><b>{p1_nama}</b><br>Approved by,
+                    <div style="height: 55px;"></div>
+                    <u><b>{p1_wakil}</b></u><br>{p1_jabatan}
                 </td>
             </tr>
         </table>
@@ -459,93 +641,125 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 5. HALAMAN TKDN (Format Resmi Permen ESDM No. 15 / 2013)
+    # 6. HALAMAN TKDN
     # ==========================================
-    # Hitung estimasi komponen jasa umum (asumsi 95% TKDN sesuai contoh scan)
     total_jasa = grand_total * (95.0 / 100.0)
     non_cost = grand_total * 0.05
 
     tkdn_html = f"""
     <div class="page-break">
-        <div style="text-align: center; font-weight: bold; font-size: 10px; margin-bottom: 2px;">TABEL PERHITUNGAN TINGKAT KOMPONEN DALAM NEGERI - JASA</div>
-        <div style="text-align: center; font-size: 9px; font-weight: bold; margin-bottom: 10px;">SELF-ASSESSMENT (PERMEN ESDM NO. 15 TAHUN 2013)</div>
+        <div style="text-align: center; font-weight: bold; font-size: 11px; margin-bottom: 2px;">TABEL PERHITUNGAN TINGKAT KOMPONEN DALAM NEGERI - JASA</div>
+        <div style="text-align: center; font-size: 10px; font-weight: bold; margin-bottom: 15px;">SELF - ASSESSMENT (PERMEN ESDM NO. 15 TAHUN 2013)</div>
         
-        <table style="width: 100%; font-size: 9px; margin-bottom: 10px; border-collapse: collapse;">
-            <tr><td style="width: 20%; font-weight: bold;">Nama Penyedia Jasa</td><td style="width: 80%;">: {p2_nama}</td></tr>
-            <tr><td style="font-weight: bold;">Judul Kontrak</td><td>: {lingkup_pekerjaan}</td></tr>
-            <tr><td style="font-weight: bold;">Nomor Kontrak</td><td>: {nomor_kontrak}</td></tr>
-            <tr><td style="font-weight: bold;">Nomor PO</td><td>: {no_po}</td></tr>
-            <tr><td style="font-weight: bold;">Tanggal</td><td>: {tanggal_str}</td></tr>
-            <tr><td style="font-weight: bold;">Mata Uang</td><td>: IDR</td></tr>
+        <table style="width: 100%; font-size: 9.5px; margin-bottom: 12px; border-collapse: collapse;">
+            <tr>
+                <td style="width: 18%; font-weight: bold;">Nama Penyedia Jasa</td><td style="width: 2%;">:</td><td style="width: 50%;"><b>{p2_nama}</b></td>
+                <td style="width: 13%; font-weight: bold;">Nomor Kontrak</td><td style="width: 2%;">:</td><td style="width: 15%;"><b>{nomor_kontrak}</b></td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">Judul Kontrak</td><td>:</td><td>{nama_kontrak}</td>
+                <td style="font-weight: bold;">Nomor PO</td><td>:</td><td><b>{no_po}</b></td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">Mata Uang</td><td>:</td><td>IDR</td>
+                <td style="font-weight: bold;">Tanggal</td><td>:</td><td>{tkdn_date_str}</td>
+            </tr>
         </table>
 
         <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 8.5px;">
             <tr>
-                <th>A. KOMPONEN BIAYA (COST COMPONENT)</th>
-                <th>MATA UANG</th>
-                <th>KDN (A)</th>
-                <th>KLN (B)</th>
-                <th>TOTAL ($C=A+B$)</th>
-                <th>% NILAI TKDN</th>
-                <th>NILAI TKDN</th>
+                <th style="width: 28%;">A. KOMPONEN BIAYA<br>(COST COMPONENT)</th>
+                <th style="width: 8%;">MATA UANG</th>
+                <th style="width: 13%;">KDN (A)</th>
+                <th style="width: 13%;">KLN (B)</th>
+                <th style="width: 14%;">TOTAL (C = A + B)</th>
+                <th style="width: 12%;">% NILAI TKDN<br>(D = A / C)</th>
+                <th style="width: 12%;">NILAI TKDN<br>(E = C X D)</th>
             </tr>
             <tr>
-                <td style="text-align: left;">I. Biaya Bahan (Material) Terpakai</td>
-                <td>Rp</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.00%</td><td>0.00</td>
+                <td style="text-align: left;">I. Biaya Bahan (Material) Terpakai<br><span style="font-size:7px; color:#555;">(material used cost)</span></td>
+                <td>Rp</td><td style="background-color: #fef08a;">Rp 0.00</td><td style="background-color: #fef08a;">Rp 0.00</td><td>Rp 0.00</td><td>0.00%</td><td>Rp 0.00</td>
             </tr>
             <tr>
-                <td style="text-align: left;">II. Biaya Tenaga Kerja & Konsultan</td>
-                <td>Rp</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.00%</td><td>0.00</td>
+                <td style="text-align: left;"></td>
+                <td>US$</td><td style="background-color: #fef08a;">0.00</td><td style="background-color: #fef08a;">0.00</td><td>0.00</td><td>0.00%</td><td>0.00</td>
             </tr>
             <tr>
-                <td style="text-align: left;">III. Biaya Alat Kerja / Fasilitas Kerja</td>
-                <td>Rp</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.00%</td><td>0.00</td>
+                <td style="text-align: left;">II. Biaya Tenaga Kerja & Konsultan<br><span style="font-size:7px; color:#555;">(personnel & consultant cost)</span></td>
+                <td>Rp</td><td style="background-color: #fef08a;">Rp 0.00</td><td style="background-color: #fef08a;">Rp 0.00</td><td>Rp 0.00</td><td>0.00%</td><td>Rp 0.00</td>
             </tr>
             <tr>
-                <td style="text-align: left;">IV. Biaya Jasa Umum</td>
-                <td>Rp</td><td>{total_jasa:,.2f}</td><td>0.00</td><td>{total_jasa:,.2f}</td><td>100.00%</td><td>{total_jasa:,.2f}</td>
-            </tr>
-            <tr style="font-weight: bold;">
-                <td style="text-align: left;">V. JUMLAH BIAYA (I s/d IV)</td>
-                <td>Rp</td><td>{total_jasa:,.2f}</td><td>0.00</td><td>{total_jasa:,.2f}</td><td>100.00%</td><td>{total_jasa:,.2f}</td>
+                <td style="text-align: left;"></td>
+                <td>US$</td><td style="background-color: #fef08a;">0.00</td><td style="background-color: #fef08a;">0.00</td><td>0.00</td><td>0.00%</td><td>0.00</td>
             </tr>
             <tr>
-                <td style="text-align: left; font-weight: bold;">B. KOMPONEN BUKAN BIAYA (Non-cost Component)</td>
-                <td>Rp</td><td colspan="2"></td><td>{non_cost:,.2f}</td><td colspan="2"></td>
+                <td style="text-align: left;">III. Biaya Alat Kerja / Fasilitas Kerja<br><span style="font-size:7px; color:#555;">(equipment & work facility cost)</span></td>
+                <td>Rp</td><td style="background-color: #fef08a;">Rp 0.00</td><td style="background-color: #fef08a;">Rp 0.00</td><td>Rp 0.00</td><td>0.00%</td><td>Rp 0.00</td>
             </tr>
-            <tr style="font-weight: bold; background: #f3f4f6;">
+            <tr>
+                <td style="text-align: left;"></td>
+                <td>US$</td><td style="background-color: #fef08a;">0.00</td><td style="background-color: #fef08a;">0.00</td><td>0.00</td><td>0.00%</td><td>0.00</td>
+            </tr>
+            <tr>
+                <td style="text-align: left;">IV. Biaya Jasa Umum<br><span style="font-size:7px; color:#555;">(other services cost)</span></td>
+                <td>Rp</td><td style="background-color: #fef08a;">Rp {total_jasa:,.2f}</td><td style="background-color: #fef08a;">Rp 0.00</td><td>Rp {total_jasa:,.2f}</td><td>100.00%</td><td>Rp {total_jasa:,.2f}</td>
+            </tr>
+            <tr>
+                <td style="text-align: left;"></td>
+                <td>US$</td><td style="background-color: #fef08a;">0.00</td><td style="background-color: #fef08a;">0.00</td><td>0.00</td><td>0.00%</td><td>0.00</td>
+            </tr>
+            <tr style="font-weight: bold; background: #f8fafc;">
+                <td style="text-align: left;">V. JUMLAH BIAYA (∑ I s/d IV)<br><span style="font-size:7px; color:#555;">(Total Cost)</span></td>
+                <td>Rp</td><td>Rp {total_jasa:,.2f}</td><td>Rp 0.00</td><td>Rp {total_jasa:,.2f}</td><td>100.00%</td><td>Rp {total_jasa:,.2f}</td>
+            </tr>
+            <tr style="font-weight: bold; background: #f8fafc;">
+                <td style="text-align: left;"></td>
+                <td>US$</td><td>0.00</td><td>0.00</td><td>0.00</td><td>0.00%</td><td>0.00</td>
+            </tr>
+            <tr>
+                <td style="text-align: left; font-weight: bold;">B. KOMPONEN BUKAN BIAYA<br><span style="font-size:7px; color:#555;">(Non-cost Component)</span></td>
+                <td>Rp</td><td colspan="2" style="background-color: #fef08a;"></td><td>Rp {non_cost:,.2f}</td><td colspan="2"></td>
+            </tr>
+            <tr>
+                <td style="text-align: left;"></td>
+                <td>US$</td><td colspan="2" style="background-color: #fef08a;"></td><td>0.00</td><td colspan="2"></td>
+            </tr>
+            <tr style="font-weight: bold; background: #f1f5f9;">
                 <td style="text-align: left;">C. JUMLAH NILAI TOTAL (A + B)</td>
-                <td>Rp</td><td colspan="2"></td><td>{grand_total:,.2f}</td><td colspan="2"></td>
+                <td>Rp</td><td colspan="2"></td><td>Rp {grand_total:,.2f}</td><td colspan="2"></td>
             </tr>
-            <tr style="font-weight: bold; background: #e5e7eb; font-size: 10px;">
+            <tr style="font-weight: bold; background: #f1f5f9;">
+                <td style="text-align: left;"></td>
+                <td>US$</td><td colspan="2"></td><td>0.00</td><td colspan="2"></td>
+            </tr>
+            <tr style="font-weight: bold; background: #e2e8f0; font-size: 10.5px; color: #065f46;">
                 <td colspan="6" style="text-align: right;">CAPAIAN PERSENTASE TKDN AKHIR (%):</td>
-                <td style="color: #065f46;">95.00%</td>
+                <td style="text-align: right;">95.00 %</td>
             </tr>
         </table>
 
-        <div style="font-size: 8px; margin-bottom: 15px;">
+        <div style="font-size: 8.5px; margin-bottom: 15px;">
             <b>Catatan:</b><br>
             • Isi hanya pada kolom yang berwarna kuning pastel.<br>
             • Formulasi perhitungan mengacu pada Permen ESDM No. 15 Tahun 2013.
         </div>
 
-        <table style="width: 100%; margin-top: 20px; border-collapse: collapse; page-break-inside: avoid;">
+        <table style="width: 100%; table-layout: fixed; margin-top: 25px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
-                <td style="width: 50%;"></td>
-                <td style="width: 50%; text-align: center;">
-                    {lokasi_office}, {tanggal_str}<br>
-                    <b>{p2_nama}</b><br><br><br><br>
-                    <u><b>{p2_wakil}</b></u><br>
-                    {p2_jabatan}
+                <td style="width: 50%; text-align: center; vertical-align: top;"></td>
+                <td style="width: 50%; text-align: center; vertical-align: top;">
+                    {lokasi_tkdn}, {tkdn_date_str}<br>
+                    <b>{p2_nama}</b>
+                    {ttd_ferry_html}
+                    <u><b>Ir. Ferry Tatimu</b></u><br>
+                    Direktur
                 </td>
             </tr>
         </table>
     </div>
     """
 
-    # ==========================================
-    # MASTER CONTAINER HTML
-    # ==========================================
+    # --- MASTER CONTAINER HTML ---
     master_html = f"""
     <!DOCTYPE html>
     <html>
@@ -565,6 +779,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         </style>
     </head>
     <body>
+        {rincian_html}
         {pi_html}
         {bamp_html}
         {basp_html}
@@ -602,5 +817,5 @@ def tampilkan_paket_lengkap(transaksi_list):
         st.components.v1.html(print_script, height=60)
 
     with col_b2:
-        download_link = f'<a href="data:text/html;base64,{b64_html}" download="Master_Paket_Dokumen_{current_pi_no.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 12px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;">📥 Download Master File Paket (.HTML/PDF)</button></a>'
+        download_link = f'<a href="data:text/html;base64,{b64_html}" download="Master_Paket_Dokumen_{current_pi_no.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 12px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;">📥 Download File Paket (.HTML/PDF)</button></a>'
         st.markdown(download_link, unsafe_allow_html=True)

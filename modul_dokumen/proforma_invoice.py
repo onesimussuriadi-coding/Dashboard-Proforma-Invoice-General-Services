@@ -47,22 +47,20 @@ def tampilkan_proforma_invoice(transaksi_list):
             seen_pi_dd.add(pi_key)
             unique_pi_list.append(pi_key)
 
-    # Inisialisasi penyimpanan session state khusus Proforma Invoice
+    # Inisialisasi penyimpanan session state khusus Proforma Invoice secara permanen
     if "proforma_saved_data" not in st.session_state:
         st.session_state.proforma_saved_data = {}
 
-    # Dropdown di luar form agar reaktif (langsung merespons perubahan pilihan PI)
     selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list, key="proforma_sel_pi")
     
-    # Form khusus untuk tombol simpan dokumen Proforma Invoice
-    with st.form(key=f"form_proforma_save_{selected_pi}"):
-        st.markdown(f"**Status Dokumen PI:** `{selected_pi}` siap dikunci.")
-        submit_save_proforma = st.form_submit_button("💾 Simpan & Kunci Proforma Invoice Ini", type="primary")
-        if submit_save_proforma:
-            st.session_state.proforma_saved_data[selected_pi] = {
-                'locked_at': True
-            }
-            st.success(f"✅ Proforma Invoice untuk nomor PI [{selected_pi}] berhasil disimpan dan dikunci!")
+    pi_storage_key = str(selected_pi).strip()
+    if pi_storage_key not in st.session_state.proforma_saved_data:
+        st.session_state.proforma_saved_data[pi_storage_key] = {
+            'locked_at': False,
+            'ttd_bytes': None
+        }
+
+    saved_pi_global = st.session_state.proforma_saved_data[pi_storage_key]
 
     mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')) == str(selected_pi)]
     
@@ -71,6 +69,46 @@ def tampilkan_proforma_invoice(transaksi_list):
         return
 
     t_data_utama = mutasi_terpilih[0]
+
+    # --- FITUR UPLOAD & HAPUS TANDA TANGAN DIGITAL DENGAN PENYIMPANAN PERMANEN ---
+    st.markdown("---")
+    uploaded_signature = st.file_uploader(
+        "✍️ **Upload Tanda Tangan Digital (Format PNG / JPG - Transparan disarankan):**",
+        type=["png", "jpg", "jpeg"],
+        key=f"ttd_uploader_{pi_storage_key}"
+    )
+
+    if saved_pi_global.get('ttd_bytes') is not None:
+        if st.button("🗑️ Hapus Tanda Tangan Digital Proforma Invoice", key=f"btn_del_pi_ttd_{pi_storage_key}"):
+            saved_pi_global['ttd_bytes'] = None
+            st.success("✅ Tanda Tangan Digital berhasil dihapus!")
+            st.rerun()
+
+    # Form khusus untuk tombol simpan dokumen Proforma Invoice
+    with st.form(key=f"form_proforma_save_{pi_storage_key}"):
+        st.markdown(f"**Status Dokumen PI:** `{selected_pi}` siap dikunci.")
+        submit_save_proforma = st.form_submit_button("💾 Simpan & Kunci Proforma Invoice Ini", type="primary")
+        if submit_save_proforma:
+            # Gunakan file yang baru di-upload jika ada, jika tidak, pertahankan data lama di session state
+            ttd_final = uploaded_signature.getvalue() if uploaded_signature is not None else saved_pi_global.get('ttd_bytes')
+
+            st.session_state.proforma_saved_data[pi_storage_key] = {
+                'locked_at': True,
+                'ttd_bytes': ttd_final
+            }
+            st.success(f"✅ Proforma Invoice untuk nomor PI [{selected_pi}] beserta tanda tangan berhasil disimpan permanen!")
+
+    # Memproses file gambar dari session state menjadi format Base64 HTML
+    ttd_bytes_active = saved_pi_global.get('ttd_bytes')
+    if ttd_bytes_active:
+        img_b64 = base64.b64encode(ttd_bytes_active).decode("utf-8")
+        ttd_html_element = f"""
+            <div style="height: 70px; display: flex; align-items: center; justify-content: center; margin: 4px 0;">
+                <img src="data:image/png;base64,{img_b64}" style="max-height: 70px; max-width: 180px; object-fit: contain;">
+            </div>
+        """
+    else:
+        ttd_html_element = "<br><br><br><br>"
 
     grand_total_pi = sum([float(m.get('Total Harga', 0.0)) for m in mutasi_terpilih])
     terbilang_str = terbilang(grand_total_pi).strip() + " Rupiah"
@@ -117,6 +155,7 @@ def tampilkan_proforma_invoice(transaksi_list):
                     -webkit-print-color-adjust: exact;
                 }}
                 @page {{
+                    size: A4;
                     margin: 5mm 10mm 5mm 10mm;
                 }}
             }}
@@ -220,8 +259,9 @@ def tampilkan_proforma_invoice(transaksi_list):
                     </div>
                 </td>
                 <td style="border: none; width: 45%; text-align: right; vertical-align: top;">
-                    <div class="bank-section" style="margin-top: 75px; text-align: center; display: inline-block; min-width: 220px;">
-                        <b>{nama_pt_sign}</b><br><br><br><br>
+                    <div class="bank-section" style="margin-top: 20px; text-align: center; display: inline-block; min-width: 220px;">
+                        <b>{nama_pt_sign}</b><br>
+                        {ttd_html_element}
                         <u>{nama_pejabat}</u><br>
                         {jabatan_pejabat}
                     </div>
@@ -245,6 +285,7 @@ def tampilkan_proforma_invoice(transaksi_list):
             <script>
                 function printDoc() {{
                     var win = window.open('', '_blank');
+                    win.document.open();
                     win.document.write(atob("{b64_html}"));
                     win.document.close();
                     win.focus();

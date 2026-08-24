@@ -50,57 +50,77 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
 
     pilihan_tx = [f"PI: {t.get('PI No.', '')} | Kontrak: {t.get('Nomor Kontrak', '')}" for t in unique_pi_list]
     
-    # Inisialisasi penyimpanan session state
+    # Inisialisasi penyimpanan session state secara komprehensif
     if "rincian_saved_data" not in st.session_state:
         st.session_state.rincian_saved_data = {}
 
-    # Dropdown di luar form agar reaktif (langsung mengubah data saat dipilih)
     selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x], key="rincian_sel_idx")
     
     t_data_ref = unique_pi_list[selected_idx]
     current_pi_no = str(t_data_ref.get('PI No.', '')).strip()
 
-    # Form khusus untuk pengaturan tanda tangan dan tombol simpan
-    with st.form(key=f"form_rincian_sig_{current_pi_no}"):
-        st.markdown("#### ✍️ Pengaturan Tanda Tangan Dokumen")
-        col_sig1, col_sig2 = st.columns(2)
-        with col_sig1:
-            uploaded_sig_dibuat = st.file_uploader("Upload Gambar Tanda Tangan (DIBUAT OLEH)", type=["png", "jpg", "jpeg"], key="sig_dibuat")
-        with col_sig2:
-            uploaded_sig_diperiksa = st.file_uploader("Upload Gambar Tanda Tangan (DIPERIKSA)", type=["png", "jpg", "jpeg"], key="sig_diperiksa")
+    # Pastikan key per PI sudah terinisialisasi di session state
+    if current_pi_no not in st.session_state.rincian_saved_data:
+        st.session_state.rincian_saved_data[current_pi_no] = {
+            'sig_dibuat': None,
+            'sig_diperiksa': None
+        }
 
-        submit_save_rincian = st.form_submit_button("💾 Simpan & Kunci Dokumen Rincian Pekerjaan Ini", type="primary")
-        if submit_save_rincian:
-            st.session_state.rincian_saved_data[current_pi_no] = {
-                'sig_dibuat': uploaded_sig_dibuat.getvalue() if uploaded_sig_dibuat is not None else None,
-                'sig_diperiksa': uploaded_sig_diperiksa.getvalue() if uploaded_sig_diperiksa is not None else None
-            }
-            st.success(f"✅ Data rincian pekerjaan untuk PI [{current_pi_no}] berhasil disimpan dan dikunci!")
+    saved_rincian_item = st.session_state.rincian_saved_data[current_pi_no]
 
-    # Ambil data dari penyimpanan session state jika ada
-    saved_rincian_item = st.session_state.rincian_saved_data.get(current_pi_no, {})
+    # --- PENGATURAN UPLOAD & HAPUS TANDA TANGAN (DI LUAR FORM AGAR REAKTIF) ---
+    st.markdown("#### ✍️ Pengaturan Tanda Tangan Dokumen")
+    col_sig1, col_sig2 = st.columns(2)
     
+    with col_sig1:
+        uploaded_sig_dibuat = st.file_uploader("Upload Gambar Tanda Tangan (DIBUAT OLEH)", type=["png", "jpg", "jpeg"], key=f"sig_dibuat_{current_pi_no}")
+        if saved_rincian_item.get('sig_dibuat') is not None:
+            if st.button("🗑️ Hapus Tanda Tangan Dibuat Oleh", key=f"btn_del_sig1_{current_pi_no}"):
+                saved_rincian_item['sig_dibuat'] = None
+                st.success("✅ Tanda Tangan Dibuat Oleh berhasil dihapus!")
+                st.rerun()
+
+    with col_sig2:
+        uploaded_sig_diperiksa = st.file_uploader("Upload Gambar Tanda Tangan (DIPERIKSA)", type=["png", "jpg", "jpeg"], key=f"sig_diperiksa_{current_pi_no}")
+        if saved_rincian_item.get('sig_diperiksa') is not None:
+            if st.button("🗑️ Hapus Tanda Tangan Diperiksa", key=f"btn_del_sig2_{current_pi_no}"):
+                saved_rincian_item['sig_diperiksa'] = None
+                st.success("✅ Tanda Tangan Diperiksa berhasil dihapus!")
+                st.rerun()
+
+    # Form khusus untuk tombol Simpan & Kunci Dokumen
+    with st.form(key=f"form_rincian_sig_{current_pi_no}"):
+        st.markdown(f"**Konfirmasi Rincian Pekerjaan (PI: {current_pi_no}):** Klik tombol di bawah untuk mengunci konfigurasi.")
+        submit_save_rincian = st.form_submit_button("💾 Simpan & Kunci Dokumen Rincian Pekerjaan Ini", type="primary")
+        
+        if submit_save_rincian:
+            # Pertahankan data lama jika tidak ada file baru yang di-upload
+            sig1_final = uploaded_sig_dibuat.getvalue() if uploaded_sig_dibuat is not None else saved_rincian_item.get('sig_dibuat')
+            sig2_final = uploaded_sig_diperiksa.getvalue() if uploaded_sig_diperiksa is not None else saved_rincian_item.get('sig_diperiksa')
+
+            st.session_state.rincian_saved_data[current_pi_no] = {
+                'sig_dibuat': sig1_final,
+                'sig_diperiksa': sig2_final
+            }
+            st.success(f"✅ Sukses! Data rincian pekerjaan untuk PI [{current_pi_no}] berhasil disimpan dan dikunci secara permanen!")
+
+    # Ambil bytes tanda tangan dari session state yang sudah aman
     sig_dibuat_bytes = saved_rincian_item.get('sig_dibuat', None)
-    if uploaded_sig_dibuat is not None:
-        sig_dibuat_bytes = uploaded_sig_dibuat.getvalue()
-
     sig_diperiksa_bytes = saved_rincian_item.get('sig_diperiksa', None)
-    if uploaded_sig_diperiksa is not None:
-        sig_diperiksa_bytes = uploaded_sig_diperiksa.getvalue()
 
-    sig_dibuat_html = ""
+    img_style = "max-height: 75px; max-width: 200px; object-fit: contain;"
+    
     if sig_dibuat_bytes is not None:
         b64_sig = base64.b64encode(sig_dibuat_bytes).decode()
-        sig_dibuat_html = f'<div style="margin-bottom: 8px; height: 50px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{b64_sig}" style="max-height: 50px; object-fit: contain;"></div>'
+        sig_dibuat_html = f'<div style="margin: 4px auto; height: 75px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{b64_sig}" style="{img_style}"></div>'
     else:
-        sig_dibuat_html = '<div style="height: 50px;"></div>'
+        sig_dibuat_html = '<div style="height: 60px;"></div>'
 
-    sig_diperiksa_html = ""
     if sig_diperiksa_bytes is not None:
         b64_sig_2 = base64.b64encode(sig_diperiksa_bytes).decode()
-        sig_diperiksa_html = f'<div style="margin-bottom: 8px; height: 50px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{b64_sig_2}" style="max-height: 50px; object-fit: contain;"></div>'
+        sig_diperiksa_html = f'<div style="margin: 4px auto; height: 75px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{b64_sig_2}" style="{img_style}"></div>'
     else:
-        sig_diperiksa_html = '<div style="height: 50px;"></div>'
+        sig_diperiksa_html = '<div style="height: 60px;"></div>'
 
     matching_mutasi_list = [item for item in transaksi_list if str(item.get('PI No.', '')).strip() == current_pi_no]
     grand_total = sum(float(m.get('Total Harga', 0.0)) for m in matching_mutasi_list)

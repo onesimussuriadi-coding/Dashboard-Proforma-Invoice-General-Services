@@ -22,7 +22,7 @@ def tampilkan_basp(transaksi_list):
             seen_pi_dd.add(pi_key)
             unique_pi_list.append(pi_key)
 
-    # Inisialisasi penyimpanan session state khusus BASP
+    # Inisialisasi penyimpanan session state khusus BASP secara komprehensif
     if "basp_saved_data" not in st.session_state:
         st.session_state.basp_saved_data = {}
 
@@ -33,7 +33,11 @@ def tampilkan_basp(transaksi_list):
         st.session_state.basp_saved_data[pi_storage_key] = {
             'lokasi': "Luwuk",
             'main_date': date.today(),
-            'items': {}
+            'items': {},
+            'logo_1': None,
+            'logo_2': None,
+            'ttd_1': None,
+            'ttd_2': None
         }
 
     saved_global = st.session_state.basp_saved_data[pi_storage_key]
@@ -121,33 +125,80 @@ def tampilkan_basp(transaksi_list):
         """
         st.markdown("<br>", unsafe_allow_html=True)
 
-    # Form khusus tombol save / simpan dokumen BASP
-    with st.form(key=f"form_basp_save_{pi_storage_key}"):
-        st.markdown(f"**Konfirmasi Dokumen BASP (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi.")
-        submit_save_basp = st.form_submit_button("💾 Simpan & Kunci Dokumen BASP Ini", type="primary")
-        if submit_save_basp:
-            st.session_state.basp_saved_data[pi_storage_key] = {
-                'lokasi': lokasi_office,
-                'main_date': selected_date,
-                'items': temp_items_storage
-            }
-            st.success(f"✅ Dokumen BASP untuk PI [{selected_pi}] berhasil disimpan dan dikunci!")
-
-    if 'persisted_logo_1' not in st.session_state: st.session_state.persisted_logo_1 = None
-    if 'persisted_logo_2' not in st.session_state: st.session_state.persisted_logo_2 = None
-
+    # --- PENGATURAN LOGO (DI LUAR FORM AGAR REAKTIF & ADA TOMBOL HAPUS) ---
     st.markdown("---")
     st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen BASP")
     c_log1, c_log2 = st.columns(2)
     with c_log1:
-        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama", type=["png", "jpg", "jpeg"], key="logo_basp_1")
-        if uploaded_logo_1 is not None: st.session_state.persisted_logo_1 = uploaded_logo_1.getvalue()
-    with c_log2:
-        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua", type=["png", "jpg", "jpeg"], key="logo_basp_2")
-        if uploaded_logo_2 is not None: st.session_state.persisted_logo_2 = uploaded_logo_2.getvalue()
+        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama (Kiri)", type=["png", "jpg", "jpeg"], key=f"logo_basp_1_{pi_storage_key}")
+        if saved_global.get('logo_1') is not None:
+            if st.button("🗑️ Hapus Logo Pihak Pertama", key=f"btn_del_basp_l1_{pi_storage_key}"):
+                saved_global['logo_1'] = None
+                st.success("✅ Logo Pihak Pertama berhasil dihapus!")
+                st.rerun()
 
-    logo1_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_1).decode()}" style="max-height: 42px; max-width: 110px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_1 is not None else ""
-    logo2_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_2).decode()}" style="max-height: 42px; max-width: 110px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_2 is not None else ""
+    with c_log2:
+        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua (Kanan)", type=["png", "jpg", "jpeg"], key=f"logo_basp_2_{pi_storage_key}")
+        if saved_global.get('logo_2') is not None:
+            if st.button("🗑️ Hapus Logo Pihak Kedua", key=f"btn_del_basp_l2_{pi_storage_key}"):
+                saved_global['logo_2'] = None
+                st.success("✅ Logo Pihak Kedua berhasil dihapus!")
+                st.rerun()
+
+    # --- PENGATURAN TANDA TANGAN (DI LUAR FORM AGAR REAKTIF & ADA TOMBOL HAPUS) ---
+    st.markdown("---")
+    st.markdown("#### ✍️ Pengaturan Tanda Tangan Digital BASP")
+    c_ttd1, c_ttd2 = st.columns(2)
+    with c_ttd1:
+        uploaded_ttd_1 = st.file_uploader("Upload Tanda Tangan Pihak Pertama", type=["png", "jpg", "jpeg"], key=f"ttd_basp_1_{pi_storage_key}")
+        if saved_global.get('ttd_1') is not None:
+            if st.button("🗑️ Hapus TTD Pihak Pertama", key=f"btn_del_basp_t1_{pi_storage_key}"):
+                saved_global['ttd_1'] = None
+                st.success("✅ TTD Pihak Pertama berhasil dihapus!")
+                st.rerun()
+
+    with c_ttd2:
+        uploaded_ttd_2 = st.file_uploader("Upload Tanda Tangan Pihak Kedua", type=["png", "jpg", "jpeg"], key=f"ttd_basp_2_{pi_storage_key}")
+        if saved_global.get('ttd_2') is not None:
+            if st.button("🗑️ Hapus TTD Pihak Kedua", key=f"btn_del_basp_t2_{pi_storage_key}"):
+                saved_global['ttd_2'] = None
+                st.success("✅ TTD Pihak Kedua berhasil dihapus!")
+                st.rerun()
+
+    # --- FORM TOMBOL SIMPAN & KUNCI ---
+    with st.form(key=f"form_basp_save_{pi_storage_key}"):
+        st.markdown(f"**Konfirmasi Dokumen BASP (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi.")
+        submit_save_basp = st.form_submit_button("💾 Simpan & Kunci Dokumen BASP Ini", type="primary")
+        
+        if submit_save_basp:
+            # Pertahankan data lama jika uploader bernilai None
+            l1_final = uploaded_logo_1.getvalue() if uploaded_logo_1 is not None else saved_global.get('logo_1')
+            l2_final = uploaded_logo_2.getvalue() if uploaded_logo_2 is not None else saved_global.get('logo_2')
+            t1_final = uploaded_ttd_1.getvalue() if uploaded_ttd_1 is not None else saved_global.get('ttd_1')
+            t2_final = uploaded_ttd_2.getvalue() if uploaded_ttd_2 is not None else saved_global.get('ttd_2')
+
+            st.session_state.basp_saved_data[pi_storage_key] = {
+                'lokasi': lokasi_office,
+                'main_date': selected_date,
+                'items': temp_items_storage,
+                'logo_1': l1_final,
+                'logo_2': l2_final,
+                'ttd_1': t1_final,
+                'ttd_2': t2_final
+            }
+            st.success(f"✅ Dokumen BASP untuk PI [{selected_pi}] beserta logo dan tanda tangan berhasil disimpan permanen!")
+
+    # Render HTML Logo & Tanda Tangan dari Data yang Tersimpan di Session State
+    l1_bytes = saved_global.get('logo_1')
+    l2_bytes = saved_global.get('logo_2')
+    t1_bytes = saved_global.get('ttd_1')
+    t2_bytes = saved_global.get('ttd_2')
+
+    logo1_html = f'<img src="data:image/png;base64,{base64.b64encode(l1_bytes).decode()}" style="max-height: 45px; max-width: 140px; object-fit: contain; display: block; margin: 0 0 0 55px;" />' if l1_bytes else '<span style="font-size: 8.5px; color: #64748b; margin-left: 55px;">(Logo Pihak Pertama Belum Diunggah)</span>'
+    logo2_html = f'<img src="data:image/png;base64,{base64.b64encode(l2_bytes).decode()}" style="max-height: 45px; max-width: 140px; object-fit: contain; display: block; margin: 0 55px 0 auto;" />' if l2_bytes else '<span style="font-size: 8.5px; color: #64748b; margin-right: 55px; display: block; text-align: right;">(Logo Pihak Kedua Belum Diunggah)</span>'
+
+    ttd1_html = f'<div style="height: 60px; display: flex; align-items: center; justify-content: flex-start; margin: 2px 0;"><img src="data:image/png;base64,{base64.b64encode(t1_bytes).decode()}" style="max-height: 60px; max-width: 160px; object-fit: contain;"></div>' if t1_bytes else '<div style="height: 50px;"></div>'
+    ttd2_html = f'<div style="height: 60px; display: flex; align-items: center; justify-content: flex-start; margin: 2px 0 2px -15px;"><img src="data:image/png;base64,{base64.b64encode(t2_bytes).decode()}" style="max-height: 60px; max-width: 160px; object-fit: contain;"></div>' if t2_bytes else '<div style="height: 50px;"></div>'
 
     # --- PENGAMBILAN DATABASE INDUK MODUL 1 ---
     try:
@@ -218,7 +269,7 @@ def tampilkan_basp(transaksi_list):
                 }}
             }}
             body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 10px; margin: 0; font-size: 9.5px; line-height: 1.35; }}
-            .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10mm; }}
+            .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 8mm; }}
             .header-table td {{ border: none; vertical-align: middle; padding: 0 4px; }}
             
             .main-doc-title {{ font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; text-align: center; }}
@@ -234,9 +285,8 @@ def tampilkan_basp(transaksi_list):
             .th-header {{ background-color: #f1f5f9; font-weight: bold; text-transform: uppercase; text-align: center; }}
             .content-text {{ margin-bottom: 10px; font-size: 9.5px; text-align: justify; }}
             
-            table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 15px; border: none; }}
+            table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px; border: none; }}
             table.sig-table td {{ border: none; vertical-align: top; font-size: 9.5px; padding: 6px; }}
-            .sig-space {{ height: 50px; }}
             
             .iso-footer-left {{ 
                 font-size: 8px; 
@@ -250,11 +300,11 @@ def tampilkan_basp(transaksi_list):
     <body>
         <table class="header-table">
             <tr>
-                <td style="width: 25%; text-align: left;">{logo1_html}</td>
-                <td style="width: 50%; text-align: center;">
+                <td style="width: 20%; text-align: left;">{logo1_html}</td>
+                <td style="width: 60%; text-align: center;">
                     <div class="main-doc-title">BERITA ACARA SELESAI PEKERJAAN (BASP)</div>
                 </td>
-                <td style="width: 25%; text-align: right;">{logo2_html}</td>
+                <td style="width: 20%; text-align: right;">{logo2_html}</td>
             </tr>
         </table>
 
@@ -310,12 +360,12 @@ def tampilkan_basp(transaksi_list):
             <tr>
                 <td style="width: 50%; text-align: left; padding-left: 15px;">
                     <b>{p1_nama}</b><br><b>PIHAK PERTAMA</b>
-                    <div class="sig-space"></div>
+                    {ttd1_html}
                     <u><b>{p1_wakil_sign}</b></u><br>{p1_jabatan}
                 </td>
                 <td style="width: 50%; text-align: left; padding-left: 15px;">
                     <b>{p2_nama}</b><br><b>PIHAK KEDUA</b>
-                    <div class="sig-space"></div>
+                    {ttd2_html}
                     <u><b>{p2_wakil}</b></u><br>{p2_jabatan}
                 </td>
             </tr>
@@ -353,5 +403,5 @@ def tampilkan_basp(transaksi_list):
         
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
-        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="BASP_{nomor_kontrak_str.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File HTML/PDF</button></a>'
+        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="BASP_{nomor_kontrak_str.replace("/", "-")}.html" style="text-style: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File HTML/PDF</button></a>'
         st.markdown(download_link, unsafe_allow_html=True)

@@ -57,7 +57,8 @@ def tampilkan_tkdn(transaksi_list):
             'p_kdn_2': 28.26, 'p_kln_2': 0.0,
             'p_kdn_3': 47.18, 'p_kln_3': 1.51,
             'p_kdn_4': 1.55, 'p_kln_4': 0.0,
-            'p_non_cost': 4.89
+            'p_non_cost': 4.89,
+            'ttd_direktur': None
         }
 
     saved_tkdn = st.session_state.tkdn_saved_data[pi_sekarang]
@@ -142,7 +143,7 @@ def tampilkan_tkdn(transaksi_list):
 
         submit_save_tkdn = st.form_submit_button("💾 Simpan & Kunci Dokumen TKDN Ini", type="primary")
         if submit_save_tkdn:
-            st.session_state.tkdn_saved_data[pi_sekarang] = {
+            st.session_state.tkdn_saved_data[pi_sekarang].update({
                 'lokasi_office': lokasi_office,
                 'tanggal_dokumen': selected_date_tkdn,
                 'total_tagihan': total_tagihan_rujukan,
@@ -152,8 +153,21 @@ def tampilkan_tkdn(transaksi_list):
                 'p_kdn_3': p_kdn_3, 'p_kln_3': p_kln_3,
                 'p_kdn_4': p_kdn_4, 'p_kln_4': p_kln_4,
                 'p_non_cost': p_non_cost
-            }
+            })
             st.success(f"✅ Dokumen TKDN untuk PI [{pi_sekarang}] berhasil disimpan dan dikunci!")
+
+    # --- PENGATURAN TANDA TANGAN (DI LUAR FORM AGAR ADA TOMBOL HAPUS) ---
+    st.markdown("---")
+    st.markdown("#### ✍️ Pengaturan Tanda Tangan Digital Direktur TKDN")
+    uploaded_ttd_tkdn = st.file_uploader("Upload Tanda Tangan Direktur", type=["png", "jpg", "jpeg"], key=f"ttd_tkdn_uploader_{pi_sekarang}")
+    if uploaded_ttd_tkdn is not None:
+        saved_tkdn['ttd_direktur'] = uploaded_ttd_tkdn.getvalue()
+    
+    if saved_tkdn.get('ttd_direktur') is not None:
+        if st.button("🗑️ Hapus Tanda Tangan Direktur", key=f"btn_del_tkdn_ttd_{pi_sekarang}"):
+            saved_tkdn['ttd_direktur'] = None
+            st.success("✅ Tanda tangan berhasil dihapus!")
+            st.rerun()
 
     # Mengambil nilai yang sudah dikunci untuk perhitungan dan render
     active_lokasi = saved_tkdn.get('lokasi_office', 'Luwuk')
@@ -195,6 +209,9 @@ def tampilkan_tkdn(transaksi_list):
     judul_kontrak = str(t_data.get('Nama Kontrak', matched_db_row.get('Nama Kontrak', 'Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka'))).strip()
     mata_uang = str(t_data.get('Mata Uang', 'IDR')).strip()
 
+    ttd_bytes = saved_tkdn.get('ttd_direktur')
+    ttd_html = f'<div style="margin: 4px auto; height: 90px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{base64.b64encode(ttd_bytes).decode()}" style="max-height: 85px; max-width: 220px; object-fit: contain;"></div>' if ttd_bytes is not None else '<div style="height: 80px;"></div>'
+
     # --- HTML RENDER DOKUMEN RESMI ---
     html_content = f"""
     <!DOCTYPE html>
@@ -224,7 +241,7 @@ def tampilkan_tkdn(transaksi_list):
             .col-yellow {{ background-color: #fef08a !important; }}
             
             .footer-notes {{ font-size: 9px; margin-top: 15px; line-height: 1.4; }}
-            .sign-section {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+            .sign-section {{ width: 100%; border-collapse: collapse; margin-top: 20px; page-break-inside: avoid; }}
             .sign-section td {{ border: none; font-size: 10px; vertical-align: top; }}
         </style>
     </head>
@@ -411,10 +428,11 @@ def tampilkan_tkdn(transaksi_list):
 
         <table class="sign-section">
             <tr>
-                <td style="width: 60%;"></td>
-                <td style="width: 40%; text-align: center;">
+                <td style="width: 50%;"></td>
+                <td style="width: 50%; text-align: center; padding-left: 20px;">
                     {active_lokasi}, {tgl_dokumen}<br>
-                    <b>PT. Banggai Sentral Sulawesi</b><br><br><br><br>
+                    <b>PT. Banggai Sentral Sulawesi</b>
+                    {ttd_html}
                     <u><b>{active_direktur}</b></u><br>
                     Direktur
                 </td>
@@ -452,5 +470,5 @@ def tampilkan_tkdn(transaksi_list):
 
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
-        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="Formulir_TKDN_{nomor_kontrak}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File TKDN</button></a>'
+        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="Formulir_TKDN_{nomor_kontrak.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File TKDN</button></a>'
         st.markdown(download_link, unsafe_allow_html=True)

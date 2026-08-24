@@ -86,7 +86,11 @@ def tampilkan_opname(transaksi_list):
         st.session_state.opname_saved_data[opname_storage_key] = {
             'lokasi_office': "Paisubololi",
             'tanggal_opname': date.today(),
-            'items': {}
+            'items': {},
+            'logo_1': None,
+            'logo_2': None,
+            'ttd_1': None,
+            'ttd_2': None
         }
 
     saved_global = st.session_state.opname_saved_data[opname_storage_key]
@@ -154,7 +158,6 @@ def tampilkan_opname(transaksi_list):
             c_p1, c_p2, c_p3, c_p4 = st.columns(4)
             
             default_qty = float(m.get('Qty', 1.0))
-            # Jika Provisional Sum, gunakan Total Harga transaksi sebagai default unit price / nilai total
             is_prov_sum = "provisional" in kategori_m.lower() or "provisional" in deskripsi_m.lower()
             default_price = float(m.get('Total Harga', m.get('Harga Satuan', 0.0))) if is_prov_sum else float(m.get('Harga Satuan', 0.0))
 
@@ -182,9 +185,61 @@ def tampilkan_opname(transaksi_list):
             st.session_state.opname_saved_data[opname_storage_key] = {
                 'lokasi_office': lokasi_office,
                 'tanggal_opname': selected_date_obj,
-                'items': temp_items_storage
+                'items': temp_items_storage,
+                'logo_1': saved_global.get('logo_1'),
+                'logo_2': saved_global.get('logo_2'),
+                'ttd_1': saved_global.get('ttd_1'),
+                'ttd_2': saved_global.get('ttd_2')
             }
             st.success("✅ Parameter opname berhasil disimpan dan dikunci secara permanen!")
+
+    # --- PENGATURAN LOGO (DI LUAR FORM AGAR REAKTIF & ADA TOMBOL HAPUS) ---
+    st.markdown("---")
+    st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen Opname")
+    c_log1, c_log2 = st.columns(2)
+    with c_log1:
+        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama (PT BSS)", type=["png", "jpg", "jpeg"], key=f"logo_opn_1_{opname_storage_key}")
+        if uploaded_logo_1 is not None:
+            saved_global['logo_1'] = uploaded_logo_1.getvalue()
+        if saved_global.get('logo_1') is not None:
+            if st.button("🗑️ Hapus Logo Pihak Pertama", key=f"btn_del_opn_l1_{opname_storage_key}"):
+                saved_global['logo_1'] = None
+                st.success("✅ Logo Pihak Pertama berhasil dihapus!")
+                st.rerun()
+
+    with c_log2:
+        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua (JOB Pertamina)", type=["png", "jpg", "jpeg"], key=f"logo_opn_2_{opname_storage_key}")
+        if uploaded_logo_2 is not None:
+            saved_global['logo_2'] = uploaded_logo_2.getvalue()
+        if saved_global.get('logo_2') is not None:
+            if st.button("🗑️ Hapus Logo Pihak Kedua", key=f"btn_del_opn_l2_{opname_storage_key}"):
+                saved_global['logo_2'] = None
+                st.success("✅ Logo Pihak Kedua berhasil dihapus!")
+                st.rerun()
+
+    # --- PENGATURAN TANDA TANGAN (DI LUAR FORM AGAR REAKTIF & ADA TOMBOL HAPUS) ---
+    st.markdown("---")
+    st.markdown("#### ✍️ Pengaturan Tanda Tangan Digital Opname")
+    c_ttd1, c_ttd2 = st.columns(2)
+    with c_ttd1:
+        uploaded_ttd_1 = st.file_uploader("Upload Tanda Tangan Pihak Pertama (Prepared by)", type=["png", "jpg", "jpeg"], key=f"ttd_opn_1_{opname_storage_key}")
+        if uploaded_ttd_1 is not None:
+            saved_global['ttd_1'] = uploaded_ttd_1.getvalue()
+        if saved_global.get('ttd_1') is not None:
+            if st.button("🗑️ Hapus TTD Pihak Pertama", key=f"btn_del_opn_t1_{opname_storage_key}"):
+                saved_global['ttd_1'] = None
+                st.success("✅ TTD Pihak Pertama berhasil dihapus!")
+                st.rerun()
+
+    with c_ttd2:
+        uploaded_ttd_2 = st.file_uploader("Upload Tanda Tangan Pihak Kedua (Approved by)", type=["png", "jpg", "jpeg"], key=f"ttd_opn_2_{opname_storage_key}")
+        if uploaded_ttd_2 is not None:
+            saved_global['ttd_2'] = uploaded_ttd_2.getvalue()
+        if saved_global.get('ttd_2') is not None:
+            if st.button("🗑️ Hapus TTD Pihak Kedua", key=f"btn_del_opn_t2_{opname_storage_key}"):
+                saved_global['ttd_2'] = None
+                st.success("✅ TTD Pihak Kedua berhasil dihapus!")
+                st.rerun()
 
     # Ambil data aktif yang tersimpan
     active_lokasi = saved_global.get('lokasi_office', 'Paisubololi')
@@ -264,24 +319,6 @@ def tampilkan_opname(transaksi_list):
             </tr>
         """
 
-    st.markdown("---")
-    st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen Opname (Tersimpan Otomatis)")
-    
-    if 'persisted_logo_1' not in st.session_state:
-        st.session_state.persisted_logo_1 = None
-    if 'persisted_logo_2' not in st.session_state:
-        st.session_state.persisted_logo_2 = None
-
-    c_log1, c_log2 = st.columns(2)
-    with c_log1:
-        uploaded_logo_1 = st.file_uploader("Upload Logo Pihak Pertama (PT BSS)", type=["png", "jpg", "jpeg"], key="logo_opname_1_u")
-        if uploaded_logo_1 is not None:
-            st.session_state.persisted_logo_1 = uploaded_logo_1.getvalue()
-    with c_log2:
-        uploaded_logo_2 = st.file_uploader("Upload Logo Pihak Kedua / Instansi (JOB Pertamina)", type=["png", "jpg", "jpeg"], key="logo_opname_2_u")
-        if uploaded_logo_2 is not None:
-            st.session_state.persisted_logo_2 = uploaded_logo_2.getvalue()
-
     wo_title = str(matched_db_row.get('Keterangan WO', t_data_utama.get('Deskripsi PO', 'General Services')))
 
     def get_db_val(idx_num, key_name, fallback=""):
@@ -320,8 +357,17 @@ def tampilkan_opname(transaksi_list):
         str(reviewed_title).strip().lower() == str(final_app_title).strip().lower()
     )
 
-    logo1_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_1).decode()}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_1 is not None else ""
-    logo2_html = f'<img src="data:image/png;base64,{base64.b64encode(st.session_state.persisted_logo_2).decode()}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">' if st.session_state.persisted_logo_2 is not None else ""
+    l1_bytes = saved_global.get('logo_1')
+    l2_bytes = saved_global.get('logo_2')
+    t1_bytes = saved_global.get('ttd_1')
+    t2_bytes = saved_global.get('ttd_2')
+
+    logo1_html = f'<img src="data:image/png;base64,{base64.b64encode(l1_bytes).decode()}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">' if l1_bytes is not None else ""
+    logo2_html = f'<img src="data:image/png;base64,{base64.b64encode(l2_bytes).decode()}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">' if l2_bytes is not None else ""
+
+    img_style = "max-height: 75px; max-width: 180px; object-fit: contain;"
+    ttd1_html = f'<div style="margin: 4px auto; height: 80px; display: flex; align-items: center; justify-content: flex-start;"><img src="data:image/png;base64,{base64.b64encode(t1_bytes).decode()}" style="{img_style}"></div>' if t1_bytes is not None else '<div style="height: 75px;"></div>'
+    ttd2_html = f'<div style="margin: 4px auto; height: 80px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{base64.b64encode(t2_bytes).decode()}" style="{img_style}"></div>' if t2_bytes is not None else '<div style="height: 75px;"></div>'
 
     if is_same_person or not reviewed_name or str(reviewed_name).strip() == "" or str(reviewed_name).strip().lower() == "nan":
         sig_table_html = f"""
@@ -330,14 +376,16 @@ def tampilkan_opname(transaksi_list):
                 <td style="width: 50%; text-align: left; padding-left: 10px;">
                     {active_lokasi}, {opname_date}<br>
                     <b>PT Banggai Sentral Sulawesi</b><br>
-                    Prepared by,<br><br><br><br><br>
+                    Prepared by,
+                    {ttd1_html}
                     <u><b>{prepared_name}</b></u><br>
                     {prepared_title}
                 </td>
                 <td style="width: 50%; text-align: center;">
                     <br>
                     <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
-                    Approved by,<br><br><br><br><br>
+                    Approved by,
+                    {ttd2_html}
                     <u><b>{final_app_name}</b></u><br>
                     {final_app_title}
                 </td>
@@ -351,21 +399,23 @@ def tampilkan_opname(transaksi_list):
                 <td style="width: 33.3%; text-align: left; padding-left: 10px;">
                     {active_lokasi}, {opname_date}<br>
                     <b>PT Banggai Sentral Sulawesi</b><br>
-                    Prepared by,<br><br><br><br><br>
+                    Prepared by,
+                    {ttd1_html}
                     <u><b>{prepared_name}</b></u><br>
                     {prepared_title}
                 </td>
                 <td style="width: 33.3%; text-align: center;">
                     <br>
                     <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
-                    Reviewed by,<br><br><br><br><br>
+                    Reviewed by,<br><br><br><br>
                     <u><b>{reviewed_name}</b></u><br>
                     {reviewed_title}
                 </td>
                 <td style="width: 33.3%; text-align: center;">
                     <br>
                     <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
-                    Approved by,<br><br><br><br><br>
+                    Approved by,
+                    {ttd2_html}
                     <u><b>{final_app_name}</b></u><br>
                     {final_app_title}
                 </td>
