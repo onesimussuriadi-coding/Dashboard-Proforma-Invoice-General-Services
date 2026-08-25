@@ -94,7 +94,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         submit_save_rincian = st.form_submit_button("💾 Simpan & Kunci Dokumen Rincian Pekerjaan Ini", type="primary")
         
         if submit_save_rincian:
-            # Pertahankan data lama jika tidak ada file baru yang di-upload
             sig1_final = uploaded_sig_dibuat.getvalue() if uploaded_sig_dibuat is not None else saved_rincian_item.get('sig_dibuat')
             sig2_final = uploaded_sig_diperiksa.getvalue() if uploaded_sig_diperiksa is not None else saved_rincian_item.get('sig_diperiksa')
 
@@ -123,7 +122,20 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         sig_diperiksa_html = '<div style="height: 60px;"></div>'
 
     matching_mutasi_list = [item for item in transaksi_list if str(item.get('PI No.', '')).strip() == current_pi_no]
-    grand_total = sum(float(m.get('Total Harga', 0.0)) for m in matching_mutasi_list)
+
+    # Hitung ulang grand total secara konsisten per baris mandiri (At Cost + 15% jika Provisional/Professional Sum)
+    grand_total = 0.0
+    for m in matching_mutasi_list:
+        kategori_str = str(m.get('Kategori', '')).lower()
+        qty_val = float(m.get('Qty', 0))
+        harga_satuan_val = float(m.get('Harga Satuan', 0))
+        percent_val = float(m.get('Percent', 100.0))
+
+        if "provisional" in kategori_str or "professional" in kategori_str:
+            tot_val = (qty_val * harga_satuan_val) * 1.15 * (percent_val / 100.0)
+        else:
+            tot_val = (qty_val * harga_satuan_val) * (percent_val / 100.0)
+        grand_total += tot_val
 
     try:
         from __main__ import muat_data_invoice
@@ -160,17 +172,28 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
 
     rows_html = ""
     for idx, m in enumerate(matching_mutasi_list, start=1):
+        kategori_str = str(m.get('Kategori', '')).lower()
+        qty_val = float(m.get('Qty', 0))
+        harga_satuan_val = float(m.get('Harga Satuan', 0))
+        percent_val = float(m.get('Percent', 100.0))
+
+        # Perhitungan mandiri per baris untuk Total Harga
+        if "provisional" in kategori_str or "professional" in kategori_str:
+            total_harga_val = (qty_val * harga_satuan_val) * 1.15 * (percent_val / 100.0)
+        else:
+            total_harga_val = (qty_val * harga_satuan_val) * (percent_val / 100.0)
+
         rows_html += f"""
             <tr>
                 <td style="text-align: center;">{idx}</td>
                 <td>{m.get('Kategori', '-')}</td>
                 <td>{m.get('Deskripsi Pekerjaan', '-')}</td>
-                <td style="text-align: center;">{float(m.get('Qty', 0)):,.2f}</td>
+                <td style="text-align: center;">{qty_val:,.2f}</td>
                 <td style="text-align: center;">{m.get('Unit', '-')}</td>
                 <td style="text-align: center; white-space: nowrap;">{m.get('Tanggal Mulai', '-')}</td>
                 <td style="text-align: center; white-space: nowrap;">{m.get('Tanggal Selesai', '-')}</td>
-                <td style="text-align: right;">{float(m.get('Harga Satuan', 0)):,.2f}</td>
-                <td style="text-align: right;">{float(m.get('Total Harga', 0)):,.2f}</td>
+                <td style="text-align: right;">{harga_satuan_val:,.2f}</td>
+                <td style="text-align: right;">{total_harga_val:,.2f}</td>
                 <td>{m.get('Keterangan', '-')}</td>
             </tr>
         """

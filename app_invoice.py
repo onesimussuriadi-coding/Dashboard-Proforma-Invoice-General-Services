@@ -55,6 +55,8 @@ def muat_master_referensi():
 
 if "db_transaksi" not in st.session_state: st.session_state["db_transaksi"] = muat_data_transaksi()
 if "list_mutasi_sementara" not in st.session_state: st.session_state["list_mutasi_sementara"] = []
+# State persisten untuk menyimpan alamat tujuan custom per PI agar fleksibel
+if "custom_invoice_dest" not in st.session_state: st.session_state["custom_invoice_dest"] = {}
 
 st.markdown("""<div class="company-header-centered"><h2>PT. BANGGAI SENTRAL SULAWESI</h2><p>General Contractor and Suppliers | Modul Invoice & Dokumen Turunan</p></div>""", unsafe_allow_html=True)
 
@@ -67,8 +69,8 @@ if menu_inv == "Input & Proses Rincian Pekerjaan":
     
     with st.form("form_induk"):
         col1, col2 = st.columns(2)
-        pi_no = col1.text_input("Nomor PI", value="042/BSS-JOB/AB/VII/2026")
-        nomor_kontrak = col2.text_input("Nomor Kontrak", value="7207250142")
+        pi_no = col1.text_input("Nomor PI", value="")
+        nomor_kontrak = col2.text_input("Nomor Kontrak", value="")
         submitted_induk = st.form_submit_button("💾 Kunci Data Induk")
 
     with st.form("form_item"):
@@ -100,7 +102,9 @@ if menu_inv == "Input & Proses Rincian Pekerjaan":
             data.extend(st.session_state["list_mutasi_sementara"])
             simpan_data_transaksi(data)
             st.session_state["list_mutasi_sementara"] = []
-            st.rerun()# --- 2. PRATINJAU & CETAK DOKUMEN TURUNAN ---
+            st.rerun()
+
+# --- 2. PRATINJAU & CETAK DOKUMEN TURUNAN ---
 elif menu_inv == "Pratinjau & Cetak Dokumen Turunan (Hardcopy)":
     st.markdown("""
         <div class="dashboard-card">
@@ -120,6 +124,28 @@ elif menu_inv == "Pratinjau & Cetak Dokumen Turunan (Hardcopy)":
         
         if mutasi_terpilih:
             t_data_utama = mutasi_terpilih[0]
+
+            # --- PANEL PENGATURAN ALAMAT & KONTAK TUJUAN INVOICE DINAMIS ---
+            if selected_pi not in st.session_state["custom_invoice_dest"]:
+                st.session_state["custom_invoice_dest"][selected_pi] = {
+                    "to": "JOB Pertamina - Medco E&P Tomori Sulawesi",
+                    "alamat": "Bidakara Office Tower I 4Th Floor, Jl. Gatot Subroto Kav. 71 - 73, Jakarta 12870, Indonesia",
+                    "attn": "Accounts Payable - Finance Department"
+                }
+            
+            dest_data = st.session_state["custom_invoice_dest"][selected_pi]
+
+            with st.expander("⚙️ Pengaturan Alamat & Kontak Tujuan Invoice (Flexible & Dynamic)", expanded=False):
+                with st.form(f"form_dest_{selected_pi}"):
+                    cust_to = st.text_input("Nama Perusahaan Tujuan (To):", value=dest_data["to"])
+                    cust_alamat = st.text_area("Alamat Lengkap Tujuan:", value=dest_data["alamat"])
+                    cust_attn = st.text_input("Attn (Perhatian Kepada):", value=dest_data["attn"])
+                    if st.form_submit_button("💾 Simpan Alamat Tujuan Ini"):
+                        st.session_state["custom_invoice_dest"][selected_pi] = {
+                            "to": cust_to, "alamat": cust_alamat, "attn": cust_attn
+                        }
+                        st.success("✅ Alamat tujuan berhasil diperbarui untuk PI ini!")
+                        st.rerun()
 
             doc_type = st.selectbox("Pilih Jenis Dokumen untuk Dicetak:", [
                 "Rincian Pekerjaan",
@@ -141,7 +167,7 @@ elif menu_inv == "Pratinjau & Cetak Dokumen Turunan (Hardcopy)":
                 </div>
             """, unsafe_allow_html=True)
 
-            # --- LOGIKA PRATINJAU DOKUMEN (ASLI BAPAK) ---
+            # --- LOGIKA PRATINJAU DOKUMEN ---
             if doc_type == "Rincian Pekerjaan":
                 st.markdown("<h4 style='text-align: center; margin-bottom: 20px;'>RINCIAN PEKERJAAN</h4>", unsafe_allow_html=True)
                 c1, c2 = st.columns(2)
@@ -149,7 +175,7 @@ elif menu_inv == "Pratinjau & Cetak Dokumen Turunan (Hardcopy)":
                     st.text(f"Nomor Kontrak    : {t_data_utama.get('Nomor Kontrak', '-')}")
                     st.text(f"Nama Kontrak     : {t_data_utama.get('Nama Kontrak', '-')}")
                 with c2:
-                    st.text(f"Ditujukan Kepada : {t_data_utama.get('Ditujukan Kepada', '-')}")
+                    st.text(f"Ditujukan Kepada : {st.session_state['custom_invoice_dest'][selected_pi]['to']}")
                     st.text(f"Nomor PO         : {t_data_utama.get('Nomor PO', '-')}")
                 
                 tabel_data = []
@@ -158,9 +184,17 @@ elif menu_inv == "Pratinjau & Cetak Dokumen Turunan (Hardcopy)":
                 st.table(pd.DataFrame(tabel_data))
 
             elif doc_type == "Proforma Invoice":
+                curr_dest = st.session_state['custom_invoice_dest'][selected_pi]
                 st.markdown("<h3 style='text-align: center;'>PROFORMA INVOICE</h3>", unsafe_allow_html=True)
-                # ... (Silakan pastikan seluruh blok kode pratinjau asli Bapak untuk WCC, BASP, dll tetap berada di sini) ...
-                st.write("Pratinjau dokumen siap ditampilkan.")
+                st.markdown(f"""
+                    <div style="margin-bottom: 20px; font-size: 14px;">
+                        <b>TO :</b><br>
+                        <b>{curr_dest['to']}</b><br>
+                        {curr_dest['alamat']}<br><br>
+                        <b>Attn. :</b> {curr_dest['attn']}
+                    </div>
+                """, unsafe_allow_html=True)
+                st.write("Pratinjau dokumen Proforma Invoice siap ditampilkan.")
 
             st.markdown('</div>', unsafe_allow_html=True)
             if st.button("🖨️ Cetak / Print Dokumen Ini"):

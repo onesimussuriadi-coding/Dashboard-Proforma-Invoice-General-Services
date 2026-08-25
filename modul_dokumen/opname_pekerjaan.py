@@ -84,7 +84,7 @@ def tampilkan_opname(transaksi_list):
 
     if opname_storage_key not in st.session_state.opname_saved_data:
         st.session_state.opname_saved_data[opname_storage_key] = {
-            'lokasi_office': "Paisubololi",
+            'lokasi_office': "Luwuk",
             'tanggal_opname': date.today(),
             'items': {},
             'logo_1': None,
@@ -138,7 +138,7 @@ def tampilkan_opname(transaksi_list):
         
         c_head1, c_head2 = st.columns(2)
         with c_head1:
-            lokasi_office = st.text_input("📍 Lokasi Office:", value=str(saved_global.get('lokasi_office', 'Paisubololi')), key=f"opn_lok_{opname_storage_key}")
+            lokasi_office = st.text_input("📍 Lokasi Office:", value=str(saved_global.get('lokasi_office', "Luwuk")), key=f"opn_lok_{opname_storage_key}")
         with c_head2:
             selected_date_obj = st.date_input("📅 Tanggal Opname:", value=saved_global.get('tanggal_opname', date.today()), key=f"opn_date_{opname_storage_key}")
 
@@ -158,15 +158,21 @@ def tampilkan_opname(transaksi_list):
             c_p1, c_p2, c_p3, c_p4 = st.columns(4)
             
             default_qty = float(m.get('Qty', 1.0))
-            is_prov_sum = "provisional" in kategori_m.lower() or "provisional" in deskripsi_m.lower()
-            default_price = float(m.get('Total Harga', m.get('Harga Satuan', 0.0))) if is_prov_sum else float(m.get('Harga Satuan', 0.0))
+            is_prov_sum = "provisional" in kategori_m.lower() or "professional" in kategori_m.lower()
+            
+            # Hitung harga dasar per unit mandiri (termasuk fee 15% jika provisional/professional)
+            raw_hs = float(m.get('Harga Satuan', 0.0))
+            if is_prov_sum:
+                default_price = raw_hs * 1.15
+            else:
+                default_price = raw_hs
 
             saved_item_opn = saved_global.get('items', {}).get(idx, {})
 
             with c_p1:
-                po_vol = st.number_input(f"📦 Volume PO / Kontrak (Item {idx})", value=float(saved_item_opn.get('po_vol', 0.0)), step=0.1, format="%.2f", key=f"opn_po_vol_{opname_storage_key}_{idx}")
+                po_vol = st.number_input(f"📦 Volume PO / Kontrak (Item {idx})", value=float(saved_item_opn.get('po_vol', default_qty)), step=0.1, format="%.2f", key=f"opn_po_vol_{opname_storage_key}_{idx}")
             with c_p2:
-                unit_price = st.number_input(f"💵 Unit Price / Total Tagihan (Item {idx})", value=float(saved_item_opn.get('unit_price', default_price)), step=1000.0, format="%.2f", key=f"opn_unit_price_{opname_storage_key}_{idx}")
+                unit_price = st.number_input(f"💵 Unit Price / Harga Satuan (Item {idx})", value=float(saved_item_opn.get('unit_price', default_price)), step=1000.0, format="%.2f", key=f"opn_unit_price_{opname_storage_key}_{idx}")
             with c_p3:
                 prev_vol = st.number_input(f"📉 Volume Lalu / Previous (Item {idx})", value=float(saved_item_opn.get('prev_vol', 0.0)), step=0.1, format="%.2f", key=f"opn_prev_vol_{opname_storage_key}_{idx}")
             with c_p4:
@@ -242,11 +248,11 @@ def tampilkan_opname(transaksi_list):
                 st.rerun()
 
     # Ambil data aktif yang tersimpan
-    active_lokasi = saved_global.get('lokasi_office', 'Paisubololi')
+    active_lokasi = saved_global.get('lokasi_office', "Luwuk")
     active_date_obj = saved_global.get('tanggal_opname', date.today())
     opname_date = active_date_obj.strftime('%d %B %Y')
 
-    # Kalkulasi nilai menggunakan data yang tersimpan/terkunci
+    # Kalkulasi nilai menggunakan data yang tersimpan/terkunci secara transparan per baris
     rows_html = ""
     sum_po_vol = 0.0
     sum_base_price = 0.0
@@ -260,23 +266,30 @@ def tampilkan_opname(transaksi_list):
     sum_cum_vol_tot = 0.0
     sum_sisa_vol_tot = 0.0
 
+    percent_val = float(t_data_utama.get('Percent', 100.0))
+
     for idx, m in enumerate(mutasi_terpilih, start=1):
         kategori_m = str(m.get('Kategori', '')).strip()
         deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
         ket_m = str(m.get('Keterangan', '')).strip()
 
-        is_prov_sum = "provisional" in kategori_m.lower() or "provisional" in deskripsi_m.lower()
-        default_price_calc = float(m.get('Total Harga', m.get('Harga Satuan', 0.0))) if is_prov_sum else float(m.get('Harga Satuan', 0.0))
+        is_prov_sum = "provisional" in kategori_m.lower() or "professional" in kategori_m.lower()
+        raw_hs = float(m.get('Harga Satuan', 0.0))
+        if is_prov_sum:
+            default_price_calc = raw_hs * 1.15
+        else:
+            default_price_calc = raw_hs
 
         active_item_data = saved_global.get('items', {}).get(idx, {})
-        po_vol = float(active_item_data.get('po_vol', 0.0))
+        po_vol = float(active_item_data.get('po_vol', float(m.get('Qty', 1.0))))
         unit_price = float(active_item_data.get('unit_price', default_price_calc))
         prev_vol = float(active_item_data.get('prev_vol', 0.0))
         current_vol = float(active_item_data.get('current_vol', float(m.get('Qty', 1.0))))
 
-        base_price = po_vol * unit_price
-        prev_tot = prev_vol * unit_price
-        curr_tot = current_vol * unit_price
+        # Perhitungan mandiri per baris
+        base_price = po_vol * unit_price * (percent_val / 100.0)
+        prev_tot = prev_vol * unit_price * (percent_val / 100.0)
+        curr_tot = current_vol * unit_price * (percent_val / 100.0)
         cum_vol = prev_vol + current_vol
         cum_tot = prev_tot + curr_tot
         sisa_vol = po_vol - cum_vol
@@ -366,14 +379,14 @@ def tampilkan_opname(transaksi_list):
     logo2_html = f'<img src="data:image/png;base64,{base64.b64encode(l2_bytes).decode()}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">' if l2_bytes is not None else ""
 
     img_style = "max-height: 75px; max-width: 180px; object-fit: contain;"
-    ttd1_html = f'<div style="margin: 4px auto; height: 80px; display: flex; align-items: center; justify-content: flex-start;"><img src="data:image/png;base64,{base64.b64encode(t1_bytes).decode()}" style="{img_style}"></div>' if t1_bytes is not None else '<div style="height: 75px;"></div>'
+    ttd1_html = f'<div style="margin: 4px auto; height: 80px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{base64.b64encode(t1_bytes).decode()}" style="{img_style}"></div>' if t1_bytes is not None else '<div style="height: 75px;"></div>'
     ttd2_html = f'<div style="margin: 4px auto; height: 80px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{base64.b64encode(t2_bytes).decode()}" style="{img_style}"></div>' if t2_bytes is not None else '<div style="height: 75px;"></div>'
 
     if is_same_person or not reviewed_name or str(reviewed_name).strip() == "" or str(reviewed_name).strip().lower() == "nan":
         sig_table_html = f"""
         <table class="sig-table">
             <tr>
-                <td style="width: 50%; text-align: left; padding-left: 10px;">
+                <td style="width: 50%; text-align: center;">
                     {active_lokasi}, {opname_date}<br>
                     <b>PT Banggai Sentral Sulawesi</b><br>
                     Prepared by,
@@ -396,7 +409,7 @@ def tampilkan_opname(transaksi_list):
         sig_table_html = f"""
         <table class="sig-table">
             <tr>
-                <td style="width: 33.3%; text-align: left; padding-left: 10px;">
+                <td style="width: 33.33%; text-align: center;">
                     {active_lokasi}, {opname_date}<br>
                     <b>PT Banggai Sentral Sulawesi</b><br>
                     Prepared by,
@@ -404,14 +417,15 @@ def tampilkan_opname(transaksi_list):
                     <u><b>{prepared_name}</b></u><br>
                     {prepared_title}
                 </td>
-                <td style="width: 33.3%; text-align: center;">
+                <td style="width: 33.33%; text-align: center;">
                     <br>
                     <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
-                    Reviewed by,<br><br><br><br>
+                    Reviewed by,
+                    <div style="height: 80px;"></div>
                     <u><b>{reviewed_name}</b></u><br>
                     {reviewed_title}
                 </td>
-                <td style="width: 33.3%; text-align: center;">
+                <td style="width: 33.33%; text-align: center;">
                     <br>
                     <b>JOB Pertamina - Medco E&P Tomori Sulawesi</b><br>
                     Approved by,
@@ -467,8 +481,8 @@ def tampilkan_opname(transaksi_list):
             .text-left {{ text-align: left !important; }}
             .text-right {{ text-align: right !important; }}
             .summary-box {{ margin-top: 4px; font-size: 10px; font-weight: bold; }}
-            table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; border: none; page-break-inside: avoid; }}
-            table.sig-table td {{ border: none; vertical-align: top; font-size: 9.5px; padding: 2px; }}
+            table.sig-table {{ width: 100%; border-collapse: collapse; margin-top: 10px; border: none; page-break-inside: avoid; table-layout: fixed; }}
+            table.sig-table td {{ border: none; vertical-align: top; font-size: 9.5px; padding: 2px; text-align: center; }}
         </style>
     </head>
     <body>

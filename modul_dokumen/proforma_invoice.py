@@ -89,7 +89,6 @@ def tampilkan_proforma_invoice(transaksi_list):
         st.markdown(f"**Status Dokumen PI:** `{selected_pi}` siap dikunci.")
         submit_save_proforma = st.form_submit_button("💾 Simpan & Kunci Proforma Invoice Ini", type="primary")
         if submit_save_proforma:
-            # Gunakan file yang baru di-upload jika ada, jika tidak, pertahankan data lama di session state
             ttd_final = uploaded_signature.getvalue() if uploaded_signature is not None else saved_pi_global.get('ttd_bytes')
 
             st.session_state.proforma_saved_data[pi_storage_key] = {
@@ -110,7 +109,20 @@ def tampilkan_proforma_invoice(transaksi_list):
     else:
         ttd_html_element = "<br><br><br><br>"
 
-    grand_total_pi = sum([float(m.get('Total Harga', 0.0)) for m in mutasi_terpilih])
+    # Hitung Grand Total secara mandiri per baris (mendukung Provisional Sum At Cost + 15%)
+    grand_total_pi = 0.0
+    for m in mutasi_terpilih:
+        kategori_str = str(m.get('Kategori', '')).lower()
+        qty_val = float(m.get('Qty', 0.0))
+        unit_price = float(m.get('Harga Satuan', 0.0))
+        percent_val = float(m.get('Percent', 100.0))
+
+        if "provisional" in kategori_str or "professional" in kategori_str:
+            tot_item = (qty_val * unit_price) * 1.15 * (percent_val / 100.0)
+        else:
+            tot_item = (qty_val * unit_price) * (percent_val / 100.0)
+        grand_total_pi += tot_item
+
     terbilang_str = terbilang(grand_total_pi).strip() + " Rupiah"
 
     nama_pt_sign = t_data_utama.get('Nama PT Sign', 'PT. BANGGAI SENTRAL SULAWESI')
@@ -119,14 +131,22 @@ def tampilkan_proforma_invoice(transaksi_list):
 
     rows_html = ""
     for idx, m in enumerate(mutasi_terpilih, start=1):
+        kategori_str = str(m.get('Kategori', '')).lower()
+        qty_val = float(m.get('Qty', 0.0))
+        unit_price = float(m.get('Harga Satuan', 0.0))
+        percent_val = float(m.get('Percent', 100.0))
+
+        # Perhitungan mandiri per baris Total Harga Proforma Invoice
+        if "provisional" in kategori_str or "professional" in kategori_str:
+            total_item = (qty_val * unit_price) * 1.15 * (percent_val / 100.0)
+        else:
+            total_item = (qty_val * unit_price) * (percent_val / 100.0)
+
         desc_text = f"<b>{m.get('Kategori', 'MONTHLY BASIS')}</b><br>{m.get('Deskripsi Pekerjaan', '-')}"
         if m.get('Keterangan'):
             desc_text += f"<br><span style='font-size: 10px; color: #334155;'>{m.get('Keterangan')}</span>"
         
-        qty_val = float(m.get('Qty', 0.0))
         unit_val = str(m.get('Unit', 'Unit'))
-        unit_price = float(m.get('Harga Satuan', 0.0))
-        total_item = float(m.get('Total Harga', 0.0))
 
         rows_html += f"""
             <tr>

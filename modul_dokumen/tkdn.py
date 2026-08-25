@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import base64
 from datetime import datetime, date
+import json
 
 def tampilkan_tkdn(transaksi_list):
     st.markdown("""
@@ -15,40 +16,78 @@ def tampilkan_tkdn(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
-    seen_pi_dd = set()
-    unique_tx_list = []
+    # Inisialisasi direktori penyimpanan permanen
+    DIR_TKDN_SAVED = os.path.join("database_penyimpanan_aman", "tkdn_tersimpan")
+    if not os.path.exists(DIR_TKDN_SAVED):
+        os.makedirs(DIR_TKDN_SAVED)
+
+    # Saring transaksi berdasarkan PI No. yang unik agar grand total per PI akurat
+    pi_dict_map = {}
     for t in transaksi_list:
-        pi_key = str(t.get('PI No.', ''))
-        if pi_key not in seen_pi_dd:
-            seen_pi_dd.add(pi_key)
-            unique_tx_list.append(t)
+        pi_key = str(t.get('PI No.', '')).strip()
+        if pi_key:
+            if pi_key not in pi_dict_map:
+                pi_dict_map[pi_key] = {
+                    'pi_no': pi_key,
+                    'nomor_kontrak': t.get('Nomor Kontrak', ''),
+                    'total_harga': 0.0,
+                    'first_tx': t
+                }
+            pi_dict_map[pi_key]['total_harga'] += float(t.get('Total Harga', 0.0))
 
-    pilihan_tx = [f"PI: {t['PI No.']} | Kontrak: {t['Nomor Kontrak']} | Total: Rp {t['Total Harga']:,.0f}" for t in unique_tx_list]
-    
-    selected_idx = st.selectbox("Pilih Dokumen Transaksi Tersimpan:", range(len(pilihan_tx)), format_func=lambda x: pilihan_tx[x], key="tkdn_select_pi_dropdown")
+    unique_pi_list = list(pi_dict_map.keys())
+    if not unique_pi_list:
+        st.warning("⚠️ Tidak ada nomor Proforma Invoice (PI) yang valid ditemukan.")
+        return
 
-    t_data = unique_tx_list[selected_idx]
-    pi_sekarang = str(t_data.get('PI No.', '')).strip()
+    pilihan_dropdown = []
+    for pi_k in unique_pi_list:
+        info = pi_dict_map[pi_k]
+        pilihan_dropdown.append(f"PI: {pi_k} | Kontrak: {info['nomor_kontrak']} | Total: Rp {info['total_harga']:,.0f}")
+
+    selected_idx = st.selectbox("Pilih Dokumen Transaksi Berdasarkan PI:", range(len(pilihan_dropdown)), format_func=lambda x: pilihan_dropdown[x], key="tkdn_select_pi_dropdown")
+
+    selected_pi_key = unique_pi_list[selected_idx]
+    pi_data_group = pi_dict_map[selected_pi_key]
+    t_data = pi_data_group['first_tx']
+    aktual_total_tagihan = pi_data_group['total_harga']
 
     db_invoice_path = os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx")
     matched_db_row = {}
     if os.path.exists(db_invoice_path):
         try:
             df_inv = pd.read_excel(db_invoice_path)
-            row_match = df_inv[df_inv['Proforma Invoice No.'].astype(str).str.strip() == pi_sekarang]
+            row_match = df_inv[df_inv.iloc[:, 0].astype(str).str.strip() == selected_pi_key]
             if not row_match.empty:
                 matched_db_row = row_match.iloc[0].to_dict()
         except:
             pass
 
-    aktual_total_tagihan = float(t_data.get('Total Harga', 0.0))
-
-    # --- INISIALISASI SESSION STATE PER PI AGAR DATA TERKUNCI PERMANEN ---
+    # --- INISIALISASI & MUAT DATA PERMANEN DARI DISK (JSON) ---
+    tkdn_file_path = os.path.join(DIR_TKDN_SAVED, f"tkdn_{selected_pi_key.replace('/', '_')}.json")
+    
     if 'tkdn_saved_data' not in st.session_state:
         st.session_state.tkdn_saved_data = {}
 
-    if pi_sekarang not in st.session_state.tkdn_saved_data:
-        st.session_state.tkdn_saved_data[pi_sekarang] = {
+    # Jika file json permanen ada di disk, muat ke session_state jika belum ada
+    if selected_pi_key not in st.session_state.tkdn_saved_data:
+        if os.path.exists(tkdn_file_path):
+            try:
+                with open(tkdn_file_path, "r", encoding="utf-8") as f:
+                    loaded_json = json.load(f)
+                    # Konversi string tanggal kembali ke date object jika ada
+                    if 'tanggal_dokumen' in loaded_json:
+                        try:
+                            loaded_json['tanggal_dokumen'] = datetime.strptime(loaded_json['tanggal_dokumen'], "%Y-%m-%d").date()
+                        except:
+                            loaded_json['tanggal_dokumen'] = date.today()
+                    st.session_state.tkdn_saved_data[selected_pi_key] = loaded_json
+            except:
+                pass
+
+    # Jika masih belum ada juga, gunakan default awal
+    if selected_pi_key not in st.session_state.tkdn_saved_data:
+        st.session_state.tkdn_saved_data[selected_pi_key] = {
             'lokasi_office': "Luwuk",
             'tanggal_dokumen': date.today(),
             'nama_direktur': "Ir. Ferry Tatimu",
@@ -60,36 +99,44 @@ def tampilkan_tkdn(transaksi_list):
             'p_non_cost': 4.89,
             'ttd_direktur': None
         }
+    else:
+        saved_tagihan = st.session_state.tkdn_saved_data[selected_pi_key].get('total_tagihan', 0.0)
+        if saved_tagihan <= 3200000.0 or abs(saved_tagihan - aktual_total_tagihan) > 1.0:
+            st.session_state.tkdn_saved_data[selected_pi_key]['total_tagihan'] = aktual_total_tagihan
 
-    saved_tkdn = st.session_state.tkdn_saved_data[pi_sekarang]
+    saved_tkdn = st.session_state.tkdn_saved_data[selected_pi_key]
+    
+    default_rujukan_tagihan = float(saved_tkdn.get('total_tagihan', aktual_total_tagihan))
+    if default_rujukan_tagihan <= 3200000.0:
+        default_rujukan_tagihan = aktual_total_tagihan
 
-    # Form khusus untuk menyimpan dan mengunci parameter agar tidak tereset
-    with st.form(key=f"form_tkdn_save_{pi_sekarang}"):
+    # Form khusus untuk menyimpan dan mengunci parameter
+    with st.form(key=f"form_tkdn_save_{selected_pi_key}"):
         st.markdown("#### ⚙️ Pengaturan Parameter & Rujukan Perhitungan TKDN")
         
         c_master1, c_master2, c_master3, c_master4 = st.columns(4)
         with c_master1:
-            lokasi_office = st.text_input("📍 Lokasi Office:", value=str(saved_tkdn.get('lokasi_office', 'Luwuk')), key=f"tkdn_lok_{pi_sekarang}")
+            lokasi_office = st.text_input("📍 Lokasi Office:", value=str(saved_tkdn.get('lokasi_office', 'Luwuk')), key=f"tkdn_lok_{selected_pi_key}")
         with c_master2:
-            selected_date_tkdn = st.date_input("📅 Tanggal Dokumen:", value=saved_tkdn.get('tanggal_dokumen', date.today()), key=f"tkdn_date_{pi_sekarang}")
+            selected_date_tkdn = st.date_input("📅 Tanggal Dokumen:", value=saved_tkdn.get('tanggal_dokumen', date.today()), key=f"tkdn_date_{selected_pi_key}")
         with c_master3:
-            total_tagihan_rujukan = st.number_input("💰 Rujukan Total Tagihan (Rp):", value=float(saved_tkdn.get('total_tagihan', aktual_total_tagihan)), step=100000.0, key=f"master_tagihan_{pi_sekarang}")
+            total_tagihan_rujukan = st.number_input("💰 Rujukan Total Tagihan (Rp):", value=default_rujukan_tagihan, step=100000.0, key=f"master_tagihan_{selected_pi_key}")
         with c_master4:
-            nama_direktur = st.text_input("Nama Direktur:", value=str(saved_tkdn.get('nama_direktur', 'Ir. Ferry Tatimu')), key=f"tkdn_dir_{pi_sekarang}")
+            nama_direktur = st.text_input("Nama Direktur:", value=str(saved_tkdn.get('nama_direktur', 'Ir. Ferry Tatimu')), key=f"tkdn_dir_{selected_pi_key}")
 
         st.markdown("---")
         st.markdown("#### 🧮 Rincian Komponen Biaya & Non-Biaya (Berbasis Persentase)")
-        st.info("💡 Masukkan persentase (%) untuk setiap komponen. Nilai nominal dihitung otomatis dari Total Tagihan aktual PI.")
+        st.info("💡 Masukkan persentase (%) untuk setiap komponen. Nilai nominal dihitung otomatis dari Rujukan Total Tagihan.")
 
         # --- I. BIAYA BAHAN ---
         st.markdown("**I. Biaya Bahan (Material)**")
         c_b1, c_b2 = st.columns(2)
         with c_b1:
-            p_kdn_1 = st.number_input("Persentase KDN Bahan (%):", value=float(saved_tkdn.get('p_kdn_1', 15.09)), step=0.1, key=f"input_p_kdn_1_{pi_sekarang}")
+            p_kdn_1 = st.number_input("Persentase KDN Bahan (%):", value=float(saved_tkdn.get('p_kdn_1', 15.09)), step=0.01, format="%.2f", key=f"input_p_kdn_1_{selected_pi_key}")
             temp_kdn_1 = (p_kdn_1 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KDN: Rp {temp_kdn_1:,.2f}")
         with c_b2:
-            p_kln_1 = st.number_input("Persentase KLN Bahan (%):", value=float(saved_tkdn.get('p_kln_1', 1.51)), step=0.1, key=f"input_p_kln_1_{pi_sekarang}")
+            p_kln_1 = st.number_input("Persentase KLN Bahan (%):", value=float(saved_tkdn.get('p_kln_1', 1.51)), step=0.01, format="%.2f", key=f"input_p_kln_1_{selected_pi_key}")
             temp_kln_1 = (p_kln_1 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KLN: Rp {temp_kln_1:,.2f}")
 
@@ -99,11 +146,11 @@ def tampilkan_tkdn(transaksi_list):
         st.markdown("**II. Biaya Tenaga Kerja & Konsultan**")
         c_t1, c_t2 = st.columns(2)
         with c_t1:
-            p_kdn_2 = st.number_input("Persentase KDN Tenaga Kerja (%):", value=float(saved_tkdn.get('p_kdn_2', 28.26)), step=0.1, key=f"input_p_kdn_2_{pi_sekarang}")
+            p_kdn_2 = st.number_input("Persentase KDN Tenaga Kerja (%):", value=float(saved_tkdn.get('p_kdn_2', 28.26)), step=0.01, format="%.2f", key=f"input_p_kdn_2_{selected_pi_key}")
             temp_kdn_2 = (p_kdn_2 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KDN: Rp {temp_kdn_2:,.2f}")
         with c_t2:
-            p_kln_2 = st.number_input("Persentase KLN Tenaga Kerja (%):", value=float(saved_tkdn.get('p_kln_2', 0.0)), step=0.1, key=f"input_p_kln_2_{pi_sekarang}")
+            p_kln_2 = st.number_input("Persentase KLN Tenaga Kerja (%):", value=float(saved_tkdn.get('p_kln_2', 0.0)), step=0.01, format="%.2f", key=f"input_p_kln_2_{selected_pi_key}")
             temp_kln_2 = (p_kln_2 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KLN: Rp {temp_kln_2:,.2f}")
 
@@ -113,11 +160,11 @@ def tampilkan_tkdn(transaksi_list):
         st.markdown("**III. Biaya Alat Kerja / Fasilitas Kerja**")
         c_a1, c_a2 = st.columns(2)
         with c_a1:
-            p_kdn_3 = st.number_input("Persentase KDN Alat Kerja (%):", value=float(saved_tkdn.get('p_kdn_3', 47.18)), step=0.1, key=f"input_p_kdn_3_{pi_sekarang}")
+            p_kdn_3 = st.number_input("Persentase KDN Alat Kerja (%):", value=float(saved_tkdn.get('p_kdn_3', 47.18)), step=0.01, format="%.2f", key=f"input_p_kdn_3_{selected_pi_key}")
             temp_kdn_3 = (p_kdn_3 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KDN: Rp {temp_kdn_3:,.2f}")
         with c_a2:
-            p_kln_3 = st.number_input("Persentase KLN Alat Kerja (%):", value=float(saved_tkdn.get('p_kln_3', 1.51)), step=0.1, key=f"input_p_kln_3_{pi_sekarang}")
+            p_kln_3 = st.number_input("Persentase KLN Alat Kerja (%):", value=float(saved_tkdn.get('p_kln_3', 1.51)), step=0.01, format="%.2f", key=f"input_p_kln_3_{selected_pi_key}")
             temp_kln_3 = (p_kln_3 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KLN: Rp {temp_kln_3:,.2f}")
 
@@ -127,23 +174,32 @@ def tampilkan_tkdn(transaksi_list):
         c_j1, c_j2 = st.columns(2)
         with c_j1:
             st.markdown("**IV. Biaya Jasa Umum**")
-            p_kdn_4 = st.number_input("Persentase KDN Jasa Umum (%):", value=float(saved_tkdn.get('p_kdn_4', 1.55)), step=0.1, key=f"input_p_kdn_4_{pi_sekarang}")
+            p_kdn_4 = st.number_input("Persentase KDN Jasa Umum (%):", value=float(saved_tkdn.get('p_kdn_4', 1.55)), step=0.01, format="%.2f", key=f"input_p_kdn_4_{selected_pi_key}")
             temp_kdn_4 = (p_kdn_4 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KDN: Rp {temp_kdn_4:,.2f}")
             
-            p_kln_4 = st.number_input("Persentase KLN Jasa Umum (%):", value=float(saved_tkdn.get('p_kln_4', 0.0)), step=0.1, key=f"input_p_kln_4_{pi_sekarang}")
+            p_kln_4 = st.number_input("Persentase KLN Jasa Umum (%):", value=float(saved_tkdn.get('p_kln_4', 0.0)), step=0.01, format="%.2f", key=f"input_p_kln_4_{selected_pi_key}")
             temp_kln_4 = (p_kln_4 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KLN: Rp {temp_kln_4:,.2f}")
 
         with c_j2:
             st.markdown("**B. Komponen Bukan Biaya**")
-            p_non_cost = st.number_input("Persentase Komponen Bukan Biaya (%):", value=float(saved_tkdn.get('p_non_cost', 4.89)), step=0.1, key=f"input_p_non_cost_{pi_sekarang}")
+            p_non_cost = st.number_input("Persentase Komponen Bukan Biaya (%):", value=float(saved_tkdn.get('p_non_cost', 4.89)), step=0.01, format="%.2f", key=f"input_p_non_cost_{selected_pi_key}")
             temp_non_cost = (p_non_cost / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai Bukan Biaya: Rp {temp_non_cost:,.2f}")
 
+        # --- TOTAL AKUMULASI PERSENTASE ---
+        total_persen_akumulasi = p_kdn_1 + p_kln_1 + p_kdn_2 + p_kln_2 + p_kdn_3 + p_kln_3 + p_kdn_4 + p_kln_4 + p_non_cost
+        st.markdown(f"**📊 Total Akumulasi Persentase Terdistribusi:** `{total_persen_akumulasi:.2f}%`")
+        if abs(total_persen_akumulasi - 100.0) > 0.01:
+            st.warning(f"⚠️ Total persentase saat ini adalah {total_persen_akumulasi:.2f}%. Pastikan total distribusi mendekati atau tepat 100%.")
+        else:
+            st.success("✅ Total akumulasi persentase sudah tepat 100%.")
+
         submit_save_tkdn = st.form_submit_button("💾 Simpan & Kunci Dokumen TKDN Ini", type="primary")
         if submit_save_tkdn:
-            st.session_state.tkdn_saved_data[pi_sekarang].update({
+            # Perbarui session state
+            st.session_state.tkdn_saved_data[selected_pi_key].update({
                 'lokasi_office': lokasi_office,
                 'tanggal_dokumen': selected_date_tkdn,
                 'total_tagihan': total_tagihan_rujukan,
@@ -154,25 +210,44 @@ def tampilkan_tkdn(transaksi_list):
                 'p_kdn_4': p_kdn_4, 'p_kln_4': p_kln_4,
                 'p_non_cost': p_non_cost
             })
-            st.success(f"✅ Dokumen TKDN untuk PI [{pi_sekarang}] berhasil disimpan dan dikunci!")
+            
+            # SIMPAN PERMANEN KE HARDDISK (JSON)
+            try:
+                data_to_export = st.session_state.tkdn_saved_data[selected_pi_key].copy()
+                # Ubah date object menjadi string agar bisa diserialisasi ke JSON
+                data_to_export['tanggal_dokumen'] = str(selected_date_tkdn)
+                # Hapus binary TTD jika ada dari dictionary json agar tidak error (atau simpan terpisah jika diperlukan)
+                data_to_export.pop('ttd_direktur', None)
+                
+                with open(tkdn_file_path, "w", encoding="utf-8") as f_json:
+                    json.dump(data_to_export, f_json, ensure_ascii=False, indent=4)
+                
+                st.success(f"✅ Dokumen TKDN untuk PI [{selected_pi_key}] berhasil disimpan secara permanen & dikunci!")
+            except Exception as e:
+                st.error(f"Gagal menyimpan permanen ke disk: {e}")
 
-    # --- PENGATURAN TANDA TANGAN (DI LUAR FORM AGAR ADA TOMBOL HAPUS) ---
+    # --- PENGATURAN TANDA TANGAN ---
     st.markdown("---")
     st.markdown("#### ✍️ Pengaturan Tanda Tangan Digital Direktur TKDN")
-    uploaded_ttd_tkdn = st.file_uploader("Upload Tanda Tangan Direktur", type=["png", "jpg", "jpeg"], key=f"ttd_tkdn_uploader_{pi_sekarang}")
+    uploaded_ttd_tkdn = st.file_uploader("Upload Tanda Tangan Direktur", type=["png", "jpg", "jpeg"], key=f"ttd_tkdn_uploader_{selected_pi_key}")
     if uploaded_ttd_tkdn is not None:
         saved_tkdn['ttd_direktur'] = uploaded_ttd_tkdn.getvalue()
     
     if saved_tkdn.get('ttd_direktur') is not None:
-        if st.button("🗑️ Hapus Tanda Tangan Direktur", key=f"btn_del_tkdn_ttd_{pi_sekarang}"):
+        if st.button("🗑️ Hapus Tanda Tangan Direktur", key=f"btn_del_tkdn_ttd_{selected_pi_key}"):
             saved_tkdn['ttd_direktur'] = None
             st.success("✅ Tanda tangan berhasil dihapus!")
             st.rerun()
 
-    # Mengambil nilai yang sudah dikunci untuk perhitungan dan render
     active_lokasi = saved_tkdn.get('lokasi_office', 'Luwuk')
     active_date = saved_tkdn.get('tanggal_dokumen', date.today())
-    active_tagihan = saved_tkdn.get('total_tagihan', aktual_total_tagihan)
+    if isinstance(active_date, str):
+        try:
+            active_date = datetime.strptime(active_date, "%Y-%m-%d").date()
+        except:
+            active_date = date.today()
+            
+    active_tagihan = default_rujukan_tagihan
     active_direktur = saved_tkdn.get('nama_direktur', 'Ir. Ferry Tatimu')
 
     bulan_indo = {
@@ -204,9 +279,9 @@ def tampilkan_tkdn(transaksi_list):
 
     persen_tkdn_akhir = (tot_kdn_biaya / jumlah_nilai_total) * 100 if jumlah_nilai_total > 0 else 0
 
-    nomor_kontrak = str(t_data.get('Nomor Kontrak', matched_db_row.get('Nomor Kontrak', '7207250142'))).strip()
-    nomor_po = str(t_data.get('Nomor PO', matched_db_row.get('Nomor PO', '4500011425'))).strip()
-    judul_kontrak = str(t_data.get('Nama Kontrak', matched_db_row.get('Nama Kontrak', 'Jasa Sewa Alat Berat Pendukung Operasional Senoro dan Tiaka'))).strip()
+    nomor_kontrak = str(t_data.get('Nomor Kontrak', matched_db_row.get('Nomor Kontrak', '7201250141'))).strip()
+    nomor_po = str(t_data.get('Nomor PO', matched_db_row.get('Nomor PO', '-'))).strip()
+    judul_kontrak = str(t_data.get('Nama Kontrak', matched_db_row.get('Nama Kontrak', 'Penyediaan General Services Untuk Mendukung Kegiatan Pengboran, Kerja Ulang Dan Perawatan Sumur di Blok Senoro - Toili'))).strip()
     mata_uang = str(t_data.get('Mata Uang', 'IDR')).strip()
 
     ttd_bytes = saved_tkdn.get('ttd_direktur')
@@ -443,7 +518,7 @@ def tampilkan_tkdn(transaksi_list):
     """
 
     st.markdown('<div class="document-preview">', unsafe_allow_html=True)
-    st.components.v1.html(html_content, height=650, scrolling=True)
+    st.components.v1.html(html_content, height=640, scrolling=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)

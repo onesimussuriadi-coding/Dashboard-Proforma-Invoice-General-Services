@@ -60,7 +60,7 @@ def tampilkan_wcc(transaksi_list):
 
     if pi_storage_key not in st.session_state.wcc_saved_data:
         st.session_state.wcc_saved_data[pi_storage_key] = {
-            'lokasi': "Paisubololi",
+            'lokasi': "Luwuk",
             'logo_1': None,
             'logo_2': None,
             'ttd_1': None,
@@ -70,7 +70,7 @@ def tampilkan_wcc(transaksi_list):
 
     saved_wcc = st.session_state.wcc_saved_data[pi_storage_key]
 
-    # --- PENGATURAN UPLOAD & HAPUS FILE (DI LUAR FORM AGAR REAKTIF) ---
+    # --- PENGATURAN UPLOAD & HAPUS FILE ---
     st.markdown("---")
     st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen WCC")
     c_log1, c_log2 = st.columns(2)
@@ -114,39 +114,7 @@ def tampilkan_wcc(transaksi_list):
                 st.success("✅ TTD Pihak 3 berhasil dihapus!")
                 st.rerun()
 
-    # Form khusus untuk tombol Simpan & Kunci Dokumen
-    with st.form(key=f"form_wcc_save_{pi_storage_key}"):
-        st.markdown("---")
-        lokasi_office = st.text_input("📍 Lokasi Office (Tempat WCC):", value=str(saved_wcc.get('lokasi', 'Paisubololi')), key=f"wcc_lok_office_{pi_storage_key}")
-        st.markdown(f"**Konfirmasi Dokumen WCC (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi.")
-        submit_save_wcc = st.form_submit_button("💾 Simpan & Kunci Dokumen WCC Ini", type="primary")
-        
-        if submit_save_wcc:
-            # Pertahankan data lama jika tidak ada file baru yang di-upload
-            l1_final = uploaded_logo_1.getvalue() if uploaded_logo_1 is not None else saved_wcc.get('logo_1')
-            l2_final = uploaded_logo_2.getvalue() if uploaded_logo_2 is not None else saved_wcc.get('logo_2')
-            t1_final = uploaded_ttd_1.getvalue() if uploaded_ttd_1 is not None else saved_wcc.get('ttd_1')
-            t2_final = uploaded_ttd_2.getvalue() if uploaded_ttd_2 is not None else saved_wcc.get('ttd_2')
-            t3_final = uploaded_ttd_3.getvalue() if uploaded_ttd_3 is not None else saved_wcc.get('ttd_3')
-
-            st.session_state.wcc_saved_data[pi_storage_key] = {
-                'lokasi': lokasi_office,
-                'logo_1': l1_final,
-                'logo_2': l2_final,
-                'ttd_1': t1_final,
-                'ttd_2': t2_final,
-                'ttd_3': t3_final
-            }
-            st.success(f"✅ Sukses! Dokumen WCC untuk nomor PI [{selected_pi}] berhasil disimpan dan dikunci secara permanen.")
-
-    # Ambil nilai data aktif yang sudah tersimpan di session state
-    active_lokasi = st.session_state.wcc_saved_data[pi_storage_key].get('lokasi', 'Paisubololi')
-    l1_bytes = st.session_state.wcc_saved_data[pi_storage_key].get('logo_1')
-    l2_bytes = st.session_state.wcc_saved_data[pi_storage_key].get('logo_2')
-    t1_bytes = st.session_state.wcc_saved_data[pi_storage_key].get('ttd_1')
-    t2_bytes = st.session_state.wcc_saved_data[pi_storage_key].get('ttd_2')
-    t3_bytes = st.session_state.wcc_saved_data[pi_storage_key].get('ttd_3')
-
+    # Filter mutasi murni berdasarkan PI yang dipilih terlebih dahulu agar variabel data utama siap
     mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == str(selected_pi).strip()]
     if not mutasi_terpilih:
         st.warning("⚠️ Tidak ada item mutasi ditemukan untuk PI ini.")
@@ -156,41 +124,49 @@ def tampilkan_wcc(transaksi_list):
     grand_total_wcc = sum([float(m.get('Total Harga', 0.0)) for m in mutasi_terpilih])
     terbilang_str = terbilang(grand_total_wcc).strip() + " Rupiah"
 
+    # --- PENGAMBILAN DATABASE INDUK YANG AMAN BERDASARKAN PI ---
     db_invoice_path = os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx")
     matched_db_row = {}
-    wcc_no, wo_no, ctr_no = "DATA WCC BELUM DIINPUT", "DATA WO BELUM DIINPUT", "DATA CTR BELUM DIINPUT"
     
     if os.path.exists(db_invoice_path):
         try:
             df_inv = pd.read_excel(db_invoice_path)
             pi_sekarang = str(selected_pi).strip().lower()
             for idx, row in df_inv.iterrows():
-                if str(row.iloc[0]).strip().lower() == pi_sekarang:
+                val_pi = str(row.iloc[0]).strip().lower()
+                if val_pi == pi_sekarang:
                     matched_db_row = row.to_dict()
-                    wcc_no = str(row.iloc[19]) if len(row) > 19 and pd.notnull(row.iloc[19]) else wcc_no
-                    wo_no = str(row.iloc[21]) if len(row) > 21 and pd.notnull(row.iloc[21]) else wo_no
-                    ctr_no = str(row.iloc[23]) if len(row) > 23 and pd.notnull(row.iloc[23]) else ctr_no
                     break
         except:
             pass
 
-    nomor_kontrak_str = str(t_data_utama.get('Nomor Kontrak', '7201250141'))
+    def get_db_val(idx_num, key_name, fallback="-"):
+        val = None
+        if idx_num in matched_db_row and pd.notnull(matched_db_row[idx_num]):
+            val = str(matched_db_row[idx_num]).strip()
+        elif key_name in matched_db_row and pd.notnull(matched_db_row[key_name]):
+            val = str(matched_db_row[key_name]).strip()
+        
+        if not val or val.lower() == "nan" or val == "":
+            return fallback
+        return val
+
+    nomor_kontrak_str = str(t_data_utama.get('Nomor Kontrak', get_db_val(1, 'Nomor Kontrak', '7201250141'))).strip()
+    
+    # --- PENGAMBILAN DATA AKTUAL WCC ---
+    wcc_no = get_db_val(19, 'Nomor WCC', str(selected_pi)) 
+    wo_no = get_db_val(21, 'Nomor WO', '-') 
+    ctr_no = get_db_val(23, 'Nomor CTR', '-') 
+
     raw_date = matched_db_row.get('Tanggal WCC', t_data_utama.get('Tanggal PI', datetime.now().strftime('%d %B %Y')))
     try:
         wcc_date = pd.to_datetime(raw_date).strftime('%d %B %Y') if len(str(raw_date)) >= 10 else datetime.now().strftime('%d %B %Y')
     except:
         wcc_date = str(raw_date)
 
-    wo_title = str(matched_db_row.get('Keterangan WO', '')) or str(t_data_utama.get('Deskripsi PO', 'General Services'))
-    progress_val = str(matched_db_row.get('Progress Pekerjaan', '100%'))
+    wo_title = str(matched_db_row.get(22, matched_db_row.get('Keterangan WO', ''))) or str(t_data_utama.get('Deskripsi PO', 'General Services'))
+    progress_val = str(matched_db_row.get(24, matched_db_row.get('Progress Pekerjaan', '100%')))
     progress_desc = f"[&#10003;] {progress_val} - Penyelesaian Pekerjaan"
-
-    def get_db_val(idx_num, key_name, fallback=""):
-        if idx_num in matched_db_row and pd.notnull(matched_db_row[idx_num]) and str(matched_db_row[idx_num]).strip().lower() != "nan":
-            return str(matched_db_row[idx_num]).strip()
-        if key_name in matched_db_row and pd.notnull(matched_db_row[key_name]) and str(matched_db_row[key_name]).strip().lower() != "nan":
-            return str(matched_db_row[key_name]).strip()
-        return fallback
 
     prepared_name = get_db_val(25, 'Prepared by Name', 'Onesimus Suryadi')
     prepared_title = get_db_val(26, 'Prepared by Title', 'General Service Manager')
@@ -212,6 +188,51 @@ def tampilkan_wcc(transaksi_list):
         str(reviewed_name).strip().lower() == str(final_app_name).strip().lower() and
         str(reviewed_title).strip().lower() == str(final_app_title).strip().lower()
     )
+
+    with st.form(key=f"form_wcc_save_{pi_storage_key}"):
+        st.markdown("---")
+        lokasi_office = st.text_input("📍 Lokasi Office (Tempat WCC):", value=str(saved_wcc.get('lokasi', "Luwuk")), key=f"wcc_lok_office_{pi_storage_key}")
+        st.markdown(f"**Konfirmasi Dokumen WCC (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi dan menyimpannya agar otomatis terhubung ke Master Bundle.")
+        submit_save_wcc = st.form_submit_button("💾 Simpan & Kunci Dokumen WCC Ini", type="primary")
+        
+        if submit_save_wcc:
+            l1_final = uploaded_logo_1.getvalue() if uploaded_logo_1 is not None else saved_wcc.get('logo_1')
+            l2_final = uploaded_logo_2.getvalue() if uploaded_logo_2 is not None else saved_wcc.get('logo_2')
+            t1_final = uploaded_ttd_1.getvalue() if uploaded_ttd_1 is not None else saved_wcc.get('ttd_1')
+            t2_final = uploaded_ttd_2.getvalue() if uploaded_ttd_2 is not None else saved_wcc.get('ttd_2')
+            t3_final = uploaded_ttd_3.getvalue() if uploaded_ttd_3 is not None else saved_wcc.get('ttd_3')
+
+            # --- SIMPAN SELURUH ATRIBUT WCC SECARA LENGKAP UTK MASTER BUNDLE ---
+            st.session_state.wcc_saved_data[pi_storage_key] = {
+                'lokasi': lokasi_office,
+                'logo_1': l1_final,
+                'logo_2': l2_final,
+                'ttd_1': t1_final,
+                'ttd_2': t2_final,
+                'ttd_3': t3_final,
+                'wcc_no': wcc_no,
+                'wo_no': wo_no,
+                'ctr_no': ctr_no,
+                'wo_title': wo_title,
+                'wcc_date': wcc_date,
+                'header_title': "JASA SEWA ALAT BERAT PENDUKUNG OPERASIONAL SENORO & TIAKA",
+                'header_contract': f"Contract No. {nomor_kontrak_str}",
+                'prepared_name': prepared_name,
+                'prepared_title': prepared_title,
+                'reviewed_name': reviewed_name,
+                'reviewed_title': reviewed_title,
+                'final_app_name': final_app_name,
+                'final_app_title': final_app_title,
+                'is_same_person': is_same_person
+            }
+            st.success(f"✅ Sukses! Dokumen WCC untuk nomor PI [{selected_pi}] berhasil disimpan, dikunci, dan siap ditarik ke dalam Master Bundle.")
+
+    active_lokasi = st.session_state.wcc_saved_data[pi_storage_key].get('lokasi', 'Luwuk')
+    l1_bytes = st.session_state.wcc_saved_data[pi_storage_key].get('logo_1')
+    l2_bytes = st.session_state.wcc_saved_data[pi_storage_key].get('logo_2')
+    t1_bytes = st.session_state.wcc_saved_data[pi_storage_key].get('ttd_1')
+    t2_bytes = st.session_state.wcc_saved_data[pi_storage_key].get('ttd_2')
+    t3_bytes = st.session_state.wcc_saved_data[pi_storage_key].get('ttd_3')
 
     logo1_html = f'<img src="data:image/png;base64,{base64.b64encode(l1_bytes).decode()}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">' if l1_bytes is not None else ""
     logo2_html = f'<img src="data:image/png;base64,{base64.b64encode(l2_bytes).decode()}" style="max-height: 50px; max-width: 130px; object-fit: contain; display: block; margin: 0 auto;">' if l2_bytes is not None else ""
@@ -291,7 +312,7 @@ def tampilkan_wcc(transaksi_list):
                 header, footer, .no-print {{ display: none !important; }}
             }}
             body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 25px; margin: 0; font-size: 11px; line-height: 1.4; }}
-            .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }}
+            .header-table {{ width: 100%; border-collapse: collapse; border-bottom: 2px solid #000; padding-bottom: 10mm; margin-bottom: 15px; }}
             .header-table td {{ border: none; vertical-align: middle; padding: 0 10px; }}
             .title-box {{ background-color: #dbeafe; border: 1px solid #000; text-align: center; font-weight: bold; font-size: 13px; padding: 6px; margin-bottom: 4px; text-transform: uppercase; }}
             .cert-box {{ background-color: #f1f5f9; border: 1px solid #000; text-align: center; font-weight: bold; font-size: 12px; padding: 6px; margin-bottom: 20px; }}
