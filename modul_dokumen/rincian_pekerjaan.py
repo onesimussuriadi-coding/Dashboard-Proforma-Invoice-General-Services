@@ -204,9 +204,9 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     <head>
         <meta charset="utf-8">
         <style>
-            @page {{ 
-                size: A4 landscape; 
-                margin: 6mm; 
+            @page {{
+                size: A4 landscape;
+                margin: 6mm;
             }}
             @media print {{
                 html, body {{
@@ -221,14 +221,14 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                     margin: 0;
                 }}
             }}
-            body {{ 
-                font-family: Arial, sans-serif; 
-                background-color: #ffffff; 
-                color: #000000; 
-                padding: 6mm; 
-                margin: 0; 
-                font-size: 10px; 
-                line-height: 1.3; 
+            body {{
+                font-family: Arial, sans-serif;
+                background-color: #ffffff;
+                color: #000000;
+                padding: 6mm;
+                margin: 0;
+                font-size: 10px;
+                line-height: 1.3;
             }}
             .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 6mm; margin-bottom: 10px; }}
             .title {{ text-align: center; font-weight: bold; font-size: 13px; margin-bottom: 12px; text-transform: uppercase; text-decoration: underline; }}
