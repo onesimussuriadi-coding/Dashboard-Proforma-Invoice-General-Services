@@ -6,6 +6,7 @@ import base64
 import sys
 from datetime import datetime, timedelta, date
 from modul_dokumen import tkdn
+from modul_billing_tax import tampilkan_billing_tax
 from modul_keamanan.autentikasi import form_login_sistem, render_panel_manajemen_akun
 
 # Menambahkan path untuk pemanggilan folder modul_dokumen
@@ -357,14 +358,14 @@ if form_login_sistem():
         modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan"])
     elif user_role == "Finance / Invoice":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
-            "📁 Modul 1: Database & Master Kontrak",
-            "📄 Modul 2: Invoice & Dokumen Turunan"
+            "💰 Modul 3: Invoice & Tax Management"
         ])
     else: # Manajer Operasional (Akses Penuh)
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "📁 Modul 0: Master Referensi Harga & Pekerjaan",
             "📁 Modul 1: Database & Master Kontrak",
-            "📄 Modul 2: Invoice & Dokumen Turunan"
+            "📄 Modul 2: Invoice & Dokumen Turunan",
+            "💰 Modul 3: Invoice & Tax Management"
         ])
 
     st.sidebar.markdown("---")
@@ -380,6 +381,12 @@ if form_login_sistem():
         menu = st.sidebar.radio("Pilih Menu:", [
             "Input Database & Invoice (31 Kolom)",
             "Lihat Database Tersimpan"
+        ])
+    elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
+        menu = st.sidebar.radio("Pilih Menu:", [
+            "Input Data Invoice Resmi",
+            "Pratinjau, Cetak & Download PDF Invoice",
+            "Lihat Daftar Invoice & Pajak Tersimpan"
         ])
     else:
         menu = st.sidebar.radio("Pilih Menu:", [
@@ -409,9 +416,16 @@ if form_login_sistem():
 
     else:
         # =========================================================================
+        # LOGIKA MODUL 3: INVOICE & TAX MANAGEMENT
+        # =========================================================================
+        if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
+            transaksi_list = muat_data_transaksi()
+            tampilkan_billing_tax(transaksi_list if transaksi_list else [], menu)
+
+        # =========================================================================
         # LOGIKA MODUL 0: MASTER REFERENSI HARGA & PEKERJAAN
         # =========================================================================
-        if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
+        elif modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
             
             query_params = st.query_params
             if "delete_master_idx" in query_params:
@@ -659,7 +673,6 @@ if form_login_sistem():
                 saved_db_list = st.session_state["db_tersimpan"]
 
                 if len(saved_db_list) > 0:
-                    # Ambil daftar kontrak unik yang tersedia di database
                     list_kontrak_db = sorted(list(set(bersih_angka(data.get(1, data.get('Nomor Kontrak', '-'))) for data in saved_db_list if bersih_angka(data.get(1, data.get('Nomor Kontrak', '-'))) != '')))
                     opsi_kontrak_input = ["-- Buat Data Baru (Formulir Kosong) --"] + list_kontrak_db
 
@@ -677,13 +690,11 @@ if form_login_sistem():
                                 st.session_state["edit_index"] = None
                                 st.rerun()
                     else:
-                        # Saring data PI berdasarkan Nomor Kontrak yang dipilih
                         matched_pi_records = [
                             (i, d) for i, d in enumerate(saved_db_list) 
                             if bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input
                         ]
                         
-                        # Urutkan dari nomor besar ke nomor kecil (terbaru di atas)
                         matched_pi_records_sorted = sorted(
                             matched_pi_records, 
                             key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
