@@ -41,7 +41,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📦 Master Bundle: Fotokopi Digital Dokumen (Exact Duplication & Batch Export)</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Modul ini menduplikasi secara utuh dan identik 100% seluruh dokumen asli yang telah divalidasi dan disimpan di setiap modul (Rincian Pekerjaan, Proforma Invoice, BAMP, BASP, WCC, Opname, dan TKDN).</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Modul ini menduplikasi secara utuh dan identik 100% seluruh dokumen asli yang telah divalidasi dan disimpan di setiap modul.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -66,59 +66,63 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     file_saved_path = os.path.join(DIR_PAKET_SAVED, f"paket_{current_pi_no.replace('/', '_')}.html")
     
-    is_loaded_from_save = False
-    saved_html_content = ""
-    if os.path.exists(file_saved_path):
+    # Tombol Aksi Jika File Sudah Tersimpan Sebelumnya
+    if os.path.exists(file_saved_path) and not st.session_state.get(f"force_regen_{current_pi_no}", False):
         st.success("✅ Dokumen Paket Lengkap (Fotokopi Identik) untuk PI ini sudah pernah disimpan secara final.")
         col_load1, col_load2 = st.columns([2, 2])
         with col_load1:
             if st.button("📂 Muat Dokumen Tersimpan (Load Final)", use_container_width=True):
-                try:
-                    with open(file_saved_path, "r", encoding="utf-8") as f:
-                        saved_html_content = f.read()
-                    is_loaded_from_save = True
-                    st.session_state[f"loaded_saved_{current_pi_no}"] = True
-                except:
-                    pass
+                st.session_state[f"loaded_saved_{current_pi_no}"] = True
+                st.rerun()
         with col_load2:
             if st.button("🔄 Perbarui / Buat Ulang Duplikat", use_container_width=True):
+                # Hapus file fisik lama agar pembaruan dari dokumen asli terbaca total
+                try:
+                    if os.path.exists(file_saved_path):
+                        os.remove(file_saved_path)
+                except:
+                    pass
                 if f"loaded_saved_{current_pi_no}" in st.session_state:
                     del st.session_state[f"loaded_saved_{current_pi_no}"]
+                st.session_state[f"force_regen_{current_pi_no}"] = True
                 st.rerun()
 
-    if st.session_state.get(f"loaded_saved_{current_pi_no}", False) and os.path.exists(file_saved_path):
-        with open(file_saved_path, "r", encoding="utf-8") as f:
-            master_html = f.read()
-        
-        st.info("📌 Menampilkan dokumen dalam mode **Final Tersimpan (Fotokopi Identik)**.")
-        st.markdown('<div class="document-preview">', unsafe_allow_html=True)
-        st.components.v1.html(master_html, height=750, scrolling=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown("<br>", unsafe_allow_html=True)
+        if st.session_state.get(f"loaded_saved_{current_pi_no}", False):
+            with open(file_saved_path, "r", encoding="utf-8") as f:
+                master_html = f.read()
+            
+            st.info("📌 Menampilkan dokumen dalam mode **Final Tersimpan (Fotokopi Identik)**.")
+            st.markdown('<div class="document-preview">', unsafe_allow_html=True)
+            st.components.v1.html(master_html, height=750, scrolling=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
 
-        col_b1, col_b2 = st.columns(2)
-        with col_b1:
-            b64_html = base64.b64encode(master_html.encode("utf-8")).decode()
-            print_script = f"""
-                <script>
-                    function printAllDocs() {{
-                        var win = window.open('', '_blank');
-                        win.document.write(atob("{b64_html}"));
-                        win.document.close();
-                        win.focus();
-                        setTimeout(function(){{ win.print(); }}, 600);
-                    }}
-                </script>
-                <button onclick="printAllDocs()" style="width: 100%; background-color: #10b981; color: white; padding: 12px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;">
-                    🖨️ Cetak Seluruh Paket Dokumen (1-Click Print)
-                </button>
-            """
-            st.components.v1.html(print_script, height=60)
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                b64_html = base64.b64encode(master_html.encode("utf-8")).decode()
+                print_script = f"""
+                    <script>
+                        function printAllDocs() {{
+                            var win = window.open('', '_blank');
+                            win.document.write(atob("{b64_html}"));
+                            win.document.close();
+                            win.focus();
+                            setTimeout(function(){{ win.print(); }}, 600);
+                        }}
+                    </script>
+                    <button onclick="printAllDocs()" style="width: 100%; background-color: #10b981; color: white; padding: 12px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;">
+                        🖨️ Cetak Seluruh Paket Dokumen (1-Click Print)
+                    </button>
+                """
+                st.components.v1.html(print_script, height=60)
 
-        with col_b2:
-            download_link = f'<a href="data:text/html;base64,{b64_html}" download="Master_Paket_Dokumen_{current_pi_no.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 12px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;">📥 Download File HTML</button></a>'
-            st.markdown(download_link, unsafe_allow_html=True)
-        return
+            with col_b2:
+                download_link = f'<a href="data:text/html;base64,{b64_html}" download="Master_Paket_Dokumen_{current_pi_no.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 12px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;">📥 Download File HTML</button></a>'
+                st.markdown(download_link, unsafe_allow_html=True)
+            return
+
+    if f"force_regen_{current_pi_no}" in st.session_state:
+        del st.session_state[f"force_regen_{current_pi_no}"]
 
     with st.expander("⚙️ Pengaturan Tambahan: Upload Logo & Tanda Tangan", expanded=False):
         col_up1, col_up2 = st.columns(2)
@@ -294,8 +298,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         tgl_mulai_item = str(m.get('Tanggal Mulai', tgl_pi))
         tgl_selesai_item = str(m.get('Tanggal Selesai', tgl_pi))
 
-        # --- LOGIKA PENYEMPURNAAN PEMBACAAN QTY BAMP ---
-        # Prioritas mutlak membaca langsung dari bamp_saved_data aktual secara dinamis (mendukung nilai 0.0)
         qty_bamp = float(m.get('Qty', 1.0))
         if bamp_items_saved and len(bamp_items_saved) >= idx:
             try:
@@ -479,7 +481,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="width: 45%; vertical-align: top;">
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr><td><b>Proforma Invoice No.</b></td><td>:</td><td><b>{current_pi_no}</b></td></tr>
-                        <tr><td><b>Tanggal Performa Invoice</b></td><td>:</td><td>{tgl_pi}</td></tr>
+                        <tr><td><b>Tanggal Performa Invoice</b></td><td>:</td><td><b>{tgl_pi}</b></td></tr>
                         <tr><td><b>Nomor Kontrak</b></td><td>:</td><td>{nomor_kontrak}</td></tr>
                         <tr><td><b>Jangka Waktu Kontrak</b></td><td>:</td><td>{jangka_waktu}</td></tr>
                         <tr><td><b>Nomor Purchase Order</b></td><td>:</td><td>{no_po}</td></tr>
@@ -765,7 +767,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 6. HALAMAN OPNAME PEKERJAAN (BERBASIS TANGGAL SELESAI / BASP)
+    # 6. HALAMAN OPNAME PEKERJAAN
     # ==========================================
     if str(nomor_kontrak).strip() == "7207250142":
         opname_sig_table_html = f"""
@@ -1031,6 +1033,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 with open(file_saved_path, "w", encoding="utf-8") as f:
                     f.write(master_html)
                 st.success(f"✅ Paket dokumen untuk PI [{current_pi_no}] berhasil disimpan secara permanen!")
+                st.session_state[f"loaded_saved_{current_pi_no}"] = True
                 st.rerun()
             except Exception as e:
                 st.error(f"Gagal menyimpan dokumen: {e}")

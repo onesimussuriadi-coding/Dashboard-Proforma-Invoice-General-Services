@@ -53,6 +53,11 @@ except ImportError as e:
     st.error(f"Gagal memuat modul opname_pekerjaan: {e}")
     pass
 
+try:
+    from modul_dokumen.bastb import tampilkan_bastb
+except ImportError as e:
+    st.error(f"Gagal memuat modul bastb: {e}")
+
 # Import Modul Master Paket Dokumen Lengkap (1-Click Batch Export)
 try:
     from modul_dokumen.paket_dokumen_lengkap import tampilkan_paket_lengkap
@@ -703,7 +708,7 @@ if form_login_sistem():
                         return pd.to_datetime(val_cleaned).date()
                     except:
                         pass
-                        
+                    
                     return date.today()
 
                 with st.form("form_input_database"):
@@ -962,6 +967,27 @@ if form_login_sistem():
                         desc_po = st.text_area("Lingkup Pekerjaan", def_desc_po, height=130)
 
                     st.markdown("---")
+                    
+                    # --- PILIHAN KATEGORI BASTB / BASTP ---
+                    st.markdown("#### 📑 Pilihan Kategori Berita Acara Serah Terima (BASTB / BASTP)")
+                    
+                    opsi_jenis_bastp = [
+                        "Pekerjaan Jasa",
+                        "Pekerjaan Barang / Material",
+                        "Pekerjaan Gabungan (Barang & Jasa)"
+                    ]
+                    
+                    def_jenis_bastb = loaded_tx_items[0].get("Jenis BASTP", opsi_jenis_bastp[1]) if loaded_tx_items else opsi_jenis_bastp[1]
+                    idx_bastp = opsi_jenis_bastp.index(def_jenis_bastb) if def_jenis_bastb in opsi_jenis_bastp else 1
+                    
+                    jenis_bastp_pilih = st.selectbox(
+                        "Pilih Jenis BASTP untuk Dokumen Turunan:",
+                        opsi_jenis_bastp,
+                        index=idx_bastp,
+                        key="input_jenis_bastp_select"
+                    )
+                    
+                    st.markdown("---")
                     st.markdown("#### ⚙️ Pengaturan Khusus Bank & Rekening Pembayaran (Dinamis)")
 
                     bank_records = muat_master_bank()
@@ -1199,6 +1225,7 @@ if form_login_sistem():
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
                                     "Mata Uang": mata_uang,
+                                    "Jenis BASTP": jenis_bastp_pilih, 
                                     "Kategori": item["kategori"],
                                     "Deskripsi Pekerjaan": item["deskripsi"],
                                     "Qty": item["qty"],
@@ -1255,6 +1282,7 @@ if form_login_sistem():
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
                                     "Mata Uang": mata_uang,
+                                    "Jenis BASTP": jenis_bastp_pilih, 
                                     "Kategori": item["kategori"],
                                     "Deskripsi Pekerjaan": item["deskripsi"],
                                     "Qty": item["qty"],
@@ -1283,14 +1311,13 @@ if form_login_sistem():
                 if not transaksi_list:
                     st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses di Modul 2.")
                 else:
-                    # 1. NAMA DOKUMEN (POSISI PALING ATAS - WCC DISERTAKAN)
                     doc_type = st.selectbox("Pilih Jenis Dokumen Resmi:", [
                         "Rincian Pekerjaan",
                         "Proforma Invoice",
                         "Berita Acara Mulai Pekerjaan (BAMP)",
                         "Berita Acara Selesai Pekerjaan (BASP)",
                         "Work Completion Certificate (WCC)",
-                        "Berita Acara Mulai & Selesai Pekerjaan (BASP)",
+                        "Berita Acara Serah Terima Pekerjaan (BASTP)", 
                         "Formulir tkdn",
                         "Timesheet Peralatan",
                         "Berita Acara Opname pekerjaan",
@@ -1337,8 +1364,10 @@ if form_login_sistem():
                                 tampilkan_proforma_invoice(filtered_transaksi_target)
                             elif doc_type == "Berita Acara Mulai Pekerjaan (BAMP)":
                                 tampilkan_bamp(filtered_transaksi_target)
-                            elif doc_type == "Berita Acara Selesai Pekerjaan (BASP)" or doc_type == "Berita Acara Mulai & Selesai Pekerjaan (BASP)":
+                            elif doc_type == "Berita Acara Selesai Pekerjaan (BASP)":
                                 tampilkan_basp(filtered_transaksi_target)
+                            elif doc_type == "Berita Acara Serah Terima Pekerjaan (BASTP)":
+                                tampilkan_bastb(filtered_transaksi_target) 
                             elif doc_type == "Work Completion Certificate (WCC)":
                                 tampilkan_wcc(filtered_transaksi_target)
                             elif doc_type.lower() == "formulir tkdn":
@@ -1349,8 +1378,8 @@ if form_login_sistem():
                                 tampilkan_timesheet(filtered_transaksi_target)
                             elif doc_type == "📦 Master Paket Dokumen Lengkap (1-Click Batch)":
                                 tampilkan_paket_lengkap(filtered_transaksi_target)
-                        else:
-                            st.info("ℹ️ Silakan pilih Nomor Kontrak dan Nomor PI yang valid di atas untuk menampilkan pratinjau dokumen.")
+                            else:
+                                st.info("ℹ️ Silakan pilih Nomor Kontrak dan Nomor PI yang valid di atas untuk menampilkan pratinjau dokumen.")
 
             elif menu == "Lihat Akumulasi Riwayat Transaksi":
                 st.markdown("""

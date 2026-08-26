@@ -14,6 +14,19 @@ def tampilkan_basp(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
+    # --- FILTER CERDAS BASP ---
+    # BASP hanya merekam/menampilkan item Jasa atau Gabungan (mengabaikan murni Barang / Material)
+    transaksi_list = [
+        t for t in transaksi_list 
+        if "barang" not in str(t.get('Jenis BASTP', 'Jasa')).lower() 
+        or "jasa" in str(t.get('Jenis BASTP', 'Jasa')).lower() 
+        or "gabungan" in str(t.get('Jenis BASTP', 'Jasa')).lower()
+    ]
+
+    if not transaksi_list:
+        st.warning("ℹ️ Tidak ada item kategori Jasa / Gabungan untuk ditampilkan pada BASP di PI ini (Item murni Barang/Material disaring otomatis ke BASTB).")
+        return
+
     seen_pi_dd = set()
     unique_pi_list = []
     for t in transaksi_list:
@@ -171,7 +184,6 @@ def tampilkan_basp(transaksi_list):
         submit_save_basp = st.form_submit_button("💾 Simpan & Kunci Dokumen BASP Ini", type="primary")
         
         if submit_save_basp:
-            # Pertahankan data lama jika uploader bernilai None
             l1_final = uploaded_logo_1.getvalue() if uploaded_logo_1 is not None else saved_global.get('logo_1')
             l2_final = uploaded_logo_2.getvalue() if uploaded_logo_2 is not None else saved_global.get('logo_2')
             t1_final = uploaded_ttd_1.getvalue() if uploaded_ttd_1 is not None else saved_global.get('ttd_1')
