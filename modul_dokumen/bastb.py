@@ -14,13 +14,13 @@ def tampilkan_bastb(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
-    # --- FILTER CERDAS BASTB ---
-    # BASTB hanya merekam/menampilkan item Barang / Material atau Gabungan (mengabaikan murni Jasa)
+    # --- FILTER CERDAS BASTB (HANYA AMBIL ITEM BARANG / MATERIAL MURNI) ---
+    # Diperbaiki: Kata kunci "gabungan" dihapus dari filter agar item jasa/rental 
+    # (seperti Heavy Transportation) tidak ikut tertarik ke BASTB meskipun jenis proyeknya Gabungan.
     transaksi_list = [
         t for t in transaksi_list 
-        if "jasa" not in str(t.get('Jenis BASTP', 'Barang')).lower() 
-        or "barang" in str(t.get('Jenis BASTP', 'Barang')).lower() 
-        or "gabungan" in str(t.get('Jenis BASTP', 'Barang')).lower()
+        if "material" in str(t.get('Kategori', '')).lower() 
+        or "barang" in str(t.get('Kategori', '')).lower()
     ]
 
     if not transaksi_list:
@@ -34,6 +34,10 @@ def tampilkan_bastb(transaksi_list):
         if pi_key and pi_key not in seen_pi_dd:
             seen_pi_dd.add(pi_key)
             unique_pi_list.append(pi_key)
+
+    if not unique_pi_list:
+        st.warning("⚠️ Tidak ditemukan Nomor PI yang memiliki item Barang/Material.")
+        return
 
     # Inisialisasi penyimpanan session state khusus BASTB secara komprehensif
     if "bastb_saved_data" not in st.session_state:
@@ -55,10 +59,15 @@ def tampilkan_bastb(transaksi_list):
 
     saved_global = st.session_state.bastb_saved_data[pi_storage_key]
 
-    mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == pi_storage_key]
+    # Hanya ambil mutasi yang spesifik untuk PI ini dan murni kategori Barang/Material
+    mutasi_terpilih = [
+        t for t in transaksi_list 
+        if str(t.get('PI No.')).strip() == pi_storage_key 
+        and ("material" in str(t.get('Kategori', '')).lower() or "barang" in str(t.get('Kategori', '')).lower())
+    ]
     
     if not mutasi_terpilih:
-        st.warning("⚠️ Tidak ada item mutasi ditemukan untuk PI ini.")
+        st.warning("⚠️ Tidak ada item mutasi Barang/Material ditemukan untuk PI ini.")
         return
 
     t_data_utama = mutasi_terpilih[0]
@@ -80,7 +89,7 @@ def tampilkan_bastb(transaksi_list):
     st.markdown("#### ⚙️ Pengaturan Parameter Detail & Catatan Fleksibel per Baris Barang / Material BASTB")
     
     rows_html = ""
-    uom_options = ["Month", "Day", "AU", "Ls", "Unit", "Trip", "Jam", "Orang", "Set", "Pallet", "Pcs"]
+    uom_options = ["Month", "Day", "AU", "Ls", "Unit", "Trip", "Jam", "Orang", "Set", "Pallet", "Pcs", "Ea", "m3"]
     temp_items_storage = {}
 
     for idx, m in enumerate(mutasi_terpilih, start=1):
@@ -116,8 +125,6 @@ def tampilkan_bastb(transaksi_list):
             'catatan': row_catatan
         }
 
-        row_date_str = f"{row_date.day:02d} {bulan_indo[row_date.month]} {row_date.year}"
-        
         catatan_row_final = row_catatan.strip() if row_catatan.strip() else "Sesuai dan lengkap diterima."
 
         kategori_m = str(m.get('Kategori', '')).strip()
@@ -135,7 +142,7 @@ def tampilkan_bastb(transaksi_list):
         """
         st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- PENGATURAN LOGO (DI LUAR FORM AGAR REAKTIF & ADA TOMBOL HAPUS) ---
+    # --- PENGATURAN LOGO ---
     st.markdown("---")
     st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen BASTB")
     c_log1, c_log2 = st.columns(2)
@@ -155,7 +162,7 @@ def tampilkan_bastb(transaksi_list):
                 st.success("✅ Logo Pihak Kedua berhasil dihapus!")
                 st.rerun()
 
-    # --- PENGATURAN TANDA TANGAN (DI LUAR FORM AGAR REAKTIF & ADA TOMBOL HAPUS) ---
+    # --- PENGATURAN TANDA TANGAN ---
     st.markdown("---")
     st.markdown("#### ✍️ Pengaturan Tanda Tangan Digital BASTB")
     c_ttd1, c_ttd2 = st.columns(2)

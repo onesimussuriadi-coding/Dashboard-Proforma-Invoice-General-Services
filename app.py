@@ -648,7 +648,7 @@ if form_login_sistem():
             if menu == "Input Database & Invoice (31 Kolom)":
                 st.markdown("""
                     <div class="dashboard-card">
-                        <h4 style="margin-top:0; color:#065f46; font-size:15px;">🔍 Panggil Ulang atau Buat Database Identifikasi Kontrak & PI</h4>
+                        <h4 style="margin-top:0; color:#065f46; font-size:15px;">🔍 Panggil Ulang Berdasarkan Nomor Kontrak & Nomor PI</h4>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -656,24 +656,59 @@ if form_login_sistem():
                 if disk_check and len(disk_check) > len(st.session_state["db_tersimpan"]):
                     st.session_state["db_tersimpan"] = disk_check
 
-                if len(st.session_state["db_tersimpan"]) > 0:
-                    opsi_panggil = ["-- Buat Data Baru (Formulir Kosong) --"]
-                    for i, data in enumerate(st.session_state["db_tersimpan"]):
-                        pi_num = bersih_angka(data.get(0, data.get('Proforma Invoice No.', '-')))
-                        kontrak_num = bersih_angka(data.get(1, data.get('Nomor Kontrak', '-')))
-                        opsi_panggil.append(f"PI: {pi_num if pi_num else '-'} | Kontrak: {kontrak_num if kontrak_num else '-'} (Data {i+1})")
-                    
-                    col_pilih, col_btn_panggil = st.columns([3, 1])
-                    with col_pilih:
-                        pilihan_edit = st.selectbox("Pilih Nomor PI untuk dipanggil:", opsi_panggil, label_visibility="collapsed")
-                    with col_btn_panggil:
-                        if st.button("🔄 Panggil Ulang"):
-                            if pilihan_edit == "-- Buat Data Baru (Formulir Kosong) --":
+                saved_db_list = st.session_state["db_tersimpan"]
+
+                if len(saved_db_list) > 0:
+                    # Ambil daftar kontrak unik yang tersedia di database
+                    list_kontrak_db = sorted(list(set(bersih_angka(data.get(1, data.get('Nomor Kontrak', '-'))) for data in saved_db_list if bersih_angka(data.get(1, data.get('Nomor Kontrak', '-'))) != '')))
+                    opsi_kontrak_input = ["-- Buat Data Baru (Formulir Kosong) --"] + list_kontrak_db
+
+                    col_pk1, col_pk2, col_pk_btn = st.columns([2, 2.5, 1])
+                    with col_pk1:
+                        selected_kontrak_input = st.selectbox("Pilih Nomor Kontrak:", opsi_kontrak_input, key="input_filter_kontrak")
+
+                    if selected_kontrak_input == "-- Buat Data Baru (Formulir Kosong) --":
+                        with col_pk2:
+                            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                            st.info("Formulir siap untuk data baru.")
+                        with col_pk_btn:
+                            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                            if st.button("🔄 Panggil"):
                                 st.session_state["edit_index"] = None
-                            else:
-                                idx_part = pilihan_edit.split("(Data ")[1].replace(")", "")
-                                st.session_state["edit_index"] = int(idx_part) - 1
-                            st.rerun()
+                                st.rerun()
+                    else:
+                        # Saring data PI berdasarkan Nomor Kontrak yang dipilih
+                        matched_pi_records = [
+                            (i, d) for i, d in enumerate(saved_db_list) 
+                            if bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input
+                        ]
+                        
+                        # Urutkan dari nomor besar ke nomor kecil (terbaru di atas)
+                        matched_pi_records_sorted = sorted(
+                            matched_pi_records, 
+                            key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
+                            reverse=True
+                        )
+                        
+                        opsi_pi_filtered = []
+                        index_mapping = {}
+                        for orig_idx, data in matched_pi_records_sorted:
+                            pi_num = bersih_angka(data.get(0, data.get('Proforma Invoice No.', '-')))
+                            label_pi = f"PI: {pi_num if pi_num else '-'} (Data {orig_idx+1})"
+                            opsi_pi_filtered.append(label_pi)
+                            index_mapping[label_pi] = orig_idx
+
+                        with col_pk2:
+                            selected_pi_label = st.selectbox(f"Pilih Nomor PI untuk Kontrak [{selected_kontrak_input}]:", opsi_pi_filtered if opsi_pi_filtered else ["-- Tidak Ada PI --"], key="input_filter_pi")
+                        
+                        with col_pk_btn:
+                            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                            if st.button("🔄 Panggil"):
+                                if selected_pi_label != "-- Tidak Ada PI --" and selected_pi_label in index_mapping:
+                                    st.session_state["edit_index"] = index_mapping[selected_pi_label]
+                                else:
+                                    st.session_state["edit_index"] = None
+                                st.rerun()
                 else:
                     st.info("📌 Belum ada data database tersimpan di folder aman.")
 

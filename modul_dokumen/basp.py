@@ -14,17 +14,15 @@ def tampilkan_basp(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
-    # --- FILTER CERDAS BASP ---
-    # BASP hanya merekam/menampilkan item Jasa atau Gabungan (mengabaikan murni Barang / Material)
+    # --- FILTER CERDAS BASP (HANYA AMBIL ITEM JASA / GABUNGAN) ---
     transaksi_list = [
         t for t in transaksi_list 
-        if "barang" not in str(t.get('Jenis BASTP', 'Jasa')).lower() 
-        or "jasa" in str(t.get('Jenis BASTP', 'Jasa')).lower() 
-        or "gabungan" in str(t.get('Jenis BASTP', 'Jasa')).lower()
+        if "material" not in str(t.get('Kategori', '')).lower() 
+        and "barang" not in str(t.get('Kategori', '')).lower()
     ]
 
     if not transaksi_list:
-        st.warning("ℹ️ Tidak ada item kategori Jasa / Gabungan untuk ditampilkan pada BASP di PI ini (Item murni Barang/Material disaring otomatis ke BASTB).")
+        st.warning("ℹ️ Tidak ada item kategori Jasa untuk ditampilkan pada BASP di PI ini (Item murni Barang/Material disaring otomatis ke BASTB).")
         return
 
     seen_pi_dd = set()
@@ -34,6 +32,10 @@ def tampilkan_basp(transaksi_list):
         if pi_key and pi_key not in seen_pi_dd:
             seen_pi_dd.add(pi_key)
             unique_pi_list.append(pi_key)
+
+    if not unique_pi_list:
+        st.warning("⚠️ Tidak ditemukan Nomor PI yang memiliki item Jasa.")
+        return
 
     # Inisialisasi penyimpanan session state khusus BASP secara komprehensif
     if "basp_saved_data" not in st.session_state:
@@ -55,10 +57,16 @@ def tampilkan_basp(transaksi_list):
 
     saved_global = st.session_state.basp_saved_data[pi_storage_key]
 
-    mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == pi_storage_key]
+    # Hanya ambil mutasi yang spesifik untuk PI ini dan merupakan kategori Jasa
+    mutasi_terpilih = [
+        t for t in transaksi_list 
+        if str(t.get('PI No.')).strip() == pi_storage_key 
+        and "material" not in str(t.get('Kategori', '')).lower() 
+        and "barang" not in str(t.get('Kategori', '')).lower()
+    ]
     
     if not mutasi_terpilih:
-        st.warning("⚠️ Tidak ada item mutasi ditemukan untuk PI ini.")
+        st.warning("⚠️ Tidak ada item mutasi Jasa ditemukan untuk PI ini.")
         return
 
     t_data_utama = mutasi_terpilih[0]
@@ -138,7 +146,7 @@ def tampilkan_basp(transaksi_list):
         """
         st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- PENGATURAN LOGO (DI LUAR FORM AGAR REAKTIF & ADA TOMBOL HAPUS) ---
+    # --- PENGATURAN LOGO ---
     st.markdown("---")
     st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen BASP")
     c_log1, c_log2 = st.columns(2)
@@ -158,7 +166,7 @@ def tampilkan_basp(transaksi_list):
                 st.success("✅ Logo Pihak Kedua berhasil dihapus!")
                 st.rerun()
 
-    # --- PENGATURAN TANDA TANGAN (DI LUAR FORM AGAR REAKTIF & ADA TOMBOL HAPUS) ---
+    # --- PENGATURAN TANDA TANGAN ---
     st.markdown("---")
     st.markdown("#### ✍️ Pengaturan Tanda Tangan Digital BASP")
     c_ttd1, c_ttd2 = st.columns(2)
