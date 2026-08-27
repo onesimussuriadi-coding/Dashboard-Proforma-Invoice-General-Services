@@ -39,17 +39,25 @@ def tampilkan_kuitansi(transaksi_list, menu_pilihan=None):
         st.warning("⚠️ Belum ada data transaksi rincian untuk dirender ke dalam kuitansi.")
         return
 
-    t_data = transaksi_list[0] if isinstance(transaksi_list, list) else {}
+    t_data = transaksi_list[0] if isinstance(transaksi_list, list) and len(transaksi_list) > 0 else {}
     
+    # Ambil data secara dinamis dari database/transaksi aktif (Tanpa hardcoded salah)
     customer_name = t_data.get("Ditujukan Kepada", "JOB Pertamina - Medco E&P Tomori Sulawesi")
-    pi_no = t_data.get("PI No.", "012/BSS-JOB/WS/VIII/2026")
+    pi_no = t_data.get("PI No.", "")
+    if not pi_no:
+        pi_no = t_data.get("Proforma Invoice No.", "010/BSS-JOB/IX/2026")
+        
     nomor_po = t_data.get("Nomor PO", "-")
     
-    total_tagihan = sum([float(item.get("Total Harga", 0.0)) for item in transaksi_list]) if isinstance(transaksi_list, list) else 0.0
-    if total_tagihan <= 0:
-        total_tagihan = 24150000.0
+    # Ambil tanggal dari data transaksi/invoice jika tersedia, jika tidak gunakan hari ini
+    tanggal_pi_raw = t_data.get("Tanggal PI", "")
+    if not tanggal_pi_raw:
+        tanggal_pi_raw = datetime.today().strftime('%d %B %Y')
 
-    terbilang_str = terbilang(total_tagihan).strip() + " Rupiah"
+    # Hitung total tagihan murni dari akumulasi Total Harga transaksi tanpa angka pengganti hardcoded
+    total_tagihan = sum([float(item.get("Total Harga", 0.0)) for item in transaksi_list]) if isinstance(transaksi_list, list) else 0.0
+
+    terbilang_str = terbilang(total_tagihan).strip() + " Rupiah" if total_tagihan > 0 else "Nol Rupiah"
 
     html_kuitansi = f"""
     <!DOCTYPE html>
@@ -144,7 +152,7 @@ def tampilkan_kuitansi(transaksi_list, menu_pilihan=None):
                     </td>
                     <td style="width: 45%; text-align: right; vertical-align: middle;">
                         <div class="receipt-title">KUITANSI PEMBAYARAN</div>
-                        <p style="margin: 0; font-size: 10.5px; color: #475569;">No. Ref: <b>KT-{pi_no}</b></p>
+                        <p style="margin: 0; font-size: 10.5px; color: #475569;">No. Ref: <b>KT-{pi_no.replace('/IX/', '/').replace('/VIII/', '/')}</b></p>
                     </td>
                 </tr>
             </table>
@@ -175,11 +183,10 @@ def tampilkan_kuitansi(transaksi_list, menu_pilihan=None):
                 <tr>
                     <td style="width: 50%; vertical-align: top;">
                         <div style="font-size: 11px; color: #475569; margin-bottom: 4px;">Jumlah Nominal Pembayaran:</div>
-                        <div class="nominal-box">Rp {total_tagihan:,.2f}</div>
+                        <div class="nominal-box">Rp {total_tagihan:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")</div>
                     </td>
                     <td style="width: 50%; text-align: center; vertical-align: top;">
-                        <p style="margin: 0 0 10px 0;">Luwuk, {datetime.today().strftime('%d %B %Y')}</p>
-                        <!-- Tambahan 3 baris kosong untuk memperlebar ruang tanda tangan & stempel -->
+                        <p style="margin: 0 0 10px 0;">Luwuk, {tanggal_pi_raw}</p>
                         <div style="height: 65px;"></div>
                         <p style="margin: 0; font-weight: bold; text-decoration: underline; font-size: 12.5px;">Ferry Tatimu</p>
                         <p style="margin: 2px 0 0 0; font-size: 11px;">Direktur</p>
