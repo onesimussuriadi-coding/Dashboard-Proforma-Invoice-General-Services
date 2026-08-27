@@ -209,6 +209,170 @@ if form_login_sistem():
         else:
             return " Angka terlalu besar"
 
+    # --- FUNGSI KUITANSI PEMBAYARAN YANG DISINKRONKAN DENGAN NOMOR PO DAN WAN/SA ---
+    def tampilkan_kuitansi(transaksi_list):
+        st.markdown("#### 🧾 Pratinjau Resmi Kuitansi Pembayaran Korporat")
+        
+        if not transaksi_list:
+            st.warning("⚠️ Belum ada data transaksi untuk dirender ke dalam kuitansi.")
+            return
+
+        active_selected_invoice = st.session_state.get("input_filter_invoice_aktif", "")
+        
+        if active_selected_invoice and active_selected_invoice != "-":
+            filtered_by_active = [
+                t for t in transaksi_list 
+                if str(t.get("Invoice No.", t.get("PI No.", t.get("Proforma Invoice No.", "")))).strip() == str(active_selected_invoice).strip()
+            ]
+            if filtered_by_active:
+                transaksi_list = filtered_by_active
+
+        t_data = transaksi_list[0] if isinstance(transaksi_list, list) and len(transaksi_list) > 0 else {}
+        
+        customer_name = t_data.get("Ditujukan Kepada", t_data.get("Customer Name", "JOB Pertamina - Medco E&P Tomori Sulawesi"))
+        
+        pi_no = str(t_data.get("Invoice No.", t_data.get("PI No.", t_data.get("Proforma Invoice No.", "010/BSS-JOB/IX/2026")))).strip()
+        if not pi_no or pi_no == "-":
+            pi_no = "010/BSS-JOB/IX/2026"
+
+        nomor_po = str(t_data.get("Nomor PO", t_data.get("PO Nomor", "-"))).strip()
+        nomor_wan = str(t_data.get("WAN / SA Nomor", t_data.get("WAN Nomor", t_data.get("WAN", t_data.get("SA Nomor", "-"))))).strip()
+        
+        tanggal_pi_raw = t_data.get("Invoice Date", t_data.get("Tanggal PI", ""))
+        if not tanggal_pi_raw:
+            tanggal_pi_raw = datetime.today().strftime('%d %B %Y')
+        else:
+            try:
+                tanggal_pi_raw = pd.to_datetime(tanggal_pi_raw).strftime('%d %B %Y')
+            except:
+                pass
+
+        total_tagihan = sum([float(item.get("Total Harga", item.get("TOTAL", 0.0))) for item in transaksi_list]) if isinstance(transaksi_list, list) else 0.0
+        if total_tagihan <= 0:
+            total_tagihan = float(t_data.get("Total Amount", t_data.get("TOTAL", 51818130.0) if isinstance(t_data.get("TOTAL"), (int, float)) else 51818130.0))
+
+        terbilang_str = terbilang(total_tagihan).strip() + " Rupiah" if total_tagihan > 0 else "Nol Rupiah"
+        formatted_nominal = f"Rp {total_tagihan:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        teks_referensi = "Pelunasan biaya pekerjaan berdasarkan"
+        ref_parts = []
+        if nomor_po and nomor_po != "-":
+            ref_parts.append(f"Nomor PO <b>{nomor_po}</b>")
+        if nomor_wan and nomor_wan != "-":
+            ref_parts.append(f"Nomor WAN/SA <b>{nomor_wan}</b>")
+        
+        if ref_parts:
+            teks_referensi += " " + " dan ".join(ref_parts) + "."
+        else:
+            teks_referensi = f"Pelunasan biaya pekerjaan berdasarkan Invoice No. <b>{pi_no}</b>."
+
+        html_kuitansi = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Kuitansi Pembayaran - PT Banggai Sentral Sulawesi</title>
+            <style>
+                @page {{ size: A4 portrait; margin: 0mm; }}
+                @media print {{
+                    html, body {{ width: 210mm; height: 297mm; margin: 0 !important; padding: 10mm !important; background: #fff !important; -webkit-print-color-adjust: exact; }}
+                    @page {{ margin: 0; }}
+                }}
+                body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 12mm; margin: 0; font-size: 12px; }}
+                .receipt-box {{ border: 2px solid #0f172a; padding: 25px; border-radius: 8px; max-width: 720px; margin: auto; background: #ffffff; }}
+                .header-table {{ width: 100%; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 20px; }}
+                .receipt-title {{ font-size: 20px; font-weight: bold; text-align: right; color: #0f172a; letter-spacing: 0.5px; margin-bottom: 4px; }}
+                .content-table {{ width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 20px; }}
+                .content-table td {{ padding: 8px 4px; vertical-align: top; }}
+                .nominal-box {{ background-color: #f1f5f9; border: 1px solid #0f172a; padding: 8px 12px; font-size: 15px; font-weight: bold; display: inline-block; margin-top: 5px; }}
+                .terbilang-cell {{ background-color: #f8fafc; border: 1px dashed #64748b; padding: 8px 12px; font-style: italic; font-weight: bold; }}
+            </style>
+        </head>
+        <body>
+            <div class="receipt-box">
+                <table class="header-table">
+                    <tr>
+                        <td style="width: 55%; vertical-align: middle;">
+                            <h2 style="margin:0; font-size:16px; color:#0f172a; text-transform:uppercase;">PT. BANGGAI SENTRAL SULAWESI</h2>
+                            <p style="margin:2px 0; font-size:10px; color:#334155;">General Contractor and Supplier</p>
+                            <p style="margin:2px 0 0 0; font-size:9px; color:#475569;">Jl. Urip Sumoharjo No. 53, Luwuk, Kab. Banggai, Sulawesi Tengah</p>
+                        </td>
+                        <td style="width: 45%; text-align: right; vertical-align: middle;">
+                            <div class="receipt-title">KUITANSI PEMBAYARAN</div>
+                            <p style="margin: 0; font-size: 10.5px; color: #475569;">No. Ref: <b>KT-{pi_no.replace('/', '-')}</b></p>
+                        </td>
+                    </tr>
+                </table>
+
+                <table class="content-table">
+                    <tr>
+                        <td style="width: 150px; font-weight: bold;">Sudah Terima Dari</td>
+                        <td style="width: 15px;">:</td>
+                        <td style="font-weight: bold; font-size: 13.5px; color: #0f172a;">{customer_name}</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: bold;">Uang Sejumlah</td>
+                        <td>:</td>
+                        <td>
+                            <div class="terbilang-cell"># {terbilang_str} #</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: bold;">Untuk Pembayaran</td>
+                        <td>:</td>
+                        <td>
+                            {teks_referensi}
+                        </td>
+                    </tr>
+                </table>
+
+                <table style="width: 100%; margin-top: 10px; border-collapse: collapse;">
+                    <tr>
+                        <td style="width: 50%; vertical-align: top;">
+                            <div style="font-size: 11px; color: #475569; margin-bottom: 4px;">Jumlah Nominal Pembayaran:</div>
+                            <div class="nominal-box">{formatted_nominal}</div>
+                        </td>
+                        <td style="width: 50%; text-align: center; vertical-align: top;">
+                            <p style="margin: 0 0 10px 0;">Luwuk, {tanggal_pi_raw}</p>
+                            <div style="height: 65px;"></div>
+                            <p style="margin: 0; font-weight: bold; text-decoration: underline; font-size: 12.5px;">Ferry Tatimu</p>
+                            <p style="margin: 2px 0 0 0; font-size: 11px;">Direktur</p>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </body>
+        </html>
+        """
+
+        st.markdown('<div class="document-preview">', unsafe_allow_html=True)
+        st.components.v1.html(html_kuitansi, height=520, scrolling=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        col_k1, col_k2 = st.columns(2)
+        with col_k1:
+            b64_html = base64.b64encode(html_kuitansi.encode()).decode()
+            print_script = f"""
+                <script>
+                    function printReceipt() {{
+                        var win = window.open('about:blank', '_blank');
+                        win.document.open();
+                        win.document.write(atob("{b64_html}"));
+                        win.document.close();
+                        win.focus();
+                        setTimeout(function(){{ win.print(); }}, 500);
+                    }}
+                </script>
+                <button onclick="printReceipt()" style="width: 100%; background-color: #10b981; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                    🖨️ Cetak / Print Kuitansi
+                </button>
+            """
+            st.components.v1.html(print_script, height=50)
+
+        with col_k2:
+            download_link = f'<a href="data:text/html;base64,{b64_html}" download="Kuitansi_{pi_no.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download Kuitansi</button></a>'
+            st.markdown(download_link, unsafe_allow_html=True)
+
     # --- SISTEM DIREKTORI & DATABASE LOKAL AMAN ---
     DIR_DATABASE = "database_penyimpanan_aman"
     if not os.path.exists(DIR_DATABASE):
@@ -377,7 +541,7 @@ if form_login_sistem():
             "📁 Modul 1: Database & Master Kontrak",
             "📄 Modul 2: Invoice & Dokumen Turunan"
         ])
-    else: # Manajer Operasional (Akses Penuh termasuk Modul 0)
+    else: 
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "📁 Modul 0: Master Referensi Harga & Pekerjaan",
             "📁 Modul 1: Database & Master Kontrak",
@@ -421,9 +585,6 @@ if form_login_sistem():
         st.session_state.logged_in = False
         st.rerun()
 
-    # =========================================================================
-    # LOGIKA KHUSUS STAFF TIMESHEET
-    # =========================================================================
     if user_role == "Staff Timesheet":
         st.markdown("""
             <div class="dashboard-card">
@@ -434,9 +595,6 @@ if form_login_sistem():
         tampilkan_timesheet(transaksi_list if transaksi_list else [])
 
     else:
-        # =========================================================================
-        # LOGIKA MODUL 3: INVOICE & TAX MANAGEMENT
-        # =========================================================================
         if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
             transaksi_list = muat_data_transaksi()
             if menu == "Input & Cetak Faktur Pajak":
@@ -446,11 +604,7 @@ if form_login_sistem():
             else:
                 tampilkan_billing_tax(transaksi_list if transaksi_list else [], menu)
 
-        # =========================================================================
-        # LOGIKA MODUL 0: MASTER REFERENSI HARGA & PEKERJAAN
-        # =========================================================================
         elif modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
-            
             query_params = st.query_params
             if "delete_master_idx" in query_params:
                 try:
@@ -599,8 +753,7 @@ if form_login_sistem():
             elif menu == "Lihat Daftar Master Referensi Tersimpan":
                 st.markdown("""
                     <div class="dashboard-card">
-                        <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Master Referensi Harga & Pekerjaan Tersimpan (Dengan Tombol Edit & Hapus per Baris)</h3>
-                        <p style="margin:4px 0 0 0; font-size: 12px; color: #475569;">Gunakan filter Kontrak dan Kategori di bawah ini, serta manfaatkan tombol Cetak atau Save PDF untuk kebutuhan pencetakan dokumen.</p>
+                        <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Master Referensi Harga & Pekerjaan Tersimpan</h3>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -610,9 +763,7 @@ if form_login_sistem():
                 else:
                     df_master = pd.DataFrame(master_records)
 
-                    # --- PANEL FILTER KONTRAK & KATEGORI ---
                     col_f1, col_f2 = st.columns(2)
-                    
                     with col_f1:
                         kolom_kontrak = next((col for col in ['Nomor Kontrak', 'No Kontrak', 'Kontrak'] if col in df_master.columns), None)
                         if kolom_kontrak:
@@ -629,7 +780,6 @@ if form_login_sistem():
                         else:
                             selected_kategori = "-- Semua Kategori --"
 
-                    # Terapkan Filter
                     df_filtered = df_master.copy()
                     if kolom_kontrak and selected_kontrak != "-- Semua Kontrak --":
                         df_filtered = df_filtered[df_filtered[kolom_kontrak].astype(str) == selected_kontrak]
@@ -638,7 +788,6 @@ if form_login_sistem():
 
                     st.markdown("---")
 
-                    # Render Tabel HTML Interaktif dengan Pengaturan Proporsi Seimbang (Tanpa Persentase Ekstrim)
                     headers_html = "<th style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px; text-align: center; width: 45px;'>No</th>"
                     for col in df_filtered.columns:
                         c_lower = str(col).lower()
@@ -718,85 +867,6 @@ if form_login_sistem():
                     """
                     st.components.v1.html(full_interactive_table_html, height=500, scrolling=True)
 
-                    # --- PILIHAN ORIENTASI CETAK (PORTRAIT / LANDSCAPE) ---
-                    st.markdown("---")
-                    st.markdown("#### 🖨️ Pengaturan Cetak & Download Dokumen Master Referensi")
-                    
-                    pilihan_orientasi = st.radio(
-                        "Pilih Orientasi Kertas untuk Cetak / PDF:",
-                        ["Portrait (Tegak - Hemat Kertas)", "Landscape (Mendatar - Lebar)"],
-                        index=0,
-                        horizontal=True,
-                        key="radio_orientasi_cetak"
-                    )
-                    
-                    css_size_page = "size: A4 portrait;" if "Portrait" in pilihan_orientasi else "size: A4 landscape;"
-
-                    # --- HTML DOKUMEN UNTUK CETAK & PDF ---
-                    print_html_content = f"""
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <meta charset="utf-8">
-                        <title>Master Referensi Harga - PT BSS</title>
-                        <style>
-                            @page {{ {css_size_page} margin: 10mm; }}
-                            body {{ font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 10px; background: #fff; }}
-                            .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px; }}
-                            table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
-                            th, td {{ border: 1px solid #000; padding: 8px; font-size: 10px; word-wrap: break-word; white-space: normal; text-align: left; }}
-                            th {{ background-color: #f1f5f9; }}
-                            .no-print {{ display: none !important; }}
-                        </style>
-                    </head>
-                    <body>
-                        <div class="header">
-                            <h2 style="margin: 0; font-size: 16px; text-transform: uppercase;">PT. BANGGAI SENTRAL SULAWESI</h2>
-                            <p style="margin: 3px 0 0 0; font-size: 11px; font-weight: bold;">Master Referensi Harga & Pekerjaan</p>
-                            <p style="margin: 2px 0 0 0; font-size: 10px; color: #333;">Filter Kontrak: {selected_kontrak} | Kategori: {selected_kategori}</p>
-                        </div>
-                        <table>
-                            <thead>
-                                <tr>{headers_html}</tr>
-                            </thead>
-                            <tbody>
-                                {html_table_rows}
-                            </tbody>
-                        </table>
-                    </body>
-                    </html>
-                    """
-
-                    # --- TOMBOL AKSI UTAMA (CETAK & SAVE PDF) ---
-                    col_btn1, col_btn2 = st.columns(2)
-                    
-                    with col_btn1:
-                        b64_print = base64.b64encode(print_html_content.encode("utf-8")).decode()
-                        print_script = f"""
-                            <script>
-                                function printMaster() {{
-                                    var win = window.open('about:blank', '_blank');
-                                    win.document.open();
-                                    win.document.write(atob("{b64_print}"));
-                                    win.document.close();
-                                    win.focus();
-                                    setTimeout(function(){{ win.print(); }}, 500);
-                                }}
-                            </script>
-                            <button onclick="printMaster()" style="width: 100%; background-color: #10b981; color: white; padding: 14px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                                🖨️ Cetak / Print Dokumen ({pilihan_orientasi.split()[0]})
-                            </button>
-                        """
-                        st.components.v1.html(print_script, height=65)
-
-                    with col_btn2:
-                        file_suffix = "Portrait" if "Portrait" in pilihan_orientasi else "Landscape"
-                        download_link = f'<a href="data:text/html;base64,{b64_print}" download="Master_Referensi_{file_suffix}_{str(selected_kontrak).replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 14px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">📥 Save as PDF / Download HTML ({file_suffix})</button></a>'
-                        st.markdown(download_link, unsafe_allow_html=True)
-
-        # =========================================================================
-        # LOGIKA MODUL 1: DATABASE & MASTER KONTRAK
-        # =========================================================================
         elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
             if menu == "Input Database & Invoice (31 Kolom)":
                 st.markdown("""
@@ -830,7 +900,7 @@ if form_login_sistem():
                                 st.rerun()
                     else:
                         matched_pi_records_sorted = sorted(
-                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
+                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, data.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
                             key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
                             reverse=True
                         )
@@ -1043,15 +1113,11 @@ if form_login_sistem():
                     df_saved.columns = [f"{col}" if str(col).isdigit() else f"{i}: {col}" for i, col in enumerate(df_saved.columns)]
                     st.dataframe(df_saved, use_container_width=True)
 
-        # =========================================================================
-        # LOGIKA MODUL 2: INVOICE & DOKUMEN TURUNAN
-        # =========================================================================
         elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
             if menu == "Input & Proses Rincian Pekerjaan":
                 st.markdown("""
                     <div class="dashboard-card">
                         <h3 style="margin-top:0; color:#065f46; font-size:18px;">📝 Lembar Kerja & Pemrosesan Rincian Pekerjaan</h3>
-                        <p style="margin:0; font-size:13px; color:#475569;">Pilih Kontrak, cari PI, dan panggil riwayat transaksi untuk diproses ke dokumen turunan.</p>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -1148,9 +1214,6 @@ if form_login_sistem():
 
                     st.markdown("---")
                     
-                    # --- PILIHAN KATEGORI BASTB / BASTP ---
-                    st.markdown("#### 📑 Pilihan Kategori Berita Acara Serah Terima (BASTB / BASTP)")
-                    
                     opsi_jenis_bastp = [
                         "Pekerjaan Jasa",
                         "Pekerjaan Barang / Material",
@@ -1168,8 +1231,6 @@ if form_login_sistem():
                     )
                     
                     st.markdown("---")
-                    st.markdown("#### ⚙️ Pengaturan Khusus Bank & Rekening Pembayaran (Dinamis)")
-
                     bank_records = muat_master_bank()
                     bank_names_list = [b.get("Bank Name") for b in bank_records] + ["➕ Tambah Rekening Bank Baru..."]
                     
@@ -1181,7 +1242,6 @@ if form_login_sistem():
                         pilih_bank_dropdown = st.selectbox("Pilih Rekening Bank Tujuan", bank_names_list, index=idx_b)
                         
                         if pilih_bank_dropdown == "➕ Tambah Rekening Bank Baru...":
-                            st.markdown("##### ✍️ Form Input Rekening Bank Baru")
                             new_b_name = st.text_input("Nama Bank Baru (Contoh: BANK MANDIRI)")
                             new_b_branch = st.text_input("Cabang Bank Baru", value="Cabang Luwuk")
                             new_b_acc_no = st.text_input("Nomor Rekening Baru")
@@ -1198,7 +1258,7 @@ if form_login_sistem():
                                         "Attn": new_b_attn
                                     })
                                     simpan_master_bank(bank_records)
-                                    st.success("✅ Rekening bank baru berhasil disimpan! Silakan pilih di dropdown.")
+                                    st.success("✅ Rekening bank baru berhasil disimpan!")
                                     st.rerun()
                                 else:
                                     st.error("⚠️ Nama Bank dan Nomor Rekening wajib diisi!")
@@ -1229,8 +1289,6 @@ if form_login_sistem():
                         persen_val = st.number_input("Persentase Tagihan (%)", min_value=1.0, max_value=100.0, value=def_percent)
 
                     st.markdown("---")
-                    st.markdown("#### 📋 Item / Baris Pekerjaan Proforma Invoice (Multi-Baris / Mutasi)")
-
                     df_ref = pd.DataFrame(master_ref_data)
                     df_ref["Nomor Kontrak Clean"] = df_ref["Nomor Kontrak"].astype(str).str.strip()
                     df_ref["Kategori Clean"] = df_ref["Kategori"].astype(str).str.strip()
@@ -1250,8 +1308,6 @@ if form_login_sistem():
                     items_data_input = []
                     
                     for i in range(st.session_state.num_rows):
-                        st.markdown(f"**Baris Item ke-{i+1}**")
-                        
                         default_item_data = loaded_tx_items[i] if loaded_tx_items and i < len(loaded_tx_items) else {}
                         
                         c_k1, c_k2 = st.columns(2)
@@ -1259,12 +1315,7 @@ if form_login_sistem():
                             def_kat_item = str(default_item_data.get("Kategori", list_kat[0] if list_kat else "-"))
                             idx_kat = list_kat.index(def_kat_item) if def_kat_item in list_kat else 0
                             
-                            kat_pilih = st.selectbox(
-                                f"Kategori Pekerjaan {i+1}", 
-                                list_kat if list_kat else ["-"], 
-                                index=idx_kat,
-                                key=f"kat_{i}"
-                            )
+                            kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}")
                         
                         is_provisional = "provisional" in str(kat_pilih).lower() or "professional" in str(kat_pilih).lower()
 
@@ -1284,19 +1335,11 @@ if form_login_sistem():
                                 def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", list_spek[0] if list_spek else "-"))
                                 idx_spek = list_spek.index(def_spek_item) if def_spek_item in list_spek else 0
                                 
-                                spek_pilih = st.selectbox(
-                                    f"Uraian Pekerjaan / Spesifikasi {i+1}", 
-                                    list_spek, 
-                                    index=idx_spek,
-                                    key=f"spek_{i}"
-                                )
+                                spek_pilih = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", list_spek, index=idx_spek, key=f"spek_{i}")
 
                         hs_otomatis = 0.0
                         unit_otomatis = "Month"
-                        if is_provisional:
-                            hs_otomatis = 0.0 
-                            unit_otomatis = "Ls"
-                        else:
+                        if not is_provisional:
                             if not df_f_kat.empty and spek_pilih != "- (Tidak ada data uraian)":
                                 m_row = df_f_kat[df_f_kat["Uraian Clean"] == str(spek_pilih).strip()]
                                 if not m_row.empty:
@@ -1343,13 +1386,11 @@ if form_login_sistem():
                                 def_harga_manual = 0.0
                             hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i+1} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}")
                             hs_final = hs_manual
-                            st.info("ℹ️ *Catatan Provisional Sum:* Total nilai baris ini akan diakumulasikan secara total keseluruhan sebelum ditambahkan 15% management fee.")
                         else:
-                            st.markdown(f"**Harga Satuan Tetap:** Rp {hs_otomatis:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
                             hs_final = hs_otomatis
 
                         def_ket = str(default_item_data.get("Keterangan", ""))
-                        ket_val = st.text_input(f"Keterangan / Deskripsi Tambahan {i+1}", value=def_ket, key=f"ket_{i}")
+                        ket_val = st.text_input(f"Keterangan Tambahan {i+1}", value=def_ket, key=f"ket_{i}")
                         st.markdown("---")
 
                         items_data_input.append({
@@ -1375,7 +1416,6 @@ if form_login_sistem():
                             st.rerun()
 
                     st.markdown("---")
-
                     col_btn_save, col_btn_dist = st.columns(2)
                     with col_btn_save:
                         if st.button("💾 Simpan / Update Data Sementara", type="secondary"):
@@ -1432,7 +1472,7 @@ if form_login_sistem():
                                 existing_tx.append(data_transaksi)
 
                             simpan_data_transaksi(existing_tx)
-                            st.success(f"💾 Berhasil menyimpan data sementara untuk PI [{pi_target_simpan}] (Data lama ditimpa dengan sukses)!")
+                            st.success(f"💾 Berhasil menyimpan data sementara untuk PI [{pi_target_simpan}]!")
 
                     with col_btn_dist:
                         if st.button("🚀 Proses & Distribusikan Data ke Dokumen Turunan", type="primary"):
@@ -1490,7 +1530,7 @@ if form_login_sistem():
 
                             simpan_data_transaksi(existing_tx)
                             st.session_state.num_rows = 1
-                            st.success(f"🎉 Berhasil mendistribusikan {len(items_data_input)} baris item secara resmi untuk Proforma Invoice [{pi_baru}] ke dokumen turunan!")
+                            st.success(f"🎉 Berhasil mendistribusikan data untuk Proforma Invoice [{pi_baru}] ke dokumen turunan!")
 
             elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
                 transaksi_list = muat_data_transaksi()
@@ -1526,12 +1566,9 @@ if form_login_sistem():
                         ]))
                         pi_filtered_list = sorted(pi_filtered_raw, key=sort_pi_key, reverse=True)
 
-                        search_dok_pi = st.text_input("🔍 Cari Nomor PI (Ketik sebagian untuk mempercepat pencarian):", "").strip().lower()
+                        search_dok_pi = st.text_input("🔍 Cari Nomor PI:", "").strip().lower()
                         if search_dok_pi:
                             pi_filtered_list = [pi for pi in pi_filtered_list if search_dok_pi in pi.lower()]
-                            if not pi_filtered_list:
-                                st.warning("⚠️ Tidak ada nomor PI yang cocok dengan kata kunci pencarian.")
-                                pi_filtered_list = [""]
 
                         selected_dok_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", pi_filtered_list if pi_filtered_list else [""])
 
@@ -1565,7 +1602,7 @@ if form_login_sistem():
                             elif doc_type == "📦 Master Paket Dokumen Lengkap (1-Click Batch)":
                                 tampilkan_paket_lengkap(filtered_transaksi_target)
                             else:
-                                st.info("ℹ️ Silakan pilih Nomor Kontrak dan Nomor PI yang valid di atas untuk menampilkan pratinjau dokumen.")
+                                st.info("ℹ️ Silakan pilih Nomor Kontrak dan Nomor PI yang valid di atas.")
 
             elif menu == "Lihat Akumulasi Riwayat Transaksi":
                 st.markdown("""
@@ -1578,38 +1615,3 @@ if form_login_sistem():
                 if tx_records:
                     cleaned_tx_records = [{str(k): (bersih_angka(v) if bersih_angka(v) else "-") for k, v in rec.items()} for rec in tx_records]
                     st.dataframe(pd.DataFrame(cleaned_tx_records), use_container_width=True)
-                    
-                    st.markdown("---")
-                    st.markdown("#### 🗑️ Hapus Riwayat Transaksi yang Salah / Duplikat")
-                    
-                    pilihan_hapus_tx = []
-                    for idx, item in enumerate(tx_records):
-                        pi_val = bersih_angka(item.get('PI No.', 'Tanpa PI'))
-                        kontrak_val = bersih_angka(item.get('Nomor Kontrak', 'Tanpa Kontrak'))
-                        try:
-                            total_val = float(item.get('Total Harga', 0.0))
-                        except:
-                            total_val = 0.0
-                        pilihan_hapus_tx.append(f"Index {idx} | PI: {pi_val if pi_val else '-'} | Kontrak: {kontrak_val if kontrak_val else '-'} | Total: Rp {total_val:,.0f}".replace(",", "X").replace(".", ",").replace("X", "."))
-
-                    col_ht1, col_ht2 = st.columns([2, 1])
-                    with col_ht1:
-                        target_hapus_tx_idx = st.selectbox(
-                            "Pilih Riwayat Transaksi yang Ingin Dihapus:",
-                            range(len(pilihan_hapus_tx)),
-                            format_func=lambda x: pilihan_hapus_tx[x],
-                            key="select_tx_row_to_delete"
-                        )
-                    with col_ht2:
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        if st.button("❌ Hapus Transaksi Terpilih", use_container_width=True, type="primary"):
-                            try:
-                                deleted_tx = tx_records.pop(target_hapus_tx_idx)
-                                simpan_data_transaksi(tx_records)
-                                pi_terhapus = bersih_angka(deleted_tx.get('PI No.', 'Data'))
-                                st.success(f"✅ Berhasil menghapus riwayat transaksi (PI: {pi_terhapus if pi_terhapus else '-'}) secara permanen!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"⚠️ Terjadi kesalahan saat menghapus transaksi: {e}")
-                else:
-                    st.info("Belum ada riwayat transaksi rincian pekerjaan tersimpan.")
