@@ -326,10 +326,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             with col_p3:
                 persen_pph = st.number_input("Tarif PPh (%)", min_value=0.0, max_value=10.0, value=def_tarif_pph, step=0.5)
 
-            # Perhitungan PPN dari Total Tagihan
             ppn_nominal = nilai_invoice_resmi * 0.11 if kena_ppn else 0.0
-
-            # KETENTUAN PAJAK PRESISI: Jika Professional Sum aktif, PPh dihitung dari Management Fee. Jika tidak, dari total nilai invoice.
             base_pph = input_mgmt_fee if gunakan_prof_sum else nilai_invoice_resmi
             pph_nominal = base_pph * (persen_pph / 100.0) if kena_pph else 0.0
 
@@ -416,24 +413,41 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 jenis_dok_terpilih = st.selectbox(
                     "📄 Pilih Jenis Dokumen:", 
                     ["Invoice & Tax Billing", "Kuitansi Pembayaran"],
-                    key="select_jenis_dokumen_m3"
+                    key="select_jenis_dok_m3"
                 )
             with col_ctrl1:
                 selected_inv_preview = st.selectbox("🔄 Panggil Ulang Nomor Invoice Disimpan:", list_inv_resmi, key="preview_panggil_inv")
 
             st.markdown("---")
 
+            # Ambil record billing yang sedang aktif dipilih
+            selected_record = next((item for item in billing_records if str(item.get("Nomor Invoice Resmi")) == str(selected_inv_preview)), None)
+
             if jenis_dok_terpilih == "Kuitansi Pembayaran":
                 st.markdown("##### 🧾 Pratinjau Kuitansi Berdasarkan Invoice Terpilih")
-                selected_record_kuitansi = next((item for item in billing_records if str(item.get("Nomor Invoice Resmi")) == str(selected_inv_preview)), None)
                 
-                if selected_record_kuitansi:
-                    pi_rujukan = selected_record_kuitansi.get("PI No.")
-                    matched_tx_kuitansi = [t for t in transaksi_list if str(t.get("PI No.")) == str(pi_rujukan)]
-                    if matched_tx_kuitansi:
-                        tampilkan_kuitansi(matched_tx_kuitansi)
-                    else:
-                        tampilkan_kuitansi(transaksi_list)
+                if selected_record:
+                    pi_rujukan = selected_record.get("PI No.")
+                    matched_tx_kuitansi = [t.copy() for t in transaksi_list if str(t.get("PI No.")) == str(pi_rujukan)]
+                    
+                    if not matched_tx_kuitansi and transaksi_list:
+                        matched_tx_kuitansi = [transaksi_list[0].copy()]
+                    elif not matched_tx_kuitansi:
+                        matched_tx_kuitansi = [{}]
+
+                    # Sinkronisasi Total Netto resmi dari Modul 3 agar kuitansi membaca tagihan bersih secara presisi
+                    netto_resmi = float(selected_record.get("Total Netto", 0.0) or 0.0)
+                    for item_kui in matched_tx_kuitansi:
+                        item_kui["Total Harga"] = netto_resmi
+                        item_kui["TOTAL"] = netto_resmi
+                        item_kui["Total Amount"] = netto_resmi
+                        item_kui["Invoice No."] = selected_record.get("Nomor Invoice Resmi")
+                        item_kui["Nomor PO"] = selected_record.get("Nomor PO")
+                        item_kui["WAN / SA Nomor"] = selected_record.get("Nomor SA / WAN")
+                        item_kui["Ditujukan Kepada"] = selected_record.get("Customer")
+                        item_kui["Invoice Date"] = selected_record.get("Tanggal Invoice")
+
+                    tampilkan_kuitansi(matched_tx_kuitansi)
                 else:
                     tampilkan_kuitansi(transaksi_list)
 
@@ -447,8 +461,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     with col_ul3:
                         uploaded_ttd_dir = st.file_uploader("Upload TTD Direktur (Ferry Tatimu)", type=["png", "jpg", "jpeg"], key="ttd_direktur_upload")
 
-                selected_record = next((item for item in billing_records if str(item.get("Nomor Invoice Resmi")) == str(selected_inv_preview)), None)
-
                 if selected_record:
                     val_inv = float(selected_record.get('Nilai Invoice', 0) or 0)
                     val_ppn = float(selected_record.get('PPN Nominal', 0) or 0)
@@ -456,7 +468,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     val_netto = float(selected_record.get('Total Netto', 0) or 0)
                     dpp_nilai_lain = val_inv * (11 / 12) if val_ppn > 0 else val_inv
 
-                    # DETEKSI ROBUST Professional Sum (bisa berupa boolean True, angka 1, atau string '1'/'true')
                     raw_prof_sum = selected_record.get('Gunakan Professional Sum', False)
                     is_prof_sum_akt = False
                     if str(raw_prof_sum).lower() in ['true', '1', 'yes', '1.0']:
@@ -483,7 +494,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     tanggal_cetak_str = datetime.today().strftime("%m/%d/%Y, %I:%M %p")
                     deskripsi_keterangan_inv = str(selected_record.get('Keterangan Invoice', ''))
 
-                    # KONDISIONAL KETAT TABEL ITEM: Jika Professional Sum aktif, cetak 2 baris terpisah (Add Cost & Management Fee) secara presisi!
                     if is_prof_sum_akt:
                         tabel_item_html = f"""
                         <tr>
