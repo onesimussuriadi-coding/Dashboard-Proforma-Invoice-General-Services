@@ -79,7 +79,6 @@ def render_panel_manajemen_akun():
         if st.session_state.get('current_role') in ["Manajer Operasional", "Administrator"]:
             st.markdown("---")
             
-            # Dibungkus dalam expander agar bisa dibuka-tutup secara rapi
             with st.expander("📂 Lihat & Kelola Akun Terdaftar"):
                 daftar_user = muat_data_pengguna()
                 if daftar_user:
@@ -104,6 +103,7 @@ def render_panel_manajemen_akun():
                 new_role = st.selectbox("Hak Akses (Role)", [
                     "Manajer Operasional", 
                     "Finance / Invoice", 
+                    "Staf Marketing / Operasional",
                     "Staff Timesheet"
                 ])
                 btn_tambah = st.form_submit_button("➕ Daftarkan Akun")

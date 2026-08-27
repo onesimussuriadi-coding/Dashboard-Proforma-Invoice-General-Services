@@ -365,14 +365,19 @@ if form_login_sistem():
     st.sidebar.markdown(f"🕒 **Waktu Sistem (WITA):**<br>`{current_time_str}`", unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
-    # --- PEMBATASAN MENU BERJENJANG BERDASARKAN ROLE ---
+    # --- PEMBATASAN MENU BERJENJANG BERDASARKAN ROLE (HAK AKSES) ---
     if user_role == "Staff Timesheet":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan"])
     elif user_role == "Finance / Invoice":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "💰 Modul 3: Invoice & Tax Management"
         ])
-    else: # Manajer Operasional (Akses Penuh)
+    elif user_role == "Staf Marketing / Operasional":
+        modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
+            "📁 Modul 1: Database & Master Kontrak",
+            "📄 Modul 2: Invoice & Dokumen Turunan"
+        ])
+    else: # Manajer Operasional (Akses Penuh termasuk Modul 0)
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "📁 Modul 0: Master Referensi Harga & Pekerjaan",
             "📁 Modul 1: Database & Master Kontrak",
