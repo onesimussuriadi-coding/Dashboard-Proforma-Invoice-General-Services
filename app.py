@@ -209,7 +209,7 @@ if form_login_sistem():
         else:
             return " Angka terlalu besar"
 
-    # --- FUNGSI KUITANSI PEMBAYARAN YANG DISINKRONKAN DENGAN NOMOR PO DAN WAN/SA ---
+    # --- FUNGSI KUITANSI PEMBAYARAN YANG DI-SINKRONKAN SECARA PRESISI & DINAMIS ---
     def tampilkan_kuitansi(transaksi_list):
         st.markdown("#### 🧾 Pratinjau Resmi Kuitansi Pembayaran Korporat")
         
@@ -217,8 +217,10 @@ if form_login_sistem():
             st.warning("⚠️ Belum ada data transaksi untuk dirender ke dalam kuitansi.")
             return
 
+        # Ambil nomor invoice aktif yang sedang dipilih di session state / selectbox utama billing & tax
         active_selected_invoice = st.session_state.get("input_filter_invoice_aktif", "")
         
+        # Filter list transaksi secara presisi agar mengambil baris yang benar-benar sesuai dengan nomor invoice yang dipilih
         if active_selected_invoice and active_selected_invoice != "-":
             filtered_by_active = [
                 t for t in transaksi_list 
@@ -229,15 +231,19 @@ if form_login_sistem():
 
         t_data = transaksi_list[0] if isinstance(transaksi_list, list) and len(transaksi_list) > 0 else {}
         
+        # Ambil referensi data secara mutlak dan dinamis dari baris data yang sudah tersaring
         customer_name = t_data.get("Ditujukan Kepada", t_data.get("Customer Name", "JOB Pertamina - Medco E&P Tomori Sulawesi"))
         
+        # Tangkap nomor invoice secara dinamis dari data terpilih
         pi_no = str(t_data.get("Invoice No.", t_data.get("PI No.", t_data.get("Proforma Invoice No.", "010/BSS-JOB/IX/2026")))).strip()
         if not pi_no or pi_no == "-":
             pi_no = "010/BSS-JOB/IX/2026"
 
+        # Penarikan referensi dinamis: Nomor PO serta Nomor WAN / SA
         nomor_po = str(t_data.get("Nomor PO", t_data.get("PO Nomor", "-"))).strip()
         nomor_wan = str(t_data.get("WAN / SA Nomor", t_data.get("WAN Nomor", t_data.get("WAN", t_data.get("SA Nomor", "-"))))).strip()
         
+        # Tanggal Dokumen Dinamis
         tanggal_pi_raw = t_data.get("Invoice Date", t_data.get("Tanggal PI", ""))
         if not tanggal_pi_raw:
             tanggal_pi_raw = datetime.today().strftime('%d %B %Y')
@@ -247,6 +253,7 @@ if form_login_sistem():
             except:
                 pass
 
+        # Hitung total tagihan murni secara dinamis dari item yang tersaring
         total_tagihan = sum([float(item.get("Total Harga", item.get("TOTAL", 0.0))) for item in transaksi_list]) if isinstance(transaksi_list, list) else 0.0
         if total_tagihan <= 0:
             total_tagihan = float(t_data.get("Total Amount", t_data.get("TOTAL", 51818130.0) if isinstance(t_data.get("TOTAL"), (int, float)) else 51818130.0))
@@ -254,6 +261,7 @@ if form_login_sistem():
         terbilang_str = terbilang(total_tagihan).strip() + " Rupiah" if total_tagihan > 0 else "Nol Rupiah"
         formatted_nominal = f"Rp {total_tagihan:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+        # Redaksi referensi pembayaran dinamis berdasar Nomor PO dan Nomor WAN / SA
         teks_referensi = "Pelunasan biaya pekerjaan berdasarkan"
         ref_parts = []
         if nomor_po and nomor_po != "-":
@@ -280,7 +288,7 @@ if form_login_sistem():
                 }}
                 body {{ font-family: Arial, sans-serif; background-color: #ffffff; color: #000000; padding: 12mm; margin: 0; font-size: 12px; }}
                 .receipt-box {{ border: 2px solid #0f172a; padding: 25px; border-radius: 8px; max-width: 720px; margin: auto; background: #ffffff; }}
-                .header-table {{ width: 100%; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 20px; }}
+                .header-table {{ width: 100%; border-bottom: 2px solid #0f172a; padding-bottom: 12mm; margin-bottom: 20px; }}
                 .receipt-title {{ font-size: 20px; font-weight: bold; text-align: right; color: #0f172a; letter-spacing: 0.5px; margin-bottom: 4px; }}
                 .content-table {{ width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 20px; }}
                 .content-table td {{ padding: 8px 4px; vertical-align: top; }}
@@ -900,7 +908,7 @@ if form_login_sistem():
                                 st.rerun()
                     else:
                         matched_pi_records_sorted = sorted(
-                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, data.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
+                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
                             key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
                             reverse=True
                         )
