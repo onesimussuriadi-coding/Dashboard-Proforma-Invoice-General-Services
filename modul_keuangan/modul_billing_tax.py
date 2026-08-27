@@ -57,7 +57,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
     st.markdown("""
         <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px;">
             <h3 style="margin:0; font-size: 20px;">💰 Modul 3: Invoice, Tax & Kuitansi Management (Accounting Department)</h3>
-            <p style="margin:4px 0 0 0; font-size: 12px; color: #34d399;">Panel khusus pengelolaan tagihan resmi, perhitungan pajak (PPN/PPh), dan pencetakan dokumen keuangan terpusat (Termasuk Pemisahan Add Cost & Management Fee Professional Sum).</p>
+            <p style="margin:4px 0 0 0; font-size: 12px; color: #34d399;">Panel khusus pengelolaan tagihan resmi, perhitungan pajak (PPN & PPh berbasis Management Fee), dan pencetakan dokumen keuangan terpusat.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -144,7 +144,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             is_mode_edit = True
             st.success(f"📋 **Mode Edit Aktif (Data Tersimpan Modul 3):** Memuat data Invoice `{data_edit_aktif.get('Nomor Invoice Resmi')}`")
 
-        # --- PENANGANAN SUMBER DATA (MODUL 3 TERSIMPAN VS MODUL 2 BARU) ---
         target_kontrak_val = data_edit_aktif.get("Kontrak No.", "") if is_mode_edit else ""
         target_po_val = data_edit_aktif.get("Nomor PO", "") if is_mode_edit else ""
         target_pi_val = data_edit_aktif.get("PI No.", "") if is_mode_edit else ""
@@ -201,7 +200,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
         matched_transaksi = [t for t in filtered_by_po if str(t.get("PI No.")) == str(selected_pi_m3)]
         
-        # Penentuan nilai acuan awal dari Modul 2 jika membuat baru
         total_nilai_pi_modul2 = sum([float(str(t.get("Total Harga", 0)).replace("Rp", "").replace(".", "").replace(",", ".").strip() or 0) for t in matched_transaksi])
 
         if is_mode_edit:
@@ -212,8 +210,8 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             nilai_default_tagihan = float(data_edit_aktif.get("Nilai Invoice", 0.0))
             
             is_prof_sum_default = bool(data_edit_aktif.get("Gunakan Professional Sum", False))
-            add_cost_default = float(data_edit_aktif.get("Add Cost", 0.0))
-            mgmt_fee_default = float(data_edit_aktif.get("Management Fee", 0.0))
+            add_cost_default = float(data_edit_aktif.get("Add Cost", 0.0) or 0.0)
+            mgmt_fee_default = float(data_edit_aktif.get("Management Fee", 0.0) or 0.0)
         else:
             customer_default = matched_transaksi[0].get("Ditujukan Kepada", "") if matched_transaksi else ""
             alamat_default = matched_transaksi[0].get("Alamat Pihak Pertama", "") if matched_transaksi else ""
@@ -227,15 +225,13 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             else:
                 bank_string_dinamis = "<b>Bank Name :</b> BANK RAKYAT INDONESIA (PERSERO) Tbk.<br><b>Branch :</b> Cabang Luwuk<br><b>Account No :</b> 0167 0167 8888 303<br><b>Account Name :</b> PT. BANGGAI SENTRAL SULAWESI"
             
-            deskripsi_default = matched_transaksi[0].get("Deskripsi PO", "") if matched_transaksi else "Meeting package pelatihan HSE untuk kegiatan wellservices 2026"
+            deskripsi_default = matched_transaksi[0].get("Deskripsi PO", "") if matched_transaksi else ""
             nilai_default_tagihan = total_nilai_pi_modul2
             
-            # Deteksi otomatis apakah PI rujukan mengandung Professional Sum / Provisional Sum
             is_prof_sum_default = False
             if matched_transaksi and any("professional" in str(t.get("Kategori", "")).lower() or "provisional" in str(t.get("Kategori", "")).lower() or "professional" in str(t.get("Deskripsi Pekerjaan", "")).lower() for t in matched_transaksi):
                 is_prof_sum_default = True
             
-            # Default proporsi: Add Cost = Total / 1.15, Management Fee = Total - Add Cost (atau 15% dari add cost)
             if is_prof_sum_default:
                 add_cost_default = nilai_default_tagihan / 1.15
                 mgmt_fee_default = nilai_default_tagihan - add_cost_default
@@ -293,7 +289,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             input_add_cost = 0.0
             input_mgmt_fee = 0.0
             if gunakan_prof_sum:
-                # Jika user mengubah total invoice atau baru mencentang, otomatis hitung porsi 1/1.15 dan 15% jika nilai belum diset
                 def_ac = add_cost_default if add_cost_default > 0 else (nilai_invoice_resmi / 1.15)
                 def_mf = mgmt_fee_default if mgmt_fee_default > 0 else (nilai_invoice_resmi - def_ac)
 
@@ -317,7 +312,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             )
 
             st.markdown("---")
-            st.markdown("#### 🧮 Kalkulasi Otomatis Pajak (PPN 11% & PPh 23 / Pasal 22)")
+            st.markdown("#### 🧮 Kalkulasi Otomatis Pajak (PPN 11% & PPh Berbasis Management Fee)")
 
             def_kena_ppn = bool(data_edit_aktif.get("Kena PPN", True)) if is_mode_edit else True
             def_kena_pph = bool(data_edit_aktif.get("Kena PPh", True)) if is_mode_edit else True
@@ -331,14 +326,20 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             with col_p3:
                 persen_pph = st.number_input("Tarif PPh (%)", min_value=0.0, max_value=10.0, value=def_tarif_pph, step=0.5)
 
+            # Perhitungan PPN dari Total Tagihan
             ppn_nominal = nilai_invoice_resmi * 0.11 if kena_ppn else 0.0
-            pph_nominal = nilai_invoice_resmi * (persen_pph / 100.0) if kena_pph else 0.0
+
+            # KETENTUAN PAJAK PRESISI: Jika Professional Sum aktif, PPh dihitung dari Management Fee. Jika tidak, dari total nilai invoice.
+            base_pph = input_mgmt_fee if gunakan_prof_sum else nilai_invoice_resmi
+            pph_nominal = base_pph * (persen_pph / 100.0) if kena_pph else 0.0
+
             total_pembayaran_netto = nilai_invoice_resmi + ppn_nominal - pph_nominal
 
             st.markdown(f"""
-                * **Dasar Tagihan:** Rp {nilai_invoice_resmi:,.2f}
+                * **Dasar Tagihan Invoice:** Rp {nilai_invoice_resmi:,.2f}
+                * **Dasar Pengenaan PPh (Management Fee):** Rp {base_pph:,.2f}
                 * **Nilai PPN (11%):** Rp {ppn_nominal:,.2f}
-                * **Potongan PPh ({persen_pph}%):** Rp {pph_nominal:,.2f}
+                * **Potongan PPh ({persen_pph}% dari Management Fee):** Rp {pph_nominal:,.2f}
                 * **Total Netto Diterima:** **Rp {total_pembayaran_netto:,.2f}**
             """.replace(",", "X").replace(".", ",").replace("X", "."))
 
@@ -373,7 +374,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         "Keterangan Invoice": keterangan_invoice_resmi,
                         "Informasi Bank": bank_string_dinamis,
                         "Nilai Invoice": nilai_invoice_resmi,
-                        "Gunakan Professional Sum": gunakan_prof_sum,
+                        "Gunakan Professional Sum": 1 if gunakan_prof_sum else 0,
                         "Add Cost": input_add_cost if gunakan_prof_sum else 0.0,
                         "Management Fee": input_mgmt_fee if gunakan_prof_sum else 0.0,
                         "PPN Nominal": ppn_nominal,
@@ -389,7 +390,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     if submit_update and active_billing_idx is not None and active_billing_idx < len(current_billing):
                         current_billing[active_billing_idx] = item_billing_baru
                         simpan_data_billing(current_billing)
-                        st.success("✨ Data Invoice & Pajak berhasil di-update dengan pengaturan Professional Sum!")
+                        st.success("✨ Data Invoice & Pajak berhasil di-update dengan perhitungan PPh berbasis Management Fee!")
                     elif submit_save_as or submit_simpan_baru:
                         current_billing.append(item_billing_baru)
                         simpan_data_billing(current_billing)
@@ -449,15 +450,20 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 selected_record = next((item for item in billing_records if str(item.get("Nomor Invoice Resmi")) == str(selected_inv_preview)), None)
 
                 if selected_record:
-                    val_inv = float(selected_record.get('Nilai Invoice', 0))
-                    val_ppn = float(selected_record.get('PPN Nominal', 0))
-                    val_pph = float(selected_record.get('PPh Nominal', 0))
-                    val_netto = float(selected_record.get('Total Netto', 0))
+                    val_inv = float(selected_record.get('Nilai Invoice', 0) or 0)
+                    val_ppn = float(selected_record.get('PPN Nominal', 0) or 0)
+                    val_pph = float(selected_record.get('PPh Nominal', 0) or 0)
+                    val_netto = float(selected_record.get('Total Netto', 0) or 0)
                     dpp_nilai_lain = val_inv * (11 / 12) if val_ppn > 0 else val_inv
 
-                    is_prof_sum_akt = bool(selected_record.get('Gunakan Professional Sum', False))
-                    val_add_cost = float(selected_record.get('Add Cost', 0))
-                    val_mgmt_fee = float(selected_record.get('Management Fee', 0))
+                    # DETEKSI ROBUST Professional Sum (bisa berupa boolean True, angka 1, atau string '1'/'true')
+                    raw_prof_sum = selected_record.get('Gunakan Professional Sum', False)
+                    is_prof_sum_akt = False
+                    if str(raw_prof_sum).lower() in ['true', '1', 'yes', '1.0']:
+                        is_prof_sum_akt = True
+                    
+                    val_add_cost = float(selected_record.get('Add Cost', 0) or 0)
+                    val_mgmt_fee = float(selected_record.get('Management Fee', 0) or 0)
 
                     nomor_sa_wan_val = format_nomor_bersih(selected_record.get('Nomor SA / WAN', ''))
                     nomor_po_val = format_nomor_bersih(selected_record.get('Nomor PO', selected_record.get('Nomor PO Rujukan', '-')))
@@ -475,13 +481,14 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     html_ttd_direktur = f'<img src="{ttd_dir_b64}" style="max-height: 75px; max-width: 160px; object-fit: contain; display: block; margin: 0 auto;">' if ttd_dir_b64 else '<div style="height: 65px;"></div>'
 
                     tanggal_cetak_str = datetime.today().strftime("%m/%d/%Y, %I:%M %p")
+                    deskripsi_keterangan_inv = str(selected_record.get('Keterangan Invoice', ''))
 
-                    # DINAMIKA TABEL ITEM INVOICE (PEMISAHAN PROFESSIONAL SUM JIKA AKTIF)
+                    # KONDISIONAL KETAT TABEL ITEM: Jika Professional Sum aktif, cetak 2 baris terpisah (Add Cost & Management Fee) secara presisi!
                     if is_prof_sum_akt:
                         tabel_item_html = f"""
                         <tr>
                             <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">1</td>
-                            <td style="border: 1px solid #000; padding: 8px; vertical-align: top;"><b>Add Cost:</b><br>{selected_record.get('Keterangan Invoice')}</td>
+                            <td style="border: 1px solid #000; padding: 8px; vertical-align: top;"><b>Add Cost:</b><br>{deskripsi_keterangan_inv}</td>
                             <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">-</td>
                             <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">-</td>
                             <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {val_add_cost:,.2f}</td>
@@ -498,7 +505,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         tabel_item_html = f"""
                         <tr>
                             <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: center; vertical-align: top;">1</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; vertical-align: top;"><b>{selected_record.get('Keterangan Invoice')}</b></td>
+                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; vertical-align: top;"><b>{deskripsi_keterangan_inv}</b></td>
                             <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: center; vertical-align: top;">-</td>
                             <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: right; vertical-align: top;">-</td>
                             <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: right; vertical-align: top;">Rp {val_inv:,.2f}</td>
@@ -622,7 +629,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                     </tr>
                                 </table>
 
-                                <!-- TABEL UTAMA ISO -->
+                                <!-- TABEL UTAMA -->
                                 <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px;">
                                     <thead>
                                         <tr style="background-color: #f1f5f9; border: 1px solid #000;">

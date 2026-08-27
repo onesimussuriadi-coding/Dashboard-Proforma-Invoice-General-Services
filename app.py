@@ -595,6 +595,7 @@ if form_login_sistem():
                 st.markdown("""
                     <div class="dashboard-card">
                         <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Master Referensi Harga & Pekerjaan Tersimpan (Dengan Tombol Edit & Hapus per Baris)</h3>
+                        <p style="margin:4px 0 0 0; font-size: 12px; color: #475569;">Gunakan filter Kontrak dan Kategori di bawah ini, serta manfaatkan tombol Cetak atau Save PDF untuk kebutuhan pencetakan dokumen.</p>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -604,61 +605,99 @@ if form_login_sistem():
                 else:
                     df_master = pd.DataFrame(master_records)
 
-                    kolom_kontrak = None
-                    for col in ['Nomor Kontrak', 'No Kontrak', 'Kontrak']:
-                        if col in df_master.columns:
-                            kolom_kontrak = col
-                            break
-
-                    if kolom_kontrak:
-                        list_kontrak = ["-- Semua Kontrak --"] + list(df_master[kolom_kontrak].dropna().astype(str).unique())
-                        selected_kontrak = st.selectbox("🔍 Filter Berdasarkan Nomor Kontrak:", list_kontrak, key="filter_kontrak_master")
-
-                        if selected_kontrak != "-- Semua Kontrak --":
-                            df_filtered = df_master[df_master[kolom_kontrak].astype(str) == selected_kontrak]
+                    # --- PANEL FILTER KONTRAK & KATEGORI ---
+                    col_f1, col_f2 = st.columns(2)
+                    
+                    with col_f1:
+                        kolom_kontrak = next((col for col in ['Nomor Kontrak', 'No Kontrak', 'Kontrak'] if col in df_master.columns), None)
+                        if kolom_kontrak:
+                            list_kontrak = ["-- Semua Kontrak --"] + list(df_master[kolom_kontrak].dropna().astype(str).unique())
+                            selected_kontrak = st.selectbox("📌 Filter Berdasarkan Nomor Kontrak:", list_kontrak, key="filter_kontrak_master_v3")
                         else:
-                            df_filtered = df_master
-                    else:
-                        df_filtered = df_master
-                        selected_kontrak = "-- Semua Kontrak --"
+                            selected_kontrak = "-- Semua Kontrak --"
+
+                    with col_f2:
+                        kolom_kategori = next((col for col in ['Kategori', 'Kategori Pekerjaan', 'Jenis Pekerjaan'] if col in df_master.columns), None)
+                        if kolom_kategori:
+                            list_kategori = ["-- Semua Kategori --"] + list(df_master[kolom_kategori].dropna().astype(str).unique())
+                            selected_kategori = st.selectbox("🏷️ Filter Berdasarkan Kategori Pekerjaan:", list_kategori, key="filter_kategori_master_v3")
+                        else:
+                            selected_kategori = "-- Semua Kategori --"
+
+                    # Terapkan Filter
+                    df_filtered = df_master.copy()
+                    if kolom_kontrak and selected_kontrak != "-- Semua Kontrak --":
+                        df_filtered = df_filtered[df_filtered[kolom_kontrak].astype(str) == selected_kontrak]
+                    if kolom_kategori and selected_kategori != "-- Semua Kategori --":
+                        df_filtered = df_filtered[df_filtered[kolom_kategori].astype(str) == selected_kategori]
+
+                    st.markdown("---")
+
+                    # Render Tabel HTML Interaktif dengan Pengaturan Proporsi Seimbang (Tanpa Persentase Ekstrim)
+                    headers_html = "<th style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px; text-align: center; width: 45px;'>No</th>"
+                    for col in df_filtered.columns:
+                        c_lower = str(col).lower()
+                        if 'kontrak' in c_lower:
+                            w_style = "width: 110px; text-align: left;"
+                        elif 'kategori' in c_lower:
+                            w_style = "width: 130px; text-align: left;"
+                        elif 'uraian' in c_lower or 'deskripsi' in c_lower or 'pekerjaan' in c_lower:
+                            w_style = "text-align: left;"
+                        elif 'unit' in c_lower:
+                            w_style = "width: 55px; text-align: center;"
+                        elif 'harga' in c_lower or 'satuan' in c_lower:
+                            w_style = "width: 115px; text-align: right;"
+                        elif 'update' in c_lower:
+                            w_style = "width: 135px; text-align: center;"
+                        else:
+                            w_style = "text-align: left;"
+                        headers_html += f"<th style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px; {w_style}'>{col}</th>"
+                    
+                    headers_html += "<th class='no-print' style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px; text-align: center; width: 120px;'>Aksi</th>"
 
                     html_table_rows = ""
                     for original_idx, row in df_filtered.iterrows():
                         html_table_rows += "<tr>"
                         html_table_rows += f"<td style='border: 1px solid #cbd5e1; padding: 10px; text-align: center; font-size: 13px;'>{original_idx+1}</td>"
+                        
                         for col_name, val in row.items():
                             val_clean = bersih_angka(val)
-                            if any(k in str(col_name).lower() for k in ['harga', 'satuan', 'total', 'nominal', 'nilai']):
+                            c_lower = str(col_name).lower()
+                            
+                            if any(k in c_lower for k in ['harga', 'satuan', 'total', 'nominal', 'nilai']):
                                 try:
                                     num_val = float(val)
                                     val_str = f"{num_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                                 except:
                                     val_str = val_clean
+                                cell_align = "text-align: right; white-space: nowrap;"
+                            elif any(k in c_lower for k in ['unit']):
+                                val_str = val_clean if val_clean else "-"
+                                cell_align = "text-align: center; white-space: nowrap;"
+                            elif any(k in c_lower for k in ['update']):
+                                val_str = val_clean if val_clean else "-"
+                                cell_align = "text-align: center; white-space: nowrap; font-size: 11px;"
+                            elif any(k in c_lower for k in ['uraian', 'deskripsi', 'pekerjaan']):
+                                val_str = val_clean if val_clean else "-"
+                                cell_align = "text-align: left; word-wrap: break-word; white-space: normal; line-height: 1.4; min-width: 180px;"
                             else:
                                 val_str = val_clean if val_clean else "-"
+                                cell_align = "text-align: left; white-space: nowrap;"
                                 
-                            if 'uraian' in str(col_name).lower() or 'deskripsi' in str(col_name).lower():
-                                html_table_rows += f"<td style='border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; min-width: 400px; white-space: normal; word-wrap: break-word;'>{val_str}</td>"
-                            else:
-                                html_table_rows += f"<td style='border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; white-space: nowrap;'>{val_str}</td>"
+                            html_table_rows += f"<td style='border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; {cell_align}'>{val_str}</td>"
                         
                         action_buttons = f"""
-                            <td style='border: 1px solid #cbd5e1; padding: 8px; text-align: center; white-space: nowrap;'>
+                            <td class='no-print' style='border: 1px solid #cbd5e1; padding: 8px; text-align: center; white-space: nowrap;'>
                                 <a href='?edit_master_idx={original_idx}' target='_self' style='text-decoration: none;'>
-                                    <button style='background-color: #3b82f6; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 4px;'>✏️ Edit</button>
+                                    <button style='background-color: #3b82f6; color: white; border: none; padding: 4px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 2px;'>✏️ Edit</button>
                                 </a>
                                 <a href='?delete_master_idx={original_idx}' target='_self' style='text-decoration: none;'>
-                                    <button style='background-color: #ef4444; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;'>🗑️ Hapus</button>
+                                    <button style='background-color: #ef4444; color: white; border: none; padding: 4px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;'>🗑️ Hapus</button>
                                 </a>
                             </td>
                         """
                         html_table_rows += action_buttons
                         html_table_rows += "</tr>"
-
-                    headers_html = "<th style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px;'>No</th>"
-                    for col in df_filtered.columns:
-                        headers_html += f"<th style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px;'>{col}</th>"
-                    headers_html += "<th style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px; text-align: center;'>Aksi</th>"
 
                     full_interactive_table_html = f"""
                     <div style="max-height: 550px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 20px;">
@@ -673,6 +712,82 @@ if form_login_sistem():
                     </div>
                     """
                     st.components.v1.html(full_interactive_table_html, height=500, scrolling=True)
+
+                    # --- PILIHAN ORIENTASI CETAK (PORTRAIT / LANDSCAPE) ---
+                    st.markdown("---")
+                    st.markdown("#### 🖨️ Pengaturan Cetak & Download Dokumen Master Referensi")
+                    
+                    pilihan_orientasi = st.radio(
+                        "Pilih Orientasi Kertas untuk Cetak / PDF:",
+                        ["Portrait (Tegak - Hemat Kertas)", "Landscape (Mendatar - Lebar)"],
+                        index=0,
+                        horizontal=True,
+                        key="radio_orientasi_cetak"
+                    )
+                    
+                    css_size_page = "size: A4 portrait;" if "Portrait" in pilihan_orientasi else "size: A4 landscape;"
+
+                    # --- HTML DOKUMEN UNTUK CETAK & PDF ---
+                    print_html_content = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <title>Master Referensi Harga - PT BSS</title>
+                        <style>
+                            @page {{ {css_size_page} margin: 10mm; }}
+                            body {{ font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 10px; background: #fff; }}
+                            .header {{ text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 15px; }}
+                            table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
+                            th, td {{ border: 1px solid #000; padding: 8px; font-size: 10px; word-wrap: break-word; white-space: normal; text-align: left; }}
+                            th {{ background-color: #f1f5f9; }}
+                            .no-print {{ display: none !important; }}
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h2 style="margin: 0; font-size: 16px; text-transform: uppercase;">PT. BANGGAI SENTRAL SULAWESI</h2>
+                            <p style="margin: 3px 0 0 0; font-size: 11px; font-weight: bold;">Master Referensi Harga & Pekerjaan</p>
+                            <p style="margin: 2px 0 0 0; font-size: 10px; color: #333;">Filter Kontrak: {selected_kontrak} | Kategori: {selected_kategori}</p>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>{headers_html}</tr>
+                            </thead>
+                            <tbody>
+                                {html_table_rows}
+                            </tbody>
+                        </table>
+                    </body>
+                    </html>
+                    """
+
+                    # --- TOMBOL AKSI UTAMA (CETAK & SAVE PDF) ---
+                    col_btn1, col_btn2 = st.columns(2)
+                    
+                    with col_btn1:
+                        b64_print = base64.b64encode(print_html_content.encode("utf-8")).decode()
+                        print_script = f"""
+                            <script>
+                                function printMaster() {{
+                                    var win = window.open('about:blank', '_blank');
+                                    win.document.open();
+                                    win.document.write(atob("{b64_print}"));
+                                    win.document.close();
+                                    win.focus();
+                                    setTimeout(function(){{ win.print(); }}, 500);
+                                }}
+                            </script>
+                            <button onclick="printMaster()" style="width: 100%; background-color: #10b981; color: white; padding: 14px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                🖨️ Cetak / Print Dokumen ({pilihan_orientasi.split()[0]})
+                            </button>
+                        """
+                        st.components.v1.html(print_script, height=65)
+
+                    with col_btn2:
+                        file_suffix = "Portrait" if "Portrait" in pilihan_orientasi else "Landscape"
+                        download_link = f'<a href="data:text/html;base64,{b64_print}" download="Master_Referensi_{file_suffix}_{str(selected_kontrak).replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 14px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">📥 Save as PDF / Download HTML ({file_suffix})</button></a>'
+                        st.markdown(download_link, unsafe_allow_html=True)
 
         # =========================================================================
         # LOGIKA MODUL 1: DATABASE & MASTER KONTRAK
@@ -692,7 +807,7 @@ if form_login_sistem():
                 saved_db_list = st.session_state["db_tersimpan"]
 
                 if len(saved_db_list) > 0:
-                    list_kontrak_db = sorted(list(set(bersih_angka(data.get(1, data.get('Nomor Kontrak', '-'))) for data in saved_db_list if bersih_angka(data.get(1, data.get('Nomor Kontrak', '-'))) != '')))
+                    list_kontrak_db = sorted(list(set(bersih_angka(data.get(1, data.get('Nomor Kontrak', '-'))) for data in saved_db_list if isinstance(data, dict) and bersih_angka(data.get(1, data.get('Nomor Kontrak', '-'))) != '')))
                     opsi_kontrak_input = ["-- Buat Data Baru (Formulir Kosong) --"] + list_kontrak_db
 
                     col_pk1, col_pk2, col_pk_btn = st.columns([2, 2.5, 1])
@@ -709,13 +824,8 @@ if form_login_sistem():
                                 st.session_state["edit_index"] = None
                                 st.rerun()
                     else:
-                        matched_pi_records = [
-                            (i, d) for i, d in enumerate(saved_db_list) 
-                            if bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input
-                        ]
-                        
                         matched_pi_records_sorted = sorted(
-                            matched_pi_records, 
+                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
                             key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
                             reverse=True
                         )
@@ -1155,7 +1265,6 @@ if form_login_sistem():
 
                         with c_k2:
                             if is_provisional:
-                                # Paksa otomatis ke "Add Cost + Fee 15%" jika kosong atau teks lama menggunakan format lama/fogging
                                 current_desc_val = str(default_item_data.get("Deskripsi Pekerjaan", ""))
                                 if not current_desc_val or "fogging" in current_desc_val.lower() or "provisional sum (" in current_desc_val.lower():
                                     default_desc_final = "Add Cost + Fee 15%"

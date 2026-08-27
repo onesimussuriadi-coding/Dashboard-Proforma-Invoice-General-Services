@@ -6,6 +6,7 @@ import base64
 import sys
 from datetime import datetime, timedelta, date
 from modul_dokumen import tkdn
+from modul_keuangan.modul_billing_tax import tampilkan_billing_tax
 from modul_keamanan.autentikasi import form_login_sistem, render_panel_manajemen_akun
 
 # Menambahkan path untuk pemanggilan folder modul_dokumen
@@ -53,11 +54,28 @@ except ImportError as e:
     st.error(f"Gagal memuat modul opname_pekerjaan: {e}")
     pass
 
+try:
+    from modul_dokumen.bastb import tampilkan_bastb
+except ImportError as e:
+    st.error(f"Gagal memuat modul bastb: {e}")
+
 # Import Modul Master Paket Dokumen Lengkap (1-Click Batch Export)
 try:
     from modul_dokumen.paket_dokumen_lengkap import tampilkan_paket_lengkap
 except ImportError as e:
     st.error(f"Gagal memuat modul paket_dokumen_lengkap: {e}")
+
+# Import Modul Keuangan: Faktur Pajak
+try:
+    from modul_keuangan.faktur_pajak import tampilkan_faktur_pajak
+except ImportError as e:
+    st.error(f"Gagal memuat modul faktur_pajak: {e}")
+
+# Import Modul Keuangan: Pemantauan Pembayaran
+try:
+    from modul_keuangan.pemantauan_pembayaran import tampilkan_pemantauan_pembayaran
+except ImportError as e:
+    st.error(f"Gagal memuat modul pemantauan_pembayaran: {e}")
 
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
@@ -352,14 +370,14 @@ if form_login_sistem():
         modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan"])
     elif user_role == "Finance / Invoice":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
-            "📁 Modul 1: Database & Master Kontrak",
-            "📄 Modul 2: Invoice & Dokumen Turunan"
+            "💰 Modul 3: Invoice & Tax Management"
         ])
     else: # Manajer Operasional (Akses Penuh)
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "📁 Modul 0: Master Referensi Harga & Pekerjaan",
             "📁 Modul 1: Database & Master Kontrak",
-            "📄 Modul 2: Invoice & Dokumen Turunan"
+            "📄 Modul 2: Invoice & Dokumen Turunan",
+            "💰 Modul 3: Invoice & Tax Management"
         ])
 
     st.sidebar.markdown("---")
@@ -375,6 +393,14 @@ if form_login_sistem():
         menu = st.sidebar.radio("Pilih Menu:", [
             "Input Database & Invoice (31 Kolom)",
             "Lihat Database Tersimpan"
+        ])
+    elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
+        menu = st.sidebar.radio("Pilih Menu:", [
+            "Input Data Invoice Resmi",
+            "Input & Cetak Faktur Pajak",
+            "Pemantauan Proses Pembayaran",
+            "Pratinjau, Cetak & Download PDF Invoice",
+            "Lihat Daftar Invoice & Pajak Tersimpan"
         ])
     else:
         menu = st.sidebar.radio("Pilih Menu:", [
@@ -404,9 +430,21 @@ if form_login_sistem():
 
     else:
         # =========================================================================
+        # LOGIKA MODUL 3: INVOICE & TAX MANAGEMENT
+        # =========================================================================
+        if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
+            transaksi_list = muat_data_transaksi()
+            if menu == "Input & Cetak Faktur Pajak":
+                tampilkan_faktur_pajak(transaksi_list if transaksi_list else [], menu)
+            elif menu == "Pemantauan Proses Pembayaran":
+                tampilkan_pemantauan_pembayaran()
+            else:
+                tampilkan_billing_tax(transaksi_list if transaksi_list else [], menu)
+
+        # =========================================================================
         # LOGIKA MODUL 0: MASTER REFERENSI HARGA & PEKERJAAN
         # =========================================================================
-        if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
+        elif modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
             
             query_params = st.query_params
             if "delete_master_idx" in query_params:
@@ -643,7 +681,7 @@ if form_login_sistem():
             if menu == "Input Database & Invoice (31 Kolom)":
                 st.markdown("""
                     <div class="dashboard-card">
-                        <h4 style="margin-top:0; color:#065f46; font-size:15px;">🔍 Panggil Ulang atau Buat Database Identifikasi Kontrak & PI</h4>
+                        <h4 style="margin-top:0; color:#065f46; font-size:15px;">🔍 Panggil Ulang Berdasarkan Nomor Kontrak & Nomor PI</h4>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -651,24 +689,56 @@ if form_login_sistem():
                 if disk_check and len(disk_check) > len(st.session_state["db_tersimpan"]):
                     st.session_state["db_tersimpan"] = disk_check
 
-                if len(st.session_state["db_tersimpan"]) > 0:
-                    opsi_panggil = ["-- Buat Data Baru (Formulir Kosong) --"]
-                    for i, data in enumerate(st.session_state["db_tersimpan"]):
-                        pi_num = bersih_angka(data.get(0, data.get('Proforma Invoice No.', '-')))
-                        kontrak_num = bersih_angka(data.get(1, data.get('Nomor Kontrak', '-')))
-                        opsi_panggil.append(f"PI: {pi_num if pi_num else '-'} | Kontrak: {kontrak_num if kontrak_num else '-'} (Data {i+1})")
-                    
-                    col_pilih, col_btn_panggil = st.columns([3, 1])
-                    with col_pilih:
-                        pilihan_edit = st.selectbox("Pilih Nomor PI untuk dipanggil:", opsi_panggil, label_visibility="collapsed")
-                    with col_btn_panggil:
-                        if st.button("🔄 Panggil Ulang"):
-                            if pilihan_edit == "-- Buat Data Baru (Formulir Kosong) --":
+                saved_db_list = st.session_state["db_tersimpan"]
+
+                if len(saved_db_list) > 0:
+                    list_kontrak_db = sorted(list(set(bersih_angka(data.get(1, data.get('Nomor Kontrak', '-'))) for data in saved_db_list if bersih_angka(data.get(1, data.get('Nomor Kontrak', '-'))) != '')))
+                    opsi_kontrak_input = ["-- Buat Data Baru (Formulir Kosong) --"] + list_kontrak_db
+
+                    col_pk1, col_pk2, col_pk_btn = st.columns([2, 2.5, 1])
+                    with col_pk1:
+                        selected_kontrak_input = st.selectbox("Pilih Nomor Kontrak:", opsi_kontrak_input, key="input_filter_kontrak")
+
+                    if selected_kontrak_input == "-- Buat Data Baru (Formulir Kosong) --":
+                        with col_pk2:
+                            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                            st.info("Formulir siap untuk data baru.")
+                        with col_pk_btn:
+                            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                            if st.button("🔄 Panggil"):
                                 st.session_state["edit_index"] = None
-                            else:
-                                idx_part = pilihan_edit.split("(Data ")[1].replace(")", "")
-                                st.session_state["edit_index"] = int(idx_part) - 1
-                            st.rerun()
+                                st.rerun()
+                    else:
+                        matched_pi_records = [
+                            (i, d) for i, d in enumerate(saved_db_list) 
+                            if bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input
+                        ]
+                        
+                        matched_pi_records_sorted = sorted(
+                            matched_pi_records, 
+                            key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
+                            reverse=True
+                        )
+                        
+                        opsi_pi_filtered = []
+                        index_mapping = {}
+                        for orig_idx, data in matched_pi_records_sorted:
+                            pi_num = bersih_angka(data.get(0, data.get('Proforma Invoice No.', '-')))
+                            label_pi = f"PI: {pi_num if pi_num else '-'} (Data {orig_idx+1})"
+                            opsi_pi_filtered.append(label_pi)
+                            index_mapping[label_pi] = orig_idx
+
+                        with col_pk2:
+                            selected_pi_label = st.selectbox(f"Pilih Nomor PI untuk Kontrak [{selected_kontrak_input}]:", opsi_pi_filtered if opsi_pi_filtered else ["-- Tidak Ada PI --"], key="input_filter_pi")
+                        
+                        with col_pk_btn:
+                            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                            if st.button("🔄 Panggil"):
+                                if selected_pi_label != "-- Tidak Ada PI --" and selected_pi_label in index_mapping:
+                                    st.session_state["edit_index"] = index_mapping[selected_pi_label]
+                                else:
+                                    st.session_state["edit_index"] = None
+                                st.rerun()
                 else:
                     st.info("📌 Belum ada data database tersimpan di folder aman.")
 
@@ -703,7 +773,7 @@ if form_login_sistem():
                         return pd.to_datetime(val_cleaned).date()
                     except:
                         pass
-                        
+                    
                     return date.today()
 
                 with st.form("form_input_database"):
@@ -962,6 +1032,27 @@ if form_login_sistem():
                         desc_po = st.text_area("Lingkup Pekerjaan", def_desc_po, height=130)
 
                     st.markdown("---")
+                    
+                    # --- PILIHAN KATEGORI BASTB / BASTP ---
+                    st.markdown("#### 📑 Pilihan Kategori Berita Acara Serah Terima (BASTB / BASTP)")
+                    
+                    opsi_jenis_bastp = [
+                        "Pekerjaan Jasa",
+                        "Pekerjaan Barang / Material",
+                        "Pekerjaan Gabungan (Barang & Jasa)"
+                    ]
+                    
+                    def_jenis_bastb = loaded_tx_items[0].get("Jenis BASTP", opsi_jenis_bastp[1]) if loaded_tx_items else opsi_jenis_bastp[1]
+                    idx_bastp = opsi_jenis_bastp.index(def_jenis_bastb) if def_jenis_bastb in opsi_jenis_bastp else 1
+                    
+                    jenis_bastp_pilih = st.selectbox(
+                        "Pilih Jenis BASTP untuk Dokumen Turunan:",
+                        opsi_jenis_bastp,
+                        index=idx_bastp,
+                        key="input_jenis_bastp_select"
+                    )
+                    
+                    st.markdown("---")
                     st.markdown("#### ⚙️ Pengaturan Khusus Bank & Rekening Pembayaran (Dinamis)")
 
                     bank_records = muat_master_bank()
@@ -1064,7 +1155,14 @@ if form_login_sistem():
 
                         with c_k2:
                             if is_provisional:
-                                spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=str(default_item_data.get("Deskripsi Pekerjaan", "Provisional Sum (At Cost + 15% Fee)")), key=f"spek_manual_{i}")
+                                # Paksa otomatis ke "Add Cost + Fee 15%" jika kosong atau teks lama menggunakan format lama/fogging
+                                current_desc_val = str(default_item_data.get("Deskripsi Pekerjaan", ""))
+                                if not current_desc_val or "fogging" in current_desc_val.lower() or "provisional sum (" in current_desc_val.lower():
+                                    default_desc_final = "Add Cost + Fee 15%"
+                                else:
+                                    default_desc_final = current_desc_val
+
+                                spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_desc_final, key=f"spek_manual_{i}")
                             else:
                                 df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
                                 list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
@@ -1199,6 +1297,7 @@ if form_login_sistem():
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
                                     "Mata Uang": mata_uang,
+                                    "Jenis BASTP": jenis_bastp_pilih, 
                                     "Kategori": item["kategori"],
                                     "Deskripsi Pekerjaan": item["deskripsi"],
                                     "Qty": item["qty"],
@@ -1255,6 +1354,7 @@ if form_login_sistem():
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
                                     "Mata Uang": mata_uang,
+                                    "Jenis BASTP": jenis_bastp_pilih, 
                                     "Kategori": item["kategori"],
                                     "Deskripsi Pekerjaan": item["deskripsi"],
                                     "Qty": item["qty"],
@@ -1283,14 +1383,13 @@ if form_login_sistem():
                 if not transaksi_list:
                     st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses di Modul 2.")
                 else:
-                    # 1. NAMA DOKUMEN (POSISI PALING ATAS - WCC DISERTAKAN)
                     doc_type = st.selectbox("Pilih Jenis Dokumen Resmi:", [
                         "Rincian Pekerjaan",
                         "Proforma Invoice",
                         "Berita Acara Mulai Pekerjaan (BAMP)",
                         "Berita Acara Selesai Pekerjaan (BASP)",
                         "Work Completion Certificate (WCC)",
-                        "Berita Acara Mulai & Selesai Pekerjaan (BASP)",
+                        "Berita Acara Serah Terima Pekerjaan (BASTP)", 
                         "Formulir tkdn",
                         "Timesheet Peralatan",
                         "Berita Acara Opname pekerjaan",
@@ -1337,8 +1436,10 @@ if form_login_sistem():
                                 tampilkan_proforma_invoice(filtered_transaksi_target)
                             elif doc_type == "Berita Acara Mulai Pekerjaan (BAMP)":
                                 tampilkan_bamp(filtered_transaksi_target)
-                            elif doc_type == "Berita Acara Selesai Pekerjaan (BASP)" or doc_type == "Berita Acara Mulai & Selesai Pekerjaan (BASP)":
+                            elif doc_type == "Berita Acara Selesai Pekerjaan (BASP)":
                                 tampilkan_basp(filtered_transaksi_target)
+                            elif doc_type == "Berita Acara Serah Terima Pekerjaan (BASTP)":
+                                tampilkan_bastb(filtered_transaksi_target) 
                             elif doc_type == "Work Completion Certificate (WCC)":
                                 tampilkan_wcc(filtered_transaksi_target)
                             elif doc_type.lower() == "formulir tkdn":
@@ -1349,8 +1450,8 @@ if form_login_sistem():
                                 tampilkan_timesheet(filtered_transaksi_target)
                             elif doc_type == "📦 Master Paket Dokumen Lengkap (1-Click Batch)":
                                 tampilkan_paket_lengkap(filtered_transaksi_target)
-                        else:
-                            st.info("ℹ️ Silakan pilih Nomor Kontrak dan Nomor PI yang valid di atas untuk menampilkan pratinjau dokumen.")
+                            else:
+                                st.info("ℹ️ Silakan pilih Nomor Kontrak dan Nomor PI yang valid di atas untuk menampilkan pratinjau dokumen.")
 
             elif menu == "Lihat Akumulasi Riwayat Transaksi":
                 st.markdown("""
