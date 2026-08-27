@@ -57,7 +57,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
     st.markdown("""
         <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px;">
             <h3 style="margin:0; font-size: 20px;">💰 Modul 3: Invoice, Tax & Kuitansi Management (Accounting Department)</h3>
-            <p style="margin:4px 0 0 0; font-size: 12px; color: #34d399;">Panel khusus pengelolaan tagihan resmi, perhitungan pajak (PPN/PPh), dan pencetakan dokumen keuangan terpusat.</p>
+            <p style="margin:4px 0 0 0; font-size: 12px; color: #34d399;">Panel khusus pengelolaan tagihan resmi, perhitungan pajak (PPN/PPh), dan pencetakan dokumen keuangan terpusat (Termasuk Pemisahan Add Cost & Management Fee Professional Sum).</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -138,9 +138,16 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
         data_edit_aktif = {}
         active_billing_idx = st.session_state.get("edit_billing_idx", None)
+        is_mode_edit = False
         if active_billing_idx is not None and active_billing_idx < len(billing_records):
             data_edit_aktif = billing_records[active_billing_idx]
-            st.success(f"📋 **Mode Edit Aktif:** Memuat data Invoice `{data_edit_aktif.get('Nomor Invoice Resmi')}`")
+            is_mode_edit = True
+            st.success(f"📋 **Mode Edit Aktif (Data Tersimpan Modul 3):** Memuat data Invoice `{data_edit_aktif.get('Nomor Invoice Resmi')}`")
+
+        # --- PENANGANAN SUMBER DATA (MODUL 3 TERSIMPAN VS MODUL 2 BARU) ---
+        target_kontrak_val = data_edit_aktif.get("Kontrak No.", "") if is_mode_edit else ""
+        target_po_val = data_edit_aktif.get("Nomor PO", "") if is_mode_edit else ""
+        target_pi_val = data_edit_aktif.get("PI No.", "") if is_mode_edit else ""
 
         valid_transaksi_list = []
         for t in transaksi_list:
@@ -148,51 +155,93 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             if po_num and po_num != "-" and po_num.lower() != "nan":
                 valid_transaksi_list.append(t)
 
-        if not valid_transaksi_list:
-            st.warning("⚠️ Belum ada transaksi Proforma Invoice (PI) yang memiliki Nomor PO lengkap. Harap lengkapi terlebih dahulu di Modul 2.")
+        if not valid_transaksi_list and not is_mode_edit:
+            st.warning("⚠️ Belum ada transaksi Proforma Invoice (PI) di Modul 2. Harap lengkapi terlebih dahulu.")
             return
 
         list_kontrak_valid = sorted(list(dict.fromkeys([str(t.get("Nomor Kontrak")) for t in valid_transaksi_list if t.get("Nomor Kontrak")])))
-        
+        if is_mode_edit and target_kontrak_val and target_kontrak_val not in list_kontrak_valid:
+            list_kontrak_valid.append(target_kontrak_val)
+
+        idx_kontrak_def = 0
+        if str(target_kontrak_val) in list_kontrak_valid:
+            idx_kontrak_def = list_kontrak_valid.index(str(target_kontrak_val))
+
         st.markdown("---")
         st.markdown("##### 🔍 Saringan Hierarki Data Sumber (Kontrak $\rightarrow$ Nomor PO $\rightarrow$ PI)")
         
         col_h1, col_h2, col_h3 = st.columns(3)
         with col_h1:
-            selected_kontrak_m3 = st.selectbox("1️⃣ Pilih Nomor Kontrak", list_kontrak_valid, key="m3_sel_kontrak")
+            selected_kontrak_m3 = st.selectbox("1️⃣ Pilih Nomor Kontrak", list_kontrak_valid if list_kontrak_valid else [target_kontrak_val], index=idx_kontrak_def, key="m3_sel_kontrak")
 
         filtered_by_kontrak = [t for t in valid_transaksi_list if str(t.get("Nomor Kontrak")) == str(selected_kontrak_m3)]
         list_po_valid = sorted(list(dict.fromkeys([str(t.get("Nomor PO")) for t in filtered_by_kontrak if t.get("Nomor PO")])))
-        
+        if is_mode_edit and target_po_val and target_po_val not in list_po_valid:
+            list_po_valid.append(target_po_val)
+
+        idx_po_def = 0
+        if str(target_po_val) in list_po_valid:
+            idx_po_def = list_po_valid.index(str(target_po_val))
+
         with col_h2:
-            selected_po_m3 = st.selectbox("2️⃣ Pilih Nomor PO", list_po_valid if list_po_valid else [""], key="m3_sel_po")
+            selected_po_m3 = st.selectbox("2️⃣ Pilih Nomor PO", list_po_valid if list_po_valid else [target_po_val], index=idx_po_def if list_po_valid else 0, key="m3_sel_po")
 
         filtered_by_po = [t for t in filtered_by_kontrak if str(t.get("Nomor PO")) == str(selected_po_m3)]
         raw_list_pi_m3 = list(dict.fromkeys([str(t.get("PI No.")) for t in filtered_by_po if t.get("PI No.")]))
         list_pi_m3 = sorted(raw_list_pi_m3, key=sort_pi_key, reverse=True)
+        if is_mode_edit and target_pi_val and target_pi_val not in list_pi_m3:
+            list_pi_m3.append(target_pi_val)
+
+        idx_pi_def = 0
+        if str(target_pi_val) in list_pi_m3:
+            idx_pi_def = list_pi_m3.index(str(target_pi_val))
 
         with col_h3:
-            selected_pi_m3 = st.selectbox("3️⃣ Pilih Nomor Proforma Invoice (PI)", list_pi_m3 if list_pi_m3 else [""], key="m3_sel_pi")
+            selected_pi_m3 = st.selectbox("3️⃣ Pilih Nomor Proforma Invoice (PI)", list_pi_m3 if list_pi_m3 else [target_pi_val], index=idx_pi_def if list_pi_m3 else 0, key="m3_sel_pi")
 
         matched_transaksi = [t for t in filtered_by_po if str(t.get("PI No.")) == str(selected_pi_m3)]
-        total_nilai_pi = sum([float(t.get("Total Harga", 0.0)) for t in matched_transaksi])
-
-        customer_default = matched_transaksi[0].get("Ditujukan Kepada", "") if matched_transaksi else data_edit_aktif.get("Customer", "")
-        alamat_default = matched_transaksi[0].get("Alamat Pihak Pertama", "") if matched_transaksi else data_edit_aktif.get("Alamat Customer", "")
         
-        if matched_transaksi:
-            t_data = matched_transaksi[0]
-            b_nama = t_data.get("Nama Bank", "BANK RAKYAT INDONESIA (PERSERO) Tbk.")
-            b_pemilik = t_data.get("Atas Nama Rekening", "PT. BANGGAI SENTRAL SULAWESI")
-            b_cabang = t_data.get("Cabang Bank", "Cabang Luwuk")
-            b_rekening = t_data.get("Nomor Rekening", "0167 0167 8888 303")
-            bank_string_dinamis = f"<b>Bank Name :</b> {b_nama}<br><b>Branch :</b> {b_cabang}<br><b>Account No :</b> {b_rekening}<br><b>Account Name :</b> {b_pemilik}"
-        else:
-            bank_string_dinamis = data_edit_aktif.get("Informasi Bank", "<b>Bank Name :</b> BANK RAKYAT INDONESIA (PERSERO) Tbk.<br><b>Branch :</b> Cabang Luwuk<br><b>Account No :</b> 0167 0167 8888 303<br><b>Account Name :</b> PT. BANGGAI SENTRAL SULAWESI")
+        # Penentuan nilai acuan awal dari Modul 2 jika membuat baru
+        total_nilai_pi_modul2 = sum([float(str(t.get("Total Harga", 0)).replace("Rp", "").replace(".", "").replace(",", ".").strip() or 0) for t in matched_transaksi])
 
-        deskripsi_po_default = matched_transaksi[0].get("Deskripsi PO", "") if matched_transaksi else ""
-        if not deskripsi_po_default and matched_transaksi:
-            deskripsi_po_default = "Meeting package pelatihan HSE untuk kegiatan wellservices 2026"
+        if is_mode_edit:
+            customer_default = data_edit_aktif.get("Customer", "")
+            alamat_default = data_edit_aktif.get("Alamat Customer", "")
+            bank_string_dinamis = data_edit_aktif.get("Informasi Bank", "<b>Bank Name :</b> BANK RAKYAT INDONESIA (PERSERO) Tbk.<br><b>Branch :</b> Cabang Luwuk<br><b>Account No :</b> 0167 0167 8888 303<br><b>Account Name :</b> PT. BANGGAI SENTRAL SULAWESI")
+            deskripsi_default = data_edit_aktif.get("Keterangan Invoice", "")
+            nilai_default_tagihan = float(data_edit_aktif.get("Nilai Invoice", 0.0))
+            
+            is_prof_sum_default = bool(data_edit_aktif.get("Gunakan Professional Sum", False))
+            add_cost_default = float(data_edit_aktif.get("Add Cost", 0.0))
+            mgmt_fee_default = float(data_edit_aktif.get("Management Fee", 0.0))
+        else:
+            customer_default = matched_transaksi[0].get("Ditujukan Kepada", "") if matched_transaksi else ""
+            alamat_default = matched_transaksi[0].get("Alamat Pihak Pertama", "") if matched_transaksi else ""
+            if matched_transaksi:
+                t_data = matched_transaksi[0]
+                b_nama = t_data.get("Nama Bank", "BANK RAKYAT INDONESIA (PERSERO) Tbk.")
+                b_pemilik = t_data.get("Atas Nama Rekening", "PT. BANGGAI SENTRAL SULAWESI")
+                b_cabang = t_data.get("Cabang Bank", "Cabang Luwuk")
+                b_rekening = t_data.get("Nomor Rekening", "0167 0167 8888 303")
+                bank_string_dinamis = f"<b>Bank Name :</b> {b_nama}<br><b>Branch :</b> {b_cabang}<br><b>Account No :</b> {b_rekening}<br><b>Account Name :</b> {b_pemilik}"
+            else:
+                bank_string_dinamis = "<b>Bank Name :</b> BANK RAKYAT INDONESIA (PERSERO) Tbk.<br><b>Branch :</b> Cabang Luwuk<br><b>Account No :</b> 0167 0167 8888 303<br><b>Account Name :</b> PT. BANGGAI SENTRAL SULAWESI"
+            
+            deskripsi_default = matched_transaksi[0].get("Deskripsi PO", "") if matched_transaksi else "Meeting package pelatihan HSE untuk kegiatan wellservices 2026"
+            nilai_default_tagihan = total_nilai_pi_modul2
+            
+            # Deteksi otomatis apakah PI rujukan mengandung Professional Sum / Provisional Sum
+            is_prof_sum_default = False
+            if matched_transaksi and any("professional" in str(t.get("Kategori", "")).lower() or "provisional" in str(t.get("Kategori", "")).lower() or "professional" in str(t.get("Deskripsi Pekerjaan", "")).lower() for t in matched_transaksi):
+                is_prof_sum_default = True
+            
+            # Default proporsi: Add Cost = Total / 1.15, Management Fee = Total - Add Cost (atau 15% dari add cost)
+            if is_prof_sum_default:
+                add_cost_default = nilai_default_tagihan / 1.15
+                mgmt_fee_default = nilai_default_tagihan - add_cost_default
+            else:
+                add_cost_default = 0.0
+                mgmt_fee_default = 0.0
 
         with st.form("form_input_billing_resmi"):
             col_b1, col_b2 = st.columns(2)
@@ -201,7 +250,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 customer_name = st.text_input("Customer / Klien", value=customer_default)
                 alamat_customer = st.text_area("Alamat Klien", value=alamat_default, height=75)
                 
-                def_sa_wan = format_nomor_bersih(data_edit_aktif.get("Nomor SA / WAN", ""))
+                def_sa_wan = format_nomor_bersih(data_edit_aktif.get("Nomor SA / WAN", "")) if is_mode_edit else ""
                 nomor_sa_wan = st.text_input(
                     "Nomor SA / WAN (Work Acceptance Notice / Service Agreement)",
                     value=def_sa_wan,
@@ -210,52 +259,77 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
                 npwp_records = st.session_state["db_npwp"]
                 existing_npwp = next((n.get("NPWP") for n in npwp_records if n.get("Customer") == customer_name), "002.796.802.3-081.000")
-                nomor_npwp = st.text_input("Nomor NPWP Customer", value=str(data_edit_aktif.get("NPWP Customer", existing_npwp)))
+                saved_npwp = str(data_edit_aktif.get("NPWP Customer", existing_npwp)) if is_mode_edit else existing_npwp
+                nomor_npwp = st.text_input("Nomor NPWP Customer", value=saved_npwp)
 
             with col_b2:
-                nomor_invoice_resmi = st.text_input("Nomor Invoice Resmi (Diberikan Accounting)", value=str(data_edit_aktif.get("Nomor Invoice Resmi", "")))
+                nomor_invoice_resmi = st.text_input("Nomor Invoice Resmi (Diberikan Accounting)", value=str(data_edit_aktif.get("Nomor Invoice Resmi", "")) if is_mode_edit else "")
                 
                 tgl_inv_val = datetime.today().date()
-                try:
-                    tgl_inv_val = datetime.strptime(str(data_edit_aktif.get("Tanggal Invoice", "")), "%Y-%m-%d").date()
-                except:
-                    pass
+                if is_mode_edit and data_edit_aktif.get("Tanggal Invoice"):
+                    try:
+                        tgl_inv_val = datetime.strptime(str(data_edit_aktif.get("Tanggal Invoice")), "%Y-%m-%d").date()
+                    except:
+                        pass
                 tanggal_invoice = st.date_input("Tanggal Invoice", value=tgl_inv_val)
 
                 due_date_val = datetime.today().date() + timedelta(days=30)
-                try:
-                    due_date_val = datetime.strptime(str(data_edit_aktif.get("Jatuh Tempo", "")), "%Y-%m-%d").date()
-                except:
-                    pass
+                if is_mode_edit and data_edit_aktif.get("Jatuh Tempo"):
+                    try:
+                        due_date_val = datetime.strptime(str(data_edit_aktif.get("Jatuh Tempo")), "%Y-%m-%d").date()
+                    except:
+                        pass
                 tanggal_jatuh_tempo = st.date_input("Tanggal Jatuh Tempo (Due Date)", value=due_date_val)
 
-                st.markdown(f"**Total Nilai PI Terdeteksi:** Rp {total_nilai_pi:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                st.markdown(f"**Nilai Acuan Aktif (Modul 2):** Rp {nilai_default_tagihan:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
                 
-                try:
-                    val_custom_tagihan = float(data_edit_aktif.get("Nilai Invoice", total_nilai_pi))
-                except:
-                    val_custom_tagihan = total_nilai_pi
-
-                nilai_invoice_resmi = st.number_input("Total Nilai Tagihan Invoice (Rp)", min_value=0.0, value=val_custom_tagihan, step=1000.0, format="%.2f")
+                nilai_invoice_resmi = st.number_input("Total Nilai Tagihan Invoice (Rp)", min_value=0.0, value=float(nilai_default_tagihan), step=1000.0, format="%.2f")
 
             st.markdown("---")
-            def_keterangan_inv = data_edit_aktif.get("Keterangan Invoice", deskripsi_po_default)
+            st.markdown("#### 💼 Pengaturan Khusus Professional Sum (Add Cost & Management Fee)")
+            
+            gunakan_prof_sum = st.checkbox("Pisahkan rincian baris menjadi Professional Sum (Add Cost & Management Fee 15%)", value=is_prof_sum_default)
+            
+            input_add_cost = 0.0
+            input_mgmt_fee = 0.0
+            if gunakan_prof_sum:
+                # Jika user mengubah total invoice atau baru mencentang, otomatis hitung porsi 1/1.15 dan 15% jika nilai belum diset
+                def_ac = add_cost_default if add_cost_default > 0 else (nilai_invoice_resmi / 1.15)
+                def_mf = mgmt_fee_default if mgmt_fee_default > 0 else (nilai_invoice_resmi - def_ac)
+
+                col_ps1, col_ps2 = st.columns(2)
+                with col_ps1:
+                    input_add_cost = st.number_input("Nilai Add Cost (Murni, Rp)", min_value=0.0, value=float(def_ac), step=1000.0, format="%.2f")
+                with col_ps2:
+                    input_mgmt_fee = st.number_input("Nilai Management / Handling Fee 15% (Rp)", min_value=0.0, value=float(def_mf), step=1000.0, format="%.2f")
+                
+                subtotal_ps = input_add_cost + input_mgmt_fee
+                st.info(f"💡 **Simulasi Perhitungan:** Add Cost (Rp {input_add_cost:,.2f}) + Management Fee 15% (Rp {input_mgmt_fee:,.2f}) = **Rp {subtotal_ps:,.2f}**".replace(",", "X").replace(".", ",").replace("X", "."))
+                
+                if abs(subtotal_ps - nilai_invoice_resmi) > 1.0:
+                    st.warning(f"⚠️ Catatan: Jumlah Add Cost + Management Fee (Rp {subtotal_ps:,.2f}) berbeda dengan Total Tagihan Utama (Rp {nilai_invoice_resmi:,.2f}).")
+
+            st.markdown("---")
             keterangan_invoice_resmi = st.text_area(
-                "📝 Deskripsi Keterangan Invoice (Opsional: Otomatis dari Ruang Lingkup Pekerjaan, dapat disesuaikan jika diperlukan):",
-                value=def_keterangan_inv,
+                "📝 Deskripsi Keterangan Invoice Utama:",
+                value=deskripsi_default,
                 height=90
             )
 
             st.markdown("---")
             st.markdown("#### 🧮 Kalkulasi Otomatis Pajak (PPN 11% & PPh 23 / Pasal 22)")
 
+            def_kena_ppn = bool(data_edit_aktif.get("Kena PPN", True)) if is_mode_edit else True
+            def_kena_pph = bool(data_edit_aktif.get("Kena PPh", True)) if is_mode_edit else True
+            def_tarif_pph = float(data_edit_aktif.get("Tarif PPh", 2.0)) if is_mode_edit else 2.0
+
             col_p1, col_p2, col_p3 = st.columns(3)
             with col_p1:
-                kena_ppn = st.checkbox("Kenakan PPN (11%)", value=data_edit_aktif.get("Kena PPN", True))
+                kena_ppn = st.checkbox("Kenakan PPN (11%)", value=def_kena_ppn)
             with col_p2:
-                kena_pph = st.checkbox("Potong PPh (2% / 1.5% - PPh 23/22)", value=data_edit_aktif.get("Kena PPh", True))
+                kena_pph = st.checkbox("Potong PPh (2% / 1.5% - PPh 23/22)", value=def_kena_pph)
             with col_p3:
-                persen_pph = st.number_input("Tarif PPh (%)", min_value=0.0, max_value=10.0, value=float(data_edit_aktif.get("Tarif PPh", 2.0)), step=0.5)
+                persen_pph = st.number_input("Tarif PPh (%)", min_value=0.0, max_value=10.0, value=def_tarif_pph, step=0.5)
 
             ppn_nominal = nilai_invoice_resmi * 0.11 if kena_ppn else 0.0
             pph_nominal = nilai_invoice_resmi * (persen_pph / 100.0) if kena_pph else 0.0
@@ -299,6 +373,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         "Keterangan Invoice": keterangan_invoice_resmi,
                         "Informasi Bank": bank_string_dinamis,
                         "Nilai Invoice": nilai_invoice_resmi,
+                        "Gunakan Professional Sum": gunakan_prof_sum,
+                        "Add Cost": input_add_cost if gunakan_prof_sum else 0.0,
+                        "Management Fee": input_mgmt_fee if gunakan_prof_sum else 0.0,
                         "PPN Nominal": ppn_nominal,
                         "PPh Nominal": pph_nominal,
                         "Total Netto": total_pembayaran_netto,
@@ -312,7 +389,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     if submit_update and active_billing_idx is not None and active_billing_idx < len(current_billing):
                         current_billing[active_billing_idx] = item_billing_baru
                         simpan_data_billing(current_billing)
-                        st.success("✨ Data Invoice & Pajak berhasil di-update!")
+                        st.success("✨ Data Invoice & Pajak berhasil di-update dengan pengaturan Professional Sum!")
                     elif submit_save_as or submit_simpan_baru:
                         current_billing.append(item_billing_baru)
                         simpan_data_billing(current_billing)
@@ -333,7 +410,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 reverse=True
             )
 
-            # --- DROPDOWN TAMBAHAN PILIHAN JENIS DOKUMEN ---
             col_sel_jenis, col_ctrl1 = st.columns([1.5, 2.5])
             with col_sel_jenis:
                 jenis_dok_terpilih = st.selectbox(
@@ -346,31 +422,29 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
             st.markdown("---")
 
-            # --- JIKA MEMILIH KUITANSI PEMBAYARAN ---
             if jenis_dok_terpilih == "Kuitansi Pembayaran":
                 st.markdown("##### 🧾 Pratinjau Kuitansi Berdasarkan Invoice Terpilih")
                 selected_record_kuitansi = next((item for item in billing_records if str(item.get("Nomor Invoice Resmi")) == str(selected_inv_preview)), None)
                 
                 if selected_record_kuitansi:
                     pi_rujukan = selected_record_kuitansi.get("PI No.")
-                    # Saring transaksi berdasarkan PI yang merujuk pada invoice terpilih
                     matched_tx_kuitansi = [t for t in transaksi_list if str(t.get("PI No.")) == str(pi_rujukan)]
                     if matched_tx_kuitansi:
                         tampilkan_kuitansi(matched_tx_kuitansi)
                     else:
-                        # Jika tidak ketemu spesifik, tampilkan seluruh transaksi agar kuitansi tetap bisa dirender
                         tampilkan_kuitansi(transaksi_list)
                 else:
                     tampilkan_kuitansi(transaksi_list)
 
-            # --- JIKA MEMILIH INVOICE & TAX BILLING ---
             else:
-                with st.expander("🖼️ Pengaturan Logo Kop Surat (Upload Logo BSS & ISO)", expanded=False):
-                    col_ul1, col_ul2 = st.columns(2)
+                with st.expander("🖼️ Pengaturan Logo Kop Surat & Tanda Tangan Direktur", expanded=False):
+                    col_ul1, col_ul2, col_ul3 = st.columns(3)
                     with col_ul1:
                         uploaded_logo_bss = st.file_uploader("Upload Logo BSS (Kiri)", type=["png", "jpg", "jpeg"], key="logo_bss_upload")
                     with col_ul2:
-                        uploaded_logo_iso = st.file_uploader("Upload Logo ISO (Kanan - Proporsional Seimbang)", type=["png", "jpg", "jpeg"], key="logo_iso_upload")
+                        uploaded_logo_iso = st.file_uploader("Upload Logo ISO (Kanan)", type=["png", "jpg", "jpeg"], key="logo_iso_upload")
+                    with col_ul3:
+                        uploaded_ttd_dir = st.file_uploader("Upload TTD Direktur (Ferry Tatimu)", type=["png", "jpg", "jpeg"], key="ttd_direktur_upload")
 
                 selected_record = next((item for item in billing_records if str(item.get("Nomor Invoice Resmi")) == str(selected_inv_preview)), None)
 
@@ -381,6 +455,10 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     val_netto = float(selected_record.get('Total Netto', 0))
                     dpp_nilai_lain = val_inv * (11 / 12) if val_ppn > 0 else val_inv
 
+                    is_prof_sum_akt = bool(selected_record.get('Gunakan Professional Sum', False))
+                    val_add_cost = float(selected_record.get('Add Cost', 0))
+                    val_mgmt_fee = float(selected_record.get('Management Fee', 0))
+
                     nomor_sa_wan_val = format_nomor_bersih(selected_record.get('Nomor SA / WAN', ''))
                     nomor_po_val = format_nomor_bersih(selected_record.get('Nomor PO', selected_record.get('Nomor PO Rujukan', '-')))
                     
@@ -389,11 +467,43 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
                     logo_bss_b64 = get_image_base64(uploaded_logo_bss) if uploaded_logo_bss else None
                     logo_iso_b64 = get_image_base64(uploaded_logo_iso) if uploaded_logo_iso else None
+                    ttd_dir_b64 = get_image_base64(uploaded_ttd_dir) if uploaded_ttd_dir else None
 
                     html_logo_kiri = f'<img src="{logo_bss_b64}" style="max-height: 70px; max-width: 130px; object-fit: contain;">' if logo_bss_b64 else ''
                     html_logo_kanan = f'<img src="{logo_iso_b64}" style="max-height: 75px; max-width: 210px; object-fit: contain;">' if logo_iso_b64 else ''
+                    
+                    html_ttd_direktur = f'<img src="{ttd_dir_b64}" style="max-height: 75px; max-width: 160px; object-fit: contain; display: block; margin: 0 auto;">' if ttd_dir_b64 else '<div style="height: 65px;"></div>'
 
                     tanggal_cetak_str = datetime.today().strftime("%m/%d/%Y, %I:%M %p")
+
+                    # DINAMIKA TABEL ITEM INVOICE (PEMISAHAN PROFESSIONAL SUM JIKA AKTIF)
+                    if is_prof_sum_akt:
+                        tabel_item_html = f"""
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">1</td>
+                            <td style="border: 1px solid #000; padding: 8px; vertical-align: top;"><b>Add Cost:</b><br>{selected_record.get('Keterangan Invoice')}</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">-</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">-</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {val_add_cost:,.2f}</td>
+                        </tr>
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">2</td>
+                            <td style="border: 1px solid #000; padding: 8px; vertical-align: top;"><b>Management Fee / Handling Fee (15%):</b><br>Layanan manajemen & pengelolaan operasional terkait</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">-</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">-</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {val_mgmt_fee:,.2f}</td>
+                        </tr>
+                        """
+                    else:
+                        tabel_item_html = f"""
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: center; vertical-align: top;">1</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; vertical-align: top;"><b>{selected_record.get('Keterangan Invoice')}</b></td>
+                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: center; vertical-align: top;">-</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: right; vertical-align: top;">-</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: right; vertical-align: top;">Rp {val_inv:,.2f}</td>
+                        </tr>
+                        """
 
                     html_invoice = f"""
                     <!DOCTYPE html>
@@ -512,24 +622,21 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                     </tr>
                                 </table>
 
+                                <!-- TABEL UTAMA ISO -->
                                 <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px;">
                                     <thead>
                                         <tr style="background-color: #f1f5f9; border: 1px solid #000;">
                                             <th style="border: 1px solid #000; padding: 6px; width: 45px; text-align: center;">No.</th>
                                             <th style="border: 1px solid #000; padding: 6px; text-align: left;">DESCRIPTION</th>
                                             <th style="border: 1px solid #000; padding: 6px; width: 70px; text-align: center;">UNIT</th>
-                                            <th style="border: 1px solid #000; padding: 6px; width: 140px; text-align: right;">AMOUNT (Rp.)</th>
+                                            <th style="border: 1px solid #000; padding: 6px; width: 110px; text-align: right;">UNIT PRICE (Rp.)</th>
+                                            <th style="border: 1px solid #000; padding: 6px; width: 130px; text-align: right;">AMOUNT (Rp.)</th>
                                         </tr>
                                     </thead>
                                     <tbody>
+                                        {tabel_item_html}
                                         <tr>
-                                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: center; vertical-align: top;">1</td>
-                                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; vertical-align: top;"><b>{selected_record.get('Keterangan Invoice')}</b></td>
-                                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: center; vertical-align: top;">-</td>
-                                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: right; vertical-align: top;">Rp {val_inv:,.2f}</td>
-                                        </tr>
-                                        <tr>
-                                            <td colspan="2" style="border: 1px solid #000; padding: 12px; vertical-align: top;">
+                                            <td colspan="3" style="border: 1px solid #000; padding: 12px; vertical-align: top;">
                                                 <div style="font-size: 11px; font-weight: bold; margin-bottom: 3px; text-transform: uppercase;">PAYMENT INSTRUCTION</div>
                                                 <div style="font-size: 10.5px; margin-bottom: 5px; color: #334155;">Please remit to our bank:</div>
                                                 <div style="border: 1px solid #000; padding: 8px; background: #fafafa; font-size: 11px; line-height: 1.3; display: inline-block; width: 94%;">{bank_info_val}</div>
@@ -550,12 +657,16 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                     </tbody>
                                 </table>
 
-                                <table style="width: 100%; margin-top: 35px; border-collapse: collapse;">
+                                <!-- TANDA TANGAN -->
+                                <table style="width: 100%; margin-top: 50px; border-collapse: collapse;">
                                     <tr>
-                                        <td style="width: 55%;"></td>
-                                        <td style="width: 45%; text-align: left; padding-left: 20px;">
-                                            <p style="margin: 0 0 135px 0;">Best Regards,</p>
-                                            <p style="margin: 0; font-weight: bold; text-decoration: underline; font-size: 13px;">Ferry Tatimu</p>
+                                        <td style="width: 63%;"></td>
+                                        <td style="width: 37%; text-align: left; padding-left: 35px;">
+                                            <p style="margin: 0 0 5px 0;">Best Regards,</p>
+                                            <div style="text-align: center; width: 160px; margin: 8px 0;">
+                                                {html_ttd_direktur}
+                                            </div>
+                                            <p style="margin: 5px 0 0 0; font-weight: bold; text-decoration: underline; font-size: 13px;">Ferry Tatimu</p>
                                             <p style="margin: 2px 0 0 0; font-size: 12px;">Direktur</p>
                                         </td>
                                     </tr>
@@ -582,7 +693,21 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     st.markdown('</div>', unsafe_allow_html=True)
 
                     st.markdown("<br>", unsafe_allow_html=True)
-                    col_btn1, col_btn2 = st.columns(2)
+                    
+                    col_save_pratinjau, col_btn1, col_btn2 = st.columns([1.5, 1, 1])
+                    with col_save_pratinjau:
+                        if st.button("💾 Simpan Perubahan Pratinjau (Save)", use_container_width=True, type="primary"):
+                            waktu_aksi = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
+                            selected_record["Update Terakhir"] = waktu_aksi
+                            
+                            current_billing = muat_data_billing()
+                            for i, item in enumerate(current_billing):
+                                if str(item.get("Nomor Invoice Resmi")) == str(selected_record.get("Nomor Invoice Resmi")):
+                                    current_billing[i] = selected_record
+                                    break
+                            simpan_data_billing(current_billing)
+                            st.success(f"✅ Berhasil menyimpan perubahan terakhir untuk Invoice [{selected_record.get('Nomor Invoice Resmi')}]!")
+
                     with col_btn1:
                         b64_html = base64.b64encode(html_invoice.encode()).decode()
                         print_script = f"""
@@ -597,14 +722,14 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                 }}
                             </script>
                             <button onclick="printDoc()" style="width: 100%; background-color: #10b981; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-                                🖨️ Cetak / Print Dokumen (Klik Disini)
+                                🖨️ Cetak / Print
                             </button>
                         """
                         st.components.v1.html(print_script, height=50)
 
                     with col_btn2:
                         b64_pdf = base64.b64encode(html_invoice.encode()).decode()
-                        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="Invoice_{str(selected_record.get("Nomor Invoice Resmi", "")).replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download Dokumen</button></a>'
+                        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="Invoice_{str(selected_record.get("Nomor Invoice Resmi", "")).replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download</button></a>'
                         st.markdown(download_link, unsafe_allow_html=True)
 
     # --- MENU 3: LIHAT DAFTAR INVOICE & PAJAK TERSIMPAN ---
@@ -625,7 +750,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 target_del_idx = st.selectbox("Pilih Invoice yang Ingin Dihapus:", range(len(pilihan_hapus_inv)), format_func=lambda x: pilihan_hapus_inv[x])
             with col_dh2:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("❌ Hapus Invoice Teripilih", use_container_width=True, type="primary"):
+                if st.button("❌ Hapus Invoice Terpilih", use_container_width=True, type="primary"):
                     try:
                         billing_records.pop(target_del_idx)
                         simpan_data_billing(billing_records)

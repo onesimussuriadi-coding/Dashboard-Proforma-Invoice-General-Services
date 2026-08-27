@@ -65,6 +65,18 @@ try:
 except ImportError as e:
     st.error(f"Gagal memuat modul paket_dokumen_lengkap: {e}")
 
+# Import Modul Keuangan: Faktur Pajak
+try:
+    from modul_keuangan.faktur_pajak import tampilkan_faktur_pajak
+except ImportError as e:
+    st.error(f"Gagal memuat modul faktur_pajak: {e}")
+
+# Import Modul Keuangan: Pemantauan Pembayaran
+try:
+    from modul_keuangan.pemantauan_pembayaran import tampilkan_pemantauan_pembayaran
+except ImportError as e:
+    st.error(f"Gagal memuat modul pemantauan_pembayaran: {e}")
+
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
 
@@ -385,6 +397,8 @@ if form_login_sistem():
     elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
         menu = st.sidebar.radio("Pilih Menu:", [
             "Input Data Invoice Resmi",
+            "Input & Cetak Faktur Pajak",
+            "Pemantauan Proses Pembayaran",
             "Pratinjau, Cetak & Download PDF Invoice",
             "Lihat Daftar Invoice & Pajak Tersimpan"
         ])
@@ -420,7 +434,12 @@ if form_login_sistem():
         # =========================================================================
         if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
             transaksi_list = muat_data_transaksi()
-            tampilkan_billing_tax(transaksi_list if transaksi_list else [], menu)
+            if menu == "Input & Cetak Faktur Pajak":
+                tampilkan_faktur_pajak(transaksi_list if transaksi_list else [], menu)
+            elif menu == "Pemantauan Proses Pembayaran":
+                tampilkan_pemantauan_pembayaran()
+            else:
+                tampilkan_billing_tax(transaksi_list if transaksi_list else [], menu)
 
         # =========================================================================
         # LOGIKA MODUL 0: MASTER REFERENSI HARGA & PEKERJAAN
@@ -1136,7 +1155,14 @@ if form_login_sistem():
 
                         with c_k2:
                             if is_provisional:
-                                spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=str(default_item_data.get("Deskripsi Pekerjaan", "Provisional Sum (At Cost + 15% Fee)")), key=f"spek_manual_{i}")
+                                # Paksa otomatis ke "Add Cost + Fee 15%" jika kosong atau teks lama menggunakan format lama/fogging
+                                current_desc_val = str(default_item_data.get("Deskripsi Pekerjaan", ""))
+                                if not current_desc_val or "fogging" in current_desc_val.lower() or "provisional sum (" in current_desc_val.lower():
+                                    default_desc_final = "Add Cost + Fee 15%"
+                                else:
+                                    default_desc_final = current_desc_val
+
+                                spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_desc_final, key=f"spek_manual_{i}")
                             else:
                                 df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
                                 list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
