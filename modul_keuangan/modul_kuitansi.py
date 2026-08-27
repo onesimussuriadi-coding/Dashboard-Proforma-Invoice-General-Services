@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def terbilang(n):
     try:
@@ -32,25 +32,22 @@ def terbilang(n):
     else:
         return " Angka terlalu besar"
 
-def tampilkan_kuitansi(transaksi_list, menu_pilihan=None):
+def tampilkan_kuitansi(transaksi_list):
     st.markdown("#### 🧾 Pratinjau Resmi Kuitansi Pembayaran Korporat")
     
     if not transaksi_list:
-        st.warning("⚠️ Belum ada data transaksi rincian untuk dirender ke dalam kuitansi.")
+        st.warning("⚠️ Belum ada data transaksi untuk dirender ke dalam kuitansi.")
         return
 
     t_data = transaksi_list[0] if isinstance(transaksi_list, list) and len(transaksi_list) > 0 else {}
     
-    # Ambil referensi data dari Modul 3 / Invoice secara akurat
-    customer_name = t_data.get("Ditujukan Kepada", "JOB Pertamina - Medco E&P Tomori Sulawesi")
-    pi_no = t_data.get("Invoice No.", t_data.get("PI No.", ""))
-    if not pi_no:
-        pi_no = t_data.get("Proforma Invoice No.", "010/BSS-JOB/IX/2026")
-        
+    # Ambil referensi data secara akurat dari item terpilih
+    customer_name = t_data.get("Ditujukan Kepada", t_data.get("Customer Name", "JOB Pertamina - Medco E&P Tomori Sulawesi"))
+    pi_no = t_data.get("Invoice No.", t_data.get("PI No.", "010/BSS-JOB/IX/2026"))
     nomor_po = t_data.get("Nomor PO", t_data.get("PO Nomor", "-"))
     nomor_wan = t_data.get("WAN / SA Nomor", t_data.get("WAN Nomor", t_data.get("WAN", "-")))
     
-    # Ambil tanggal invoice / Tanggal PI secara dinamis
+    # Tanggal Dokumen
     tanggal_pi_raw = t_data.get("Invoice Date", t_data.get("Tanggal PI", ""))
     if not tanggal_pi_raw:
         tanggal_pi_raw = datetime.today().strftime('%d %B %Y')
@@ -60,17 +57,15 @@ def tampilkan_kuitansi(transaksi_list, menu_pilihan=None):
         except:
             pass
 
-    # Hitung total tagihan murni (Total Amount Due / TOTAL) dari data Modul 3
-    total_tagihan = sum([float(item.get("Total Harga", 0.0)) for item in transaksi_list]) if isinstance(transaksi_list, list) else 0.0
+    # Hitung total tagihan murni
+    total_tagihan = sum([float(item.get("Total Harga", item.get("TOTAL", 0.0))) for item in transaksi_list]) if isinstance(transaksi_list, list) else 0.0
     if total_tagihan <= 0:
-        total_tagihan = float(t_data.get("Total Amount", t_data.get("TOTAL", 51818130.0) if isinstance(t_data.get("TOTAL"), (int, float)) else 51818130.0))
+        total_tagihan = float(t_data.get("Total Amount", t_data.get("TOTAL", 0.0) if isinstance(t_data.get("TOTAL"), (int, float)) else 0.0))
 
     terbilang_str = terbilang(total_tagihan).strip() + " Rupiah" if total_tagihan > 0 else "Nol Rupiah"
-    
-    # Format string rupiah rapi tanpa bug sintaks replace
     formatted_nominal = f"Rp {total_tagihan:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-    # Susun referensi teks Keterangan Pembayaran secara lengkap (Invoice + PO + WAN)
+    # Susun referensi pembayaran (Invoice + PO + WAN)
     teks_referensi = f"Pelunasan biaya pekerjaan berdasarkan Invoice No. <b>{pi_no}</b>"
     if nomor_po and nomor_po != "-":
         teks_referensi += f", Nomor PO <b>{nomor_po}</b>"
@@ -98,9 +93,7 @@ def tampilkan_kuitansi(transaksi_list, menu_pilihan=None):
                     background: #fff !important;
                     -webkit-print-color-adjust: exact;
                 }}
-                @page {{
-                    margin: 0;
-                }}
+                @page {{ margin: 0; }}
             }}
             body {{ 
                 font-family: Arial, sans-serif; 
@@ -244,3 +237,62 @@ def tampilkan_kuitansi(transaksi_list, menu_pilihan=None):
     with col_k2:
         download_link = f'<a href="data:text/html;base64,{b64_html}" download="Kuitansi_{pi_no.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download Kuitansi</button></a>'
         st.markdown(download_link, unsafe_allow_html=True)
+
+
+def tampilkan_billing_tax(transaksi_list, menu_pilihan):
+    st.markdown("""
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h3 style="margin:0; font-size: 18px; color: #ffffff;">💰 Modul 3: Invoice & Tax Management</h3>
+            <p style="margin:4px 0 0 0; font-size: 12px; color: #34d399;">Manajemen Penagihan Korporat, Pajak, dan Kuitansi Resmi Terintegrasi</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    if menu_pilihan == "Pratinjau, Cetak & Download PDF Invoice":
+        st.markdown("#### 🖨️ Pratinjau, Cetak & Download Dokumen Keuangan Resmi")
+        
+        # Simulasi/muat database billing atau invoice tersimpan
+        # (Menggunakan transaksi_list sebagai sumber data utama)
+        if not transaksi_list:
+            st.warning("⚠️ Belum ada data transaksi tersimpan di Modul 3.")
+            return
+
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            jenis_dokumen = st.selectbox("Pilih Jenis Dokumen:", [
+                "Invoice Resmi",
+                "Kuitansi Pembayaran"
+            ])
+        with col_m2:
+            # Ambil daftar unik nomor invoice yang tersimpan
+            list_invoice_tersimpan = sorted(list(set([
+                str(inv.get("Invoice No.", inv.get("PI No.", ""))) 
+                for inv in transaksi_list if inv.get("Invoice No.") or inv.get("PI No.")
+            ])))
+            
+            if not list_invoice_tersimpan:
+                list_invoice_tersimpan = ["-"]
+                
+            pilihan_invoice_aktif = st.selectbox("🔄 Panggil Ulang Nomor Invoice Disimpan:", list_invoice_tersimpan)
+
+        st.markdown("---")
+
+        # FILTER / SARING data secara akurat berdasarkan nomor invoice yang dipilih di dropdown atas
+        transaksi_terpilih_filtered = [
+            inv for inv in transaksi_list 
+            if str(inv.get("Invoice No.", inv.get("PI No.", ""))).strip() == str(pilihan_invoice_aktif).strip()
+        ]
+
+        if not transaksi_terpilih_filtered:
+            transaksi_terpilih_filtered = transaksi_list # Fallback jika filter kosong
+
+        if jenis_dokumen == "Kuitansi Pembayaran":
+            tampilkan_kuitansi(transaksi_terpilih_filtered)
+        else:
+            st.info("ℹ️ Silakan pilih dokumen Invoice Resmi atau Kuitansi Pembayaran di atas.")
+
+    elif menu_pilihan == "Input Data Invoice Resmi":
+        st.markdown("#### ✍️ Form Input Data Invoice Resmi")
+        st.info("Formulir input data invoice dan pajak korporat aktif.")
+        # Tempat logika input data invoice Anda
+    else:
+        st.info(f"ℹ️ Menu `{menu_pilihan}` sedang aktif.")
