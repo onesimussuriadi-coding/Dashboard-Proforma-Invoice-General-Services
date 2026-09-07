@@ -114,7 +114,7 @@ if form_login_sistem():
     render_panel_manajemen_akun()
     user_role = st.session_state.get('current_role', 'Staff')
 
-    # --- CSS STYLING PROFESIONAL ---
+    # --- CSS STYLING PROFESIONAL & PENGATURAN LEBAR DROPDOWN ---
     st.markdown("""
         <style>
         .stApp { background-color: #f8fafc; color: #0f172a; }
@@ -133,6 +133,24 @@ if form_login_sistem():
         input, textarea {
             background-color: #ffffff !important;
             color: #000000 !important;
+        }
+        
+        /* Memperlebar kotak popover / dropdown menu Streamlit */
+        div[data-baseweb="popover"] {
+            min-width: 650px !important;
+            max-width: 900px !important;
+        }
+        div[data-baseweb="menu"] {
+            width: 100% !important;
+        }
+        div[data-baseweb="menu"] div[role="option"] {
+            white-space: normal !important;
+            word-break: break-word !important;
+            height: auto !important;
+            min-height: 45px !important;
+            padding-top: 8px !important;
+            padding-bottom: 8px !important;
+            line-height: 1.4 !important;
         }
         
         .company-header-centered {
@@ -1197,7 +1215,6 @@ if form_login_sistem():
                         raw_po_num = loaded_tx_items[0].get("Nomor PO", matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))) if loaded_tx_items else matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))
                         def_po_num = bersih_angka(raw_po_num)
                         
-                        # Kolom Input Nomor WAN / SA (Work Authorization Notice / Service Agreement)
                         raw_wan_num = loaded_tx_items[0].get("Nomor WAN / SA", "") if loaded_tx_items else ""
                         def_wan_num = bersih_angka(raw_wan_num)
 
@@ -1336,12 +1353,37 @@ if form_login_sistem():
                                 if df_f_kat.empty:
                                     df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
                                     
-                                list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
+                                raw_list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
                                 
-                                def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", list_spek[0] if list_spek else "-"))
-                                idx_spek = list_spek.index(def_spek_item) if def_spek_item in list_spek else 0
+                                # --- MODIFIKASI CERDAS: MENAMPILKAN BAGIAN UNIK / NAMA ALAT DI DEPAN ---
+                                # Jika ada banyak item dengan awalan sama, kita buat opsi display yang menonjolkan bagian belakang/unik
+                                spek_display_map = {}
+                                spek_options_formatted = []
                                 
-                                spek_pilih = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", list_spek, index=idx_spek, key=f"spek_{i}")
+                                for orig_text in raw_list_spek:
+                                    # Cari bagian unik (misal setelah kata 'BBM & ' atau potong dari belakang)
+                                    if "BBM & " in orig_text:
+                                        parts = orig_text.split("BBM & ")
+                                        unique_part = parts[-1].strip() if len(parts) > 1 else orig_text
+                                        display_text = f"⭐ [{unique_part}] — ({orig_text})"
+                                    else:
+                                        display_text = orig_text
+                                    
+                                    spek_display_map[display_text] = orig_text
+                                    spek_options_formatted.append(display_text)
+
+                                def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", ""))
+                                # Cari padanan format display
+                                default_display_val = spek_options_formatted[0]
+                                for disp, orig in spek_display_map.items():
+                                    if orig == def_spek_item:
+                                        default_display_val = disp
+                                        break
+
+                                idx_spek = spek_options_formatted.index(default_display_val) if default_display_val in spek_options_formatted else 0
+                                
+                                selected_display_spek = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", spek_options_formatted, index=idx_spek, key=f"spek_{i}")
+                                spek_pilih = spek_display_map.get(selected_display_spek, selected_display_spek)
 
                         hs_otomatis = 0.0
                         unit_otomatis = "Month"
@@ -1499,7 +1541,7 @@ if form_login_sistem():
                                     "Alamat Pihak Pertama": alamat_pihak_pertama,
                                     "Jangka Waktu Kontrak": jangka_waktu,
                                     "Nomor PO": nomor_po,
-                                    "Nomor WAN / SA": nomor_wan_sa,  # Disimpan ke database
+                                    "Nomor WAN / SA": nomor_wan_sa, # Disimpan ke database
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
                                     "Mata Uang": mata_uang,
@@ -1559,7 +1601,7 @@ if form_login_sistem():
                                     "Alamat Pihak Pertama": alamat_pihak_pertama,
                                     "Jangka Waktu Kontrak": jangka_waktu,
                                     "Nomor PO": nomor_po,
-                                    "Nomor WAN / SA": nomor_wan_sa,  # Disimpan ke database
+                                    "Nomor WAN / SA": nomor_wan_sa, # Disimpan ke database
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
                                     "Mata Uang": mata_uang,

@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import os
+import altair as alt
 from datetime import datetime
 
 def tampilkan_rekap_transaksi(transaksi_list):
@@ -15,6 +17,29 @@ def tampilkan_rekap_transaksi(transaksi_list):
     if not transaksi_list:
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang tersedia untuk direkap.")
         return
+
+    # --- MANAJEMEN DATABASE PLATFON / TOTAL NILAI KONTRAK ---
+    DIR_DATABASE = "database_penyimpanan_aman"
+    EXCEL_PLAFON = os.path.join(DIR_DATABASE, "database_plafon_kontrak.xlsx")
+
+    def muat_database_plafon():
+        if os.path.exists(EXCEL_PLAFON):
+            try:
+                df = pd.read_excel(EXCEL_PLAFON)
+                if df is not None and not df.empty:
+                    return dict(zip(df["Nomor Kontrak"].astype(str), df["Total Nilai Kontrak"].astype(float)))
+            except:
+                pass
+        return {}
+
+    def simpan_database_plafon(data_dict):
+        df_baru = pd.DataFrame(list(data_dict.items()), columns=["Nomor Kontrak", "Total Nilai Kontrak"])
+        os.makedirs(DIR_DATABASE, exist_ok=True)
+        df_baru.to_excel(EXCEL_PLAFON, index=False)
+        st.session_state["db_plafon"] = data_dict
+
+    if "db_plafon" not in st.session_state:
+        st.session_state["db_plafon"] = muat_database_plafon()
 
     # Konversi data transaksi ke DataFrame Pandas
     data_rows = []
@@ -121,6 +146,98 @@ def tampilkan_rekap_transaksi(transaksi_list):
         if idx_mulai <= idx_selesai:
             df_filtered = df_filtered[(df_filtered["Bulan_Idx"] >= idx_mulai) & (df_filtered["Bulan_Idx"] <= idx_selesai)]
 
+    # --- PANEL PENGATURAN PLAFON KONTRAK ---
+    st.markdown("---")
+    st.markdown("#### ⚙️ Pengaturan Total Nilai Plafon (Kontrak)")
+
+    db_plafon = st.session_state["db_plafon"]
+
+    with st.expander("📝 Input / Update Total Nilai Plafon Masing-Masing Kontrak", expanded=False):
+        with st.form("form_atur_plafon"):
+            st.markdown("Masukkan atau perbarui Total Nilai Plafon untuk setiap Nomor Kontrak:")
+            form_plafon_inputs = {}
+            for k_num in [c for c in unique_contracts if c != "Semua Kontrak"]:
+                val_existing = float(db_plafon.get(k_num, 0.0))
+                form_plafon_inputs[k_num] = st.number_input(f"Total Nilai Kontrak [{k_num}] (Rp)", min_value=0.0, value=val_existing, step=1000000.0, format="%.2f")
+            
+            submit_plafon = st.form_submit_button("💾 Simpan Nilai Plafon Kontrak")
+            if submit_plafon:
+                for k_num, v_val in form_plafon_inputs.items():
+                    db_plafon[k_num] = v_val
+                simpan_database_plafon(db_plafon)
+                st.success("✅ Nilai Plafon Kontrak berhasil disimpan secara permanen!")
+                st.rerun()
+
+    # --- TABEL RINGKASAN & STATISTIK PENYERAPAN PER KONTRAK ---
+    st.markdown("#### 📋 Tabel Ringkasan Statistik & Penyerapan Kontrak")
+    
+    kontrak_tabel_list = [selected_contract_filter] if selected_contract_filter != "Semua Kontrak" else [c for c in unique_contracts if c != "Semua Kontrak"]
+    
+    summary_rows = []
+    for k_num in kontrak_tabel_list:
+        df_k = df_rekap[df_rekap["Nomor Kontrak"] == k_num]
+        
+        plafon_val = float(db_plafon.get(k_num, 0.0))
+        penyerapan_val = float(df_k["Total Harga (IDR)"].sum())
+        
+        df_po_k = df_k[df_k["Nomor PO"].notnull() & (df_k["Nomor PO"] != "-") & (df_k["Nomor PO"] != "")]
+        po_val = float(df_po_k["Total Harga (IDR)"].sum())
+        
+        df_wan_k = df_k[df_k["Nomor WAN / SA"].notnull() & (df_k["Nomor WAN / SA"] != "-") & (df_k["Nomor WAN / SA"] != "")]
+        wan_val = float(df_wan_k["Total Harga (IDR)"].sum())
+        
+        sisa_val = plafon_val - penyerapan_val
+        
+        summary_rows.append({
+            "Nomor Kontrak": k_num,
+            "Total Nilai Kontrak (Rp)": plafon_val,
+            "Total Penyerapan (Rp)": penyerapan_val,
+            "Terbit PO (Rp)": po_val,
+            "Terbit WAN / SA (Rp)": wan_val,
+            "Sisa Penyerapan (Rp)": sisa_val
+        })
+
+    df_summary = pd.DataFrame(summary_rows)
+    
+    # Format angka menjadi rupiah koma
+    df_summary_display = df_summary.copy()
+    for col in ["Total Nilai Kontrak (Rp)", "Total Penyerapan (Rp)", "Terbit PO (Rp)", "Terbit WAN / SA (Rp)", "Sisa Penyerapan (Rp)"]:
+        df_summary_display[col] = df_summary_display[col].map("Rp {:,.2f}".format)
+
+    st.dataframe(df_summary_display, use_container_width=True, hide_index=True)
+
+    # --- GRAFIK PERBANDINGAN KONTRAK VS PENYERAPAN (SKALA TUNGGAL, BERHIMPIT RAPAT, WARNA BIRU & KUNING MENYALA) ---
+    if not df_summary.empty:
+        st.markdown("#### 📊 Grafik Perbandingan Kontrak vs Penyerapan")
+        
+        df_melted = df_summary.melt(
+            id_vars=["Nomor Kontrak"],
+            value_vars=["Total Nilai Kontrak (Rp)", "Total Penyerapan (Rp)"],
+            var_name="Kategori Nilai",
+            value_name="Jumlah (Rp)"
+        )
+
+        chart_grouped = alt.Chart(df_melted).mark_bar().encode(
+            x=alt.X('Nomor Kontrak:N', title='Nomor Kontrak', sort=None),
+            xOffset=alt.XOffset('Kategori Nilai:N', sort=None),
+            y=alt.Y('Jumlah (Rp):Q', title='Nilai dalam Rupiah (Rp)'),
+            color=alt.Color(
+                'Kategori Nilai:N',
+                scale=alt.Scale(
+                    domain=["Total Nilai Kontrak (Rp)", "Total Penyerapan (Rp)"],
+                    range=["#1e3a8a", "#facc15"]  # Biru Tua (#1e3a8a) untuk Kontrak & Kuning Menyala (#facc15) untuk Penyerapan
+                ),
+                legend=alt.Legend(title="Keterangan")
+            ),
+            tooltip=['Nomor Kontrak', 'Kategori Nilai', alt.Tooltip('Jumlah (Rp):Q', format=',.2f')]
+        ).properties(
+            height=420
+        )
+
+        st.altair_chart(chart_grouped, use_container_width=True)
+
+    st.markdown("---")
+
     st.markdown(f"**Menampilkan {len(df_filtered)} baris data transaksi terfilter dari total {len(df_rekap)} data keseluruhan.**")
     st.markdown("---")
 
@@ -140,11 +257,14 @@ def tampilkan_rekap_transaksi(transaksi_list):
         st.dataframe(df_agregat_display, use_container_width=True, hide_index=True)
 
         st.markdown("#### 📈 Visualisasi Grafik Rekapitulasi")
-        tab_grafik1, tab_grafik2 = st.tabs(["📊 Grafik Total Biaya per Kategori", "🍩 Tren Biaya Pekerjaan"])
+        tab_grafik1, tab_grafik2, tab_grafik3 = st.tabs(["📊 Grafik Volume per Kategori", "📊 Grafik Total Biaya per Kategori", "🍩 Tren Biaya Pekerjaan"])
         with tab_grafik1:
+            df_chart_kat_vol = df_filtered.groupby("Kategori")["Volume (Qty)"].sum().reset_index().set_index("Kategori")
+            st.bar_chart(df_chart_kat_vol, use_container_width=True)
+        with tab_grafik2:
             df_chart_kat = df_filtered.groupby("Kategori")["Total Harga (IDR)"].sum().reset_index().set_index("Kategori")
             st.bar_chart(df_chart_kat, use_container_width=True)
-        with tab_grafik2:
+        with tab_grafik3:
             df_chart_uraian = df_filtered.groupby("Uraian Pekerjaan")["Total Harga (IDR)"].sum().reset_index().set_index("Uraian Pekerjaan")
             st.area_chart(df_chart_uraian, use_container_width=True)
     else:
@@ -152,24 +272,20 @@ def tampilkan_rekap_transaksi(transaksi_list):
 
     st.markdown("---")
 
-    # --- BAGIAN 2: DETAIL TRANSAKSI (DISUSUN DARI NOMOR BESAR KE KECIL / TERBARU DI ATAS) ---
+    # --- BAGIAN 2: DETAIL TRANSAKSI ---
     st.markdown("#### 📑 Detail Seluruh Baris Transaksi (Urutan Terbaru di Atas)")
     
     df_display = df_filtered.copy()
     if "Bulan_Idx" in df_display.columns:
         df_display = df_display.drop(columns=["Bulan_Idx"])
 
-    # Urutkan dari nomor besar ke kecil (Descending berdasarkan Original_No)
     df_display = df_display.sort_values(by="Original_No", ascending=False).reset_index(drop=True)
-    # Ganti nomor urut tampilan menjadi descending (total_len, total_len-1, dst.)
     total_filtered_rows = len(df_display)
     df_display["No"] = [total_filtered_rows - i for i in range(total_filtered_rows)]
     
-    # Pindahkan kolom 'No' ke paling depan
     cols = ["No"] + [col for col in df_display.columns if col not in ["No", "Original_No"]]
     df_display = df_display[cols]
 
-    # Format angka
     df_display["Volume (Qty)"] = df_display["Volume (Qty)"].map("{:,.2f}".format)
     df_display["Harga Satuan (IDR)"] = df_display["Harga Satuan (IDR)"].map("{:,.2f}".format)
     df_display["Persentase (%)"] = df_display["Persentase (%)"].map("{:,.2f}%".format)
@@ -179,7 +295,7 @@ def tampilkan_rekap_transaksi(transaksi_list):
 
     grand_total_filtered = df_filtered["Total Harga (IDR)"].sum()
     st.markdown(f"""
-        <div style="background-color: #f8fafc; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; margin-top: 10px; font-weight: bold; font-size: 14px; text-align: right;">
+        <div style="background-color: #f8fafc; tab-size: 4; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; margin-top: 10px; font-weight: bold; font-size: 14px; text-align: right;">
             GRAND TOTAL KESELURUHAN (TERFILTER) : Rp {grand_total_filtered:,.2f}
         </div>
     """, unsafe_allow_html=True)
