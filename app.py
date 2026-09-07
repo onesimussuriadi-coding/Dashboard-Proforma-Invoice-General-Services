@@ -900,7 +900,7 @@ if form_login_sistem():
                                 st.rerun()
                     else:
                         matched_pi_records_sorted = sorted(
-                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, data_get_safe(d, 'Nomor Kontrak', '-'))) == selected_kontrak_input], 
+                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
                             key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
                             reverse=True
                         )
@@ -1329,7 +1329,6 @@ if form_login_sistem():
 
                                 spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_desc_final, key=f"spek_manual_{i}")
                             else:
-                                # Ambil spesifikasi berdasarkan kategori terpilih (dengan fallback lintas kontrak jika kosong)
                                 df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
                                 if df_f_kat.empty:
                                     df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
@@ -1344,7 +1343,6 @@ if form_login_sistem():
                         hs_otomatis = 0.0
                         unit_otomatis = "Month"
                         if not is_provisional:
-                            # Pencocokan harga otomatis dari Modul 0 dengan fallback aman & case-insensitive
                             df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
                             if df_f_kat.empty:
                                 df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
@@ -1370,7 +1368,7 @@ if form_login_sistem():
                                 def_qty = 1.0
                             q_val = st.number_input(f"Qty {i+1}", value=def_qty, key=f"qty_{i}")
                         with c_item2:
-                            default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU"]
+                            default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg", "Pallet"]
                             existing_u_from_master = df_ref["Unit"].dropna().astype(str).unique().tolist() if "Unit" in df_ref.columns else []
                             u_opts = sorted(list(set(default_u_opts + existing_u_from_master)))
                             def_unit = str(default_item_data.get("Unit", unit_otomatis))
@@ -1400,6 +1398,17 @@ if form_login_sistem():
                             hs_final = hs_manual
                         else:
                             hs_final = hs_otomatis
+
+                        # --- TAMPILKAN INFO HARGA SATUAN & TOTAL HARGA OTOMATIS SECARA JELAS ---
+                        formatted_hs = f"Rp {hs_final:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        calc_total = q_val * hs_final * (persen_val / 100.0)
+                        formatted_total = f"Rp {calc_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+                        col_info1, col_info2 = st.columns(2)
+                        with col_info1:
+                            st.markdown(f"💰 **Harga Satuan (Modul 0):** `{formatted_hs}`")
+                        with col_info2:
+                            st.markdown(f"📊 **Estimasi Total Harga:** `{formatted_total}`")
 
                         def_ket = str(default_item_data.get("Keterangan", ""))
                         ket_val = st.text_input(f"Keterangan Tambahan {i+1}", value=def_ket, key=f"ket_{i}")
