@@ -126,8 +126,9 @@ def tampilkan_paket_lengkap(transaksi_list):
     with st.expander("⚙️ Pengaturan Tambahan: Upload Logo & Tanda Tangan", expanded=False):
         col_up1, col_up2 = st.columns(2)
         with col_up1:
-            logo_p1_file = st.file_uploader("Upload Logo Pihak Pertama", type=["png", "jpg", "jpeg"], key="up_logo_p1")
+            logo_p1_file = st.file_uploader("Upload Logo Pihak Pertama (JOB/Client)", type=["png", "jpg", "jpeg"], key="up_logo_p1")
             logo_p2_file = st.file_uploader("Upload Logo Pihak Kedua (BSS)", type=["png", "jpg", "jpeg"], key="up_logo_p2")
+            logo_iso_file = st.file_uploader("Upload Logo ISO (Untuk Kop Internal: Rincian, PI, TKDN)", type=["png", "jpg", "jpeg"], key="up_logo_iso")
         with col_up2:
             ttd_supervisor_file = st.file_uploader("Upload Tanda Tangan Supervisor", type=["png", "jpg", "jpeg"], key="up_ttd_supervisor")
             ttd_onesimus_file = st.file_uploader("Upload Tanda Tangan Onesimus Suriadi", type=["png", "jpg", "jpeg"], key="up_ttd_onesimus")
@@ -143,9 +144,19 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     custom_logo_p1 = img_to_base64_str(logo_p1_file) or ""
     custom_logo_p2 = img_to_base64_str(logo_p2_file) or ""
+    custom_logo_iso = img_to_base64_str(logo_iso_file) or ""
 
-    img_tag_p1 = f'<img src="{custom_logo_p1}" style="height: 35px; object-fit: contain;" alt="Logo Pihak Pertama">' if custom_logo_p1 else '<div style="height: 35px;"></div>'
-    img_tag_p2 = f'<img src="{custom_logo_p2}" style="height: 35px; object-fit: contain;" alt="Logo Pihak Kedua">' if custom_logo_p2 else '<div style="height: 35px;"></div>'
+    # Tag Logo Standar Eksternal (BAMP, BASP, BASTB) -> Kiri: P1 (JOB), Kanan: P2 (BSS)
+    img_tag_p1 = f'<img src="{custom_logo_p1}" style="height: 35px; object-fit: contain;" alt="Logo P1">' if custom_logo_p1 else '<div style="height: 35px;"></div>'
+    img_tag_p2 = f'<img src="{custom_logo_p2}" style="height: 35px; object-fit: contain;" alt="Logo P2">' if custom_logo_p2 else '<div style="height: 35px;"></div>'
+
+    # Tag Khusus WCC & Opname: Kiri BSS (logo_p2), Kanan JOB/Client (logo_p1) agar sejalan dengan tanda tangan di bawah
+    img_tag_reversed_left = f'<img src="{custom_logo_p2}" style="height: 35px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 35px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 35px;"></div>')
+    img_tag_reversed_right = f'<img src="{custom_logo_p1}" style="height: 35px; object-fit: contain;" alt="Logo JOB">' if custom_logo_p1 else '<div style="height: 35px;"></div>'
+
+    # Tag Logo Internal (Rincian Pekerjaan, PI, TKDN) -> Kiri: BSS, Kanan: ISO
+    img_tag_bss_internal = f'<img src="{custom_logo_p2}" style="height: 35px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 35px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 35px;"></div>')
+    img_tag_iso_internal = f'<img src="{custom_logo_iso}" style="height: 35px; object-fit: contain;" alt="Logo ISO">' if custom_logo_iso else '<div style="height: 35px;"></div>'
 
     custom_ttd_supervisor = img_to_base64_str(ttd_supervisor_file)
     custom_ttd_onesimus = img_to_base64_str(ttd_onesimus_file)
@@ -307,9 +318,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     pi_rows_html = ""
     opname_rows_html = ""
 
-    bamp_items_saved = bamp_saved.get('items', [])
-
-    # Hitung Grand Total keseluruhan untuk Rincian, PI, Opname, dll.
     for idx, m in enumerate(mutasi_terpilih, start=1):
         kat = str(m.get('Kategori', '')).strip()
         desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
@@ -380,6 +388,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         if "material" not in str(t.get('Kategori', '')).lower() 
         and "barang" not in str(t.get('Kategori', '')).lower()
         and "pengadaan" not in str(t.get('Kategori', '')).lower()
+        and "safety" not in str(t.get('Kategori', '')).lower()
     ]
     if not mutasi_jasa:
         mutasi_jasa = mutasi_terpilih
@@ -420,12 +429,14 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
-    # --- PENYARINGAN KHUSUS UNTUK BASTB (HANYA ITEM BARANG / MATERIAL) ---
+    # --- PENYARINGAN KHUSUS UNTUK BASTB (ITEM BARANG / MATERIAL / SAFETY) ---
     mutasi_barang = [
         t for t in mutasi_terpilih 
         if "material" in str(t.get('Kategori', '')).lower() 
         or "barang" in str(t.get('Kategori', '')).lower()
         or "pengadaan" in str(t.get('Kategori', '')).lower()
+        or "safety" in str(t.get('Kategori', '')).lower()
+        or "supply" in str(t.get('Kategori', '')).lower()
     ]
 
     bastb_rows_html = ""
@@ -454,13 +465,27 @@ def tampilkan_paket_lengkap(transaksi_list):
     ttd_ferry_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_ferry}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Ferry"></div>' if custom_ttd_ferry else '<div style="height: 55px;"></div>'
 
     # ==========================================
-    # 1. HALAMAN RINCIAN PEKERJAAN
+    # 1. HALAMAN RINCIAN PEKERJAAN (INTERNAL: BSS KIRI, ISO KANAN)
     # ==========================================
     rincian_html = f"""
     <div class="page-break">
-        <div style="text-align: center; font-weight: bold; font-size: 11px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
-        <div style="text-align: center; font-size: 8.5px; color: #4b5563; margin-bottom: 10px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
-        <h2 style="text-align: center; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 15px;">RINCIAN PEKERJAAN</h2>
+        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
+            <tr>
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
+                    {img_tag_bss_internal}
+                </td>
+                <td style="width: 50%; text-align: center; vertical-align: middle;">
+                    <div style="font-weight: bold; font-size: 11px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
+                    <div style="font-size: 8px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
+                </td>
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
+                    {img_tag_iso_internal}
+                </td>
+            </tr>
+        </table>
+        <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
+        
+        <h2 style="text-align: center; font-size: 13px; text-transform: uppercase; margin-bottom: 15px;">RINCIAN PEKERJAAN</h2>
         
         <table style="width: 100%; font-size: 9.5px; margin-bottom: 15px; border-collapse: collapse;">
             <tr>
@@ -532,13 +557,27 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 2. HALAMAN PROFORMA INVOICE
+    # 2. HALAMAN PROFORMA INVOICE (INTERNAL: BSS KIRI, ISO KANAN)
     # ==========================================
     pi_html = f"""
     <div class="page-break">
-        <div style="text-align: center; font-weight: bold; font-size: 10px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
-        <div style="text-align: center; font-size: 8.5px; color: #4b5563; margin-bottom: 10px;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
-        <h2 style="text-align: center; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 10px;">PROFORMA INVOICE</h2>
+        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
+            <tr>
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
+                    {img_tag_bss_internal}
+                </td>
+                <td style="width: 50%; text-align: center; vertical-align: middle;">
+                    <div style="font-weight: bold; font-size: 11px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
+                    <div style="font-size: 8px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
+                </td>
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
+                    {img_tag_iso_internal}
+                </td>
+            </tr>
+        </table>
+        <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
+
+        <h2 style="text-align: center; font-size: 13px; text-transform: uppercase; margin-bottom: 15px;">PROFORMA INVOICE</h2>
         
         <table style="width: 100%; font-size: 9.5px; margin-bottom: 15px; border-collapse: collapse;">
             <tr>
@@ -608,7 +647,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 3. HALAMAN BAMP (DENGAN KUNCI POSISI ISO DI SUDUT KIRI BAWAH)
+    # 3. HALAMAN BAMP (EKSTERNAL: P1 KIRI, P2 KANAN)
     # ==========================================
     bamp_html = f"""
     <div class="page-break" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
@@ -692,7 +731,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 4. HALAMAN BASP (DENGAN KUNCI POSISI ISO DI SUDUT KIRI BAWAH)
+    # 4. HALAMAN BASP (EKSTERNAL: P1 KIRI, P2 KANAN)
     # ==========================================
     basp_html = f"""
     <div class="page-break" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
@@ -776,7 +815,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 5. HALAMAN BASTB (DENGAN KUNCI POSISI ISO DI SUDUT KIRI BAWAH)
+    # 5. HALAMAN BASTB (EKSTERNAL: P1 KIRI, P2 KANAN)
     # ==========================================
     bastb_html = f"""
     <div class="page-break" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
@@ -861,7 +900,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 6. HALAMAN WORK COMPLETION CERTIFICATE (WCC)
+    # 6. HALAMAN WORK COMPLETION CERTIFICATE (WCC) (DIBALIK: BSS KIRI, PERTAMINA KANAN)
     # ==========================================
     num_signers_wcc = len(wcc_signers_list)
     col_width_pct_wcc = round(100.0 / num_signers_wcc, 2) if num_signers_wcc > 0 else 50.0
@@ -901,8 +940,21 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     wcc_html = f"""
     <div class="page-break">
-        <div style="text-align: center; font-weight: bold; font-size: 13px; text-transform: uppercase; margin-bottom: 2px;">{wcc_header_title}</div>
-        <div style="text-align: center; font-weight: bold; font-size: 11px; margin-bottom: 15px;">{wcc_header_contract}</div>
+        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
+            <tr>
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
+                    {img_tag_reversed_left}
+                </td>
+                <td style="width: 50%; text-align: center; vertical-align: middle;">
+                    <div style="font-weight: bold; font-size: 11px; margin-bottom: 2px;">{wcc_header_title}</div>
+                    <div style="font-size: 10px; color: #4b5563;">{wcc_header_contract}</div>
+                </td>
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
+                    {img_tag_reversed_right}
+                </td>
+            </tr>
+        </table>
+        <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
         
         <div style="border: 1px solid #000; background-color: #dbeafe; text-align: center; font-weight: bold; font-size: 12px; padding: 6px; margin-bottom: 2px;">
             WORK COMPLETION CERTIFICATE
@@ -954,7 +1006,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 7. HALAMAN OPNAME PEKERJAAN
+    # 7. HALAMAN OPNAME PEKERJAAN (BSS KIRI, JOB KANAN)
     # ==========================================
     if str(nomor_kontrak).strip() == "7207250142":
         opname_sig_table_html = f"""
@@ -1001,18 +1053,21 @@ def tampilkan_paket_lengkap(transaksi_list):
         <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
             <tr>
                 <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
-                    {img_tag_p1}
+                    {img_tag_reversed_left}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <h2 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">BERITA ACARA PEKERJAAN / OPNAME</h2>
+                    <div style="font-weight: bold; font-size: 11px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
+                    <div style="font-size: 8px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk</div>
                 </td>
                 <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
-                    {img_tag_p2}
+                    {img_tag_reversed_right}
                 </td>
             </tr>
         </table>
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
         
+        <h2 style="text-align: center; font-size: 14px; font-weight: bold; text-transform: uppercase; margin-bottom: 15px;">BERITA ACARA PEKERJAAN / OPNAME</h2>
+
         <table style="width: 100%; font-size: 9.5px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 25%; font-weight: bold;">JOB TITLE / WO / PO</td><td>: {lingkup_pekerjaan}</td></tr>
             <tr><td style="font-weight: bold;">CTR / WO / PO No.</td><td>: <b>{no_po}</b></td></tr>
@@ -1057,13 +1112,29 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 8. HALAMAN TKDN
+    # 8. HALAMAN TKDN (INTERNAL: BSS KIRI, ISO KANAN)
     # ==========================================
     total_jasa = grand_total * (95.0 / 100.0)
     non_cost = grand_total * 0.05
 
     tkdn_html = f"""
     <div class="page-break">
+        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
+            <tr>
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
+                    {img_tag_bss_internal}
+                </td>
+                <td style="width: 50%; text-align: center; vertical-align: middle;">
+                    <div style="font-weight: bold; font-size: 11px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
+                    <div style="font-size: 8px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk</div>
+                </td>
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
+                    {img_tag_iso_internal}
+                </td>
+            </tr>
+        </table>
+        <div style="border-bottom: 2px solid #000; margin-bottom: 12px;"></div>
+
         <div style="text-align: center; font-weight: bold; font-size: 11px; margin-bottom: 2px;">TABEL PERHITUNGAN TINGKAT KOMPONEN DALAM NEGERI - JASA</div>
         <div style="text-align: center; font-size: 10px; font-weight: bold; margin-bottom: 15px;">SELF - ASSESSMENT (PERMEN ESDM NO. 15 TAHUN 2013)</div>
         
@@ -1237,7 +1308,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # --- DETEKSI KATEGORI ITEM SECARA PRESISI ---
+    # --- DETEKSI KATEGORI ITEM SECARA PRESISI (MENGAKOMODASI SAFETY & SUPPLY) ---
     ada_barang = False
     ada_jasa = False
 
@@ -1245,7 +1316,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         kat_str = str(m.get('Kategori', '')).lower()
         desc_str = str(m.get('Deskripsi Pekerjaan', '')).lower()
         
-        if "material" in kat_str or "material" in desc_str or "pengadaan" in kat_str or "barang" in kat_str:
+        if "material" in kat_str or "material" in desc_str or "pengadaan" in kat_str or "barang" in kat_str or "safety" in kat_str or "supply" in kat_str:
             ada_barang = True
         else:
             ada_jasa = True

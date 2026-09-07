@@ -14,17 +14,17 @@ def tampilkan_bastb(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
-    # --- FILTER CERDAS BASTB (HANYA AMBIL ITEM BARANG / MATERIAL MURNI) ---
-    # Diperbaiki: Kata kunci "gabungan" dihapus dari filter agar item jasa/rental 
-    # (seperti Heavy Transportation) tidak ikut tertarik ke BASTB meskipun jenis proyeknya Gabungan.
+    # --- FILTER CERDAS BASTB (MENCAKUP MATERIAL, BARANG, SAFETY, & SUPPLY) ---
     transaksi_list = [
         t for t in transaksi_list 
         if "material" in str(t.get('Kategori', '')).lower() 
         or "barang" in str(t.get('Kategori', '')).lower()
+        or "safety" in str(t.get('Kategori', '')).lower()
+        or "supply" in str(t.get('Kategori', '')).lower()
     ]
 
     if not transaksi_list:
-        st.warning("ℹ️ Tidak ada item kategori Barang / Material untuk ditampilkan pada BASTB di PI ini (Item murni Jasa disaring otomatis ke BAMP & BASP).")
+        st.warning("ℹ️ Tidak ada item kategori Barang / Material / Safety untuk ditampilkan pada BASTB di PI ini (Item murni Jasa disaring otomatis ke BAMP & BASP).")
         return
 
     seen_pi_dd = set()
@@ -36,7 +36,7 @@ def tampilkan_bastb(transaksi_list):
             unique_pi_list.append(pi_key)
 
     if not unique_pi_list:
-        st.warning("⚠️ Tidak ditemukan Nomor PI yang memiliki item Barang/Material.")
+        st.warning("⚠️ Tidak ditemukan Nomor PI yang memiliki item Barang/Material/Safety.")
         return
 
     # Inisialisasi penyimpanan session state khusus BASTB secara komprehensif
@@ -59,15 +59,20 @@ def tampilkan_bastb(transaksi_list):
 
     saved_global = st.session_state.bastb_saved_data[pi_storage_key]
 
-    # Hanya ambil mutasi yang spesifik untuk PI ini dan murni kategori Barang/Material
+    # Hanya ambil mutasi yang spesifik untuk PI ini dan murni kategori Barang/Material/Safety
     mutasi_terpilih = [
         t for t in transaksi_list 
         if str(t.get('PI No.')).strip() == pi_storage_key 
-        and ("material" in str(t.get('Kategori', '')).lower() or "barang" in str(t.get('Kategori', '')).lower())
+        and (
+            "material" in str(t.get('Kategori', '')).lower() 
+            or "barang" in str(t.get('Kategori', '')).lower()
+            or "safety" in str(t.get('Kategori', '')).lower()
+            or "supply" in str(t.get('Kategori', '')).lower()
+        )
     ]
     
     if not mutasi_terpilih:
-        st.warning("⚠️ Tidak ada item mutasi Barang/Material ditemukan untuk PI ini.")
+        st.warning("⚠️ Tidak ada item mutasi Barang/Material/Safety ditemukan untuk PI ini.")
         return
 
     t_data_utama = mutasi_terpilih[0]
@@ -86,7 +91,7 @@ def tampilkan_bastb(transaksi_list):
     bastb_date = f"{selected_date.day:02d} {bulan_indo[selected_date.month]} {selected_date.year}"
 
     st.markdown("---")
-    st.markdown("#### ⚙️ Pengaturan Parameter Detail & Catatan Fleksibel per Baris Barang / Material BASTB")
+    st.markdown("#### ⚙️ Pengaturan Parameter Detail & Catatan Fleksibel per Baris Barang / Material / Safety BASTB")
     
     rows_html = ""
     uom_options = ["Month", "Day", "AU", "Ls", "Unit", "Trip", "Jam", "Orang", "Set", "Pallet", "Pcs", "Ea", "m3"]
