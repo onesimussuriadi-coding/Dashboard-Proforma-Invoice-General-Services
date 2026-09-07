@@ -900,7 +900,7 @@ if form_login_sistem():
                                 st.rerun()
                     else:
                         matched_pi_records_sorted = sorted(
-                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
+                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, data_get_safe(d, 'Nomor Kontrak', '-'))) == selected_kontrak_input], 
                             key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
                             reverse=True
                         )
@@ -1329,7 +1329,11 @@ if form_login_sistem():
 
                                 spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_desc_final, key=f"spek_manual_{i}")
                             else:
+                                # Ambil spesifikasi berdasarkan kategori terpilih (dengan fallback lintas kontrak jika kosong)
                                 df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
+                                if df_f_kat.empty:
+                                    df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
+                                    
                                 list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
                                 
                                 def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", list_spek[0] if list_spek else "-"))
@@ -1340,8 +1344,16 @@ if form_login_sistem():
                         hs_otomatis = 0.0
                         unit_otomatis = "Month"
                         if not is_provisional:
+                            # Pencocokan harga otomatis dari Modul 0 dengan fallback aman & case-insensitive
+                            df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
+                            if df_f_kat.empty:
+                                df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
+
                             if not df_f_kat.empty and spek_pilih != "- (Tidak ada data uraian)":
                                 m_row = df_f_kat[df_f_kat["Uraian Clean"] == str(spek_pilih).strip()]
+                                if m_row.empty:
+                                    m_row = df_f_kat[df_f_kat["Uraian Clean"].str.lower() == str(spek_pilih).strip().lower()]
+
                                 if not m_row.empty:
                                     row_m = m_row.iloc[0]
                                     try:
