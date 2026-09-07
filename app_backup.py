@@ -93,7 +93,6 @@ def bersih_angka(val):
 
 # --- FUNGSI PENGURUTAN NOMOR PI SECARA CERDAS (KRONOLOGIS / NOMOR URUT) ---
 def sort_pi_key(pi_str):
-    """Mengekstrak nomor urut dari format PI (misal: '015/BSS-JOB/WS/VIII/2026' -> angka 15)"""
     try:
         parts = str(pi_str).split('/')
         if parts:
@@ -106,10 +105,7 @@ def sort_pi_key(pi_str):
 # --- JALANKAN SISTEM KEAMANAN & AUTENTIKASI BERJENJANG ---
 if form_login_sistem():
     
-    # Tampilkan panel manajemen akun di sidebar (berdasarkan role)
     render_panel_manajemen_akun()
-    
-    # Dapatkan level akses role pengguna yang sedang aktif
     user_role = st.session_state.get('current_role', 'Staff')
 
     # --- CSS STYLING PROFESIONAL ---
@@ -182,7 +178,6 @@ if form_login_sistem():
         </style>
     """, unsafe_allow_html=True)
 
-    # --- FUNGSI TERBILANG OTOMATIS ---
     def terbilang(n):
         n = int(n)
         if n < 0:
@@ -209,7 +204,6 @@ if form_login_sistem():
         else:
             return " Angka terlalu besar"
 
-    # --- FUNGSI KUITANSI PEMBAYARAN YANG DI-SINKRONKAN SECARA PRESISI & DINAMIS ---
     def tampilkan_kuitansi(transaksi_list):
         st.markdown("#### 🧾 Pratinjau Resmi Kuitansi Pembayaran Korporat")
         
@@ -217,10 +211,8 @@ if form_login_sistem():
             st.warning("⚠️ Belum ada data transaksi untuk dirender ke dalam kuitansi.")
             return
 
-        # Ambil nomor invoice aktif yang sedang dipilih di session state / selectbox utama billing & tax
         active_selected_invoice = st.session_state.get("input_filter_invoice_aktif", "")
         
-        # Filter list transaksi secara presisi agar mengambil baris yang benar-benar sesuai dengan nomor invoice yang dipilih
         if active_selected_invoice and active_selected_invoice != "-":
             filtered_by_active = [
                 t for t in transaksi_list 
@@ -230,20 +222,15 @@ if form_login_sistem():
                 transaksi_list = filtered_by_active
 
         t_data = transaksi_list[0] if isinstance(transaksi_list, list) and len(transaksi_list) > 0 else {}
-        
-        # Ambil referensi data secara mutlak dan dinamis dari baris data yang sudah tersaring
         customer_name = t_data.get("Ditujukan Kepada", t_data.get("Customer Name", "JOB Pertamina - Medco E&P Tomori Sulawesi"))
         
-        # Tangkap nomor invoice secara dinamis dari data terpilih
         pi_no = str(t_data.get("Invoice No.", t_data.get("PI No.", t_data.get("Proforma Invoice No.", "010/BSS-JOB/IX/2026")))).strip()
         if not pi_no or pi_no == "-":
             pi_no = "010/BSS-JOB/IX/2026"
 
-        # Penarikan referensi dinamis: Nomor PO serta Nomor WAN / SA
         nomor_po = str(t_data.get("Nomor PO", t_data.get("PO Nomor", "-"))).strip()
         nomor_wan = str(t_data.get("WAN / SA Nomor", t_data.get("WAN Nomor", t_data.get("WAN", t_data.get("SA Nomor", "-"))))).strip()
         
-        # Tanggal Dokumen Dinamis
         tanggal_pi_raw = t_data.get("Invoice Date", t_data.get("Tanggal PI", ""))
         if not tanggal_pi_raw:
             tanggal_pi_raw = datetime.today().strftime('%d %B %Y')
@@ -253,7 +240,6 @@ if form_login_sistem():
             except:
                 pass
 
-        # Hitung total tagihan murni secara dinamis dari item yang tersaring
         total_tagihan = sum([float(item.get("Total Harga", item.get("TOTAL", 0.0))) for item in transaksi_list]) if isinstance(transaksi_list, list) else 0.0
         if total_tagihan <= 0:
             total_tagihan = float(t_data.get("Total Amount", t_data.get("TOTAL", 51818130.0) if isinstance(t_data.get("TOTAL"), (int, float)) else 51818130.0))
@@ -261,7 +247,6 @@ if form_login_sistem():
         terbilang_str = terbilang(total_tagihan).strip() + " Rupiah" if total_tagihan > 0 else "Nol Rupiah"
         formatted_nominal = f"Rp {total_tagihan:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-        # Redaksi referensi pembayaran dinamis berdasar Nomor PO dan Nomor WAN / SA
         teks_referensi = "Pelunasan biaya pekerjaan berdasarkan"
         ref_parts = []
         if nomor_po and nomor_po != "-":
@@ -381,7 +366,6 @@ if form_login_sistem():
             download_link = f'<a href="data:text/html;base64,{b64_html}" download="Kuitansi_{pi_no.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download Kuitansi</button></a>'
             st.markdown(download_link, unsafe_allow_html=True)
 
-    # --- SISTEM DIREKTORI & DATABASE LOKAL AMAN ---
     DIR_DATABASE = "database_penyimpanan_aman"
     if not os.path.exists(DIR_DATABASE):
         os.makedirs(DIR_DATABASE)
@@ -500,7 +484,6 @@ if form_login_sistem():
         df_baru.to_excel(EXCEL_BANK, index=False)
         st.session_state["db_master_bank"] = data_list
 
-    # Inisialisasi Session State
     if "db_tersimpan" not in st.session_state:
         st.session_state["db_tersimpan"] = muat_data_invoice()
 
@@ -522,7 +505,6 @@ if form_login_sistem():
     if "edit_master_index" not in st.session_state:
         st.session_state["edit_master_index"] = None
 
-    # --- HEADER UTAMA ---
     st.markdown("""
         <div class="company-header-centered">
             <h2 style="margin:0; font-size: 24px; font-weight: 700; color: #ffffff;">PT. BANGGAI SENTRAL SULAWESI</h2>
@@ -530,14 +512,12 @@ if form_login_sistem():
         </div>
     """, unsafe_allow_html=True)
 
-    # --- SIDEBAR: NAVIGASI & WAKTU LOKAL (WITA / UTC+8) ---
     st.sidebar.markdown("### 🗂️ Navigasi Dashboard Utama")
     waktu_wita = datetime.utcnow() + timedelta(hours=8)
     current_time_str = waktu_wita.strftime("%d %b %Y, %H:%M:%S")
     st.sidebar.markdown(f"🕒 **Waktu Sistem (WITA):**<br>`{current_time_str}`", unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
-    # --- PEMBATASAN MENU BERJENJANG BERDASARKAN ROLE (HAK AKSES) ---
     if user_role == "Staff Timesheet":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan"])
     elif user_role == "Finance / Invoice":
@@ -845,7 +825,7 @@ if form_login_sistem():
                             else:
                                 val_str = val_clean if val_clean else "-"
                                 cell_align = "text-align: left; white-space: nowrap;"
-                                
+                            
                             html_table_rows += f"<td style='border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; {cell_align}'>{val_str}</td>"
                         
                         action_buttons = f"""
@@ -1338,6 +1318,9 @@ if form_login_sistem():
                                 spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_desc_final, key=f"spek_manual_{i}")
                             else:
                                 df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
+                                if df_f_kat.empty:
+                                    df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
+                                    
                                 list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
                                 
                                 def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", list_spek[0] if list_spek else "-"))
@@ -1348,8 +1331,15 @@ if form_login_sistem():
                         hs_otomatis = 0.0
                         unit_otomatis = "Month"
                         if not is_provisional:
+                            df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
+                            if df_f_kat.empty:
+                                df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
+
                             if not df_f_kat.empty and spek_pilih != "- (Tidak ada data uraian)":
                                 m_row = df_f_kat[df_f_kat["Uraian Clean"] == str(spek_pilih).strip()]
+                                if m_row.empty:
+                                    m_row = df_f_kat[df_f_kat["Uraian Clean"].str.lower() == str(spek_pilih).strip().lower()]
+
                                 if not m_row.empty:
                                     row_m = m_row.iloc[0]
                                     try:
@@ -1366,7 +1356,7 @@ if form_login_sistem():
                                 def_qty = 1.0
                             q_val = st.number_input(f"Qty {i+1}", value=def_qty, key=f"qty_{i}")
                         with c_item2:
-                            default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU"]
+                            default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg", "Pallet"]
                             existing_u_from_master = df_ref["Unit"].dropna().astype(str).unique().tolist() if "Unit" in df_ref.columns else []
                             u_opts = sorted(list(set(default_u_opts + existing_u_from_master)))
                             def_unit = str(default_item_data.get("Unit", unit_otomatis))
@@ -1397,6 +1387,16 @@ if form_login_sistem():
                         else:
                             hs_final = hs_otomatis
 
+                        formatted_hs = f"Rp {hs_final:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        calc_total = q_val * hs_final * (persen_val / 100.0)
+                        formatted_total = f"Rp {calc_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+                        col_info1, col_info2 = st.columns(2)
+                        with col_info1:
+                            st.markdown(f"💰 **Harga Satuan (Modul 0):** `{formatted_hs}`")
+                        with col_info2:
+                            st.markdown(f"📊 **Estimasi Total Harga:** `{formatted_total}`")
+
                         def_ket = str(default_item_data.get("Keterangan", ""))
                         ket_val = st.text_input(f"Keterangan Tambahan {i+1}", value=def_ket, key=f"ket_{i}")
                         st.markdown("---")
@@ -1412,6 +1412,20 @@ if form_login_sistem():
                             "keterangan": ket_val,
                             "is_provisional": is_provisional
                         })
+
+                    grand_total_preview = 0
+                    for item_prev in items_data_input:
+                        if item_prev.get("is_provisional"):
+                            sub_prov = item_prev["qty"] * item_prev["harga_satuan"]
+                            grand_total_preview += (sub_prov * 1.15) * (persen_val / 100.0)
+                        else:
+                            grand_total_preview += (item_prev["qty"] * item_prev["harga_satuan"]) * (persen_val / 100.0)
+
+                    formatted_grand_total = f"Rp {grand_total_preview:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    
+                    st.markdown("---")
+                    st.markdown(f"### 🧮 **Grand Total Keseluruhan (Kontrol Input):** `{formatted_grand_total}`")
+                    st.markdown("---")
 
                     col_m1, col_m2 = st.columns(2)
                     with col_m1:
@@ -1545,26 +1559,14 @@ if form_login_sistem():
                 if not transaksi_list:
                     st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses di Modul 2.")
                 else:
-                    doc_type = st.selectbox("Pilih Jenis Dokumen Resmi:", [
-                        "Rincian Pekerjaan",
-                        "Proforma Invoice",
-                        "Berita Acara Mulai Pekerjaan (BAMP)",
-                        "Berita Acara Selesai Pekerjaan (BASP)",
-                        "Work Completion Certificate (WCC)",
-                        "Berita Acara Serah Terima Pekerjaan (BASTP)", 
-                        "Formulir tkdn",
-                        "Timesheet Peralatan",
-                        "Berita Acara Opname pekerjaan",
-                        "📦 Master Paket Dokumen Lengkap (1-Click Batch)" 
-                    ])
-
-                    st.markdown("---")
-                    st.markdown("#### 🔍 Filter & Pilih Dokumen Transaksi")
-
+                    # --- AMBIL FILTER BERDASARKAN KONTRAK & PI YANG AKTIF DIPILIH ---
                     all_kontrak_tx = sorted(list(set([bersih_angka(t.get("Nomor Kontrak")) for t in transaksi_list if t.get("Nomor Kontrak")])))
                     
                     if not all_kontrak_tx:
                         st.warning("⚠️ Tidak ada data nomor kontrak pada riwayat transaksi.")
+                        selected_dok_kontrak = ""
+                        selected_dok_pi = ""
+                        filtered_transaksi_target = []
                     else:
                         selected_dok_kontrak = st.selectbox("Pilih Nomor Kontrak:", all_kontrak_tx)
 
@@ -1586,31 +1588,85 @@ if form_login_sistem():
                             and bersih_angka(t.get("PI No.")) == str(selected_dok_pi).strip()
                         ]
 
+                    st.markdown("---")
+
+                    if filtered_transaksi_target:
+                        # --- LOGIKA PENYARINGAN CERDAS (MENCAKUP MATERIAL & SAFETY EQUIPMENT SEBAGAI BARANG) ---
+                        kategori_list_target = [str(t.get("Kategori", "")).upper() for t in filtered_transaksi_target]
+                        jenis_bastp_val = str(filtered_transaksi_target[0].get("Jenis BASTP", "")).strip()
+
+                        # Deteksi komprehensif apakah item transaksi adalah barang fisik (Material, Safety, Barang, Supply)
+                        is_pure_goods = all(
+                            any(keyword in kat for keyword in ["MATERIAL", "SAFETY", "BARANG", "SUPPLY"]) 
+                            for kat in kategori_list_target
+                        ) or "Barang / Material" in jenis_bastp_val or any(any(k in kat for k in ["MATERIAL", "SAFETY"]) for kat in kategori_list_target)
+
+                        if is_pure_goods and "Gabungan" not in jenis_bastp_val:
+                            # Murni Pengadaan Barang / Safety Equipment: BAMP & BASP diblokir otomatis
+                            allowed_docs = [
+                                "Rincian Pekerjaan",
+                                "Proforma Invoice",
+                                "Berita Acara Serah Terima Pekerjaan (BASTP)", 
+                                "Formulir tkdn",
+                                "Berita Acara Opname pekerjaan",
+                                "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
+                            ]
+                            st.info("ℹ️ **Mode Pengadaan Barang/Safety Aktif:** Dokumen BAMP dan BASP disembunyikan otomatis.")
+                        elif "Jasa" in jenis_bastp_val and not is_pure_goods:
+                            # Murni Pekerjaan Jasa
+                            allowed_docs = [
+                                "Rincian Pekerjaan",
+                                "Proforma Invoice",
+                                "Berita Acara Mulai Pekerjaan (BAMP)",
+                                "Berita Acara Selesai Pekerjaan (BASP)",
+                                "Work Completion Certificate (WCC)",
+                                "Formulir tkdn",
+                                "Timesheet Peralatan",
+                                "Berita Acara Opname pekerjaan",
+                                "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
+                            ]
+                            st.info("ℹ️ **Mode Pekerjaan Jasa Aktif:** Menggunakan BAMP dan BASP.")
+                        else:
+                            # Gabungan Barang & Jasa
+                            allowed_docs = [
+                                "Rincian Pekerjaan",
+                                "Proforma Invoice",
+                                "Berita Acara Mulai Pekerjaan (BAMP)",
+                                "Berita Acara Selesai Pekerjaan (BASP)",
+                                "Work Completion Certificate (WCC)",
+                                "Berita Acara Serah Terima Pekerjaan (BASTP)", 
+                                "Formulir tkdn",
+                                "Timesheet Peralatan",
+                                "Berita Acara Opname pekerjaan",
+                                "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
+                            ]
+                            st.info("ℹ️ **Mode Gabungan (Barang & Jasa) Aktif:** Seluruh dokumen turunan tersedia lengkap.")
+
+                        doc_type = st.selectbox("Pilih Jenis Dokumen Resmi:", allowed_docs)
                         st.markdown("---")
 
-                        if filtered_transaksi_target:
-                            if doc_type == "Rincian Pekerjaan":
-                                tampilkan_rincian_pekerjaan(filtered_transaksi_target)
-                            elif doc_type == "Proforma Invoice":
-                                tampilkan_proforma_invoice(filtered_transaksi_target)
-                            elif doc_type == "Berita Acara Mulai Pekerjaan (BAMP)":
-                                tampilkan_bamp(filtered_transaksi_target)
-                            elif doc_type == "Berita Acara Selesai Pekerjaan (BASP)":
-                                tampilkan_basp(filtered_transaksi_target)
-                            elif doc_type == "Berita Acara Serah Terima Pekerjaan (BASTP)":
-                                tampilkan_bastb(filtered_transaksi_target) 
-                            elif doc_type == "Work Completion Certificate (WCC)":
-                                tampilkan_wcc(filtered_transaksi_target)
-                            elif doc_type.lower() == "formulir tkdn":
-                                tkdn.tampilkan_tkdn(filtered_transaksi_target)
-                            elif doc_type == "Berita Acara Opname pekerjaan":
-                                tampilkan_opname(filtered_transaksi_target)
-                            elif doc_type.lower() == "timesheet peralatan" or doc_type.lower() == "timesheet":
-                                tampilkan_timesheet(filtered_transaksi_target)
-                            elif doc_type == "📦 Master Paket Dokumen Lengkap (1-Click Batch)":
-                                tampilkan_paket_lengkap(filtered_transaksi_target)
-                            else:
-                                st.info("ℹ️ Silakan pilih Nomor Kontrak dan Nomor PI yang valid di atas.")
+                        if doc_type == "Rincian Pekerjaan":
+                            tampilkan_rincian_pekerjaan(filtered_transaksi_target)
+                        elif doc_type == "Proforma Invoice":
+                            tampilkan_proforma_invoice(filtered_transaksi_target)
+                        elif doc_type == "Berita Acara Mulai Pekerjaan (BAMP)":
+                            tampilkan_bamp(filtered_transaksi_target)
+                        elif doc_type == "Berita Acara Selesai Pekerjaan (BASP)":
+                            tampilkan_basp(filtered_transaksi_target)
+                        elif doc_type == "Berita Acara Serah Terima Pekerjaan (BASTP)":
+                            tampilkan_bastb(filtered_transaksi_target) 
+                        elif doc_type == "Work Completion Certificate (WCC)":
+                            tampilkan_wcc(filtered_transaksi_target)
+                        elif doc_type.lower() == "formulir tkdn":
+                            tkdn.tampilkan_tkdn(filtered_transaksi_target)
+                        elif doc_type == "Berita Acara Opname pekerjaan":
+                            tampilkan_opname(filtered_transaksi_target)
+                        elif doc_type.lower() == "timesheet peralatan" or doc_type.lower() == "timesheet":
+                            tampilkan_timesheet(filtered_transaksi_target)
+                        elif doc_type == "📦 Master Paket Dokumen Lengkap (1-Click Batch)":
+                            tampilkan_paket_lengkap(filtered_transaksi_target)
+                    else:
+                        st.info("ℹ️ Silakan pilih Nomor Kontrak dan Nomor PI yang valid di atas.")
 
             elif menu == "Lihat Akumulasi Riwayat Transaksi":
                 st.markdown("""
