@@ -65,6 +65,12 @@ try:
 except ImportError as e:
     st.error(f"Gagal memuat modul paket_dokumen_lengkap: {e}")
 
+# Import Modul Master Rekap Transaksi
+try:
+    from modul_dokumen.rekap_transaksi import tampilkan_rekap_transaksi
+except ImportError as e:
+    st.error(f"Gagal memuat modul rekap_transaksi: {e}")
+
 # Import Modul Keuangan: Faktur Pajak
 try:
     from modul_keuangan.faktur_pajak import tampilkan_faktur_pajak
@@ -563,7 +569,8 @@ if form_login_sistem():
         menu = st.sidebar.radio("Pilih Menu:", [
             "Input & Proses Rincian Pekerjaan",
             "Pratinjau, Cetak & Download PDF Dokumen",
-            "Lihat Akumulasi Riwayat Transaksi"
+            "Lihat Akumulasi Riwayat Transaksi",
+            "Lihat Master Rekap Transaksi"
         ])
 
     st.sidebar.markdown("---")
@@ -654,7 +661,7 @@ if form_login_sistem():
                 kontrak_from_master = [str(m.get("Nomor Kontrak", "")) for m in master_data_live if m.get("Nomor Kontrak")]
                 combined_kontrak_list = sorted(list(set(kontrak_from_invoice + kontrak_from_master))) + ["-- Ketik Nomor Kontrak Baru --"]
 
-                default_kat_list = ["MONTHLY BASIS", "ON-CALL BASIS", "JASA MOBILISASI", "PROFESSIONAL SUM", "PROVISIONAL SUM", "LAINNYA"]
+                default_kat_list = ["MONTHLY BASIS", "ON-CALL BASIS", "JASA MOBILISASI", "PROFESSIONAL SUM", "PROVISIONAL SUM", "ESTIMATED SUM", "LAINNYA"]
                 existing_kat_from_db = list(set([str(m.get("Kategori")) for m in master_data_live if m.get("Kategori")]))
                 combined_kat_list = sorted(list(set(default_kat_list + existing_kat_from_db))) + ["-- Ketik Kategori Baru --"]
 
@@ -1289,6 +1296,8 @@ if form_login_sistem():
                     list_kat = sorted(df_ref_kontrak["Kategori Clean"].dropna().unique().tolist())
                     if "PROFESSIONAL SUM" not in list_kat and "PROVISIONAL SUM" not in list_kat:
                         list_kat.append("PROVISIONAL SUM")
+                    if "ESTIMATED SUM" not in list_kat:
+                        list_kat.append("ESTIMATED SUM")
 
                     if "num_rows" not in st.session_state:
                         st.session_state.num_rows = len(loaded_tx_items) if loaded_tx_items else 1
@@ -1306,6 +1315,7 @@ if form_login_sistem():
                             kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}")
                         
                         is_provisional = "provisional" in str(kat_pilih).lower() or "professional" in str(kat_pilih).lower()
+                        is_estimated_sum = "estimated" in str(kat_pilih).lower() or "estimasi" in str(kat_pilih).lower()
 
                         with c_k2:
                             if is_provisional:
@@ -1388,14 +1398,22 @@ if form_login_sistem():
                             hs_final = hs_otomatis
 
                         formatted_hs = f"Rp {hs_final:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                        calc_total = q_val * hs_final * (persen_val / 100.0)
+                        
+                        if is_estimated_sum:
+                            calc_total = (q_val * hs_final * 0.9) * (persen_val / 100.0)
+                        else:
+                            calc_total = q_val * hs_final * (persen_val / 100.0)
+
                         formatted_total = f"Rp {calc_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
                         col_info1, col_info2 = st.columns(2)
                         with col_info1:
                             st.markdown(f"💰 **Harga Satuan (Modul 0):** `{formatted_hs}`")
                         with col_info2:
-                            st.markdown(f"📊 **Estimasi Total Harga:** `{formatted_total}`")
+                            if is_estimated_sum:
+                                st.markdown(f"📊 **Estimasi Total Harga (Diskon 10%):** `{formatted_total}`")
+                            else:
+                                st.markdown(f"📊 **Estimasi Total Harga:** `{formatted_total}`")
 
                         def_ket = str(default_item_data.get("Keterangan", ""))
                         ket_val = st.text_input(f"Keterangan Tambahan {i+1}", value=def_ket, key=f"ket_{i}")
@@ -1410,7 +1428,8 @@ if form_login_sistem():
                             "tgl_selesai": ts_val.strftime("%d %b %Y"),
                             "harga_satuan": hs_final,
                             "keterangan": ket_val,
-                            "is_provisional": is_provisional
+                            "is_provisional": is_provisional,
+                            "is_estimated_sum": is_estimated_sum
                         })
 
                     grand_total_preview = 0
@@ -1418,6 +1437,9 @@ if form_login_sistem():
                         if item_prev.get("is_provisional"):
                             sub_prov = item_prev["qty"] * item_prev["harga_satuan"]
                             grand_total_preview += (sub_prov * 1.15) * (persen_val / 100.0)
+                        elif item_prev.get("is_estimated_sum"):
+                            sub_est = item_prev["qty"] * item_prev["harga_satuan"] * 0.9
+                            grand_total_preview += sub_est * (persen_val / 100.0)
                         else:
                             grand_total_preview += (item_prev["qty"] * item_prev["harga_satuan"]) * (persen_val / 100.0)
 
@@ -1457,6 +1479,8 @@ if form_login_sistem():
                                         total_harga = total_prov_with_fee * (persen_val / 100.0)
                                     else:
                                         total_harga = 0.0 
+                                elif item.get("is_estimated_sum"):
+                                    total_harga = (item["qty"] * item["harga_satuan"] * 0.9) * (persen_val / 100.0)
                                 else:
                                     total_harga = (item["qty"] * item["harga_satuan"]) * (persen_val / 100.0)
 
@@ -1514,6 +1538,8 @@ if form_login_sistem():
                                         total_harga = total_prov_with_fee * (persen_val / 100.0)
                                     else:
                                         total_harga = 0.0
+                                elif item.get("is_estimated_sum"):
+                                    total_harga = (item["qty"] * item["harga_satuan"] * 0.9) * (persen_val / 100.0)
                                 else:
                                     total_harga = (item["qty"] * item["harga_satuan"]) * (persen_val / 100.0)
 
@@ -1559,7 +1585,6 @@ if form_login_sistem():
                 if not transaksi_list:
                     st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses di Modul 2.")
                 else:
-                    # --- AMBIL FILTER BERDASARKAN KONTRAK & PI YANG AKTIF DIPILIH ---
                     all_kontrak_tx = sorted(list(set([bersih_angka(t.get("Nomor Kontrak")) for t in transaksi_list if t.get("Nomor Kontrak")])))
                     
                     if not all_kontrak_tx:
@@ -1591,18 +1616,15 @@ if form_login_sistem():
                     st.markdown("---")
 
                     if filtered_transaksi_target:
-                        # --- LOGIKA PENYARINGAN CERDAS (MENCAKUP MATERIAL & SAFETY EQUIPMENT SEBAGAI BARANG) ---
                         kategori_list_target = [str(t.get("Kategori", "")).upper() for t in filtered_transaksi_target]
                         jenis_bastp_val = str(filtered_transaksi_target[0].get("Jenis BASTP", "")).strip()
 
-                        # Deteksi komprehensif apakah item transaksi adalah barang fisik (Material, Safety, Barang, Supply)
                         is_pure_goods = all(
                             any(keyword in kat for keyword in ["MATERIAL", "SAFETY", "BARANG", "SUPPLY"]) 
                             for kat in kategori_list_target
                         ) or "Barang / Material" in jenis_bastp_val or any(any(k in kat for k in ["MATERIAL", "SAFETY"]) for kat in kategori_list_target)
 
                         if is_pure_goods and "Gabungan" not in jenis_bastp_val:
-                            # Murni Pengadaan Barang / Safety Equipment: BAMP & BASP diblokir otomatis
                             allowed_docs = [
                                 "Rincian Pekerjaan",
                                 "Proforma Invoice",
@@ -1613,7 +1635,6 @@ if form_login_sistem():
                             ]
                             st.info("ℹ️ **Mode Pengadaan Barang/Safety Aktif:** Dokumen BAMP dan BASP disembunyikan otomatis.")
                         elif "Jasa" in jenis_bastp_val and not is_pure_goods:
-                            # Murni Pekerjaan Jasa
                             allowed_docs = [
                                 "Rincian Pekerjaan",
                                 "Proforma Invoice",
@@ -1627,7 +1648,6 @@ if form_login_sistem():
                             ]
                             st.info("ℹ️ **Mode Pekerjaan Jasa Aktif:** Menggunakan BAMP dan BASP.")
                         else:
-                            # Gabungan Barang & Jasa
                             allowed_docs = [
                                 "Rincian Pekerjaan",
                                 "Proforma Invoice",
@@ -1672,10 +1692,48 @@ if form_login_sistem():
                 st.markdown("""
                     <div class="dashboard-card">
                         <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Akumulasi Riwayat Transaksi Rincian Pekerjaan</h3>
+                        <p style="font-size: 13px; color: #475569; margin-bottom: 0;">Tabel riwayat transaksi mandiri Modul 2. Kelola penghapusan dan pemanggilan data secara langsung tanpa beralih modul.</p>
                     </div>
                 """, unsafe_allow_html=True)
                 
                 tx_records = muat_data_transaksi()
-                if tx_records:
-                    cleaned_tx_records = [{str(k): (bersih_angka(v) if bersih_angka(v) else "-") for k, v in rec.items()} for rec in tx_records]
-                    st.dataframe(pd.DataFrame(cleaned_tx_records), use_container_width=True)
+                if not tx_records:
+                    st.info("ℹ️ Belum ada data riwayat transaksi tersimpan.")
+                else:
+                    for original_idx, rec in enumerate(tx_records):
+                        with st.container():
+                            col_t1, col_t2, col_t3, col_t4 = st.columns([2, 3, 2, 1.5])
+                            with col_t1:
+                                st.write(f"**Kontrak:** {bersih_angka(rec.get('Nomor Kontrak', '-'))}")
+                            with col_t2:
+                                st.write(f"**PI No:** {bersih_angka(rec.get('PI No.', '-'))}")
+                            with col_t3:
+                                total_val = rec.get('Total Harga', 0)
+                                try:
+                                    t_num = float(total_val)
+                                    t_str = f"Rp {t_num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                except:
+                                    t_str = str(total_val)
+                                st.write(f"**Total:** {t_str}")
+                            with col_t4:
+                                sub_col1, sub_col2 = st.columns(2)
+                                with sub_col1:
+                                    if st.button("✏️", key=f"edit_btn_{original_idx}", help="Panggil data"):
+                                        st.session_state["forced_kontrak"] = str(rec.get("Nomor Kontrak", ""))
+                                        st.session_state["forced_pi"] = str(rec.get("PI No.", ""))
+                                        st.session_state["loaded_pi_target"] = str(rec.get("PI No.", ""))
+                                        matched_items = [t for t in tx_records if str(t.get("PI No.")) == str(rec.get("PI No."))]
+                                        st.session_state["num_rows"] = len(matched_items) if matched_items else 1
+                                        st.success(f"Memuat PI {rec.get('PI No.')}")
+                                        st.rerun()
+                                with sub_col2:
+                                    if st.button("🗑️", key=f"del_btn_{original_idx}", help="Hapus permanen"):
+                                        tx_records.pop(original_idx)
+                                        simpan_data_transaksi(tx_records)
+                                        st.success("✅ Data berhasil dihapus permanen!")
+                                        st.rerun()
+                        st.markdown("---")
+
+            elif menu == "Lihat Master Rekap Transaksi":
+                transaksi_list = muat_data_transaksi()
+                tampilkan_rekap_transaksi(transaksi_list if transaksi_list else [])

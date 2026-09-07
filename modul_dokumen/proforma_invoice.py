@@ -47,7 +47,6 @@ def tampilkan_proforma_invoice(transaksi_list):
             seen_pi_dd.add(pi_key)
             unique_pi_list.append(pi_key)
 
-    # Inisialisasi penyimpanan session state khusus Proforma Invoice secara permanen
     if "proforma_saved_data" not in st.session_state:
         st.session_state.proforma_saved_data = {}
 
@@ -70,7 +69,6 @@ def tampilkan_proforma_invoice(transaksi_list):
 
     t_data_utama = mutasi_terpilih[0]
 
-    # --- FITUR UPLOAD & HAPUS TANDA TANGAN DIGITAL DENGAN PENYIMPANAN PERMANEN ---
     st.markdown("---")
     uploaded_signature = st.file_uploader(
         "✍️ **Upload Tanda Tangan Digital (Format PNG / JPG - Transparan disarankan):**",
@@ -84,7 +82,6 @@ def tampilkan_proforma_invoice(transaksi_list):
             st.success("✅ Tanda Tangan Digital berhasil dihapus!")
             st.rerun()
 
-    # Form khusus untuk tombol simpan dokumen Proforma Invoice
     with st.form(key=f"form_proforma_save_{pi_storage_key}"):
         st.markdown(f"**Status Dokumen PI:** `{selected_pi}` siap dikunci.")
         submit_save_proforma = st.form_submit_button("💾 Simpan & Kunci Proforma Invoice Ini", type="primary")
@@ -97,7 +94,6 @@ def tampilkan_proforma_invoice(transaksi_list):
             }
             st.success(f"✅ Proforma Invoice untuk nomor PI [{selected_pi}] beserta tanda tangan berhasil disimpan permanen!")
 
-    # Memproses file gambar dari session state menjadi format Base64 HTML
     ttd_bytes_active = saved_pi_global.get('ttd_bytes')
     if ttd_bytes_active:
         img_b64 = base64.b64encode(ttd_bytes_active).decode("utf-8")
@@ -109,7 +105,7 @@ def tampilkan_proforma_invoice(transaksi_list):
     else:
         ttd_html_element = "<br><br><br><br>"
 
-    # Hitung Grand Total secara mandiri per baris (mendukung Provisional Sum At Cost + 15%)
+    # Hitung Grand Total secara mandiri per baris dengan mendukung Provisional Sum & Estimated Sum (Diskon 10%)
     grand_total_pi = 0.0
     for m in mutasi_terpilih:
         kategori_str = str(m.get('Kategori', '')).lower()
@@ -119,6 +115,8 @@ def tampilkan_proforma_invoice(transaksi_list):
 
         if "provisional" in kategori_str or "professional" in kategori_str:
             tot_item = (qty_val * unit_price) * 1.15 * (percent_val / 100.0)
+        elif "estimated" in kategori_str or "estimasi" in kategori_str:
+            tot_item = (qty_val * unit_price * 0.9) * (percent_val / 100.0)
         else:
             tot_item = (qty_val * unit_price) * (percent_val / 100.0)
         grand_total_pi += tot_item
@@ -136,9 +134,11 @@ def tampilkan_proforma_invoice(transaksi_list):
         unit_price = float(m.get('Harga Satuan', 0.0))
         percent_val = float(m.get('Percent', 100.0))
 
-        # Perhitungan mandiri per baris Total Harga Proforma Invoice
+        # Perhitungan mandiri per baris Total Harga Proforma Invoice dengan penambahan Estimated Sum (Diskon 10%)
         if "provisional" in kategori_str or "professional" in kategori_str:
             total_item = (qty_val * unit_price) * 1.15 * (percent_val / 100.0)
+        elif "estimated" in kategori_str or "estimasi" in kategori_str:
+            total_item = (qty_val * unit_price * 0.9) * (percent_val / 100.0)
         else:
             total_item = (qty_val * unit_price) * (percent_val / 100.0)
 

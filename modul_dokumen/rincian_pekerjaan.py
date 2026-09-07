@@ -50,7 +50,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
 
     pilihan_tx = [f"PI: {t.get('PI No.', '')} | Kontrak: {t.get('Nomor Kontrak', '')}" for t in unique_pi_list]
     
-    # Inisialisasi penyimpanan session state secara komprehensif
     if "rincian_saved_data" not in st.session_state:
         st.session_state.rincian_saved_data = {}
 
@@ -59,7 +58,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     t_data_ref = unique_pi_list[selected_idx]
     current_pi_no = str(t_data_ref.get('PI No.', '')).strip()
 
-    # Pastikan key per PI sudah terinisialisasi di session state
     if current_pi_no not in st.session_state.rincian_saved_data:
         st.session_state.rincian_saved_data[current_pi_no] = {
             'sig_dibuat': None,
@@ -68,7 +66,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
 
     saved_rincian_item = st.session_state.rincian_saved_data[current_pi_no]
 
-    # --- PENGATURAN UPLOAD & HAPUS TANDA TANGAN (DI LUAR FORM AGAR REAKTIF) ---
     st.markdown("#### ✍️ Pengaturan Tanda Tangan Dokumen")
     col_sig1, col_sig2 = st.columns(2)
     
@@ -88,7 +85,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 st.success("✅ Tanda Tangan Diperiksa berhasil dihapus!")
                 st.rerun()
 
-    # Form khusus untuk tombol Simpan & Kunci Dokumen
     with st.form(key=f"form_rincian_sig_{current_pi_no}"):
         st.markdown(f"**Konfirmasi Rincian Pekerjaan (PI: {current_pi_no}):** Klik tombol di bawah untuk mengunci konfigurasi.")
         submit_save_rincian = st.form_submit_button("💾 Simpan & Kunci Dokumen Rincian Pekerjaan Ini", type="primary")
@@ -103,7 +99,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
             }
             st.success(f"✅ Sukses! Data rincian pekerjaan untuk PI [{current_pi_no}] berhasil disimpan dan dikunci secara permanen!")
 
-    # Ambil bytes tanda tangan dari session state yang sudah aman
     sig_dibuat_bytes = saved_rincian_item.get('sig_dibuat', None)
     sig_diperiksa_bytes = saved_rincian_item.get('sig_diperiksa', None)
 
@@ -123,7 +118,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
 
     matching_mutasi_list = [item for item in transaksi_list if str(item.get('PI No.', '')).strip() == current_pi_no]
 
-    # Hitung ulang grand total secara konsisten per baris mandiri (At Cost + 15% jika Provisional/Professional Sum)
+    # Hitung ulang grand total secara konsisten per baris mandiri
     grand_total = 0.0
     for m in matching_mutasi_list:
         kategori_str = str(m.get('Kategori', '')).lower()
@@ -133,6 +128,8 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
 
         if "provisional" in kategori_str or "professional" in kategori_str:
             tot_val = (qty_val * harga_satuan_val) * 1.15 * (percent_val / 100.0)
+        elif "estimated" in kategori_str or "estimasi" in kategori_str:
+            tot_val = (qty_val * harga_satuan_val * 0.9) * (percent_val / 100.0)
         else:
             tot_val = (qty_val * harga_satuan_val) * (percent_val / 100.0)
         grand_total += tot_val
@@ -177,9 +174,11 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         harga_satuan_val = float(m.get('Harga Satuan', 0))
         percent_val = float(m.get('Percent', 100.0))
 
-        # Perhitungan mandiri per baris untuk Total Harga
+        # Perhitungan mandiri per baris untuk Total Harga dengan penanganan formula khusus
         if "provisional" in kategori_str or "professional" in kategori_str:
             total_harga_val = (qty_val * harga_satuan_val) * 1.15 * (percent_val / 100.0)
+        elif "estimated" in kategori_str or "estimasi" in kategori_str:
+            total_harga_val = (qty_val * harga_satuan_val * 0.9) * (percent_val / 100.0)
         else:
             total_harga_val = (qty_val * harga_satuan_val) * (percent_val / 100.0)
 

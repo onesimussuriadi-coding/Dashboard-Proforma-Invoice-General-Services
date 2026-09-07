@@ -65,6 +65,12 @@ try:
 except ImportError as e:
     st.error(f"Gagal memuat modul paket_dokumen_lengkap: {e}")
 
+# Import Modul Master Rekap Transaksi
+try:
+    from modul_dokumen.rekap_transaksi import tampilkan_rekap_transaksi
+except ImportError as e:
+    st.error(f"Gagal memuat modul rekap_transaksi: {e}")
+
 # Import Modul Keuangan: Faktur Pajak
 try:
     from modul_keuangan.faktur_pajak import tampilkan_faktur_pajak
@@ -229,7 +235,7 @@ if form_login_sistem():
             pi_no = "010/BSS-JOB/IX/2026"
 
         nomor_po = str(t_data.get("Nomor PO", t_data.get("PO Nomor", "-"))).strip()
-        nomor_wan = str(t_data.get("WAN / SA Nomor", t_data.get("WAN Nomor", t_data.get("WAN", t_data.get("SA Nomor", "-"))))).strip()
+        nomor_wan = str(t_data.get("Nomor WAN / SA", t_data.get("WAN Nomor", t_data.get("WAN", t_data.get("SA Nomor", "-"))))).strip()
         
         tanggal_pi_raw = t_data.get("Invoice Date", t_data.get("Tanggal PI", ""))
         if not tanggal_pi_raw:
@@ -563,7 +569,8 @@ if form_login_sistem():
         menu = st.sidebar.radio("Pilih Menu:", [
             "Input & Proses Rincian Pekerjaan",
             "Pratinjau, Cetak & Download PDF Dokumen",
-            "Lihat Akumulasi Riwayat Transaksi"
+            "Lihat Akumulasi Riwayat Transaksi",
+            "Lihat Master Rekap Transaksi"
         ])
 
     st.sidebar.markdown("---")
@@ -888,7 +895,7 @@ if form_login_sistem():
                                 st.rerun()
                     else:
                         matched_pi_records_sorted = sorted(
-                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
+                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, data.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
                             key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
                             reverse=True
                         )
@@ -1190,12 +1197,17 @@ if form_login_sistem():
                         raw_po_num = loaded_tx_items[0].get("Nomor PO", matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))) if loaded_tx_items else matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))
                         def_po_num = bersih_angka(raw_po_num)
                         
+                        # Kolom Input Nomor WAN / SA (Work Authorization Notice / Service Agreement)
+                        raw_wan_num = loaded_tx_items[0].get("Nomor WAN / SA", "") if loaded_tx_items else ""
+                        def_wan_num = bersih_angka(raw_wan_num)
+
                         raw_po_date = loaded_tx_items[0].get("Tanggal PO", matched_record.get(9, matched_record.get("Tanggal Purchase Order", ""))) if loaded_tx_items else matched_record.get(9, matched_record.get("Tanggal Purchase Order", ""))
                         def_po_date = bersih_angka(raw_po_date)
 
                         def_desc_po = bersih_angka(loaded_tx_items[0].get("Deskripsi PO", matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))) if loaded_tx_items else bersih_angka(matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))
 
                         nomor_po = st.text_input("Nomor PO", def_po_num if def_po_num else "-")
+                        nomor_wan_sa = st.text_input("Nomor WAN / SA (Work Authorization Notice / Service Agreement)", def_wan_num if def_wan_num else "-")
                         tanggal_po = st.text_input("Tanggal PO", def_po_date if def_po_date else "-")
                         mata_uang = st.text_input("Mata Uang", "IDR")
                         desc_po = st.text_area("Lingkup Pekerjaan", def_desc_po, height=130)
@@ -1308,7 +1320,6 @@ if form_login_sistem():
                             kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}")
                         
                         is_provisional = "provisional" in str(kat_pilih).lower() or "professional" in str(kat_pilih).lower()
-                        # --- DETEKSI KATEGORI ESTIMATED SUM ---
                         is_estimated_sum = "estimated" in str(kat_pilih).lower() or "estimasi" in str(kat_pilih).lower()
 
                         with c_k2:
@@ -1393,7 +1404,6 @@ if form_login_sistem():
 
                         formatted_hs = f"Rp {hs_final:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                         
-                        # --- PERHITUNGAN TOTAL DENGAN DISKON 10% UNTUK ESTIMATED SUM ---
                         if is_estimated_sum:
                             calc_total = (q_val * hs_final * 0.9) * (persen_val / 100.0)
                         else:
@@ -1489,6 +1499,7 @@ if form_login_sistem():
                                     "Alamat Pihak Pertama": alamat_pihak_pertama,
                                     "Jangka Waktu Kontrak": jangka_waktu,
                                     "Nomor PO": nomor_po,
+                                    "Nomor WAN / SA": nomor_wan_sa,  # Disimpan ke database
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
                                     "Mata Uang": mata_uang,
@@ -1548,6 +1559,7 @@ if form_login_sistem():
                                     "Alamat Pihak Pertama": alamat_pihak_pertama,
                                     "Jangka Waktu Kontrak": jangka_waktu,
                                     "Nomor PO": nomor_po,
+                                    "Nomor WAN / SA": nomor_wan_sa,  # Disimpan ke database
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
                                     "Mata Uang": mata_uang,
@@ -1687,10 +1699,48 @@ if form_login_sistem():
                 st.markdown("""
                     <div class="dashboard-card">
                         <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Akumulasi Riwayat Transaksi Rincian Pekerjaan</h3>
+                        <p style="font-size: 13px; color: #475569; margin-bottom: 0;">Tabel riwayat transaksi mandiri Modul 2. Kelola penghapusan dan pemanggilan data secara langsung tanpa beralih modul.</p>
                     </div>
                 """, unsafe_allow_html=True)
                 
                 tx_records = muat_data_transaksi()
-                if tx_records:
-                    cleaned_tx_records = [{str(k): (bersih_angka(v) if bersih_angka(v) else "-") for k, v in rec.items()} for rec in tx_records]
-                    st.dataframe(pd.DataFrame(cleaned_tx_records), use_container_width=True)
+                if not tx_records:
+                    st.info("ℹ️ Belum ada data riwayat transaksi tersimpan.")
+                else:
+                    for original_idx, rec in enumerate(tx_records):
+                        with st.container():
+                            col_t1, col_t2, col_t3, col_t4 = st.columns([2, 3, 2, 1.5])
+                            with col_t1:
+                                st.write(f"**Kontrak:** {bersih_angka(rec.get('Nomor Kontrak', '-'))}")
+                            with col_t2:
+                                st.write(f"**PI No:** {bersih_angka(rec.get('PI No.', '-'))}")
+                            with col_t3:
+                                total_val = rec.get('Total Harga', 0)
+                                try:
+                                    t_num = float(total_val)
+                                    t_str = f"Rp {t_num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                except:
+                                    t_str = str(total_val)
+                                st.write(f"**Total:** {t_str}")
+                            with col_t4:
+                                sub_col1, sub_col2 = st.columns(2)
+                                with sub_col1:
+                                    if st.button("✏️", key=f"edit_btn_{original_idx}", help="Panggil data"):
+                                        st.session_state["forced_kontrak"] = str(rec.get("Nomor Kontrak", ""))
+                                        st.session_state["forced_pi"] = str(rec.get("PI No.", ""))
+                                        st.session_state["loaded_pi_target"] = str(rec.get("PI No.", ""))
+                                        matched_items = [t for t in tx_records if str(t.get("PI No.")) == str(rec.get("PI No."))]
+                                        st.session_state["num_rows"] = len(matched_items) if matched_items else 1
+                                        st.success(f"Memuat PI {rec.get('PI No.')}")
+                                        st.rerun()
+                                with sub_col2:
+                                    if st.button("🗑️", key=f"del_btn_{original_idx}", help="Hapus permanen"):
+                                        tx_records.pop(original_idx)
+                                        simpan_data_transaksi(tx_records)
+                                        st.success("✅ Data berhasil dihapus permanen!")
+                                        st.rerun()
+                        st.markdown("---")
+
+            elif menu == "Lihat Master Rekap Transaksi":
+                transaksi_list = muat_data_transaksi()
+                tampilkan_rekap_transaksi(transaksi_list if transaksi_list else [])

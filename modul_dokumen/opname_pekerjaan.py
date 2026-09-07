@@ -159,6 +159,7 @@ def tampilkan_opname(transaksi_list):
             
             default_qty = float(m.get('Qty', 1.0))
             is_prov_sum = "provisional" in kategori_m.lower() or "professional" in kategori_m.lower()
+            is_est_sum = "estimated" in kategori_m.lower() or "estimasi" in kategori_m.lower()
             
             # Hitung harga dasar per unit mandiri (termasuk fee 15% jika provisional/professional)
             raw_hs = float(m.get('Harga Satuan', 0.0))
@@ -274,6 +275,7 @@ def tampilkan_opname(transaksi_list):
         ket_m = str(m.get('Keterangan', '')).strip()
 
         is_prov_sum = "provisional" in kategori_m.lower() or "professional" in kategori_m.lower()
+        is_est_sum = "estimated" in kategori_m.lower() or "estimasi" in kategori_m.lower()
         raw_hs = float(m.get('Harga Satuan', 0.0))
         if is_prov_sum:
             default_price_calc = raw_hs * 1.15
@@ -286,10 +288,16 @@ def tampilkan_opname(transaksi_list):
         prev_vol = float(active_item_data.get('prev_vol', 0.0))
         current_vol = float(active_item_data.get('current_vol', float(m.get('Qty', 1.0))))
 
-        # Perhitungan mandiri per baris
-        base_price = po_vol * unit_price * (percent_val / 100.0)
-        prev_tot = prev_vol * unit_price * (percent_val / 100.0)
-        curr_tot = current_vol * unit_price * (percent_val / 100.0)
+        # Perhitungan mandiri per baris dengan penambahan Estimated Sum (Diskon 10%)
+        if is_est_sum:
+            base_price = (po_vol * unit_price * 0.9) * (percent_val / 100.0)
+            prev_tot = (prev_vol * unit_price * 0.9) * (percent_val / 100.0)
+            curr_tot = (current_vol * unit_price * 0.9) * (percent_val / 100.0)
+        else:
+            base_price = po_vol * unit_price * (percent_val / 100.0)
+            prev_tot = prev_vol * unit_price * (percent_val / 100.0)
+            curr_tot = current_vol * unit_price * (percent_val / 100.0)
+
         cum_vol = prev_vol + current_vol
         cum_tot = prev_tot + curr_tot
         sisa_vol = po_vol - cum_vol
