@@ -217,10 +217,8 @@ if form_login_sistem():
             st.warning("⚠️ Belum ada data transaksi untuk dirender ke dalam kuitansi.")
             return
 
-        # Ambil nomor invoice aktif yang sedang dipilih di session state / selectbox utama billing & tax
         active_selected_invoice = st.session_state.get("input_filter_invoice_aktif", "")
         
-        # Filter list transaksi secara presisi agar mengambil baris yang benar-benar sesuai dengan nomor invoice yang dipilih
         if active_selected_invoice and active_selected_invoice != "-":
             filtered_by_active = [
                 t for t in transaksi_list 
@@ -231,19 +229,15 @@ if form_login_sistem():
 
         t_data = transaksi_list[0] if isinstance(transaksi_list, list) and len(transaksi_list) > 0 else {}
         
-        # Ambil referensi data secara mutlak dan dinamis dari baris data yang sudah tersaring
         customer_name = t_data.get("Ditujukan Kepada", t_data.get("Customer Name", "JOB Pertamina - Medco E&P Tomori Sulawesi"))
         
-        # Tangkap nomor invoice secara dinamis dari data terpilih
         pi_no = str(t_data.get("Invoice No.", t_data.get("PI No.", t_data.get("Proforma Invoice No.", "010/BSS-JOB/IX/2026")))).strip()
         if not pi_no or pi_no == "-":
             pi_no = "010/BSS-JOB/IX/2026"
 
-        # Penarikan referensi dinamis: Nomor PO serta Nomor WAN / SA
         nomor_po = str(t_data.get("Nomor PO", t_data.get("PO Nomor", "-"))).strip()
         nomor_wan = str(t_data.get("WAN / SA Nomor", t_data.get("WAN Nomor", t_data.get("WAN", t_data.get("SA Nomor", "-"))))).strip()
         
-        # Tanggal Dokumen Dinamis
         tanggal_pi_raw = t_data.get("Invoice Date", t_data.get("Tanggal PI", ""))
         if not tanggal_pi_raw:
             tanggal_pi_raw = datetime.today().strftime('%d %B %Y')
@@ -253,7 +247,6 @@ if form_login_sistem():
             except:
                 pass
 
-        # Hitung total tagihan murni secara dinamis dari item yang tersaring
         total_tagihan = sum([float(item.get("Total Harga", item.get("TOTAL", 0.0))) for item in transaksi_list]) if isinstance(transaksi_list, list) else 0.0
         if total_tagihan <= 0:
             total_tagihan = float(t_data.get("Total Amount", t_data.get("TOTAL", 51818130.0) if isinstance(t_data.get("TOTAL"), (int, float)) else 51818130.0))
@@ -261,7 +254,6 @@ if form_login_sistem():
         terbilang_str = terbilang(total_tagihan).strip() + " Rupiah" if total_tagihan > 0 else "Nol Rupiah"
         formatted_nominal = f"Rp {total_tagihan:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-        # Redaksi referensi pembayaran dinamis berdasar Nomor PO dan Nomor WAN / SA
         teks_referensi = "Pelunasan biaya pekerjaan berdasarkan"
         ref_parts = []
         if nomor_po and nomor_po != "-":
@@ -845,7 +837,7 @@ if form_login_sistem():
                             else:
                                 val_str = val_clean if val_clean else "-"
                                 cell_align = "text-align: left; white-space: nowrap;"
-                                
+                            
                             html_table_rows += f"<td style='border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; {cell_align}'>{val_str}</td>"
                         
                         action_buttons = f"""
