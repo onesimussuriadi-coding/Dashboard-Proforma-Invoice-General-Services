@@ -114,7 +114,7 @@ if form_login_sistem():
     render_panel_manajemen_akun()
     user_role = st.session_state.get('current_role', 'Staff')
 
-    # --- CSS STYLING PROFESIONAL ---
+    # --- CSS STYLING PROFESIONAL & PENGATURAN LEBAR DROPDOWN ---
     st.markdown("""
         <style>
         .stApp { background-color: #f8fafc; color: #0f172a; }
@@ -133,6 +133,24 @@ if form_login_sistem():
         input, textarea {
             background-color: #ffffff !important;
             color: #000000 !important;
+        }
+        
+        /* Memperlebar kotak popover / dropdown menu Streamlit */
+        div[data-baseweb="popover"] {
+            min-width: 650px !important;
+            max-width: 900px !important;
+        }
+        div[data-baseweb="menu"] {
+            width: 100% !important;
+        }
+        div[data-baseweb="menu"] div[role="option"] {
+            white-space: normal !important;
+            word-break: break-word !important;
+            height: auto !important;
+            min-height: 45px !important;
+            padding-top: 8px !important;
+            padding-bottom: 8px !important;
+            line-height: 1.4 !important;
         }
         
         .company-header-centered {
@@ -235,7 +253,7 @@ if form_login_sistem():
             pi_no = "010/BSS-JOB/IX/2026"
 
         nomor_po = str(t_data.get("Nomor PO", t_data.get("PO Nomor", "-"))).strip()
-        nomor_wan = str(t_data.get("WAN / SA Nomor", t_data.get("WAN Nomor", t_data.get("WAN", t_data.get("SA Nomor", "-"))))).strip()
+        nomor_wan = str(t_data.get("Nomor WAN / SA", t_data.get("WAN Nomor", t_data.get("WAN", t_data.get("SA Nomor", "-"))))).strip()
         
         tanggal_pi_raw = t_data.get("Invoice Date", t_data.get("Tanggal PI", ""))
         if not tanggal_pi_raw:
@@ -894,6 +912,7 @@ if form_login_sistem():
                                 st.session_state["edit_index"] = None
                                 st.rerun()
                     else:
+                        # PERBAIKAN ERROR: Menggunakan variabel 'd' secara konsisten pada perulangan list comprehension
                         matched_pi_records_sorted = sorted(
                             [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
                             key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
@@ -1197,12 +1216,16 @@ if form_login_sistem():
                         raw_po_num = loaded_tx_items[0].get("Nomor PO", matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))) if loaded_tx_items else matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))
                         def_po_num = bersih_angka(raw_po_num)
                         
+                        raw_wan_num = loaded_tx_items[0].get("Nomor WAN / SA", "") if loaded_tx_items else ""
+                        def_wan_num = bersih_angka(raw_wan_num)
+
                         raw_po_date = loaded_tx_items[0].get("Tanggal PO", matched_record.get(9, matched_record.get("Tanggal Purchase Order", ""))) if loaded_tx_items else matched_record.get(9, matched_record.get("Tanggal Purchase Order", ""))
                         def_po_date = bersih_angka(raw_po_date)
 
                         def_desc_po = bersih_angka(loaded_tx_items[0].get("Deskripsi PO", matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))) if loaded_tx_items else bersih_angka(matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))
 
                         nomor_po = st.text_input("Nomor PO", def_po_num if def_po_num else "-")
+                        nomor_wan_sa = st.text_input("Nomor WAN / SA (Work Authorization Notice / Service Agreement)", def_wan_num if def_wan_num else "-")
                         tanggal_po = st.text_input("Tanggal PO", def_po_date if def_po_date else "-")
                         mata_uang = st.text_input("Mata Uang", "IDR")
                         desc_po = st.text_area("Lingkup Pekerjaan", def_desc_po, height=130)
@@ -1331,12 +1354,34 @@ if form_login_sistem():
                                 if df_f_kat.empty:
                                     df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
                                     
-                                list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
+                                raw_list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
                                 
-                                def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", list_spek[0] if list_spek else "-"))
-                                idx_spek = list_spek.index(def_spek_item) if def_spek_item in list_spek else 0
+                                # --- MODIFIKASI CERDAS: MENAMPILKAN BAGIAN UNIK / NAMA ALAT DI DEPAN ---
+                                spek_display_map = {}
+                                spek_options_formatted = []
                                 
-                                spek_pilih = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", list_spek, index=idx_spek, key=f"spek_{i}")
+                                for orig_text in raw_list_spek:
+                                    if "BBM & " in orig_text:
+                                        parts = orig_text.split("BBM & ")
+                                        unique_part = parts[-1].strip() if len(parts) > 1 else orig_text
+                                        display_text = f"⭐ [{unique_part}] — ({orig_text})"
+                                    else:
+                                        display_text = orig_text
+                                    
+                                    spek_display_map[display_text] = orig_text
+                                    spek_options_formatted.append(display_text)
+
+                                def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", ""))
+                                default_display_val = spek_options_formatted[0]
+                                for disp, orig in spek_display_map.items():
+                                    if orig == def_spek_item:
+                                        default_display_val = disp
+                                        break
+
+                                idx_spek = spek_options_formatted.index(default_display_val) if default_display_val in spek_options_formatted else 0
+                                
+                                selected_display_spek = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", spek_options_formatted, index=idx_spek, key=f"spek_{i}")
+                                spek_pilih = spek_display_map.get(selected_display_spek, selected_display_spek)
 
                         hs_otomatis = 0.0
                         unit_otomatis = "Month"
@@ -1494,6 +1539,7 @@ if form_login_sistem():
                                     "Alamat Pihak Pertama": alamat_pihak_pertama,
                                     "Jangka Waktu Kontrak": jangka_waktu,
                                     "Nomor PO": nomor_po,
+                                    "Nomor WAN / SA": nomor_wan_sa,
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
                                     "Mata Uang": mata_uang,
@@ -1553,6 +1599,7 @@ if form_login_sistem():
                                     "Alamat Pihak Pertama": alamat_pihak_pertama,
                                     "Jangka Waktu Kontrak": jangka_waktu,
                                     "Nomor PO": nomor_po,
+                                    "Nomor WAN / SA": nomor_wan_sa,
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
                                     "Mata Uang": mata_uang,

@@ -913,7 +913,7 @@ if form_login_sistem():
                                 st.rerun()
                     else:
                         matched_pi_records_sorted = sorted(
-                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, data.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
+                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
                             key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
                             reverse=True
                         )
@@ -1112,19 +1112,33 @@ if form_login_sistem():
                 st.markdown("""
                     <div class="dashboard-card">
                         <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Database Identifikasi Tersimpan</h3>
+                        <p style="font-size: 13px; color: #475569; margin-bottom: 0;">Kelola dan hapus data PI ganda secara langsung dengan aman tanpa membuka tab baru.</p>
                     </div>
                 """, unsafe_allow_html=True)
+
                 saved_records = muat_data_invoice()
-                if len(saved_records) > 0:
-                    cleaned_records = []
-                    for rec in saved_records:
-                        cleaned_rec = {str(k): (bersih_angka(v) if bersih_angka(v) else "-") for k, v in rec.items()}
-                        cleaned_records.append(cleaned_rec)
-                    df_saved = pd.DataFrame(cleaned_records)
-                    if "Update Terakhir" in df_saved.columns:
-                        df_saved = df_saved.drop(columns=["Update Terakhir"])
-                    df_saved.columns = [f"{col}" if str(col).isdigit() else f"{i}: {col}" for i, col in enumerate(df_saved.columns)]
-                    st.dataframe(df_saved, use_container_width=True)
+                if not saved_records:
+                    st.info("ℹ️ Belum ada data database tersimpan di folder aman.")
+                else:
+                    for original_idx, rec in enumerate(saved_records):
+                        with st.container():
+                            pi_num = bersih_angka(rec.get(0, rec.get('Proforma Invoice No.', '-')))
+                            kontrak_num = bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-')))
+                            
+                            col_s1, col_s2, col_s3, col_s4 = st.columns([1.5, 3, 2.5, 1])
+                            with col_s1:
+                                st.write(f"**Baris #{original_idx+1}**")
+                            with col_s2:
+                                st.write(f"**Kontrak:** {kontrak_num if kontrak_num else '-'}")
+                            with col_s3:
+                                st.write(f"**PI No:** {pi_num if pi_num else '-'}")
+                            with col_s4:
+                                if st.button("🗑️ Hapus", key=f"del_db_row_{original_idx}", help="Hapus permanen baris ini"):
+                                    saved_records.pop(original_idx)
+                                    simpan_data_invoice(saved_records)
+                                    st.success("✅ Berhasil menghapus baris data database secara permanen!")
+                                    st.rerun()
+                        st.markdown("---")
 
         elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
             if menu == "Input & Proses Rincian Pekerjaan":
@@ -1355,13 +1369,10 @@ if form_login_sistem():
                                     
                                 raw_list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
                                 
-                                # --- MODIFIKASI CERDAS: MENAMPILKAN BAGIAN UNIK / NAMA ALAT DI DEPAN ---
-                                # Jika ada banyak item dengan awalan sama, kita buat opsi display yang menonjolkan bagian belakang/unik
                                 spek_display_map = {}
                                 spek_options_formatted = []
                                 
                                 for orig_text in raw_list_spek:
-                                    # Cari bagian unik (misal setelah kata 'BBM & ' atau potong dari belakang)
                                     if "BBM & " in orig_text:
                                         parts = orig_text.split("BBM & ")
                                         unique_part = parts[-1].strip() if len(parts) > 1 else orig_text
@@ -1373,7 +1384,6 @@ if form_login_sistem():
                                     spek_options_formatted.append(display_text)
 
                                 def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", ""))
-                                # Cari padanan format display
                                 default_display_val = spek_options_formatted[0]
                                 for disp, orig in spek_display_map.items():
                                     if orig == def_spek_item:
@@ -1541,7 +1551,7 @@ if form_login_sistem():
                                     "Alamat Pihak Pertama": alamat_pihak_pertama,
                                     "Jangka Waktu Kontrak": jangka_waktu,
                                     "Nomor PO": nomor_po,
-                                    "Nomor WAN / SA": nomor_wan_sa, # Disimpan ke database
+                                    "Nomor WAN / SA": nomor_wan_sa,
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
                                     "Mata Uang": mata_uang,
@@ -1601,7 +1611,7 @@ if form_login_sistem():
                                     "Alamat Pihak Pertama": alamat_pihak_pertama,
                                     "Jangka Waktu Kontrak": jangka_waktu,
                                     "Nomor PO": nomor_po,
-                                    "Nomor WAN / SA": nomor_wan_sa, # Disimpan ke database
+                                    "Nomor WAN / SA": nomor_wan_sa,
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
                                     "Mata Uang": mata_uang,
