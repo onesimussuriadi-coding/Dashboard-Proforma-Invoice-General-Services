@@ -1675,15 +1675,10 @@ if form_login_sistem():
                     st.markdown("---")
 
                     if filtered_transaksi_target:
-                        kategori_list_target = [str(t.get("Kategori", "")).upper() for t in filtered_transaksi_target]
                         jenis_bastp_val = str(filtered_transaksi_target[0].get("Jenis BASTP", "")).strip()
 
-                        is_pure_goods = all(
-                            any(keyword in kat for keyword in ["MATERIAL", "SAFETY", "BARANG", "SUPPLY"]) 
-                            for kat in kategori_list_target
-                        ) or "Barang / Material" in jenis_bastp_val or any(any(k in kat for k in ["MATERIAL", "SAFETY"]) for kat in kategori_list_target)
-
-                        if is_pure_goods and "Gabungan" not in jenis_bastp_val:
+                        # Logika Penentuan Dokumen Berdasarkan Jenis BASTP yang Dipilih
+                        if "Barang / Material" in jenis_bastp_val:
                             allowed_docs = [
                                 "Rincian Pekerjaan",
                                 "Proforma Invoice",
@@ -1692,8 +1687,8 @@ if form_login_sistem():
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
                             ]
-                            st.info("ℹ️ **Mode Pengadaan Barang/Safety Aktif:** Dokumen BAMP dan BASP disembunyikan otomatis.")
-                        elif "Jasa" in jenis_bastp_val and not is_pure_goods:
+                            st.info("ℹ️ **Mode Pengadaan Barang / Material Aktif:** Dokumen BAMP dan BASP disembunyikan otomatis.")
+                        elif "Jasa" in jenis_bastp_val:
                             allowed_docs = [
                                 "Rincian Pekerjaan",
                                 "Proforma Invoice",
@@ -1705,7 +1700,7 @@ if form_login_sistem():
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
                             ]
-                            st.info("ℹ️ **Mode Pekerjaan Jasa Aktif:** Menggunakan BAMP dan BASP.")
+                            st.info("ℹ️ **Mode Pekerjaan Jasa Aktif:** Dokumen BAMP dan BASP diaktifkan.")
                         else:
                             allowed_docs = [
                                 "Rincian Pekerjaan",

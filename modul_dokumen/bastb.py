@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import base64
+import os
 from datetime import datetime, date
 
 def tampilkan_bastb(transaksi_list):
@@ -14,17 +15,27 @@ def tampilkan_bastb(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
-    # --- FILTER CERDAS BASTB (MENCAKUP MATERIAL, BARANG, SAFETY, & SUPPLY) ---
-    transaksi_list = [
-        t for t in transaksi_list 
-        if "material" in str(t.get('Kategori', '')).lower() 
-        or "barang" in str(t.get('Kategori', '')).lower()
-        or "safety" in str(t.get('Kategori', '')).lower()
-        or "supply" in str(t.get('Kategori', '')).lower()
-    ]
+    # --- FILTER CERDAS BASTB YANG FLEKSIBEL ---
+    filtered_list_temp = []
+    for t in transaksi_list:
+        kat_lower = str(t.get('Kategori', '')).lower()
+        jenis_bp = str(t.get('Jenis BASTP', '')).lower()
+        
+        if (
+            "material" in kat_lower 
+            or "barang" in kat_lower 
+            or "safety" in kat_lower 
+            or "supply" in kat_lower
+            or "barang / material" in jenis_bp
+            or "gabungan" in jenis_bp
+            or kat_lower != ""
+        ):
+            filtered_list_temp.append(t)
+            
+    transaksi_list = filtered_list_temp
 
     if not transaksi_list:
-        st.warning("ℹ️ Tidak ada item kategori Barang / Material / Safety untuk ditampilkan pada BASTB di PI ini (Item murni Jasa disaring otomatis ke BAMP & BASP).")
+        st.warning("ℹ️ Tidak ada item kategori Barang / Material / Safety / Supply yang cocok untuk ditampilkan pada BASTB di PI ini.")
         return
 
     seen_pi_dd = set()
@@ -59,20 +70,14 @@ def tampilkan_bastb(transaksi_list):
 
     saved_global = st.session_state.bastb_saved_data[pi_storage_key]
 
-    # Hanya ambil mutasi yang spesifik untuk PI ini dan murni kategori Barang/Material/Safety
+    # Ambil mutasi yang spesifik untuk PI ini
     mutasi_terpilih = [
         t for t in transaksi_list 
-        if str(t.get('PI No.')).strip() == pi_storage_key 
-        and (
-            "material" in str(t.get('Kategori', '')).lower() 
-            or "barang" in str(t.get('Kategori', '')).lower()
-            or "safety" in str(t.get('Kategori', '')).lower()
-            or "supply" in str(t.get('Kategori', '')).lower()
-        )
+        if str(t.get('PI No.')).strip() == pi_storage_key
     ]
     
     if not mutasi_terpilih:
-        st.warning("⚠️ Tidak ada item mutasi Barang/Material/Safety ditemukan untuk PI ini.")
+        st.warning("⚠️ Tidak ada item mutasi ditemukan untuk PI ini.")
         return
 
     t_data_utama = mutasi_terpilih[0]
@@ -227,7 +232,6 @@ def tampilkan_bastb(transaksi_list):
         saved_db_induk = muat_data_invoice()
     except:
         try:
-            import os
             df_induk = pd.read_excel(os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx"))
             saved_db_induk = df_induk.to_dict(orient="records")
         except:
