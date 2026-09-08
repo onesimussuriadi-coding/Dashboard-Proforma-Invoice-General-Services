@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
-from datetime import datetime, date
+from datetime import datetime
 
 def terbilang(n):
     n = float(n)
@@ -56,17 +56,20 @@ def tampilkan_paket_lengkap(transaksi_list):
     seen_pi_dd = set()
     unique_pi_list = []
     for t in transaksi_list:
-        pi_key = str(t.get('PI No.', '')).strip()
+        pi_key = str(t.get('PI No.', t.get('PI', ''))).strip()
         if pi_key and pi_key not in seen_pi_dd:
             seen_pi_dd.add(pi_key)
             unique_pi_list.append(pi_key)
 
+    if not unique_pi_list:
+        unique_pi_list = ["DEFAULT-PI"]
+
     selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI) untuk Paket Dokumen:", unique_pi_list, key="bundle_pi_select")
     current_pi_no = str(selected_pi).strip()
+    pi_storage_key = current_pi_no
 
     file_saved_path = os.path.join(DIR_PAKET_SAVED, f"paket_{current_pi_no.replace('/', '_')}.html")
     
-    # Tombol Aksi Jika File Sudah Tersimpan Sebelumnya
     if os.path.exists(file_saved_path) and not st.session_state.get(f"force_regen_{current_pi_no}", False):
         st.success("✅ Dokumen Paket Lengkap (Fotokopi Identik) untuk PI ini sudah pernah disimpan secara final.")
         col_load1, col_load2 = st.columns([2, 2])
@@ -146,23 +149,23 @@ def tampilkan_paket_lengkap(transaksi_list):
     custom_logo_p2 = img_to_base64_str(logo_p2_file) or ""
     custom_logo_iso = img_to_base64_str(logo_iso_file) or ""
 
-    # Tag Logo Standar Eksternal (BAMP, BASP, BASTB) -> Kiri: P1 (JOB), Kanan: P2 (BSS)
-    img_tag_p1 = f'<img src="{custom_logo_p1}" style="height: 35px; object-fit: contain;" alt="Logo P1">' if custom_logo_p1 else '<div style="height: 35px;"></div>'
-    img_tag_p2 = f'<img src="{custom_logo_p2}" style="height: 35px; object-fit: contain;" alt="Logo P2">' if custom_logo_p2 else '<div style="height: 35px;"></div>'
+    img_tag_p1 = f'<img src="{custom_logo_p1}" style="height: 38px; object-fit: contain;" alt="Logo P1">' if custom_logo_p1 else '<div style="height: 38px;"></div>'
+    img_tag_p2 = f'<img src="{custom_logo_p2}" style="height: 38px; object-fit: contain;" alt="Logo P2">' if custom_logo_p2 else '<div style="height: 38px;"></div>'
 
-    # Tag Khusus WCC & Opname: Kiri BSS (logo_p2), Kanan JOB/Client (logo_p1) agar sejalan dengan tanda tangan di bawah
-    img_tag_reversed_left = f'<img src="{custom_logo_p2}" style="height: 35px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 35px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 35px;"></div>')
-    img_tag_reversed_right = f'<img src="{custom_logo_p1}" style="height: 35px; object-fit: contain;" alt="Logo JOB">' if custom_logo_p1 else '<div style="height: 35px;"></div>'
+    img_tag_reversed_left = f'<img src="{custom_logo_p2}" style="height: 38px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 38px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 38px;"></div>')
+    img_tag_reversed_right = f'<img src="{custom_logo_p1}" style="height: 38px; object-fit: contain;" alt="Logo JOB">' if custom_logo_p1 else '<div style="height: 38px;"></div>'
 
-    # Tag Logo Internal (Rincian Pekerjaan, PI, TKDN) -> Kiri: BSS, Kanan: ISO
-    img_tag_bss_internal = f'<img src="{custom_logo_p2}" style="height: 35px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 35px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 35px;"></div>')
-    img_tag_iso_internal = f'<img src="{custom_logo_iso}" style="height: 35px; object-fit: contain;" alt="Logo ISO">' if custom_logo_iso else '<div style="height: 35px;"></div>'
+    img_tag_bss_internal = f'<img src="{custom_logo_p2}" style="height: 38px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 38px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 38px;"></div>')
+    img_tag_iso_internal = f'<img src="{custom_logo_iso}" style="height: 38px; object-fit: contain;" alt="Logo ISO">' if custom_logo_iso else '<div style="height: 38px;"></div>'
 
     custom_ttd_supervisor = img_to_base64_str(ttd_supervisor_file)
     custom_ttd_onesimus = img_to_base64_str(ttd_onesimus_file)
     custom_ttd_ferry = img_to_base64_str(ttd_ferry_file)
 
-    mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == current_pi_no]
+    mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.', t.get('PI', ''))).strip() == current_pi_no]
+    if not mutasi_terpilih:
+        mutasi_terpilih = transaksi_list
+
     if not mutasi_terpilih:
         st.warning("⚠️ Tidak ada item ditemukan untuk PI ini.")
         return
@@ -333,16 +336,16 @@ def tampilkan_paket_lengkap(transaksi_list):
 
         rincian_rows_html += f"""
             <tr>
-                <td style="text-align: center;">{idx}</td>
-                <td style="text-align: left; padding-left: 5px; word-wrap: break-word;">{kat}</td>
-                <td style="text-align: left; padding-left: 5px; word-wrap: break-word;">{desc}</td>
-                <td style="text-align: center;">{qty:.2f}</td>
-                <td style="text-align: center;">{unit}</td>
-                <td style="text-align: center;">{tgl_mulai_item}</td>
-                <td style="text-align: center;">{tgl_selesai_item}</td>
-                <td style="text-align: right; padding-right: 5px;">{price:,.2f}</td>
-                <td style="text-align: right; padding-right: 5px;">{tot:,.2f}</td>
-                <td style="text-align: left; padding-left: 5px; word-wrap: break-word;">{ket}</td>
+                <td style="text-align: center; width: 4%;">{idx}</td>
+                <td style="text-align: left; padding-left: 4px; word-wrap: break-word; width: 11%;">{kat}</td>
+                <td style="text-align: left; padding-left: 5px; word-wrap: break-word; width: 22%;">{desc}</td>
+                <td style="text-align: center; width: 5%;">{qty:.2f}</td>
+                <td style="text-align: center; width: 6%;">{unit}</td>
+                <td style="text-align: center; width: 7%;">{tgl_mulai_item}</td>
+                <td style="text-align: center; width: 7%;">{tgl_selesai_item}</td>
+                <td style="text-align: right; padding-right: 5px; width: 11%;">{price:,.0f}</td>
+                <td style="text-align: right; padding-right: 5px; width: 11%;">{tot:,.0f}</td>
+                <td style="text-align: left; padding-left: 5px; word-wrap: break-word; width: 16%;">{ket}</td>
             </tr>
         """
 
@@ -351,48 +354,38 @@ def tampilkan_paket_lengkap(transaksi_list):
             desc_full_pi += f"<br>{ket}"
         pi_rows_html += f"""
             <tr>
-                <td style="text-align: center;">{idx}</td>
-                <td style="text-align: left; padding-left: 6px;">{desc_full_pi}</td>
-                <td style="text-align: center;">{qty:.2f}</td>
-                <td style="text-align: center;">{unit}</td>
-                <td style="text-align: right; padding-right: 6px;">{price:,.2f}</td>
-                <td style="text-align: right; padding-right: 6px;">{tot:,.2f}</td>
+                <td style="text-align: center; width: 6%;">{idx}</td>
+                <td style="text-align: left; padding-left: 6px; width: 46%;">{desc_full_pi}</td>
+                <td style="text-align: center; width: 7%;">{qty:.2f}</td>
+                <td style="text-align: center; width: 8%;">{unit}</td>
+                <td style="text-align: right; padding-right: 6px; width: 16%;">{price:,.0f}</td>
+                <td style="text-align: right; padding-right: 6px; width: 17%;">{tot:,.0f}</td>
             </tr>
         """
 
         desc_full_opname = f"<b>{kat}</b><br>{desc}"
         if ket:
             desc_full_opname += f"<br>{ket}"
+        
+        # Opname: Kolom angka menggunakan white-space: nowrap dan font disesuaikan agar selalu muat 1 baris
         opname_rows_html += f"""
             <tr>
                 <td style="text-align: center;">1.{idx}</td>
-                <td style="text-align: left; padding-left: 5px;">{desc_full_opname}</td>
+                <td style="text-align: left; padding-left: 4px;">{desc_full_opname}</td>
                 <td style="text-align: center;">{unit}</td>
-                <td style="text-align: center;">{qty:.2f}</td>
-                <td style="text-align: right; padding-right: 5px;">{price:,.2f}</td>
-                <td style="text-align: right; padding-right: 5px;">{tot:,.2f}</td>
-                <td style="text-align: center;">0.00</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
-                <td style="text-align: center;">{qty:.2f}</td>
-                <td style="text-align: right; padding-right: 5px;">{tot:,.2f}</td>
-                <td style="text-align: center;">{qty:.2f}</td>
-                <td style="text-align: right; padding-right: 5px;">{tot:,.2f}</td>
-                <td style="text-align: center;">0.00</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
+                <td style="text-align: center; white-space: nowrap;">{qty:.2f}</td>
+                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{price:,.0f}</td>
+                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot:,.0f}</td>
+                <td style="text-align: center; white-space: nowrap;">0.00</td>
+                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">0</td>
+                <td style="text-align: center; white-space: nowrap;">{qty:.2f}</td>
+                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot:,.0f}</td>
+                <td style="text-align: center; white-space: nowrap;">{qty:.2f}</td>
+                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot:,.0f}</td>
             </tr>
         """
 
-    # --- PENYARINGAN KHUSUS UNTUK BAMP & BASP (HANYA ITEM JASA / RENTAL) ---
-    mutasi_jasa = [
-        t for t in mutasi_terpilih 
-        if "material" not in str(t.get('Kategori', '')).lower() 
-        and "barang" not in str(t.get('Kategori', '')).lower()
-        and "pengadaan" not in str(t.get('Kategori', '')).lower()
-        and "safety" not in str(t.get('Kategori', '')).lower()
-    ]
-    if not mutasi_jasa:
-        mutasi_jasa = mutasi_terpilih
-
+    mutasi_jasa = mutasi_terpilih
     bamp_rows_html = ""
     basp_rows_html = ""
 
@@ -408,11 +401,11 @@ def tampilkan_paket_lengkap(transaksi_list):
             catatan_bamp = f"{catatan_bamp}<br>{ket}"
         bamp_rows_html += f"""
             <tr>
-                <td style="text-align: center;">{idx}</td>
-                <td style="text-align: left; padding-left: 5px;"><b>{kat}</b><br>{desc}</td>
-                <td style="text-align: center;">{qty:.2f}</td>
-                <td style="text-align: center;">{unit}</td>
-                <td style="text-align: left; padding-left: 5px;">{catatan_bamp}</td>
+                <td style="text-align: center; width: 6%;">{idx}</td>
+                <td style="text-align: left; padding-left: 5px; width: 42%;"><b>{kat}</b><br>{desc}</td>
+                <td style="text-align: center; width: 8%;">{qty:.2f}</td>
+                <td style="text-align: center; width: 10%;">{unit}</td>
+                <td style="text-align: left; padding-left: 5px; width: 34%;">{catatan_bamp}</td>
             </tr>
         """
 
@@ -421,40 +414,46 @@ def tampilkan_paket_lengkap(transaksi_list):
             catatan_basp = f"{catatan_basp}<br>{ket}"
         basp_rows_html += f"""
             <tr>
-                <td style="text-align: center;">{idx}</td>
-                <td style="text-align: left; padding-left: 5px;"><b>{kat}</b><br>{desc}</td>
-                <td style="text-align: center;">{qty:.2f}</td>
-                <td style="text-align: center;">{unit}</td>
-                <td style="text-align: left; padding-left: 5px;">{catatan_basp}</td>
+                <td style="text-align: center; width: 6%;">{idx}</td>
+                <td style="text-align: left; padding-left: 5px; width: 42%;"><b>{kat}</b><br>{desc}</td>
+                <td style="text-align: center; width: 8%;">{qty:.2f}</td>
+                <td style="text-align: center; width: 10%;">{unit}</td>
+                <td style="text-align: left; padding-left: 5px; width: 34%;">{catatan_basp}</td>
             </tr>
         """
 
-    # --- PENYARINGAN KHUSUS UNTUK BASTB (ITEM BARANG / MATERIAL / SAFETY) ---
-    mutasi_barang = [
-        t for t in mutasi_terpilih 
-        if "material" in str(t.get('Kategori', '')).lower() 
-        or "barang" in str(t.get('Kategori', '')).lower()
-        or "pengadaan" in str(t.get('Kategori', '')).lower()
-        or "safety" in str(t.get('Kategori', '')).lower()
-        or "supply" in str(t.get('Kategori', '')).lower()
-    ]
+    bastb_saved_container = st.session_state.get("bastb_saved_data", {}).get(pi_storage_key, {})
+    saved_items_map = bastb_saved_container.get('items', {})
 
     bastb_rows_html = ""
-    for idx, m in enumerate(mutasi_barang, start=1):
-        kat = str(m.get('Kategori', '')).strip()
-        desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
-        ket = str(m.get('Keterangan', '')).strip()
-        qty = float(m.get('Qty', 1.0))
-        unit = str(m.get('Unit', 'Unit'))
+    target_bastb_items = mutasi_terpilih
 
-        catatan_bastb = ket if ket else f"Diserahterimakan pada tanggal {basp_date_str}"
+    for idx, m in enumerate(target_bastb_items, start=1):
+        saved_row = {}
+        if isinstance(saved_items_map, dict):
+            saved_row = saved_items_map.get(idx, saved_items_map.get(str(idx), {}))
+
+        row_qty = float(saved_row.get('qty', m.get('Qty', 1.0)))
+        row_uom = str(saved_row.get('uom', m.get('Unit', 'Unit'))).strip()
+        
+        kategori_m = str(m.get('Kategori', '')).strip()
+        deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
+        ket_mentah = str(m.get('Keterangan', '')).strip()
+        
+        default_cat = ket_mentah if ket_mentah else "Sesuai dan lengkap diterima."
+        row_catatan = str(saved_row.get('catatan', default_cat)).strip()
+        if not row_catatan:
+            row_catatan = "Sesuai dan lengkap diterima."
+
+        desc_final_m = f"<b>{kategori_m}</b><br>{deskripsi_m}" if kategori_m else deskripsi_m
+
         bastb_rows_html += f"""
             <tr>
-                <td style="text-align: center;">{idx}</td>
-                <td style="text-align: left; padding-left: 5px;"><b>{kat}</b><br>{desc}</td>
-                <td style="text-align: center;">{qty:.2f}</td>
-                <td style="text-align: center;">{unit}</td>
-                <td style="text-align: left; padding-left: 5px;">{catatan_bastb}</td>
+                <td style="text-align: center; width: 6%;">{idx}</td>
+                <td style="text-align: left; padding-left: 6px; width: 42%;">{desc_final_m}</td>
+                <td style="text-align: center; width: 8%;">{row_qty:.2f}</td>
+                <td style="text-align: center; width: 10%;">{row_uom}</td>
+                <td style="text-align: left; padding-left: 6px; width: 34%;"><b>{row_catatan}</b></td>
             </tr>
         """
 
@@ -465,7 +464,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     ttd_ferry_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_ferry}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Ferry"></div>' if custom_ttd_ferry else '<div style="height: 55px;"></div>'
 
     # ==========================================
-    # 1. HALAMAN RINCIAN PEKERJAAN (INTERNAL: BSS KIRI, ISO KANAN)
+    # 1. HALAMAN RINCIAN PEKERJAAN
     # ==========================================
     rincian_html = f"""
     <div class="page-break">
@@ -475,8 +474,8 @@ def tampilkan_paket_lengkap(transaksi_list):
                     {img_tag_bss_internal}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <div style="font-weight: bold; font-size: 11px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
-                    <div style="font-size: 8px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
+                    <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
+                    <div style="font-size: 9px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
                 </td>
                 <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
                     {img_tag_iso_internal}
@@ -485,9 +484,9 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
         
-        <h2 style="text-align: center; font-size: 13px; text-transform: uppercase; margin-bottom: 15px;">RINCIAN PEKERJAAN</h2>
+        <h2 style="text-align: center; font-size: 14px; text-transform: uppercase; margin-bottom: 15px;">RINCIAN PEKERJAAN</h2>
         
-        <table style="width: 100%; font-size: 9.5px; margin-bottom: 15px; border-collapse: collapse;">
+        <table style="width: 100%; font-size: 10.5px; margin-bottom: 15px; border-collapse: collapse;">
             <tr>
                 <td style="width: 18%; font-weight: bold;">Rincian Pekerjaan</td><td style="width: 2%;">:</td><td style="width: 35%;"><b>{current_pi_no}</b></td>
                 <td style="width: 18%; font-weight: bold;">Ditujukan Kepada</td><td style="width: 2%;">:</td><td style="width: 25%;"><b>{p1_nama}</b></td>
@@ -510,43 +509,43 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         </table>
 
-        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 8px; table-layout: fixed;">
+        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 9.5px; table-layout: fixed;">
             <thead>
                 <tr>
                     <th style="width: 4%;">No.</th>
-                    <th style="width: 14%; text-align: left; padding-left: 5px;">Kategori</th>
+                    <th style="width: 11%; text-align: left; padding-left: 4px;">Kategori</th>
                     <th style="width: 22%; text-align: left; padding-left: 5px;">Uraian Pekerjaan</th>
-                    <th style="width: 4%;">Qty</th>
-                    <th style="width: 5%;">Satuan</th>
-                    <th style="width: 7%;">Tanggal Mulai</th>
-                    <th style="width: 7%;">Tanggal Selesai</th>
-                    <th style="width: 10%;">Harga Satuan (IDR)</th>
+                    <th style="width: 5%;">Qty</th>
+                    <th style="width: 6%;">Satuan</th>
+                    <th style="width: 7%;">Tgl Mulai</th>
+                    <th style="width: 7%;">Tgl Selesai</th>
+                    <th style="width: 11%;">Harga Satuan (IDR)</th>
                     <th style="width: 11%;">Total Harga (IDR)</th>
-                    <th style="width: 20%; text-align: left; padding-left: 5px;">Keterangan</th>
+                    <th style="width: 16%; text-align: left; padding-left: 5px;">Keterangan</th>
                 </tr>
             </thead>
             <tbody>
                 {rincian_rows_html}
                 <tr style="font-weight: bold; background: #f9fafb;">
                     <td colspan="8" style="text-align: right; padding-right: 8px;">TOTAL TAGIHAN :</td>
-                    <td style="text-align: right; padding-right: 5px;">{grand_total:,.2f}</td>
+                    <td style="text-align: right; padding-right: 5px;">{grand_total:,.0f}</td>
                     <td></td>
                 </tr>
             </tbody>
         </table>
 
-        <div style="font-size: 9.5px; margin-bottom: 20px;">
+        <div style="font-size: 10.5px; margin-bottom: 20px;">
             <b>Terbilang :</b> <i>{terbilang_str}</i>
         </div>
 
         <table style="width: 100%; table-layout: fixed; margin-top: 30px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
-                <td style="width: 50%; text-align: center; vertical-align: top;">
+                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px;">
                     <b>DIBUAT OLEH</b>
                     {ttd_supervisor_html}
                     <u><b>Yanuar Wiranata / Ireine Langi</b></u><br>Supervisor
                 </td>
-                <td style="width: 50%; text-align: center; vertical-align: top;">
+                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px;">
                     <b>DIPERIKSA</b>
                     {ttd_onesimus_html}
                     <u><b>Onesimus Suriadi</b></u><br>Manager General Services
@@ -557,7 +556,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 2. HALAMAN PROFORMA INVOICE (INTERNAL: BSS KIRI, ISO KANAN)
+    # 2. HALAMAN PROFORMA INVOICE
     # ==========================================
     pi_html = f"""
     <div class="page-break">
@@ -567,8 +566,8 @@ def tampilkan_paket_lengkap(transaksi_list):
                     {img_tag_bss_internal}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <div style="font-weight: bold; font-size: 11px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
-                    <div style="font-size: 8px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
+                    <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
+                    <div style="font-size: 9px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
                 </td>
                 <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
                     {img_tag_iso_internal}
@@ -577,9 +576,9 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
 
-        <h2 style="text-align: center; font-size: 13px; text-transform: uppercase; margin-bottom: 15px;">PROFORMA INVOICE</h2>
+        <h2 style="text-align: center; font-size: 14px; text-transform: uppercase; margin-bottom: 15px;">PROFORMA INVOICE</h2>
         
-        <table style="width: 100%; font-size: 9.5px; margin-bottom: 15px; border-collapse: collapse;">
+        <table style="width: 100%; font-size: 10.5px; margin-bottom: 15px; border-collapse: collapse;">
             <tr>
                 <td style="width: 55%; vertical-align: top;">
                     <b>TO:</b><br>
@@ -599,7 +598,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         </table>
 
-        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 8.5px; table-layout: fixed;">
+        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 9.5px; table-layout: fixed;">
             <thead>
                 <tr>
                     <th style="width: 6%;">Item</th>
@@ -614,16 +613,16 @@ def tampilkan_paket_lengkap(transaksi_list):
                 {pi_rows_html}
                 <tr>
                     <td colspan="5" style="text-align: right; font-weight: bold; padding-right: 8px;">GRAND TOTAL:</td>
-                    <td style="text-align: right; font-weight: bold; padding-right: 6px;">{grand_total:,.2f}</td>
+                    <td style="text-align: right; font-weight: bold; padding-right: 6px;">{grand_total:,.0f}</td>
                 </tr>
             </tbody>
         </table>
 
-        <div style="font-size: 9.5px; margin-bottom: 15px;">
+        <div style="font-size: 10.5px; margin-bottom: 15px;">
             <b>Terbilang:</b> <i>{terbilang_str}</i>
         </div>
 
-        <div style="font-size: 9.5px; margin-bottom: 20px; border-top: 1px solid #ccc; border-bottom: 1px solid #ccc; padding: 6px 0;">
+        <div style="font-size: 10.5px; margin-bottom: 20px; border-top: 1px solid #ccc; border-bottom: 1px solid #ccc; padding: 6px 0;">
             <b>PAYMENT INSTRUCTION:</b><br>
             Please remit to our bank:<br>
             <b>Bank Name:</b> {bank_name}<br>
@@ -635,7 +634,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         <table style="width: 100%; table-layout: fixed; margin-top: 20px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
                 <td style="width: 50%; text-align: center; vertical-align: top;"></td>
-                <td style="width: 50%; text-align: center; vertical-align: top;">
+                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px;">
                     <b>{p2_nama}</b>
                     {ttd_onesimus_html}
                     <u><b>Onesimus Suriadi</b></u><br>
@@ -647,7 +646,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 3. HALAMAN BAMP (EKSTERNAL: P1 KIRI, P2 KANAN)
+    # 3. HALAMAN BAMP
     # ==========================================
     bamp_html = f"""
     <div class="page-break" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
@@ -657,7 +656,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                     {img_tag_p1}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <h2 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">BERITA ACARA MULAI PEKERJAAN (BAMP)</h2>
+                    <h2 style="font-size: 15px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">BERITA ACARA MULAI PEKERJAAN (BAMP)</h2>
                 </td>
                 <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
                     {img_tag_p2}
@@ -666,9 +665,9 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
 
-        <p style="font-size: 9.5px;">Pada hari ini, tanggal <b>{bamp_date_str}</b>, yang bertanda tangan di bawah ini:</p>
+        <p style="font-size: 10.5px;">Pada hari ini, tanggal <b>{bamp_date_str}</b>, yang bertanda tangan di bawah ini:</p>
         
-        <table style="width: 100%; font-size: 9.5px; margin-bottom: 10px; border-collapse: collapse;">
+        <table style="width: 100%; font-size: 10.5px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 25%; font-weight: bold;">01. PIHAK PERTAMA</td><td></td></tr>
             <tr><td>Nama Perusahaan</td><td>: {p1_nama}</td></tr>
             <tr><td>Alamat</td><td>: {p1_alamat}</td></tr>
@@ -681,8 +680,8 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td>Jabatan</td><td>: Direktur</td></tr>
         </table>
 
-        <div style="font-size: 9.5px; font-weight: bold; margin-top: 10px; margin-bottom: 5px;">DASAR PELAKSANAAN PEKERJAAN</div>
-        <table style="width: 100%; font-size: 9.5px; margin-bottom: 10px; border-collapse: collapse;">
+        <div style="font-size: 10.5px; font-weight: bold; margin-top: 10px; margin-bottom: 5px;">DASAR PELAKSANAAN PEKERJAAN</div>
+        <table style="width: 100%; font-size: 10.5px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 25%;">Nomor Kontrak</td><td style="width: 75%;">: {nomor_kontrak}</td></tr>
             <tr><td>Tanggal Kontrak</td><td>: {tgl_kontrak}</td></tr>
             <tr><td>Nomor Purchase Order</td><td>: {no_po}</td></tr>
@@ -690,9 +689,9 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td>Lingkup Pekerjaan</td><td>: {lingkup_pekerjaan}</td></tr>
         </table>
 
-        <p style="font-size: 9.5px;">Dengan ini PIHAK KEDUA menyatakan mulai melaksanakan seluruh pekerjaan secara baik dan siap terhitung mulai tanggal <b>{bamp_date_str}</b> dengan rincian sebagai berikut:</p>
+        <p style="font-size: 10.5px;">Dengan ini PIHAK KEDUA menyatakan mulai melaksanakan seluruh pekerjaan secara baik dan siap terhitung mulai tanggal <b>{bamp_date_str}</b> dengan rincian sebagai berikut:</p>
 
-        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-top:10px; margin-bottom: 20px; font-size: 8.5px; table-layout: fixed;">
+        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-top:10px; margin-bottom: 20px; font-size: 9.5px; table-layout: fixed;">
             <thead>
                 <tr>
                     <th style="width: 6%;">NO</th>
@@ -707,16 +706,16 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tbody>
         </table>
 
-        <p style="font-size: 9.5px;">Demikian Berita Acara Mulai Pekerjaan ini dibuat dan ditandatangani oleh kedua belah pihak untuk dipergunakan sebagaimana mestinya.</p>
+        <p style="font-size: 10.5px;">Demikian Berita Acara Mulai Pekerjaan ini dibuat dan ditandatangani oleh kedua belah pihak untuk dipergunakan sebagaimana mestinya.</p>
 
         <table style="width: 100%; table-layout: fixed; margin-top: 25px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
-                <td style="width: 50%; text-align: center; vertical-align: top;">
+                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px;">
                     <b>{p1_nama}</b><br>PIHAK PERTAMA
                     <div style="height: 55px;"></div>
                     <u><b>{p1_wakil}</b></u><br>{p1_jabatan}
                 </td>
-                <td style="width: 50%; text-align: center; vertical-align: top;">
+                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px;">
                     <b>{p2_nama}</b><br>PIHAK KEDUA
                     {ttd_ferry_html}
                     <u><b>Ir. Ferry Tatimu</b></u><br>Direktur
@@ -724,14 +723,14 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         </table>
         
-        <div style="position: absolute; bottom: 0; left: 0; font-size: 8.5px; font-weight: bold;">
+        <div style="position: absolute; bottom: 0; left: 0; font-size: 9.5px; font-weight: bold;">
             Dokumen No: FM-GS-14 Rev:03
         </div>
     </div>
     """
 
     # ==========================================
-    # 4. HALAMAN BASP (EKSTERNAL: P1 KIRI, P2 KANAN)
+    # 4. HALAMAN BASP
     # ==========================================
     basp_html = f"""
     <div class="page-break" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
@@ -741,7 +740,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                     {img_tag_p1}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <h2 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">BERITA ACARA SELESAI PEKERJAAN (BASP)</h2>
+                    <h2 style="font-size: 15px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">BERITA ACARA SELESAI PEKERJAAN (BASP)</h2>
                 </td>
                 <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
                     {img_tag_p2}
@@ -750,9 +749,9 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
 
-        <p style="font-size: 9.5px;">Pada hari ini, tanggal <b>{basp_date_str}</b>, yang bertanda tangan di bawah ini:</p>
+        <p style="font-size: 10.5px;">Pada hari ini, tanggal <b>{basp_date_str}</b>, yang bertanda tangan di bawah ini:</p>
         
-        <table style="width: 100%; font-size: 9.5px; margin-bottom: 10px; border-collapse: collapse;">
+        <table style="width: 100%; font-size: 10.5px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 25%; font-weight: bold;">01. PIHAK PERTAMA</td><td></td></tr>
             <tr><td>Nama Perusahaan</td><td>: {p1_nama}</td></tr>
             <tr><td>Alamat</td><td>: {p1_alamat}</td></tr>
@@ -765,8 +764,8 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td>Jabatan</td><td>: Direktur</td></tr>
         </table>
 
-        <div style="font-size: 9.5px; font-weight: bold; margin-top: 10px; margin-bottom: 5px;">DASAR PELAKSANAAN PEKERJAAN</div>
-        <table style="width: 100%; font-size: 9.5px; margin-bottom: 10px; border-collapse: collapse;">
+        <div style="font-size: 10.5px; font-weight: bold; margin-top: 10px; margin-bottom: 5px;">DASAR PELAKSANAAN PEKERJAAN</div>
+        <table style="width: 100%; font-size: 10.5px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 25%;">Nomor Kontrak</td><td style="width: 75%;">: {nomor_kontrak}</td></tr>
             <tr><td>Tanggal Kontrak</td><td>: {tgl_kontrak}</td></tr>
             <tr><td>Nomor Purchase Order</td><td>: {no_po}</td></tr>
@@ -774,9 +773,9 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td>Lingkup Pekerjaan</td><td>: {lingkup_pekerjaan}</td></tr>
         </table>
 
-        <p style="font-size: 9.5px;">Dengan ini PIHAK KEDUA menyatakan telah menyelesaikan seluruh pekerjaan secara baik dan lengkap terhitung sampai dengan tanggal <b>{basp_date_str}</b> dengan rincian sebagai berikut:</p>
+        <p style="font-size: 10.5px;">Dengan ini PIHAK KEDUA menyatakan telah menyelesaikan seluruh pekerjaan secara baik dan lengkap terhitung sampai dengan tanggal <b>{basp_date_str}</b> dengan rincian sebagai berikut:</p>
 
-        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-top:10px; margin-bottom: 20px; font-size: 8.5px; table-layout: fixed;">
+        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-top:10px; margin-bottom: 20px; font-size: 9.5px; table-layout: fixed;">
             <thead>
                 <tr>
                     <th style="width: 6%;">NO</th>
@@ -791,16 +790,16 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tbody>
         </table>
 
-        <p style="font-size: 9.5px;">Demikian Berita Acara Selesai Pekerjaan ini dibuat dan ditandatangani oleh kedua belah pihak untuk dipergunakan sebagaimana mestinya.</p>
+        <p style="font-size: 10.5px;">Demikian Berita Acara Selesai Pekerjaan ini dibuat dan ditandatangani oleh kedua belah pihak untuk dipergunakan sebagaimana mestinya.</p>
 
         <table style="width: 100%; table-layout: fixed; margin-top: 25px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
-                <td style="width: 50%; text-align: center; vertical-align: top;">
+                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px;">
                     <b>{p1_nama}</b><br>PIHAK PERTAMA
                     <div style="height: 55px;"></div>
                     <u><b>{p1_wakil}</b></u><br>{p1_jabatan}
                 </td>
-                <td style="width: 50%; text-align: center; vertical-align: top;">
+                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px;">
                     <b>{p2_nama}</b><br>PIHAK KEDUA
                     {ttd_ferry_html}
                     <u><b>Ir. Ferry Tatimu</b></u><br>Direktur
@@ -808,14 +807,14 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         </table>
 
-        <div style="position: absolute; bottom: 0; left: 0; font-size: 8.5px; font-weight: bold;">
+        <div style="position: absolute; bottom: 0; left: 0; font-size: 9.5px; font-weight: bold;">
             Dokumen No: FM-GS-05 Rev:03
         </div>
     </div>
     """
 
     # ==========================================
-    # 5. HALAMAN BASTB (EKSTERNAL: P1 KIRI, P2 KANAN)
+    # 5. HALAMAN BASTB
     # ==========================================
     bastb_html = f"""
     <div class="page-break" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
@@ -825,8 +824,8 @@ def tampilkan_paket_lengkap(transaksi_list):
                     {img_tag_p1}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <h2 style="font-size: 13px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">{bastb_title}</h2>
-                    <div style="font-size: 10px; font-weight: bold; margin-top: 2px;">{bastb_subtitle}</div>
+                    <h2 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">{bastb_title}</h2>
+                    <div style="font-size: 11px; font-weight: bold; margin-top: 2px;">{bastb_subtitle}</div>
                 </td>
                 <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
                     {img_tag_p2}
@@ -835,9 +834,9 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
 
-        <p style="font-size: 9.5px;">Pada hari ini, tanggal <b>{basp_date_str}</b>, yang bertanda tangan di bawah ini:</p>
+        <p style="font-size: 10.5px;">Pada hari ini, tanggal <b>{basp_date_str}</b>, yang bertanda tangan di bawah ini:</p>
         
-        <table style="width: 100%; font-size: 9.5px; margin-bottom: 10px; border-collapse: collapse;">
+        <table style="width: 100%; font-size: 10.5px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 25%; font-weight: bold;">01. PIHAK PERTAMA</td><td></td></tr>
             <tr><td>Nama Perusahaan</td><td>: {p1_nama}</td></tr>
             <tr><td>Alamat</td><td>: {p1_alamat}</td></tr>
@@ -850,8 +849,8 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td>Jabatan</td><td>: Direktur</td></tr>
         </table>
 
-        <div style="font-size: 9.5px; font-weight: bold; margin-top: 10px; margin-bottom: 5px;">{bastb_term}</div>
-        <table style="width: 100%; font-size: 9.5px; margin-bottom: 10px; border-collapse: collapse;">
+        <div style="font-size: 10.5px; font-weight: bold; margin-top: 10px; margin-bottom: 5px;">{bastb_term}</div>
+        <table style="width: 100%; font-size: 10.5px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 25%;">Nomor Kontrak</td><td style="width: 75%;">: {nomor_kontrak}</td></tr>
             <tr><td>Tanggal Kontrak</td><td>: {tgl_kontrak}</td></tr>
             <tr><td>Nomor Purchase Order</td><td>: {no_po}</td></tr>
@@ -859,9 +858,9 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td>Lingkup Pengadaan</td><td>: {lingkup_pekerjaan}</td></tr>
         </table>
 
-        <p style="font-size: 9.5px;">{bastb_msg}</p>
+        <p style="font-size: 10.5px;">{bastb_msg}</p>
 
-        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-top:10px; margin-bottom: 20px; font-size: 8.5px; table-layout: fixed;">
+        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-top:10px; margin-bottom: 20px; font-size: 9.5px; table-layout: fixed;">
             <thead>
                 <tr>
                     <th style="width: 6%;">NO</th>
@@ -876,16 +875,16 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tbody>
         </table>
 
-        <p style="font-size: 9.5px;">Demikian Berita Acara Serah Terima ini dibuat dengan sebenarnya dan ditandatangani oleh kedua belah pihak untuk dipergunakan sebagaimana mestinya.</p>
+        <p style="font-size: 10.5px;">Demikian Berita Acara Serah Terima ini dibuat dengan sebenarnya dan ditandatangani oleh kedua belah pihak untuk dipergunakan sebagaimana mestinya.</p>
 
         <table style="width: 100%; table-layout: fixed; margin-top: 25px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
-                <td style="width: 50%; text-align: center; vertical-align: top;">
+                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px;">
                     <b>{p1_nama}</b><br>PIHAK PERTAMA
                     <div style="height: 55px;"></div>
                     <u><b>{p1_wakil}</b></u><br>{p1_jabatan}
                 </td>
-                <td style="width: 50%; text-align: center; vertical-align: top;">
+                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px;">
                     <b>{p2_nama}</b><br>PIHAK KEDUA
                     {ttd_ferry_html}
                     <u><b>Ir. Ferry Tatimu</b></u><br>Direktur
@@ -893,14 +892,14 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         </table>
 
-        <div style="position: absolute; bottom: 0; left: 0; font-size: 8.5px; font-weight: bold;">
+        <div style="position: absolute; bottom: 0; left: 0; font-size: 9.5px; font-weight: bold;">
             Dokumen No: FM-GS-04 Rev:03
         </div>
     </div>
     """
 
     # ==========================================
-    # 6. HALAMAN WORK COMPLETION CERTIFICATE (WCC) (DIBALIK: BSS KIRI, PERTAMINA KANAN)
+    # 6. HALAMAN WCC
     # ==========================================
     num_signers_wcc = len(wcc_signers_list)
     col_width_pct_wcc = round(100.0 / num_signers_wcc, 2) if num_signers_wcc > 0 else 50.0
@@ -920,7 +919,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             img_box = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_onesimus}" style="max-height: 52px; max-width: 140px; object-fit: contain;"></div>'
 
         wcc_signers_cells_html += f"""
-            <td style="width: {col_width_pct_wcc}%; text-align: center; vertical-align: top; font-size: 9px; padding: 0 10px;">
+            <td style="width: {col_width_pct_wcc}%; text-align: center; vertical-align: top; font-size: 10px; padding: 0 10px;">
                 {loc_date_text}
                 <b>{s_comp}</b><br>
                 {s_role}
@@ -946,8 +945,8 @@ def tampilkan_paket_lengkap(transaksi_list):
                     {img_tag_reversed_left}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <div style="font-weight: bold; font-size: 11px; margin-bottom: 2px;">{wcc_header_title}</div>
-                    <div style="font-size: 10px; color: #4b5563;">{wcc_header_contract}</div>
+                    <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">{wcc_header_title}</div>
+                    <div style="font-size: 11px; color: #4b5563;">{wcc_header_contract}</div>
                 </td>
                 <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
                     {img_tag_reversed_right}
@@ -956,18 +955,18 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
         
-        <div style="border: 1px solid #000; background-color: #dbeafe; text-align: center; font-weight: bold; font-size: 12px; padding: 6px; margin-bottom: 2px;">
+        <div style="border: 1px solid #000; background-color: #dbeafe; text-align: center; font-weight: bold; font-size: 13px; padding: 6px; margin-bottom: 2px;">
             WORK COMPLETION CERTIFICATE
         </div>
-        <div style="border: 1px solid #000; background-color: #f8fafc; text-align: center; font-weight: bold; font-size: 11px; padding: 6px; margin-bottom: 20px;">
+        <div style="border: 1px solid #000; background-color: #f8fafc; text-align: center; font-weight: bold; font-size: 12px; padding: 6px; margin-bottom: 20px;">
             CERTIFICATE NO : {wcc_cert_no}
         </div>
 
-        <div style="font-size: 10px; margin-bottom: 15px;">
+        <div style="font-size: 11px; margin-bottom: 15px;">
             On the date of <b>{wcc_date_str}</b> we on behalf of <b>{p2_nama}</b> have completed the following job:
         </div>
 
-        <table style="width: 100%; border-collapse: collapse; font-size: 9.5px; margin-bottom: 25px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 25px;">
             <tr style="border: 1px solid #000;">
                 <td style="width: 25%; font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc;">WORK ORDER NUMBER</td>
                 <td style="width: 3%; padding: 8px; border: 1px solid #000; text-align: center;">:</td>
@@ -987,7 +986,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc; vertical-align: top;">DESCRIPTION</td>
                 <td style="padding: 8px; border: 1px solid #000; text-align: center; vertical-align: top;">:</td>
                 <td style="padding: 8px; border: 1px solid #000;">
-                    <table style="width:100%; border:none;"><tr><td style="border:none; padding:0; width:65%;">{progress_desc}</td><td style="border:none; padding:0; width:35%; text-align:right; font-weight:bold;">Rp {grand_total:,.2f}</td></tr></table>
+                    <table style="width:100%; border:none;"><tr><td style="border:none; padding:0; width:65%;">{progress_desc}</td><td style="border:none; padding:0; width:35%; text-align:right; font-weight:bold;">Rp {grand_total:,.0f}</td></tr></table>
                 </td>
             </tr>
             <tr style="border: 1px solid #000;">
@@ -997,7 +996,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         </table>
 
-        <div style="font-size: 10px; margin-bottom: 30px;">
+        <div style="font-size: 11px; margin-bottom: 30px;">
             The work has been properly completed as per requirement, witnessed and accepted by <b>{p1_nama}</b>.
         </div>
 
@@ -1006,23 +1005,23 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 7. HALAMAN OPNAME PEKERJAAN (BSS KIRI, JOB KANAN)
+    # 7. HALAMAN OPNAME PEKERJAAN (Kolom Lebar & Font Disesuaikan agar Muat 1 Baris)
     # ==========================================
     if str(nomor_kontrak).strip() == "7207250142":
         opname_sig_table_html = f"""
         <table style="width: 100%; table-layout: fixed; margin-top: 20px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
-                <td style="width: 33.3%; text-align: center; vertical-align: top; font-size: 9px; padding: 0 10px;">
+                <td style="width: 33.3%; text-align: center; vertical-align: top; font-size: 10px; padding: 0 10px;">
                     {lokasi_bamp}, {opname_date_str}<br><b>{p2_nama}</b><br>Prepared by,
                     {ttd_onesimus_html}
                     <u><b>Onesimus Suriadi</b></u><br>Manager General Services
                 </td>
-                <td style="width: 33.3%; text-align: center; vertical-align: top; font-size: 9px; padding: 0 10px;">
+                <td style="width: 33.3%; text-align: center; vertical-align: top; font-size: 10px; padding: 0 10px;">
                     <br><b>{p1_nama}</b><br>Reviewed by,
                     <div style="height: 55px;"></div>
                     <u><b>Rafik Hidayat / Ronny Dwi Purnomo</b></u><br>Maintenance Support Supervisor
                 </td>
-                <td style="width: 33.3%; text-align: center; vertical-align: top; font-size: 9px; padding: 0 10px;">
+                <td style="width: 33.3%; text-align: center; vertical-align: top; font-size: 10px; padding: 0 10px;">
                     <br><b>{p1_nama}</b><br>Approved by,
                     <div style="height: 55px;"></div>
                     <u><b>{p1_wakil}</b></u><br>{p1_jabatan}
@@ -1034,12 +1033,12 @@ def tampilkan_paket_lengkap(transaksi_list):
         opname_sig_table_html = f"""
         <table style="width: 100%; table-layout: fixed; margin-top: 20px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
-                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 9px; padding: 0 10px;">
+                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px; padding: 0 10px;">
                     {lokasi_bamp}, {opname_date_str}<br><b>{p2_nama}</b><br>Prepared by,
                     {ttd_onesimus_html}
                     <u><b>Onesimus Suriadi</b></u><br>Manager General Services
                 </td>
-                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 9px; padding: 0 10px;">
+                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px; padding: 0 10px;">
                     <br><b>{p1_nama}</b><br>Approved by,
                     <div style="height: 55px;"></div>
                     <u><b>{p1_wakil}</b></u><br>{p1_jabatan}
@@ -1056,8 +1055,8 @@ def tampilkan_paket_lengkap(transaksi_list):
                     {img_tag_reversed_left}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <div style="font-weight: bold; font-size: 11px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
-                    <div style="font-size: 8px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk</div>
+                    <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
+                    <div style="font-size: 9px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk</div>
                 </td>
                 <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
                     {img_tag_reversed_right}
@@ -1066,45 +1065,54 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
         
-        <h2 style="text-align: center; font-size: 14px; font-weight: bold; text-transform: uppercase; margin-bottom: 15px;">BERITA ACARA PEKERJAAN / OPNAME</h2>
+        <h2 style="text-align: center; font-size: 15px; font-weight: bold; text-transform: uppercase; margin-bottom: 15px;">BERITA ACARA PEKERJAAN / OPNAME</h2>
 
-        <table style="width: 100%; font-size: 9.5px; margin-bottom: 10px; border-collapse: collapse;">
+        <table style="width: 100%; font-size: 10.5px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 25%; font-weight: bold;">JOB TITLE / WO / PO</td><td>: {lingkup_pekerjaan}</td></tr>
             <tr><td style="font-weight: bold;">CTR / WO / PO No.</td><td>: <b>{no_po}</b></td></tr>
             <tr><td style="font-weight: bold;">DATE</td><td>: <b>{opname_date_str}</b></td></tr>
             <tr><td style="font-weight: bold; color: #065f46;">PROFORMA INVOICE No.</td><td>: <b>{current_pi_no}</b></td></tr>
         </table>
 
-        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 8px;">
-            <tr>
-                <th rowspan="2">NO</th><th rowspan="2">ITEM - DESCRIPTION</th><th rowspan="2">UOM</th>
-                <th colspan="3">BASE ON CTR / PO</th>
-                <th colspan="2">PREVIOUS OPNAME (IDR)</th>
-                <th colspan="2">AKTUAL OPNAME (BULAN INI) (IDR)</th>
-                <th colspan="2">CUMMULATIVE OPNAME (IDR)</th>
-                <th colspan="2">SISA ANGGARAN (DEVIASI) (IDR)</th>
-            </tr>
-            <tr>
-                <th>VOLUME</th><th>UNIT PRICE (IDR)</th><th>TOTAL PRICE (IDR)</th>
-                <th>VOLUME</th><th>TOTAL PRICE</th>
-                <th>VOLUME</th><th>TOTAL PRICE</th>
-                <th>VOLUME</th><th>TOTAL PRICE</th>
-                <th>VOLUME</th><th>TOTAL PRICE</th>
-            </tr>
-            {opname_rows_html}
-            <tr style="font-weight: bold; background: #f9fafb;">
-                <td colspan="3" style="text-align: right;">TOTAL :</td>
-                <td style="text-align: center;">{float(t_data_utama.get('Qty', 1.0)):.2f}</td><td>-</td><td style="text-align: right; padding-right: 5px;">{grand_total:,.2f}</td>
-                <td style="text-align: center;">0.00</td><td style="text-align: right; padding-right: 5px;">0.00</td>
-                <td style="text-align: center;">{float(t_data_utama.get('Qty', 1.0)):.2f}</td><td style="text-align: right; padding-right: 5px;">{grand_total:,.2f}</td>
-                <td style="text-align: center;">{float(t_data_utama.get('Qty', 1.0)):.2f}</td><td style="text-align: right; padding-right: 5px;">{grand_total:,.2f}</td>
-                <td style="text-align: center;">0.00</td><td style="text-align: right; padding-right: 5px;">0.00</td>
-            </tr>
+        <!-- Tabel Opname dengan ukuran font 7.5px dan proporsi kolom harga yang diperlebar -->
+        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 7.5px; table-layout: fixed;">
+            <thead>
+                <tr>
+                    <th rowspan="2" style="width: 4%;">NO</th>
+                    <th rowspan="2" style="width: 21%;">ITEM - DESCRIPTION</th>
+                    <th rowspan="2" style="width: 5%;">UOM</th>
+                    <th colspan="3">BASE ON CTR / PO</th>
+                    <th colspan="2">PREVIOUS OPNAME (IDR)</th>
+                    <th colspan="2">AKTUAL OPNAME (BULAN INI) (IDR)</th>
+                    <th colspan="2">CUMMULATIVE OPNAME (IDR)</th>
+                </tr>
+                <tr>
+                    <th style="width: 5%;">VOLUME</th>
+                    <th style="width: 12%;">UNIT PRICE</th>
+                    <th style="width: 13%;">TOTAL PRICE</th>
+                    <th style="width: 5%;">VOLUME</th>
+                    <th style="width: 9%;">TOTAL PRICE</th>
+                    <th style="width: 5%;">VOLUME</th>
+                    <th style="width: 13%;">TOTAL PRICE</th>
+                    <th style="width: 4%;">VOLUME</th>
+                    <th style="width: 4%;">TOTAL PRICE</th>
+                </tr>
+            </thead>
+            <tbody>
+                {opname_rows_html}
+                <tr style="font-weight: bold; background: #f9fafb;">
+                    <td colspan="3" style="text-align: right;">TOTAL :</td>
+                    <td style="text-align: center; white-space: nowrap;">{float(t_data_utama.get('Qty', 1.0)):.2f}</td><td style="white-space: nowrap;">-</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">{grand_total:,.0f}</td>
+                    <td style="text-align: center; white-space: nowrap;">0.00</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">0</td>
+                    <td style="text-align: center; white-space: nowrap;">{float(t_data_utama.get('Qty', 1.0)):.2f}</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">{grand_total:,.0f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{float(t_data_utama.get('Qty', 1.0)):.2f}</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">{grand_total:,.0f}</td>
+                </tr>
+            </tbody>
         </table>
 
-        <div style="font-size: 9.5px; font-weight: bold; margin-bottom: 20px;">
-            Total Akumulasi Penyerapan (Cumulative Opname): Rp {grand_total:,.2f}<br>
-            Sisa Nilai Anggaran PO (Deviasi): Rp 0.00
+        <div style="font-size: 10.5px; font-weight: bold; margin-bottom: 20px;">
+            Total Akumulasi Penyerapan (Cumulative Opname): Rp {grand_total:,.0f}<br>
+            Sisa Nilai Anggaran PO (Deviasi): Rp 0
         </div>
 
         {opname_sig_table_html}
@@ -1112,7 +1120,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 8. HALAMAN TKDN (INTERNAL: BSS KIRI, ISO KANAN)
+    # 8. HALAMAN TKDN
     # ==========================================
     total_jasa = grand_total * (95.0 / 100.0)
     non_cost = grand_total * 0.05
@@ -1125,8 +1133,8 @@ def tampilkan_paket_lengkap(transaksi_list):
                     {img_tag_bss_internal}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <div style="font-weight: bold; font-size: 11px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
-                    <div style="font-size: 8px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk</div>
+                    <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
+                    <div style="font-size: 9px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk</div>
                 </td>
                 <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
                     {img_tag_iso_internal}
@@ -1135,10 +1143,10 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         <div style="border-bottom: 2px solid #000; margin-bottom: 12px;"></div>
 
-        <div style="text-align: center; font-weight: bold; font-size: 11px; margin-bottom: 2px;">TABEL PERHITUNGAN TINGKAT KOMPONEN DALAM NEGERI - JASA</div>
-        <div style="text-align: center; font-size: 10px; font-weight: bold; margin-bottom: 15px;">SELF - ASSESSMENT (PERMEN ESDM NO. 15 TAHUN 2013)</div>
+        <div style="text-align: center; font-weight: bold; font-size: 12px; margin-bottom: 2px;">TABEL PERHITUNGAN TINGKAT KOMPONEN DALAM NEGERI - JASA</div>
+        <div style="text-align: center; font-size: 11px; font-weight: bold; margin-bottom: 15px;">SELF - ASSESSMENT (PERMEN ESDM NO. 15 TAHUN 2013)</div>
         
-        <table style="width: 100%; font-size: 9.5px; margin-bottom: 12px; border-collapse: collapse;">
+        <table style="width: 100%; font-size: 10.5px; margin-bottom: 12px; border-collapse: collapse;">
             <tr>
                 <td style="width: 18%; font-weight: bold;">Nama Penyedia Jasa</td><td style="width: 2%;">:</td><td style="width: 50%;"><b>{p2_nama}</b></td>
                 <td style="width: 13%; font-weight: bold;">Nomor Kontrak</td><td style="width: 2%;">:</td><td style="width: 15%;"><b>{nomor_kontrak}</b></td>
@@ -1153,7 +1161,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         </table>
 
-        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 8.5px;">
+        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 9.5px;">
             <tr>
                 <th style="width: 28%;">A. KOMPONEN BIAYA<br>(COST COMPONENT)</th>
                 <th style="width: 8%;">MATA UANG</th>
@@ -1164,13 +1172,13 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <th style="width: 12%;">NILAI TKDN<br>(E = C X D)</th>
             </tr>
             <tr>
-                <td style="text-align: left;">I. Biaya Bahan (Material) Terpakai<br><span style="font-size:7px; color:#555;">(material used cost)</span></td>
+                <td style="text-align: left;">I. Biaya Bahan (Material) Terpakai<br><span style="font-size:8px; color:#555;">(material used cost)</span></td>
                 <td style="text-align: center;">Rp</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0.00</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0.00</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0.00</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
+                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
                 <td style="text-align: center;">0.00%</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0.00</td>
+                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
             </tr>
             <tr>
                 <td style="text-align: left;"></td>
@@ -1182,13 +1190,13 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: right; padding-right: 5px;">0.00</td>
             </tr>
             <tr>
-                <td style="text-align: left;">II. Biaya Tenaga Kerja & Konsultan<br><span style="font-size:7px; color:#555;">(personnel & consultant cost)</span></td>
+                <td style="text-align: left;">II. Biaya Tenaga Kerja & Konsultan<br><span style="font-size:8px; color:#555;">(personnel & consultant cost)</span></td>
                 <td style="text-align: center;">Rp</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0.00</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0.00</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0.00</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
+                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
                 <td style="text-align: center;">0.00%</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0.00</td>
+                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
             </tr>
             <tr>
                 <td style="text-align: left;"></td>
@@ -1200,13 +1208,13 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: right; padding-right: 5px;">0.00</td>
             </tr>
             <tr>
-                <td style="text-align: left;">III. Biaya Alat Kerja / Fasilitas Kerja<br><span style="font-size:7px; color:#555;">(equipment & work facility cost)</span></td>
+                <td style="text-align: left;">III. Biaya Alat Kerja / Fasilitas Kerja<br><span style="font-size:8px; color:#555;">(equipment & work facility cost)</span></td>
                 <td style="text-align: center;">Rp</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0.00</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0.00</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0.00</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
+                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
                 <td style="text-align: center;">0.00%</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0.00</td>
+                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
             </tr>
             <tr>
                 <td style="text-align: left;"></td>
@@ -1218,13 +1226,13 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: right; padding-right: 5px;">0.00</td>
             </tr>
             <tr>
-                <td style="text-align: left;">IV. Biaya Jasa Umum<br><span style="font-size:7px; color:#555;">(other services cost)</span></td>
+                <td style="text-align: left;">IV. Biaya Jasa Umum<br><span style="font-size:8px; color:#555;">(other services cost)</span></td>
                 <td style="text-align: center;">Rp</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp {total_jasa:,.2f}</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0.00</td>
-                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp {total_jasa:,.0f}</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.0f}</td>
                 <td style="text-align: center;">100.00%</td>
-                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.0f}</td>
             </tr>
             <tr>
                 <td style="text-align: left;"></td>
@@ -1236,13 +1244,13 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: right; padding-right: 5px;">0.00</td>
             </tr>
             <tr style="font-weight: bold; background: #f8fafc;">
-                <td style="text-align: left;">V. JUMLAH BIAYA (&Sigma; I s/d IV)<br><span style="font-size:7px; color:#555;">(Total Cost)</span></td>
+                <td style="text-align: left;">V. JUMLAH BIAYA (&Sigma; I s/d IV)<br><span style="font-size:8px; color:#555;">(Total Cost)</span></td>
                 <td style="text-align: center;">Rp</td>
-                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.2f}</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0.00</td>
-                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.0f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.0f}</td>
                 <td style="text-align: center;">100.00%</td>
-                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.0f}</td>
             </tr>
             <tr style="font-weight: bold; background: #f8fafc;">
                 <td style="text-align: left;"></td>
@@ -1254,10 +1262,10 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: right; padding-right: 5px;">0.00</td>
             </tr>
             <tr>
-                <td style="text-align: left; font-weight: bold;">B. KOMPONEN BUKAN BIAYA<br><span style="font-size:7px; color:#555;">(Non-cost Component)</span></td>
+                <td style="text-align: left; font-weight: bold;">B. KOMPONEN BUKAN BIAYA<br><span style="font-size:8px; color:#555;">(Non-cost Component)</span></td>
                 <td style="text-align: center;">Rp</td>
                 <td colspan="2" style="background-color: #fef08a;"></td>
-                <td style="text-align: right; padding-right: 5px;">Rp {non_cost:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {non_cost:,.0f}</td>
                 <td colspan="2"></td>
             </tr>
             <tr>
@@ -1271,7 +1279,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: left;">C. JUMLAH NILAI TOTAL (A + B)</td>
                 <td style="text-align: center;">Rp</td>
                 <td colspan="2"></td>
-                <td style="text-align: right; padding-right: 5px;">Rp {grand_total:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {grand_total:,.0f}</td>
                 <td colspan="2"></td>
             </tr>
             <tr style="font-weight: bold; background: #f1f5f9;">
@@ -1281,13 +1289,13 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: right; padding-right: 5px;">0.00</td>
                 <td colspan="2"></td>
             </tr>
-            <tr style="font-weight: bold; background: #e2e8f0; font-size: 10.5px; color: #065f46;">
+            <tr style="font-weight: bold; background: #e2e8f0; font-size: 11.5px; color: #065f46;">
                 <td colspan="6" style="text-align: right;">CAPAIAN PERSENTASE TKDN AKHIR (%):</td>
                 <td style="text-align: right; padding-right: 5px;">95.00 %</td>
             </tr>
         </table>
 
-        <div style="font-size: 8.5px; margin-bottom: 15px;">
+        <div style="font-size: 9.5px; margin-bottom: 15px;">
             <b>Catatan:</b><br>
             &bull; Isi hanya pada kolom yang berwarna kuning pastel.<br>
             &bull; Formulasi perhitungan mengacu pada Permen ESDM No. 15 Tahun 2013.
@@ -1296,7 +1304,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         <table style="width: 100%; table-layout: fixed; margin-top: 25px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
                 <td style="width: 50%; text-align: center; vertical-align: top;"></td>
-                <td style="width: 50%; text-align: center; vertical-align: top;">
+                <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px;">
                     {lokasi_tkdn}, {tkdn_date_str}<br>
                     <b>{p2_nama}</b>
                     {ttd_ferry_html}
@@ -1308,20 +1316,18 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # --- DETEKSI KATEGORI ITEM SECARA PRESISI (MENGAKOMODASI SAFETY & SUPPLY) ---
-    ada_barang = False
-    ada_jasa = False
+    jenis_bastp_utama = str(t_data_utama.get('Jenis BASTP', '')).lower()
+    
+    ada_barang = True
+    ada_jasa = True
 
-    for m in mutasi_terpilih:
-        kat_str = str(m.get('Kategori', '')).lower()
-        desc_str = str(m.get('Deskripsi Pekerjaan', '')).lower()
-        
-        if "material" in kat_str or "material" in desc_str or "pengadaan" in kat_str or "barang" in kat_str or "safety" in kat_str or "supply" in kat_str:
-            ada_barang = True
-        else:
-            ada_jasa = True
+    if "jasa" in jenis_bastp_utama and "barang" not in jenis_bastp_utama:
+        ada_jasa = True
+        ada_barang = False
+    elif "barang" in jenis_bastp_utama or "material" in jenis_bastp_utama or "provisional" in jenis_bastp_utama:
+        ada_barang = True
+        ada_jasa = False
 
-    # --- PENYUSUNAN HALAMAN MASTER BUNDLE SECARA DINAMIS ---
     list_halaman_bundle = [rincian_html, pi_html]
 
     if ada_jasa:
@@ -1339,14 +1345,14 @@ def tampilkan_paket_lengkap(transaksi_list):
         <meta charset="utf-8">
         <title>Master Bundle Dokumen - {current_pi_no}</title>
         <style>
-            @page {{ size: A4 portrait; margin: 8mm; }}
+            @page {{ size: A4 portrait; margin: 6mm; }}
             @media print {{
                 body {{ -webkit-print-color-adjust: exact; margin: 0; }}
                 .page-break {{ page-break-after: always; break-after: page; }}
             }}
-            body {{ font-family: Arial, sans-serif; font-size: 9.5px; color: #000; line-height: 1.3; }}
-            .page-break {{ page-break-after: always; break-after: page; padding-bottom: 25px; }}
-            .doc-table th, .doc-table td {{ border: 1px solid #000; padding: 4px; font-size: 8px; vertical-align: middle; }}
+            body {{ font-family: Arial, sans-serif; font-size: 11px; color: #000; line-height: 1.3; }}
+            .page-break {{ page-break-after: always; break-after: page; padding-bottom: 20px; }}
+            .doc-table th, .doc-table td {{ border: 1px solid #000; padding: 4px 5px; font-size: 9.5px; vertical-align: middle; word-wrap: break-word; }}
             .doc-table th {{ background-color: #f1f5f9; font-weight: bold; text-align: center; }}
         </style>
     </head>
