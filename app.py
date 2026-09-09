@@ -59,6 +59,12 @@ try:
 except ImportError as e:
     st.error(f"Gagal memuat modul bastb: {e}")
 
+# Import Modul Arsip Dokumen Customer & Pendukung (PO, WAN, Timesheet, dll)
+try:
+    from modul_dokumen.arsip_pendukung import tampilkan_arsip_pendukung
+except ImportError as e:
+    st.error(f"Gagal memuat modul arsip_pendukung: {e}")
+
 # Import Modul Master Paket Dokumen Lengkap (1-Click Batch Export)
 try:
     from modul_dokumen.paket_dokumen_lengkap import tampilkan_paket_lengkap
@@ -546,19 +552,22 @@ if form_login_sistem():
         modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan"])
     elif user_role == "Finance / Invoice":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
-            "💰 Modul 3: Invoice & Tax Management"
+            "💰 Modul 3: Invoice & Tax Management",
+            "📁 Arsip Dokumen Customer & Pendukung"
         ])
     elif user_role == "Staf Marketing / Operasional":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "📁 Modul 1: Database & Master Kontrak",
-            "📄 Modul 2: Invoice & Dokumen Turunan"
+            "📄 Modul 2: Invoice & Dokumen Turunan",
+            "📁 Arsip Dokumen Customer & Pendukung"
         ])
     else: 
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "📁 Modul 0: Master Referensi Harga & Pekerjaan",
             "📁 Modul 1: Database & Master Kontrak",
             "📄 Modul 2: Invoice & Dokumen Turunan",
-            "💰 Modul 3: Invoice & Tax Management"
+            "💰 Modul 3: Invoice & Tax Management",
+            "📁 Arsip Dokumen Customer & Pendukung"
         ])
 
     st.sidebar.markdown("---")
@@ -583,6 +592,8 @@ if form_login_sistem():
             "Pratinjau, Cetak & Download PDF Invoice",
             "Lihat Daftar Invoice & Pajak Tersimpan"
         ])
+    elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung":
+        menu = "Arsip Dokumen Customer & Pendukung"
     else:
         menu = st.sidebar.radio("Pilih Menu:", [
             "Input & Proses Rincian Pekerjaan",
@@ -608,7 +619,10 @@ if form_login_sistem():
         tampilkan_timesheet(transaksi_list if transaksi_list else [])
 
     else:
-        if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
+        if modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung":
+            tampilkan_arsip_pendukung()
+
+        elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
             transaksi_list = muat_data_transaksi()
             if menu == "Input & Cetak Faktur Pajak":
                 tampilkan_faktur_pajak(transaksi_list if transaksi_list else [], menu)
