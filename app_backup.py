@@ -59,6 +59,12 @@ try:
 except ImportError as e:
     st.error(f"Gagal memuat modul bastb: {e}")
 
+# Import Modul Arsip Dokumen Customer & Pendukung (PO, WAN, Timesheet, dll)
+try:
+    from modul_dokumen.arsip_pendukung import tampilkan_arsip_pendukung
+except ImportError as e:
+    st.error(f"Gagal memuat modul arsip_pendukung: {e}")
+
 # Import Modul Master Paket Dokumen Lengkap (1-Click Batch Export)
 try:
     from modul_dokumen.paket_dokumen_lengkap import tampilkan_paket_lengkap
@@ -546,19 +552,22 @@ if form_login_sistem():
         modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan"])
     elif user_role == "Finance / Invoice":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
-            "💰 Modul 3: Invoice & Tax Management"
+            "💰 Modul 3: Invoice & Tax Management",
+            "📁 Arsip Dokumen Customer & Pendukung"
         ])
     elif user_role == "Staf Marketing / Operasional":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "📁 Modul 1: Database & Master Kontrak",
-            "📄 Modul 2: Invoice & Dokumen Turunan"
+            "📄 Modul 2: Invoice & Dokumen Turunan",
+            "📁 Arsip Dokumen Customer & Pendukung"
         ])
     else: 
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "📁 Modul 0: Master Referensi Harga & Pekerjaan",
             "📁 Modul 1: Database & Master Kontrak",
             "📄 Modul 2: Invoice & Dokumen Turunan",
-            "💰 Modul 3: Invoice & Tax Management"
+            "💰 Modul 3: Invoice & Tax Management",
+            "📁 Arsip Dokumen Customer & Pendukung"
         ])
 
     st.sidebar.markdown("---")
@@ -583,6 +592,8 @@ if form_login_sistem():
             "Pratinjau, Cetak & Download PDF Invoice",
             "Lihat Daftar Invoice & Pajak Tersimpan"
         ])
+    elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung":
+        menu = "Arsip Dokumen Customer & Pendukung"
     else:
         menu = st.sidebar.radio("Pilih Menu:", [
             "Input & Proses Rincian Pekerjaan",
@@ -608,7 +619,10 @@ if form_login_sistem():
         tampilkan_timesheet(transaksi_list if transaksi_list else [])
 
     else:
-        if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
+        if modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung":
+            tampilkan_arsip_pendukung()
+
+        elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
             transaksi_list = muat_data_transaksi()
             if menu == "Input & Cetak Faktur Pajak":
                 tampilkan_faktur_pajak(transaksi_list if transaksi_list else [], menu)
@@ -1675,15 +1689,10 @@ if form_login_sistem():
                     st.markdown("---")
 
                     if filtered_transaksi_target:
-                        kategori_list_target = [str(t.get("Kategori", "")).upper() for t in filtered_transaksi_target]
                         jenis_bastp_val = str(filtered_transaksi_target[0].get("Jenis BASTP", "")).strip()
 
-                        is_pure_goods = all(
-                            any(keyword in kat for keyword in ["MATERIAL", "SAFETY", "BARANG", "SUPPLY"]) 
-                            for kat in kategori_list_target
-                        ) or "Barang / Material" in jenis_bastp_val or any(any(k in kat for k in ["MATERIAL", "SAFETY"]) for kat in kategori_list_target)
-
-                        if is_pure_goods and "Gabungan" not in jenis_bastp_val:
+                        # Logika Penentuan Dokumen Berdasarkan Jenis BASTP yang Dipilih
+                        if "Barang / Material" in jenis_bastp_val:
                             allowed_docs = [
                                 "Rincian Pekerjaan",
                                 "Proforma Invoice",
@@ -1692,8 +1701,8 @@ if form_login_sistem():
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
                             ]
-                            st.info("ℹ️ **Mode Pengadaan Barang/Safety Aktif:** Dokumen BAMP dan BASP disembunyikan otomatis.")
-                        elif "Jasa" in jenis_bastp_val and not is_pure_goods:
+                            st.info("ℹ️ **Mode Pengadaan Barang / Material Aktif:** Dokumen BAMP dan BASP disembunyikan otomatis.")
+                        elif "Jasa" in jenis_bastp_val:
                             allowed_docs = [
                                 "Rincian Pekerjaan",
                                 "Proforma Invoice",
@@ -1705,7 +1714,7 @@ if form_login_sistem():
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
                             ]
-                            st.info("ℹ️ **Mode Pekerjaan Jasa Aktif:** Menggunakan BAMP dan BASP.")
+                            st.info("ℹ️ **Mode Pekerjaan Jasa Aktif:** Dokumen BAMP dan BASP diaktifkan.")
                         else:
                             allowed_docs = [
                                 "Rincian Pekerjaan",

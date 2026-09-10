@@ -141,7 +141,6 @@ if form_login_sistem():
             color: #000000 !important;
         }
         
-        /* Memperlebar kotak popover / dropdown menu Streamlit */
         div[data-baseweb="popover"] {
             min-width: 650px !important;
             max-width: 900px !important;
@@ -1238,6 +1237,8 @@ if form_login_sistem():
                     ditujukan_kepada = bersih_angka(matched_record.get(10, matched_record.get("Pihak Pertama", "")))
                     alamat_pihak_pertama = bersih_angka(matched_record.get(11, matched_record.get("Alamat Pihak Pertama", "")))
                     jangka_waktu = bersih_angka(matched_record.get(5, matched_record.get("Jangka Waktu Kontrak", "")))
+                    
+                    nomor_wo_default = bersih_angka(matched_record.get(21, matched_record.get("Nomor WO", "-")))
                 
                     with col2:
                         raw_po_num = loaded_tx_items[0].get("Nomor PO", matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))) if loaded_tx_items else matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))
@@ -1252,6 +1253,10 @@ if form_login_sistem():
                         def_desc_po = bersih_angka(loaded_tx_items[0].get("Deskripsi PO", matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))) if loaded_tx_items else bersih_angka(matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))
 
                         nomor_po = st.text_input("Nomor PO", def_po_num if def_po_num else "-")
+                        
+                        raw_wo_num = loaded_tx_items[0].get("Nomor WO", nomor_wo_default) if loaded_tx_items else nomor_wo_default
+                        nomor_wo = st.text_input("Nomor WO", bersih_angka(raw_wo_num) if raw_wo_num else "-")
+
                         nomor_wan_sa = st.text_input("Nomor WAN / SA (Work Authorization Notice / Service Agreement)", def_wan_num if def_wan_num else "-")
                         tanggal_po = st.text_input("Tanggal PO", def_po_date if def_po_date else "-")
                         mata_uang = st.text_input("Mata Uang", "IDR")
@@ -1437,7 +1442,7 @@ if form_login_sistem():
                                 def_qty = 1.0
                             q_val = st.number_input(f"Qty {i+1}", value=def_qty, key=f"qty_{i}")
                         with c_item2:
-                            default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg", "Pallet"]
+                            default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg", "Pallet", "Ltr"]
                             existing_u_from_master = df_ref["Unit"].dropna().astype(str).unique().tolist() if "Unit" in df_ref.columns else []
                             u_opts = sorted(list(set(default_u_opts + existing_u_from_master)))
                             def_unit = str(default_item_data.get("Unit", unit_otomatis))
@@ -1565,6 +1570,7 @@ if form_login_sistem():
                                     "Alamat Pihak Pertama": alamat_pihak_pertama,
                                     "Jangka Waktu Kontrak": jangka_waktu,
                                     "Nomor PO": nomor_po,
+                                    "Nomor WO": nomor_wo,
                                     "Nomor WAN / SA": nomor_wan_sa,
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
@@ -1625,6 +1631,7 @@ if form_login_sistem():
                                     "Alamat Pihak Pertama": alamat_pihak_pertama,
                                     "Jangka Waktu Kontrak": jangka_waktu,
                                     "Nomor PO": nomor_po,
+                                    "Nomor WO": nomor_wo,
                                     "Nomor WAN / SA": nomor_wan_sa,
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
@@ -1691,7 +1698,6 @@ if form_login_sistem():
                     if filtered_transaksi_target:
                         jenis_bastp_val = str(filtered_transaksi_target[0].get("Jenis BASTP", "")).strip()
 
-                        # Logika Penentuan Dokumen Berdasarkan Jenis BASTP yang Dipilih
                         if "Barang / Material" in jenis_bastp_val:
                             allowed_docs = [
                                 "Rincian Pekerjaan",
@@ -1759,48 +1765,172 @@ if form_login_sistem():
             elif menu == "Lihat Akumulasi Riwayat Transaksi":
                 st.markdown("""
                     <div class="dashboard-card">
-                        <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Akumulasi Riwayat Transaksi Rincian Pekerjaan</h3>
-                        <p style="font-size: 13px; color: #475569; margin-bottom: 0;">Tabel riwayat transaksi mandiri Modul 2. Kelola penghapusan dan pemanggilan data secara langsung tanpa beralih modul.</p>
+                        <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Akumulasi Riwayat Transaksi & Penyerapan Kontrak</h3>
+                        <p style="font-size: 13px; color: #475569; margin-bottom: 0;">Saring berdasarkan kontrak, lihat penyerapan total, kelompok PI terurut kronologis dengan subtotal, header kolom lengkap, serta tombol hapus baris transaksi.</p>
                     </div>
                 """, unsafe_allow_html=True)
                 
-                tx_records = muat_data_transaksi()
-                if not tx_records:
-                    st.info("ℹ️ Belum ada data riwayat transaksi tersimpan.")
+                # Tangani aksi hapus baris transaksi jika tombol diklik
+                query_params_tx = st.query_params
+                if "delete_tx_idx" in query_params_tx:
+                    try:
+                        del_tx_idx = int(query_params_tx["delete_tx_idx"])
+                        all_tx_current = muat_data_transaksi()
+                        if 0 <= del_tx_idx < len(all_tx_current):
+                            removed_item = all_tx_current.pop(del_tx_idx)
+                            simpan_data_transaksi(all_tx_current)
+                            st.success(f"✅ Berhasil menghapus baris transaksi (PI: {removed_item.get('PI No.', '-')}) secara permanen!")
+                            st.query_params.clear()
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal menghapus baris transaksi: {e}")
+
+                transaksi_list = muat_data_transaksi()
+                if not transaksi_list:
+                    st.info("⚠️ Belum ada data transaksi rincian pekerjaan yang tercatat.")
                 else:
-                    for original_idx, rec in enumerate(tx_records):
-                        with st.container():
-                            col_t1, col_t2, col_t3, col_t4 = st.columns([2, 3, 2, 1.5])
-                            with col_t1:
-                                st.write(f"**Kontrak:** {bersih_angka(rec.get('Nomor Kontrak', '-'))}")
-                            with col_t2:
-                                st.write(f"**PI No:** {bersih_angka(rec.get('PI No.', '-'))}")
-                            with col_t3:
-                                total_val = rec.get('Total Harga', 0)
-                                try:
-                                    t_num = float(total_val)
-                                    t_str = f"Rp {t_num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                                except:
-                                    t_str = str(total_val)
-                                st.write(f"**Total:** {t_str}")
-                            with col_t4:
-                                sub_col1, sub_col2 = st.columns(2)
-                                with sub_col1:
-                                    if st.button("✏️", key=f"edit_btn_{original_idx}", help="Panggil data"):
-                                        st.session_state["forced_kontrak"] = str(rec.get("Nomor Kontrak", ""))
-                                        st.session_state["forced_pi"] = str(rec.get("PI No.", ""))
-                                        st.session_state["loaded_pi_target"] = str(rec.get("PI No.", ""))
-                                        matched_items = [t for t in tx_records if str(t.get("PI No.")) == str(rec.get("PI No."))]
-                                        st.session_state["num_rows"] = len(matched_items) if matched_items else 1
-                                        st.success(f"Memuat PI {rec.get('PI No.')}")
-                                        st.rerun()
-                                with sub_col2:
-                                    if st.button("🗑️", key=f"del_btn_{original_idx}", help="Hapus permanen"):
-                                        tx_records.pop(original_idx)
-                                        simpan_data_transaksi(tx_records)
-                                        st.success("✅ Data berhasil dihapus permanen!")
-                                        st.rerun()
-                        st.markdown("---")
+                    df_tx = pd.DataFrame(transaksi_list)
+                    
+                    if "Nomor Kontrak" in df_tx.columns and "PI No." in df_tx.columns:
+                        # 1. Dropdown Filter Kontrak di Bagian Atas
+                        kontrak_options = ["-- Semua Kontrak --"] + sorted(list(df_tx["Nomor Kontrak"].dropna().astype(str).unique()))
+                        selected_kontrak_filter = st.selectbox("📌 Filter Berdasarkan Nomor Kontrak:", kontrak_options)
+                        
+                        if selected_kontrak_filter != "-- Semua Kontrak --":
+                            df_filtered = df_tx[df_tx["Nomor Kontrak"].astype(str) == selected_kontrak_filter].copy()
+                        else:
+                            df_filtered = df_tx.copy()
+                            
+                        if df_filtered.empty:
+                            st.info("ℹ️ Tidak ada data transaksi untuk kontrak yang dipilih.")
+                        else:
+                            # Konversi Total Harga ke numerik
+                            if "Total Harga" in df_filtered.columns:
+                                df_filtered["Total Harga Num"] = pd.to_numeric(df_filtered["Total Harga"], errors='coerce').fillna(0.0)
+                            else:
+                                df_filtered["Total Harga Num"] = 0.0
+
+                            # 2 & 3. Total Penyerapan Seluruh Kontrak/PI Ditampilkan Secara Jelas dan Menonjol di Atas
+                            grand_total_penyerapan = df_filtered["Total Harga Num"].sum()
+                            formatted_grand_total = f"Rp {grand_total_penyerapan:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                            
+                            st.markdown(f"""
+                                <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center; border-left: 5px solid #10b981;">
+                                    <h4 style="margin:0; font-size: 14px; color: #34d399; text-transform: uppercase;">Total Akumulasi Penyerapan Kontrak</h4>
+                                    <h2 style="margin: 8px 0 0 0; font-size: 26px; color: #ffffff;">{formatted_grand_total}</h2>
+                                </div>
+                            """, unsafe_allow_html=True)
+
+                            # 6. Fitur Download Excel Terstruktur Persis Tampilan Dashboard
+                            import io
+                            output_excel = io.BytesIO()
+                            
+                            kolom_export_preferred = [
+                                "Nomor Kontrak", "PI No.", "Nomor PO", "Nomor WO", "Kategori", 
+                                "Deskripsi Pekerjaan", "Qty", "Unit", "Harga Satuan", "Total Harga",
+                                "Tanggal PI", "Ditujukan Kepada", "Nomor WAN / SA", "Percent"
+                            ]
+                            existing_cols_export = [col for col in kolom_export_preferred if col in df_filtered.columns]
+                            other_cols_export = [col for col in df_filtered.columns if col not in existing_cols_export and col != "Total Harga Num"]
+                            
+                            df_export_final = df_filtered[existing_cols_export + other_cols_export].copy()
+                            
+                            for col_num_fmt in ["Harga Satuan", "Total Harga", "Qty"]:
+                                if col_num_fmt in df_export_final.columns:
+                                    df_export_final[col_num_fmt] = pd.to_numeric(df_export_final[col_num_fmt], errors='coerce').round(2)
+
+                            with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
+                                df_export_final.to_excel(writer, index=False, sheet_name='Akumulasi Riwayat Transaksi')
+                            
+                            excel_data = output_excel.getvalue()
+                            
+                            st.download_button(
+                                label="📥 Download Laporan Riwayat Transaksi Excel Sesuai Dashboard (.xlsx)",
+                                data=excel_data,
+                                file_name=f"Akumulasi_Riwayat_Transaksi_{selected_kontrak_filter.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True
+                            )
+                            
+                            st.markdown("---")
+
+                            # 4. Urutan Nomor PI Secara Kronologis Cerdas (Terbesar/Terbaru di Atas)
+                            unique_pi_list = sorted(df_filtered["PI No."].dropna().astype(str).unique().tolist(), key=sort_pi_key, reverse=True)
+
+                            for pi_val in unique_pi_list:
+                                df_pi_group = df_filtered[df_filtered["PI No."].astype(str) == pi_val]
+                                subtotal_pi = df_pi_group["Total Harga Num"].sum()
+                                formatted_subtotal = f"Rp {subtotal_pi:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+                                # Rekap Total Khusus Per Masing-Masing PI di Atas Kelompok PI
+                                st.markdown(f"""
+                                    <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 12px 18px; border-radius: 6px; margin-top: 15px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: bold; color: #0f172a; font-size: 14px;">📄 Nomor Proforma Invoice (PI): {pi_val}</span>
+                                        <span style="font-weight: bold; color: #047857; font-size: 14px;">Subtotal PI: {formatted_subtotal}</span>
+                                    </div>
+                                """, unsafe_allow_html=True)
+
+                                # --- HEADER TABEL UNTUK KETERANGAN KOLOM ---
+                                cols_header = st.columns([2, 2, 1.5, 1.5, 2, 3, 0.8, 1, 1.5, 1.5, 0.8])
+                                with cols_header[0]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Nomor Kontrak</p>", unsafe_allow_html=True)
+                                with cols_header[1]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Nomor PI</p>", unsafe_allow_html=True)
+                                with cols_header[2]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Nomor PO</p>", unsafe_allow_html=True)
+                                with cols_header[3]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Nomor WO</p>", unsafe_allow_html=True)
+                                with cols_header[4]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Kategori</p>", unsafe_allow_html=True)
+                                with cols_header[5]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Uraian Pekerjaan</p>", unsafe_allow_html=True)
+                                with cols_header[6]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Qty</p>", unsafe_allow_html=True)
+                                with cols_header[7]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Satuan</p>", unsafe_allow_html=True)
+                                with cols_header[8]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Unit Price</p>", unsafe_allow_html=True)
+                                with cols_header[9]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Total Harga</p>", unsafe_allow_html=True)
+                                with cols_header[10]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Aksi</p>", unsafe_allow_html=True)
+                                
+                                st.markdown("<hr style='margin: 4px 0 8px 0; border-color: #94a3b8;'>", unsafe_allow_html=True)
+
+                                # 5. Breakdown Rincian Detail Seluruh Item di Bawah Header
+                                for idx_row, row_data in df_pi_group.iterrows():
+                                    cols_disp_ui = st.columns([2, 2, 1.5, 1.5, 2, 3, 0.8, 1, 1.5, 1.5, 0.8])
+                                    
+                                    val_k = bersih_angka(row_data.get("Nomor Kontrak", "-"))
+                                    val_pi = bersih_angka(row_data.get("PI No.", "-"))
+                                    val_po = bersih_angka(row_data.get("Nomor PO", "-"))
+                                    val_wo = bersih_angka(row_data.get("Nomor WO", "-"))
+                                    val_kat = bersih_angka(row_data.get("Kategori", "-"))
+                                    val_desc = bersih_angka(row_data.get("Deskripsi Pekerjaan", "-"))
+                                    
+                                    try:
+                                        val_qty = f"{float(row_data.get('Qty', 0)):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                    except:
+                                        val_qty = str(row_data.get('Qty', ''))
+                                        
+                                    val_unit = bersih_angka(row_data.get("Unit", "-"))
+                                    
+                                    try:
+                                        val_hs = f"{float(row_data.get('Harga Satuan', 0)):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                    except:
+                                        val_hs = str(row_data.get('Harga Satuan', ''))
+                                        
+                                    try:
+                                        val_tot = f"{float(row_data.get('Total Harga', 0)):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                    except:
+                                        val_tot = str(row_data.get('Total Harga', ''))
+
+                                    with cols_disp_ui[0]: st.text(val_k)
+                                    with cols_disp_ui[1]: st.text(val_pi)
+                                    with cols_disp_ui[2]: st.text(val_po)
+                                    with cols_disp_ui[3]: st.text(val_wo)
+                                    with cols_disp_ui[4]: st.text(val_kat)
+                                    with cols_disp_ui[5]: st.text(val_desc)
+                                    with cols_disp_ui[6]: st.text(val_qty)
+                                    with cols_disp_ui[7]: st.text(val_unit)
+                                    with cols_disp_ui[8]: st.text(val_hs)
+                                    with cols_disp_ui[9]: st.text(val_tot)
+                                    with cols_disp_ui[10]:
+                                        if st.button("🗑️", key=f"del_tx_btn_{idx_row}", help="Hapus baris transaksi ini jika keliru"):
+                                            st.query_params["delete_tx_idx"] = str(idx_row)
+                                            st.rerun()
+                                    st.markdown("<hr style='margin: 4px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
+                    else:
+                        st.error("❌ Kolom 'Nomor Kontrak' atau 'PI No.' tidak ditemukan pada data transaksi.")
 
             elif menu == "Lihat Master Rekap Transaksi":
                 transaksi_list = muat_data_transaksi()
