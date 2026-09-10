@@ -45,6 +45,55 @@ def format_nomor_bersih(val):
         return "-"
     return s
 
+def parse_harga_presisi(val):
+    """Fungsi presisi mutlak anti-lonjakan untuk membersihkan format Rupiah string/float Indonesia"""
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        val_f = float(val)
+        while val_f > 1_000_000_000_000:
+            val_f = val_f / 10.0
+        return val_f
+        
+    s = str(val).strip()
+    if not s or s.lower() == 'nan':
+        return 0.0
+    
+    s = s.replace("Rp", "").strip()
+    
+    if "." in s and "," in s:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    elif "," in s and "." not in s:
+        if s.count(",") == 1 and len(s.split(",")[1]) <= 2:
+            s = s.replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    elif "." in s and "," not in s:
+        parts = s.split(".")
+        if len(parts) > 2:
+            s = s.replace(".", "")
+        elif len(parts) == 2 and len(parts[1]) > 2:
+            s = s.replace(".", "")
+            
+    try:
+        res = float(s)
+        while res > 1_000_000_000_000:
+            res = res / 10.0
+        return res
+    except:
+        s_final = "".join([c for c in s if c.isdigit() or c == '.' or c == ','])
+        s_final = s_final.replace(".", "").replace(",", ".")
+        try:
+            res = float(s_final)
+            while res > 1_000_000_000_000:
+                res = res / 10.0
+            return res
+        except:
+            return 0.0
+
 def get_image_base64(uploaded_file):
     if uploaded_file is not None:
         bytes_data = uploaded_file.getvalue()
@@ -149,14 +198,30 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         target_pi_val = data_edit_aktif.get("PI No.", "") if is_mode_edit else ""
         target_po_val = data_edit_aktif.get("Nomor PO", "") if is_mode_edit else ""
 
+        # --- KUMPULKAN NOMOR WAN / SA YANG SUDAH TER-INVOICE ---
+        wan_sudah_di_invoice = set()
+        for idx_b, b_item in enumerate(billing_records):
+            if is_mode_edit and idx_b == active_billing_idx:
+                continue
+            w_val = format_nomor_bersih(b_item.get("Nomor SA / WAN", ""))
+            if w_val and w_val != "-":
+                wan_sudah_di_invoice.add(w_val)
+
         valid_transaksi_list = []
         for t in transaksi_list:
             wan_num = bersih_angka(t.get("Nomor WAN / SA", ""))
             if wan_num and wan_num != "-" and wan_num.lower() != "nan":
-                valid_transaksi_list.append(t)
+                if wan_num not in wan_sudah_di_invoice:
+                    valid_transaksi_list.append(t)
+
+        if is_mode_edit and target_sawanan_val:
+            for t in transaksi_list:
+                w_num = bersih_angka(t.get("Nomor WAN / SA", ""))
+                if w_num == target_sawanan_val and t not in valid_transaksi_list:
+                    valid_transaksi_list.append(t)
 
         if not valid_transaksi_list and not is_mode_edit:
-            st.warning("⚠️ Belum ada transaksi dengan Nomor WAN / SA di Modul 2. Harap lengkapi terlebih dahulu.")
+            st.warning("⚠️ Semua Nomor WAN / SA yang tersedia sudah dibuatkan invoice resminya. Tidak ada WAN baru untuk diproses.")
             return
 
         list_kontrak_valid = sorted(list(dict.fromkeys([str(t.get("Nomor Kontrak")) for t in valid_transaksi_list if t.get("Nomor Kontrak")])))
@@ -184,27 +249,33 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             idx_sawanan_def = list_sawanan_valid.index(str(target_sawanan_val))
 
         with col_h2:
-            selected_sawanan_m3 = st.selectbox("2️⃣ Pilih Nomor WAN / SA", list_sawanan_valid if list_sawanan_valid else [target_sawanan_val], index=idx_sawanan_def if list_sawanan_valid else 0, key="m3_sel_sawanan")
+            selected_sawanan_m3 = st.selectbox("2️⃣ Pilih Nomor WAN / SA (Belum Ter-invoice)", list_sawanan_valid if list_sawanan_valid else [target_sawanan_val], index=idx_sawanan_def if list_sawanan_valid else 0, key="m3_sel_sawanan")
 
+        # FILTER KETAT: Ambil hanya baris yang sejalur dengan WAN yang dipilih
         filtered_by_sawanan = [t for t in filtered_by_kontrak if str(t.get("Nomor WAN / SA")) == str(selected_sawanan_m3)]
         raw_list_pi_m3 = list(dict.fromkeys([str(t.get("PI No.")) for t in filtered_by_sawanan if t.get("PI No.")]))
         list_pi_m3 = sorted(raw_list_pi_m3, key=sort_pi_key, reverse=True)
+        
         if is_mode_edit and target_pi_val and target_pi_val not in list_pi_m3:
             list_pi_m3.append(target_pi_val)
 
-        idx_pi_def = 0
-        if str(target_pi_val) in list_pi_m3:
+        # Mekanisme pelacakan & reset state agar pilihan PI bergerak dinamis mengikuti WAN yang dipilih
+        last_selected_wan = st.session_state.get("last_wan_tracked", "")
+        if last_selected_wan != selected_sawanan_m3:
+            st.session_state["last_wan_tracked"] = selected_sawanan_m3
+            st.session_state["m3_pi_index_reset"] = 0
+
+        idx_pi_def = st.session_state.get("m3_pi_index_reset", 0)
+        if is_mode_edit and target_pi_val in list_pi_m3:
             idx_pi_def = list_pi_m3.index(str(target_pi_val))
 
         with col_h3:
-            selected_pi_m3 = st.selectbox("3️⃣ Pilih Nomor Proforma Invoice (PI)", list_pi_m3 if list_pi_m3 else [target_pi_val], index=idx_pi_def if list_pi_m3 else 0, key="m3_sel_pi")
+            selected_pi_m3 = st.selectbox("3️⃣ Pilih Nomor Proforma Invoice (PI)", list_pi_m3 if list_pi_m3 else [target_pi_val], index=idx_pi_def if idx_pi_def < len(list_pi_m3) else 0, key="m3_sel_pi")
 
         matched_transaksi = [t for t in filtered_by_sawanan if str(t.get("PI No.")) == str(selected_pi_m3)]
-        
-        # Otomatis baca Nomor PO yang terikat dari baris transaksi yang cocok
         selected_po_m3 = matched_transaksi[0].get("Nomor PO", target_po_val) if matched_transaksi else target_po_val
         
-        total_nilai_pi_modul2 = sum([float(str(t.get("Total Harga", 0)).replace("Rp", "").replace(".", "").replace(",", ".").strip() or 0) for t in matched_transaksi])
+        total_nilai_pi_modul2 = sum([parse_harga_presisi(t.get("Total Harga", 0)) for t in matched_transaksi])
 
         if is_mode_edit:
             customer_default = data_edit_aktif.get("Customer", "")
@@ -276,7 +347,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 tanggal_jatuh_tempo = st.date_input("Tanggal Jatuh Tempo (Due Date)", value=due_date_val)
 
                 st.markdown(f"**Nilai Acuan Aktif (Modul 2):** Rp {nilai_default_tagihan:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-                
                 nilai_invoice_resmi = st.number_input("Total Nilai Tagihan Invoice (Rp)", min_value=0.0, value=float(nilai_default_tagihan), step=1000.0, format="%.2f")
 
             st.markdown("---")
@@ -418,7 +488,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
             st.markdown("---")
 
-            # Ambil record billing yang sedang aktif dipilih
             selected_record = next((item for item in billing_records if str(item.get("Nomor Invoice Resmi")) == str(selected_inv_preview)), None)
 
             if jenis_dok_terpilih == "Kuitansi Pembayaran":
@@ -433,7 +502,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     elif not matched_tx_kuitansi:
                         matched_tx_kuitansi = [{}]
 
-                    # Sinkronisasi Total Netto resmi dari Modul 3 agar kuitansi membaca tagihan bersih secara presisi
                     netto_resmi = float(selected_record.get("Total Netto", 0.0) or 0.0)
                     for item_kui in matched_tx_kuitansi:
                         item_kui["Total Harga"] = netto_resmi
@@ -486,7 +554,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
                     html_logo_kiri = f'<img src="{logo_bss_b64}" style="max-height: 70px; max-width: 130px; object-fit: contain;">' if logo_bss_b64 else ''
                     html_logo_kanan = f'<img src="{logo_iso_b64}" style="max-height: 75px; max-width: 210px; object-fit: contain;">' if logo_iso_b64 else ''
-                    
                     html_ttd_direktur = f'<img src="{ttd_dir_b64}" style="max-height: 75px; max-width: 160px; object-fit: contain; display: block; margin: 0 auto;">' if ttd_dir_b64 else '<div style="height: 65px;"></div>'
 
                     tanggal_cetak_str = datetime.today().strftime("%m/%d/%Y, %I:%M %p")

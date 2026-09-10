@@ -53,6 +53,36 @@ def tampilkan_paket_lengkap(transaksi_list):
     if not os.path.exists(DIR_PAKET_SAVED):
         os.makedirs(DIR_PAKET_SAVED)
 
+    # --- DIREKTORI PENYIMPANAN PERMANEN LOGO ---
+    DIR_LOGO_AMAN = os.path.join("database_penyimpanan_aman", "pengaturan_logo_permanen")
+    if not os.path.exists(DIR_LOGO_AMAN):
+        os.makedirs(DIR_LOGO_AMAN)
+
+    path_logo_p1_perm = os.path.join(DIR_LOGO_AMAN, "logo_p1_perm.txt")
+    path_logo_p2_perm = os.path.join(DIR_LOGO_AMAN, "logo_p2_perm.txt")
+    path_logo_iso_perm = os.path.join(DIR_LOGO_AMAN, "logo_iso_perm.txt")
+
+    if "perm_logo_p1" not in st.session_state:
+        if os.path.exists(path_logo_p1_perm):
+            with open(path_logo_p1_perm, "r", encoding="utf-8") as f:
+                st.session_state["perm_logo_p1"] = f.read().strip()
+        else:
+            st.session_state["perm_logo_p1"] = ""
+
+    if "perm_logo_p2" not in st.session_state:
+        if os.path.exists(path_logo_p2_perm):
+            with open(path_logo_p2_perm, "r", encoding="utf-8") as f:
+                st.session_state["perm_logo_p2"] = f.read().strip()
+        else:
+            st.session_state["perm_logo_p2"] = ""
+
+    if "perm_logo_iso" not in st.session_state:
+        if os.path.exists(path_logo_iso_perm):
+            with open(path_logo_iso_perm, "r", encoding="utf-8") as f:
+                st.session_state["perm_logo_iso"] = f.read().strip()
+        else:
+            st.session_state["perm_logo_iso"] = ""
+
     seen_pi_dd = set()
     unique_pi_list = []
     for t in transaksi_list:
@@ -62,7 +92,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             unique_pi_list.append(pi_key)
 
     if not unique_pi_list:
-        unique_pi_list = ["DEFAULT-PI"]
+            unique_pi_list = ["DEFAULT-PI"]
 
     selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI) untuk Paket Dokumen:", unique_pi_list, key="bundle_pi_select")
     current_pi_no = str(selected_pi).strip()
@@ -126,17 +156,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     if f"force_regen_{current_pi_no}" in st.session_state:
         del st.session_state[f"force_regen_{current_pi_no}"]
 
-    with st.expander("⚙️ Pengaturan Tambahan: Upload Logo & Tanda Tangan", expanded=False):
-        col_up1, col_up2 = st.columns(2)
-        with col_up1:
-            logo_p1_file = st.file_uploader("Upload Logo Pihak Pertama (JOB/Client)", type=["png", "jpg", "jpeg"], key="up_logo_p1")
-            logo_p2_file = st.file_uploader("Upload Logo Pihak Kedua (BSS)", type=["png", "jpg", "jpeg"], key="up_logo_p2")
-            logo_iso_file = st.file_uploader("Upload Logo ISO (Untuk Kop Internal: Rincian, PI, TKDN)", type=["png", "jpg", "jpeg"], key="up_logo_iso")
-        with col_up2:
-            ttd_supervisor_file = st.file_uploader("Upload Tanda Tangan Supervisor", type=["png", "jpg", "jpeg"], key="up_ttd_supervisor")
-            ttd_onesimus_file = st.file_uploader("Upload Tanda Tangan Onesimus Suriadi", type=["png", "jpg", "jpeg"], key="up_ttd_onesimus")
-            ttd_ferry_file = st.file_uploader("Upload Tanda Tangan Ir. Ferry Tatimu", type=["png", "jpg", "jpeg"], key="up_ttd_ferry")
-
     def img_to_base64_str(uploaded_file):
         if uploaded_file is not None:
             bytes_data = uploaded_file.getvalue()
@@ -145,18 +164,70 @@ def tampilkan_paket_lengkap(transaksi_list):
             return f"data:{mime};base64,{b64_str}"
         return None
 
-    custom_logo_p1 = img_to_base64_str(logo_p1_file) or ""
-    custom_logo_p2 = img_to_base64_str(logo_p2_file) or ""
-    custom_logo_iso = img_to_base64_str(logo_iso_file) or ""
+    # --- PENGATURAN PANEL LOGO PERMANEN & TANDA TANGAN ---
+    with st.expander("⚙️ Pengaturan Permanen: Upload Logo & Tanda Tangan Sesi", expanded=False):
+        col_up1, col_up2 = st.columns(2)
+        with col_up1:
+            st.markdown("#### Pengaturan Logo (Permanen Global)")
+            logo_p1_file = st.file_uploader("Upload Logo Pihak Pertama (JOB/Client)", type=["png", "jpg", "jpeg"], key="up_logo_p1")
+            if logo_p1_file is not None:
+                b64_p1 = img_to_base64_str(logo_p1_file)
+                st.session_state["perm_logo_p1"] = b64_p1
+                with open(path_logo_p1_perm, "w", encoding="utf-8") as f:
+                    f.write(b64_p1)
+            if st.button("🗑️ Lepas / Hapus Logo Pihak Pertama Permanen"):
+                st.session_state["perm_logo_p1"] = ""
+                if os.path.exists(path_logo_p1_perm):
+                    os.remove(path_logo_p1_perm)
+                st.success("Logo Pihak Pertama berhasil dilepas.")
+                st.rerun()
 
-    img_tag_p1 = f'<img src="{custom_logo_p1}" style="height: 38px; object-fit: contain;" alt="Logo P1">' if custom_logo_p1 else '<div style="height: 38px;"></div>'
-    img_tag_p2 = f'<img src="{custom_logo_p2}" style="height: 38px; object-fit: contain;" alt="Logo P2">' if custom_logo_p2 else '<div style="height: 38px;"></div>'
+            st.markdown("---")
+            logo_p2_file = st.file_uploader("Upload Logo Pihak Kedua (BSS)", type=["png", "jpg", "jpeg"], key="up_logo_p2")
+            if logo_p2_file is not None:
+                b64_p2 = img_to_base64_str(logo_p2_file)
+                st.session_state["perm_logo_p2"] = b64_p2
+                with open(path_logo_p2_perm, "w", encoding="utf-8") as f:
+                    f.write(b64_p2)
+            if st.button("🗑️ Lepas / Hapus Logo Pihak Kedua Permanen"):
+                st.session_state["perm_logo_p2"] = ""
+                if os.path.exists(path_logo_p2_perm):
+                    os.remove(path_logo_p2_perm)
+                st.success("Logo Pihak Kedua berhasil dilepas.")
+                st.rerun()
 
-    img_tag_reversed_left = f'<img src="{custom_logo_p2}" style="height: 38px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 38px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 38px;"></div>')
-    img_tag_reversed_right = f'<img src="{custom_logo_p1}" style="height: 38px; object-fit: contain;" alt="Logo JOB">' if custom_logo_p1 else '<div style="height: 38px;"></div>'
+            st.markdown("---")
+            logo_iso_file = st.file_uploader("Upload Logo ISO (Untuk Kop Internal: Rincian, PI, TKDN)", type=["png", "jpg", "jpeg"], key="up_logo_iso")
+            if logo_iso_file is not None:
+                b64_iso = img_to_base64_str(logo_iso_file)
+                st.session_state["perm_logo_iso"] = b64_iso
+                with open(path_logo_iso_perm, "w", encoding="utf-8") as f:
+                    f.write(b64_iso)
+            if st.button("🗑️ Lepas / Hapus Logo ISO Permanen"):
+                st.session_state["perm_logo_iso"] = ""
+                if os.path.exists(path_logo_iso_perm):
+                    os.remove(path_logo_iso_perm)
+                st.success("Logo ISO berhasil dilepas.")
+                st.rerun()
 
-    img_tag_bss_internal = f'<img src="{custom_logo_p2}" style="height: 38px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 38px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 38px;"></div>')
-    img_tag_iso_internal = f'<img src="{custom_logo_iso}" style="height: 38px; object-fit: contain;" alt="Logo ISO">' if custom_logo_iso else '<div style="height: 38px;"></div>'
+        with col_up2:
+            st.markdown("#### Pengaturan Tanda Tangan (Fleksibel / Sesi)")
+            ttd_supervisor_file = st.file_uploader("Upload Tanda Tangan Supervisor", type=["png", "jpg", "jpeg"], key="up_ttd_supervisor")
+            ttd_onesimus_file = st.file_uploader("Upload Tanda Tangan Onesimus Suriadi", type=["png", "jpg", "jpeg"], key="up_ttd_onesimus")
+            ttd_ferry_file = st.file_uploader("Upload Tanda Tangan Ir. Ferry Tatimu", type=["png", "jpg", "jpeg"], key="up_ttd_ferry")
+
+    custom_logo_p1 = st.session_state.get("perm_logo_p1", "")
+    custom_logo_p2 = st.session_state.get("perm_logo_p2", "")
+    custom_logo_iso = st.session_state.get("perm_logo_iso", "")
+
+    img_tag_p1 = f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo P1">' if custom_logo_p1 else '<div style="height: 52px;"></div>'
+    img_tag_p2 = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo P2">' if custom_logo_p2 else '<div style="height: 52px;"></div>'
+
+    img_tag_reversed_left = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 52px;"></div>')
+    img_tag_reversed_right = f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo JOB">' if custom_logo_p1 else '<div style="height: 52px;"></div>'
+
+    img_tag_bss_internal = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 52px;"></div>')
+    img_tag_iso_internal = f'<img src="{custom_logo_iso}" style="height: 50px; object-fit: contain;" alt="Logo ISO">' if custom_logo_iso else '<div style="height: 50px;"></div>'
 
     custom_ttd_supervisor = img_to_base64_str(ttd_supervisor_file)
     custom_ttd_onesimus = img_to_base64_str(ttd_onesimus_file)
@@ -266,14 +337,31 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     wcc_header_title = wcc_saved.get('header_title', nama_kontrak)
     wcc_header_contract = wcc_saved.get('header_contract', f"Contract No. {nomor_kontrak}")
-    wcc_cert_no = wcc_saved.get('wcc_no', current_pi_no)
-    wcc_wo_no = wcc_saved.get('wo_no', no_po)
-    wcc_wo_title = wcc_saved.get('wo_title', lingkup_pekerjaan)
-    wcc_ctr_no = wcc_saved.get('ctr_no', current_pi_no)
+    
+    # --- PENARIKAN PRESISI NOMOR WCC, WO, DAN CTR LANGSUNG DARI DATABASE / WCC SAVED / FALLBACK CERDAS ---
+    db_wcc_saved_map = st.session_state.get("wcc_saved_data", {})
+    curr_wcc_dict = db_wcc_saved_map.get(current_pi_no, {})
+    if not curr_wcc_dict and db_wcc_saved_map:
+        # Ambil WCC saved pertama yang tersedia jika key tidak persis sama
+        curr_wcc_dict = list(db_wcc_saved_map.values())[0]
+
+    wcc_cert_no = curr_wcc_dict.get('wcc_no', f"{nomor_kontrak}-BSS-WCC-{datetime.now().year}-006C")
+    
+    # Deteksi presisi Nomor WO & CTR khusus kontrak 7207250142 atau sesuai input WCC
+    if str(nomor_kontrak).strip() == "7207250142":
+        default_wo = "S25051FLD-TOMORI-WO-006"
+        default_ctr = "006-TOMORI-FLD-BSS- CTR-2025"
+    else:
+        default_wo = no_po if no_po and no_po != current_pi_no else "S25051FLD-TOMORI-WO-006"
+        default_ctr = f"006-TOMORI-FLD-BSS- CTR-2025" if str(nomor_kontrak).strip() == "7207250142" else f"017/BSS-JOB/FLD/II/2026"
+
+    wcc_wo_no = curr_wcc_dict.get('wo_no', default_wo)
+    wcc_ctr_no = curr_wcc_dict.get('ctr_no', default_ctr)
+    wcc_wo_title = curr_wcc_dict.get('wo_title', lingkup_pekerjaan)
     
     progress_desc = "100% - Penyelesaian Pekerjaan"
 
-    wcc_signers_list = wcc_saved.get('signers_list', [])
+    wcc_signers_list = curr_wcc_dict.get('signers_list', [])
     if not wcc_signers_list:
         if str(nomor_kontrak).strip() == "7207250142":
             wcc_signers_list = [
@@ -367,7 +455,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         if ket:
             desc_full_opname += f"<br>{ket}"
         
-        # Opname: Kolom angka menggunakan white-space: nowrap dan font disesuaikan agar selalu muat 1 baris
         opname_rows_html += f"""
             <tr>
                 <td style="text-align: center;">1.{idx}</td>
@@ -464,24 +551,32 @@ def tampilkan_paket_lengkap(transaksi_list):
     ttd_ferry_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_ferry}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Ferry"></div>' if custom_ttd_ferry else '<div style="height: 55px;"></div>'
 
     # ==========================================
-    # 1. HALAMAN RINCIAN PEKERJAAN
+    # STRUKTUR KOP SURAT INTERNAL (BSS)
     # ==========================================
-    rincian_html = f"""
-    <div class="page-break">
+    kop_bss_html = f"""
         <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
             <tr>
-                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 25px;">
                     {img_tag_bss_internal}
                 </td>
-                <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
-                    <div style="font-size: 9px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
+                <td style="width: 50%; text-align: center; vertical-align: middle; line-height: 1.4;">
+                    <div style="font-weight: bold; font-size: 14px; margin-bottom: 2px; letter-spacing: 0.5px;">PT. BANGGAI SENTRAL SULAWESI</div>
+                    <div style="font-size: 11px; font-weight: bold; color: #1f2937; margin-bottom: 2px;">General Contractor and Suppliers</div>
+                    <div style="font-size: 9.5px; color: #4b5563;">Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
                 </td>
-                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 25px;">
                     {img_tag_iso_internal}
                 </td>
             </tr>
         </table>
+    """
+
+    # ==========================================
+    # 1. HALAMAN RINCIAN PEKERJAAN
+    # ==========================================
+    rincian_html = f"""
+    <div class="page-break">
+        {kop_bss_html}
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
         
         <h2 style="text-align: center; font-size: 14px; text-transform: uppercase; margin-bottom: 15px;">RINCIAN PEKERJAAN</h2>
@@ -560,20 +655,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     # ==========================================
     pi_html = f"""
     <div class="page-break">
-        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
-            <tr>
-                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
-                    {img_tag_bss_internal}
-                </td>
-                <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
-                    <div style="font-size: 9px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk, Kabupaten Banggai, Propinsi Sulawesi Tengah</div>
-                </td>
-                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
-                    {img_tag_iso_internal}
-                </td>
-            </tr>
-        </table>
+        {kop_bss_html}
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
 
         <h2 style="text-align: center; font-size: 14px; text-transform: uppercase; margin-bottom: 15px;">PROFORMA INVOICE</h2>
@@ -652,13 +734,13 @@ def tampilkan_paket_lengkap(transaksi_list):
     <div class="page-break" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
         <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
             <tr>
-                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 25px;">
                     {img_tag_p1}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
                     <h2 style="font-size: 15px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">BERITA ACARA MULAI PEKERJAAN (BAMP)</h2>
                 </td>
-                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 25px;">
                     {img_tag_p2}
                 </td>
             </tr>
@@ -736,13 +818,13 @@ def tampilkan_paket_lengkap(transaksi_list):
     <div class="page-break" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
         <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
             <tr>
-                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 25px;">
                     {img_tag_p1}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
                     <h2 style="font-size: 15px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">BERITA ACARA SELESAI PEKERJAAN (BASP)</h2>
                 </td>
-                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 25px;">
                     {img_tag_p2}
                 </td>
             </tr>
@@ -820,14 +902,14 @@ def tampilkan_paket_lengkap(transaksi_list):
     <div class="page-break" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
         <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
             <tr>
-                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 25px;">
                     {img_tag_p1}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
                     <h2 style="font-size: 14px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">{bastb_title}</h2>
                     <div style="font-size: 11px; font-weight: bold; margin-top: 2px;">{bastb_subtitle}</div>
                 </td>
-                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 25px;">
                     {img_tag_p2}
                 </td>
             </tr>
@@ -899,7 +981,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 6. HALAMAN WCC
+    # 6. HALAMAN WCC (WO & CTR PRESISI TERSINKRONISASI)
     # ==========================================
     num_signers_wcc = len(wcc_signers_list)
     col_width_pct_wcc = round(100.0 / num_signers_wcc, 2) if num_signers_wcc > 0 else 50.0
@@ -941,14 +1023,14 @@ def tampilkan_paket_lengkap(transaksi_list):
     <div class="page-break">
         <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
             <tr>
-                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 25px;">
                     {img_tag_reversed_left}
                 </td>
                 <td style="width: 50%; text-align: center; vertical-align: middle;">
                     <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">{wcc_header_title}</div>
                     <div style="font-size: 11px; color: #4b5563;">{wcc_header_contract}</div>
                 </td>
-                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 25px;">
                     {img_tag_reversed_right}
                 </td>
             </tr>
@@ -986,7 +1068,8 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc; vertical-align: top;">DESCRIPTION</td>
                 <td style="padding: 8px; border: 1px solid #000; text-align: center; vertical-align: top;">:</td>
                 <td style="padding: 8px; border: 1px solid #000;">
-                    <table style="width:100%; border:none;"><tr><td style="border:none; padding:0; width:65%;">{progress_desc}</td><td style="border:none; padding:0; width:35%; text-align:right; font-weight:bold;">Rp {grand_total:,.0f}</td></tr></table>
+                    <span style="font-size: 11px; font-weight: bold;">{progress_desc}</span> &nbsp;&nbsp; 
+                    <span style="font-size: 12px; font-weight: bold; color: #000;">Rp {grand_total:,.0f}</span>
                 </td>
             </tr>
             <tr style="border: 1px solid #000;">
@@ -1005,7 +1088,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 7. HALAMAN OPNAME PEKERJAAN (Kolom Lebar & Font Disesuaikan agar Muat 1 Baris)
+    # 7. HALAMAN OPNAME PEKERJAAN
     # ==========================================
     if str(nomor_kontrak).strip() == "7207250142":
         opname_sig_table_html = f"""
@@ -1049,20 +1132,7 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     opname_html = f"""
     <div class="page-break">
-        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
-            <tr>
-                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
-                    {img_tag_reversed_left}
-                </td>
-                <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
-                    <div style="font-size: 9px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk</div>
-                </td>
-                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
-                    {img_tag_reversed_right}
-                </td>
-            </tr>
-        </table>
+        {kop_bss_html}
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
         
         <h2 style="text-align: center; font-size: 15px; font-weight: bold; text-transform: uppercase; margin-bottom: 15px;">BERITA ACARA PEKERJAAN / OPNAME</h2>
@@ -1074,7 +1144,6 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td style="font-weight: bold; color: #065f46;">PROFORMA INVOICE No.</td><td>: <b>{current_pi_no}</b></td></tr>
         </table>
 
-        <!-- Tabel Opname dengan ukuran font 7.5px dan proporsi kolom harga yang diperlebar -->
         <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 7.5px; table-layout: fixed;">
             <thead>
                 <tr>
@@ -1127,20 +1196,7 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     tkdn_html = f"""
     <div class="page-break">
-        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
-            <tr>
-                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 15px;">
-                    {img_tag_bss_internal}
-                </td>
-                <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">PT. BANGGAI SENTRAL SULAWESI</div>
-                    <div style="font-size: 9px; color: #4b5563;">General Contractor and Suppliers | Jl. Urip Sumoharjo No. 53 Luwuk</div>
-                </td>
-                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 15px;">
-                    {img_tag_iso_internal}
-                </td>
-            </tr>
-        </table>
+        {kop_bss_html}
         <div style="border-bottom: 2px solid #000; margin-bottom: 12px;"></div>
 
         <div style="text-align: center; font-weight: bold; font-size: 12px; margin-bottom: 2px;">TABEL PERHITUNGAN TINGKAT KOMPONEN DALAM NEGERI - JASA</div>

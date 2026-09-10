@@ -168,7 +168,7 @@ def tampilkan_rekap_transaksi(transaksi_list):
                 st.success("✅ Nilai Plafon Kontrak berhasil disimpan secara permanen!")
                 st.rerun()
 
-    # --- TABEL RINGKASAN & STATISTIK PENYERAPAN PER KONTRAK ---
+    # --- TABEL RINGKASAN & STATISTIK PENYERAPAN PER KONTRAK (DENGAN PERSENTASE) ---
     st.markdown("#### 📋 Tabel Ringkasan Statistik & Penyerapan Kontrak")
     
     kontrak_tabel_list = [selected_contract_filter] if selected_contract_filter != "Semua Kontrak" else [c for c in unique_contracts if c != "Semua Kontrak"]
@@ -187,26 +187,35 @@ def tampilkan_rekap_transaksi(transaksi_list):
         wan_val = float(df_wan_k["Total Harga (IDR)"].sum())
         
         sisa_val = plafon_val - penyerapan_val
+
+        # Perhitungan Persentase Presisi
+        pct_penyerapan = (penyerapan_val / plafon_val * 100.0) if plafon_val > 0 else 0.0
+        pct_sisa = (sisa_val / plafon_val * 100.0) if plafon_val > 0 else 0.0
         
         summary_rows.append({
             "Nomor Kontrak": k_num,
             "Total Nilai Kontrak (Rp)": plafon_val,
             "Total Penyerapan (Rp)": penyerapan_val,
+            "% Penyerapan": pct_penyerapan,
             "Terbit PO (Rp)": po_val,
             "Terbit WAN / SA (Rp)": wan_val,
-            "Sisa Penyerapan (Rp)": sisa_val
+            "Sisa Penyerapan (Rp)": sisa_val,
+            "% Sisa Anggaran": pct_sisa
         })
 
     df_summary = pd.DataFrame(summary_rows)
     
-    # Format angka menjadi rupiah koma
+    # Format angka menjadi rupiah koma dan persentase
     df_summary_display = df_summary.copy()
     for col in ["Total Nilai Kontrak (Rp)", "Total Penyerapan (Rp)", "Terbit PO (Rp)", "Terbit WAN / SA (Rp)", "Sisa Penyerapan (Rp)"]:
         df_summary_display[col] = df_summary_display[col].map("Rp {:,.2f}".format)
+    
+    df_summary_display["% Penyerapan"] = df_summary_display["% Penyerapan"].map("{:,.2f}%".format)
+    df_summary_display["% Sisa Anggaran"] = df_summary_display["% Sisa Anggaran"].map("{:,.2f}%".format)
 
     st.dataframe(df_summary_display, use_container_width=True, hide_index=True)
 
-    # --- GRAFIK PERBANDINGAN KONTRAK VS PENYERAPAN (SKALA TUNGGAL, BERHIMPIT RAPAT, WARNA BIRU & KUNING MENYALA) ---
+    # --- GRAFIK PERBANDINGAN KONTRAK VS PENYERAPAN ---
     if not df_summary.empty:
         st.markdown("#### 📊 Grafik Perbandingan Kontrak vs Penyerapan")
         
