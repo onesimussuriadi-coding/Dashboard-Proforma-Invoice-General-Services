@@ -168,7 +168,7 @@ def tampilkan_rekap_transaksi(transaksi_list):
                 st.success("✅ Nilai Plafon Kontrak berhasil disimpan secara permanen!")
                 st.rerun()
 
-    # --- TABEL RINGKASAN & STATISTIK PENYERAPAN PER KONTRAK (DENGAN PERSENTASE) ---
+    # --- TABEL RINGKASAN & STATISTIK PENYERAPAN PER KONTRAK (DENGAN BARIS GRAND TOTAL) ---
     st.markdown("#### 📋 Tabel Ringkasan Statistik & Penyerapan Kontrak")
     
     kontrak_tabel_list = [selected_contract_filter] if selected_contract_filter != "Semua Kontrak" else [c for c in unique_contracts if c != "Semua Kontrak"]
@@ -204,16 +204,43 @@ def tampilkan_rekap_transaksi(transaksi_list):
         })
 
     df_summary = pd.DataFrame(summary_rows)
-    
-    # Format angka menjadi rupiah koma dan persentase
-    df_summary_display = df_summary.copy()
-    for col in ["Total Nilai Kontrak (Rp)", "Total Penyerapan (Rp)", "Terbit PO (Rp)", "Terbit WAN / SA (Rp)", "Sisa Penyerapan (Rp)"]:
-        df_summary_display[col] = df_summary_display[col].map("Rp {:,.2f}".format)
-    
-    df_summary_display["% Penyerapan"] = df_summary_display["% Penyerapan"].map("{:,.2f}%".format)
-    df_summary_display["% Sisa Anggaran"] = df_summary_display["% Sisa Anggaran"].map("{:,.2f}%".format)
 
-    st.dataframe(df_summary_display, use_container_width=True, hide_index=True)
+    if not df_summary.empty:
+        # Hitung Grand Total untuk baris terakhir
+        gt_plafon = df_summary["Total Nilai Kontrak (Rp)"].sum()
+        gt_penyerapan = df_summary["Total Penyerapan (Rp)"].sum()
+        gt_po = df_summary["Terbit PO (Rp)"].sum()
+        gt_wan = df_summary["Terbit WAN / SA (Rp)"].sum()
+        gt_sisa = gt_plafon - gt_penyerapan
+        
+        gt_pct_penyerapan = (gt_penyerapan / gt_plafon * 100.0) if gt_plafon > 0 else 0.0
+        gt_pct_sisa = (gt_sisa / gt_plafon * 100.0) if gt_plafon > 0 else 0.0
+
+        df_summary_display = df_summary.copy()
+        
+        # Format angka menjadi rupiah koma dan persentase untuk baris data reguler
+        for col in ["Total Nilai Kontrak (Rp)", "Total Penyerapan (Rp)", "Terbit PO (Rp)", "Terbit WAN / SA (Rp)", "Sisa Penyerapan (Rp)"]:
+            df_summary_display[col] = df_summary_display[col].map("Rp {:,.2f}".format)
+        
+        df_summary_display["% Penyerapan"] = df_summary_display["% Penyerapan"].map("{:,.2f}%".format)
+        df_summary_display["% Sisa Anggaran"] = df_summary_display["% Sisa Anggaran"].map("{:,.2f}%".format)
+
+        # Tambahkan baris Grand Total ke DataFrame Tampilan
+        grand_total_row = pd.DataFrame([{
+            "Nomor Kontrak": "GRAND TOTAL",
+            "Total Nilai Kontrak (Rp)": f"Rp {gt_plafon:,.2f}",
+            "Total Penyerapan (Rp)": f"Rp {gt_penyerapan:,.2f}",
+            "% Penyerapan": f"{gt_pct_penyerapan:,.2f}%",
+            "Terbit PO (Rp)": f"Rp {gt_po:,.2f}",
+            "Terbit WAN / SA (Rp)": f"Rp {gt_wan:,.2f}",
+            "Sisa Penyerapan (Rp)": f"Rp {gt_sisa:,.2f}",
+            "% Sisa Anggaran": f"{gt_pct_sisa:,.2f}%"
+        }])
+
+        df_summary_display = pd.concat([df_summary_display, grand_total_row], ignore_index=True)
+        st.dataframe(df_summary_display, use_container_width=True, hide_index=True)
+    else:
+        st.info("ℹ️ Tidak ada data ringkasan kontrak yang tersedia.")
 
     # --- GRAFIK PERBANDINGAN KONTRAK VS PENYERAPAN ---
     if not df_summary.empty:
