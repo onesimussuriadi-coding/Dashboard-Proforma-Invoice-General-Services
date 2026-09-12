@@ -1962,7 +1962,7 @@ if form_login_sistem():
                                         dt = pd.to_datetime(val)
                                         return m_start <= dt.month <= m_end
                                     except:
-                                        return True # Jika tanggal tidak valid, biarkan lolos agar tidak kosong
+                                        return True 
                                 
                                 if "Tanggal PI" in df_excel_target.columns:
                                     df_excel_target = df_excel_target[df_excel_target["Tanggal PI"].apply(filter_by_month)]
@@ -2060,7 +2060,7 @@ if form_login_sistem():
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_k}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_pi}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_po}</td>
-                                        <td style="border: 1px solid #e2e8f0; padding: 5px, 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_wo}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_wo}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_kat}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left; max-width: 220px; white-space: normal;">{val_desc}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: center;">{val_qty}</td>
