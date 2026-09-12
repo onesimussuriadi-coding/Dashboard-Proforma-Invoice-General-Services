@@ -53,12 +53,31 @@ def tampilkan_pemantauan_pembayaran():
             return 0.0
 
     def muat_invoice_resmi():
+        if not os.path.exists(DIR_DATABASE):
+            return []
+        
+        # Deteksi otomatis semua file Excel di folder penyimpanan aman secara fleksibel
+        semua_file = os.listdir(DIR_DATABASE)
         kemungkinan_file = [
+            os.path.join(DIR_DATABASE, f) for f in semua_file 
+            if f.endswith('.xlsx') and not f.startswith('~$')
+        ]
+        
+        for file_path in kemungkinan_file:
+            try:
+                df = pd.read_excel(file_path)
+                if df is not None and not df.empty:
+                    return df.to_dict(orient="records")
+            except:
+                pass
+
+        # Fallback cadangan jika menggunakan nama standar
+        spesifik_file = [
             os.path.join(DIR_DATABASE, "database_billing_tax.xlsx"),
             os.path.join(DIR_DATABASE, "database_invoice_resmi.xlsx"),
             os.path.join(DIR_DATABASE, "database_invoice.xlsx")
         ]
-        for file_path in kemungkinan_file:
+        for file_path in spesifik_file:
             if os.path.exists(file_path):
                 try:
                     df = pd.read_excel(file_path)
@@ -111,8 +130,9 @@ def tampilkan_pemantauan_pembayaran():
 
     payment_records = st.session_state["db_payment"]
 
-    if not invoice_list:
-        st.warning("⚠️ Belum ada Data Invoice Resmi yang tersimpan. Pastikan Anda sudah menyimpan data invoice di menu Billing & Tax.")
+    # Perbaikan pengaman agar modul tidak terhenti total jika data master belum terbaca sempurna
+    if not invoice_list and not payment_records:
+        st.warning("⚠️ Belum ada Data Invoice Resmi atau Status Pembayaran yang tersimpan di direktori.")
         return
 
     def ambil_tanggal_invoice(inv_data_obj):
@@ -123,6 +143,8 @@ def tampilkan_pemantauan_pembayaran():
         return str(date.today())
 
     all_contracts = sorted(list(dict.fromkeys([str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() for inv in invoice_list if inv.get("Kontrak No.") or inv.get("Nomor Kontrak")])))
+    if not all_contracts and payment_records:
+        all_contracts = sorted(list(dict.fromkeys([str(p.get("Nomor Kontrak", "-")).strip() for p in payment_records if p.get("Nomor Kontrak")])))
 
     st.markdown("---")
     st.markdown("##### 🔍 Filter Tampilan & Rekapitulasi Berdasarkan Kontrak")
@@ -217,7 +239,6 @@ def tampilkan_pemantauan_pembayaran():
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak")
         
-        # Agregasi data per kontrak
         summary_contract_map = {}
         for p in payment_records:
             c_no = str(p.get("Nomor Kontrak", "-")).strip()
@@ -235,7 +256,6 @@ def tampilkan_pemantauan_pembayaran():
             elif st_byr == "Sebagian (DP / Termin)":
                 summary_contract_map[c_no]["terbayar"] += (gt * 0.5)
 
-        # Render Header Tabel Rincian Kontrak
         rh_cols = st.columns([1.5, 1.0, 1.5, 1.5, 1.5, 1.2, 1.0])
         r_headers = ["Nomor Kontrak", "Jml Dok", "Total Tagihan (Rp)", "Sudah Dibayar (Rp)", "Sisa Piutang (Rp)", "Realisasi (%)", "Status"]
         for rh, rht in zip(rh_cols, r_headers):
@@ -278,7 +298,6 @@ def tampilkan_pemantauan_pembayaran():
                 st.markdown(f"<small>{st_teks}</small>", unsafe_allow_html=True)
             st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
 
-        # Baris Total Keseluruhan Kontrak
         tot_pct_overall = (tot_sum_terbayar / tot_sum_tagihan * 100) if tot_sum_tagihan > 0 else 0.0
         tot_cols = st.columns([1.5, 1.0, 1.5, 1.5, 1.5, 1.2, 1.0])
         with tot_cols[0]:
@@ -363,18 +382,23 @@ def tampilkan_pemantauan_pembayaran():
 
     col_fc1, col_fc2 = st.columns([1.5, 2.5])
     with col_fc1:
-        form_kontrak_pilih = st.selectbox("1️⃣ Pilih Nomor Kontrak:", all_contracts, key="form_input_kontrak_sel")
+        form_kontrak_pilih = st.selectbox("1️⃣ Pilih Nomor Kontrak:", all_contracts if all_contracts else ["-"], key="form_input_kontrak_sel")
     
     inv_list_filtered_contract = [inv for inv in invoice_list if str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() == str(form_kontrak_pilih).strip()]
     
-    sample_inv = invoice_list[0]
-    inv_key = "Nomor Invoice Resmi" if "Nomor Invoice Resmi" in sample_inv else ("Nomor Invoice" if "Nomor Invoice" in sample_inv else list(sample_inv.keys())[0])
+    sample_inv = invoice_list[0] if invoice_list else {}
+    inv_key = "Nomor Invoice Resmi" if "Nomor Invoice Resmi" in sample_inv else ("Nomor Invoice" if "Nomor Invoice" in sample_inv else (list(sample_inv.keys())[0] if sample_inv else "Nomor Invoice"))
 
     all_inv_no_contract = [str(inv.get(inv_key, "")).strip() for inv in inv_list_filtered_contract if inv.get(inv_key)]
+    if not all_inv_no_contract and payment_records:
+        all_inv_no_contract = sorted(list(dict.fromkeys([str(p.get("Nomor Invoice", "")).strip() for p in payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(form_kontrak_pilih).strip() and p.get("Nomor Invoice")])))
+
     saved_invoice_set = {str(p.get("Nomor Invoice", "")).strip() for p in payment_records if p.get("Nomor Invoice")}
 
     active_edit_inv = str(st.session_state.get("active_invoice_selected", "")).strip()
     list_inv_aktif = [inv_no for inv_no in all_inv_no_contract if inv_no not in saved_invoice_set or inv_no == active_edit_inv]
+    if not list_inv_aktif and all_inv_no_contract:
+        list_inv_aktif = all_inv_no_contract
 
     list_saved_payment_no = sorted(list({str(p.get("Nomor Invoice")) for p in payment_records if str(p.get("Nomor Kontrak")) == str(form_kontrak_pilih)}), reverse=True)
     opsi_panggil_bayar = ["-- Pilih Data Tersimpan untuk Diedit / Panggil Ulang --"] + list_saved_payment_no
@@ -392,16 +416,17 @@ def tampilkan_pemantauan_pembayaran():
         default_select_idx = list_inv_aktif.index(active_edit_inv)
 
     if not list_inv_aktif:
-        st.info("ℹ️ Semua nomor invoice resmi untuk kontrak ini sudah tersimpan dalam modul pemantauan pembayaran.")
-        selected_inv = active_edit_inv if active_edit_inv else (all_inv_no_contract[0] if all_inv_no_contract else "")
+        selected_inv = st.text_input("3️⃣ Ketik Nomor Invoice Aktif:", value=active_edit_inv)
     else:
         selected_inv = st.selectbox("3️⃣ Pilih Nomor Invoice Aktif:", list_inv_aktif, index=default_select_idx if default_select_idx < len(list_inv_aktif) else 0, key="dropdown_master_invoice_aktif")
 
     inv_data = next((inv for inv in invoice_list if str(inv.get(inv_key, "")).strip() == str(selected_inv)), {})
     existing_pay = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == str(selected_inv)), {})
 
-    tgl_invoice_bawaan = ambil_tanggal_invoice(inv_data)
+    tgl_invoice_bawaan = ambil_tanggal_invoice(inv_data) if inv_data else str(existing_pay.get("Tanggal Invoice", date.today()))[:10]
     grand_total_otomatis = ambil_grand_total_invoice_master(selected_inv)
+    if grand_total_otomatis == 0.0 and existing_pay:
+        grand_total_otomatis = float(existing_pay.get("Grand Total", 0.0))
 
     formatted_grand_total = f"Rp {grand_total_otomatis:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     
@@ -459,38 +484,41 @@ def tampilkan_pemantauan_pembayaran():
         submit_simpan = st.form_submit_button("💾 Simpan Pemantauan Pembayaran", type="primary", use_container_width=True)
 
         if submit_simpan:
-            tgl_jatuh_tempo = tgl_penyerahan + timedelta(days=int(top_hari))
+            if not selected_inv.strip():
+                st.error("❌ Nomor Invoice tidak boleh kosong!")
+            else:
+                tgl_jatuh_tempo = tgl_penyerahan + timedelta(days=int(top_hari))
 
-            durasi_riil_hari = 0
-            str_tgl_pelunasan_final = "-"
-            if status_pembayaran in ["Sebagian (DP / Termin)", "Lunas"] and tgl_pelunasan:
-                str_tgl_pelunasan_final = tgl_pelunasan.strftime("%Y-%m-%d")
-                durasi_riil_hari = (tgl_pelunasan - tgl_penyerahan).days
+                durasi_riil_hari = 0
+                str_tgl_pelunasan_final = "-"
+                if status_pembayaran in ["Sebagian (DP / Termin)", "Lunas"] and tgl_pelunasan:
+                    str_tgl_pelunasan_final = tgl_pelunasan.strftime("%Y-%m-%d")
+                    durasi_riil_hari = (tgl_pelunasan - tgl_penyerahan).days
 
-            data_update = {
-                "Nomor Kontrak": form_kontrak_pilih,
-                "Nomor Invoice": selected_inv,
-                "Nomor Faktur Pajak": nomor_faktur_pajak,
-                "Customer": inv_data.get("Customer", "-"),
-                "Tanggal Invoice": tgl_invoice_bawaan,
-                "Tanggal Penyerahan": tgl_penyerahan.strftime("%Y-%m-%d"),
-                "TOP Hari": top_hari,
-                "Tanggal Jatuh Tempo": tgl_jatuh_tempo.strftime("%Y-%m-%d"),
-                "Tanggal Pelunasan": str_tgl_pelunasan_final,
-                "Durasi Riil Hari": durasi_riil_hari,
-                "Grand Total": grand_total_otomatis,
-                "Status Pembayaran": status_pembayaran,
-                "Catatan": catatan_bayar,
-                "Update Terakhir": datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-            }
+                data_update = {
+                    "Nomor Kontrak": form_kontrak_pilih,
+                    "Nomor Invoice": selected_inv,
+                    "Nomor Faktur Pajak": nomor_faktur_pajak,
+                    "Customer": inv_data.get("Customer", existing_pay.get("Customer", "-")),
+                    "Tanggal Invoice": tgl_invoice_bawaan,
+                    "Tanggal Penyerahan": tgl_penyerahan.strftime("%Y-%m-%d"),
+                    "TOP Hari": top_hari,
+                    "Tanggal Jatuh Tempo": tgl_jatuh_tempo.strftime("%Y-%m-%d"),
+                    "Tanggal Pelunasan": str_tgl_pelunasan_final,
+                    "Durasi Riil Hari": durasi_riil_hari,
+                    "Grand Total": grand_total_otomatis,
+                    "Status Pembayaran": status_pembayaran,
+                    "Catatan": catatan_bayar,
+                    "Update Terakhir": datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+                }
 
-            clean_records = [p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() != str(selected_inv).strip()]
-            clean_records.append(data_update)
-            simpan_status_pembayaran(clean_records)
-            st.success(f"🎉 Berhasil menyimpan data pemantauan untuk Invoice [{selected_inv}]!")
-            if "active_invoice_selected" in st.session_state:
-                del st.session_state["active_invoice_selected"]
-            st.rerun()
+                clean_records = [p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() != str(selected_inv).strip()]
+                clean_records.append(data_update)
+                simpan_status_pembayaran(clean_records)
+                st.success(f"🎉 Berhasil menyimpan data pemantauan untuk Invoice [{selected_inv}]!")
+                if "active_invoice_selected" in st.session_state:
+                    del st.session_state["active_invoice_selected"]
+                st.rerun()
 
     # --- TABEL RINGKASAN & LAPORAN AGING ---
     st.markdown("---")
