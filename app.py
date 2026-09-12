@@ -1431,188 +1431,199 @@ if form_login_sistem():
                     if "num_rows" not in st.session_state:
                         st.session_state.num_rows = len(loaded_tx_items) if loaded_tx_items else 1
 
-                    items_data_input = []
-                    
-                    for i in range(st.session_state.num_rows):
-                        default_item_data = loaded_tx_items[i] if loaded_tx_items and i < len(loaded_tx_items) else {}
+                    # --- FORMULIR RUMAH UTAMA UNTUK BARIS PEKERJAAN & TOMBOL AKSI ---
+                    with st.form("form_proses_rincian_pekerjaan"):
+                        items_data_input = []
                         
-                        c_k1, c_k2 = st.columns(2)
-                        with c_k1:
-                            def_kat_item = str(default_item_data.get("Kategori", list_kat[0] if list_kat else "-"))
-                            idx_kat = list_kat.index(def_kat_item) if def_kat_item in list_kat else 0
+                        for i in range(st.session_state.num_rows):
+                            default_item_data = loaded_tx_items[i] if loaded_tx_items and i < len(loaded_tx_items) else {}
                             
-                            kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}")
-                        
-                        is_provisional = "provisional" in str(kat_pilih).lower() or "professional" in str(kat_pilih).lower()
-                        is_estimated_sum = "estimated" in str(kat_pilih).lower() or "estimasi" in str(kat_pilih).lower()
+                            c_k1, c_k2 = st.columns(2)
+                            with c_k1:
+                                def_kat_item = str(default_item_data.get("Kategori", list_kat[0] if list_kat else "-"))
+                                idx_kat = list_kat.index(def_kat_item) if def_kat_item in list_kat else 0
+                                
+                                kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}")
+                            
+                            is_provisional = "provisional" in str(kat_pilih).lower() or "professional" in str(kat_pilih).lower()
+                            is_estimated_sum = "estimated" in str(kat_pilih).lower() or "estimasi" in str(kat_pilih).lower()
 
-                        with c_k2:
-                            if is_provisional:
-                                current_desc_val = str(default_item_data.get("Deskripsi Pekerjaan", ""))
-                                if not current_desc_val or "fogging" in current_desc_val.lower() or "provisional sum (" in current_desc_val.lower():
-                                    default_desc_final = "Add Cost + Fee 15%"
+                            with c_k2:
+                                if is_provisional:
+                                    current_desc_val = str(default_item_data.get("Deskripsi Pekerjaan", ""))
+                                    if not current_desc_val or "fogging" in current_desc_val.lower() or "provisional sum (" in current_desc_val.lower():
+                                        default_desc_final = "Add Cost + Fee 15%"
+                                    else:
+                                        default_desc_final = current_desc_val
+
+                                    spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_desc_final, key=f"spek_manual_{i}")
                                 else:
-                                    default_desc_final = current_desc_val
+                                    df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
+                                    if df_f_kat.empty:
+                                        df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
+                                        
+                                    raw_list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
+                                    
+                                    spek_display_map = {}
+                                    spek_options_formatted = []
+                                    
+                                    for orig_text in raw_list_spek:
+                                        if "BBM & " in orig_text:
+                                            parts = orig_text.split("BBM & ")
+                                            unique_part = parts[-1].strip() if len(parts) > 1 else orig_text
+                                            display_text = f"⭐ [{unique_part}] — ({orig_text})"
+                                        else:
+                                            display_text = orig_text
+                                    
+                                            spek_display_map[display_text] = orig_text
+                                            spek_options_formatted.append(display_text)
 
-                                spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_desc_final, key=f"spek_manual_{i}")
-                            else:
+                                    def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", ""))
+                                    default_display_val = spek_options_formatted[0]
+                                    for disp, orig in spek_display_map.items():
+                                        if orig == def_spek_item:
+                                            default_display_val = disp
+                                            break
+
+                                    idx_spek = spek_options_formatted.index(default_display_val) if default_display_val in spek_options_formatted else 0
+                                    
+                                    selected_display_spek = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", spek_options_formatted, index=idx_spek, key=f"spek_{i}")
+                                    spek_pilih = spek_display_map.get(selected_display_spek, selected_display_spek)
+
+                            hs_otomatis = 0.0
+                            unit_otomatis = "Month"
+                            if not is_provisional:
                                 df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
                                 if df_f_kat.empty:
                                     df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
-                                    
-                                raw_list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
-                                
-                                spek_display_map = {}
-                                spek_options_formatted = []
-                                
-                                for orig_text in raw_list_spek:
-                                    if "BBM & " in orig_text:
-                                        parts = orig_text.split("BBM & ")
-                                        unique_part = parts[-1].strip() if len(parts) > 1 else orig_text
-                                        display_text = f"⭐ [{unique_part}] — ({orig_text})"
-                                    else:
-                                        display_text = orig_text
-                                
-                                        spek_display_map[display_text] = orig_text
-                                        spek_options_formatted.append(display_text)
 
-                                def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", ""))
-                                default_display_val = spek_options_formatted[0]
-                                for disp, orig in spek_display_map.items():
-                                    if orig == def_spek_item:
-                                        default_display_val = disp
-                                        break
+                                if not df_f_kat.empty and spek_pilih != "- (Tidak ada data uraian)":
+                                    m_row = df_f_kat[df_f_kat["Uraian Clean"] == str(spek_pilih).strip()]
+                                    if m_row.empty:
+                                        m_row = df_f_kat[df_f_kat["Uraian Clean"].str.lower() == str(spek_pilih).strip().lower()]
 
-                                idx_spek = spek_options_formatted.index(default_display_val) if default_display_val in spek_options_formatted else 0
-                                
-                                selected_display_spek = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", spek_options_formatted, index=idx_spek, key=f"spek_{i}")
-                                spek_pilih = spek_display_map.get(selected_display_spek, selected_display_spek)
+                                    if not m_row.empty:
+                                        row_m = m_row.iloc[0]
+                                        try:
+                                            hs_otomatis = float(row_m.get("Harga Satuan", 0.0))
+                                        except:
+                                            hs_otomatis = 0.0
+                                        unit_otomatis = str(row_m.get("Unit", "Month"))
 
-                        hs_otomatis = 0.0
-                        unit_otomatis = "Month"
-                        if not is_provisional:
-                            df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
-                            if df_f_kat.empty:
-                                df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
+                            c_item1, c_item2, c_item3, c_item4 = st.columns([1, 1, 1, 1])
+                            with c_item1:
+                                try:
+                                    def_qty = float(default_item_data.get("Qty", 1.0))
+                                except:
+                                    def_qty = 1.0
+                                q_val = st.number_input(f"Qty {i+1}", value=def_qty, key=f"qty_{i}")
+                            with c_item2:
+                                default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg", "Pallet", "Ltr"]
+                                existing_u_from_master = df_ref["Unit"].dropna().astype(str).unique().tolist() if "Unit" in df_ref.columns else []
+                                u_opts = sorted(list(set(default_u_opts + existing_u_from_master)))
+                                def_unit = str(default_item_data.get("Unit", unit_otomatis))
+                                idx_u = u_opts.index(def_unit) if def_unit in u_opts else 0
+                                u_val = st.selectbox(f"Unit {i+1}", u_opts, index=idx_u, key=f"unit_{i}")
+                            with c_item3:
+                                def_tm_str = str(default_item_data.get("Tanggal Mulai", ""))
+                                try:
+                                    def_tm = datetime.strptime(def_tm_str, "%d %b %Y").date()
+                                except:
+                                    def_tm = date.today()
+                                tm_val = st.date_input(f"Tanggal Mulai {i+1}", value=def_tm, key=f"tm_{i}")
+                            with c_item4:
+                                def_ts_str = str(default_item_data.get("Tanggal Selesai", ""))
+                                try:
+                                    def_ts = datetime.strptime(def_ts_str, "%d %b %Y").date()
+                                except:
+                                    def_ts = date.today()
+                                ts_val = st.date_input(f"Tanggal Selesai {i+1}", value=def_ts, key=f"ts_{i}")
 
-                            if not df_f_kat.empty and spek_pilih != "- (Tidak ada data uraian)":
-                                m_row = df_f_kat[df_f_kat["Uraian Clean"] == str(spek_pilih).strip()]
-                                if m_row.empty:
-                                    m_row = df_f_kat[df_f_kat["Uraian Clean"].str.lower() == str(spek_pilih).strip().lower()]
-
-                                if not m_row.empty:
-                                    row_m = m_row.iloc[0]
-                                    try:
-                                        hs_otomatis = float(row_m.get("Harga Satuan", 0.0))
-                                    except:
-                                        hs_otomatis = 0.0
-                                    unit_otomatis = str(row_m.get("Unit", "Month"))
-
-                        c_item1, c_item2, c_item3, c_item4 = st.columns([1, 1, 1, 1])
-                        with c_item1:
-                            try:
-                                def_qty = float(default_item_data.get("Qty", 1.0))
-                            except:
-                                def_qty = 1.0
-                            q_val = st.number_input(f"Qty {i+1}", value=def_qty, key=f"qty_{i}")
-                        with c_item2:
-                            default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg", "Pallet", "Ltr"]
-                            existing_u_from_master = df_ref["Unit"].dropna().astype(str).unique().tolist() if "Unit" in df_ref.columns else []
-                            u_opts = sorted(list(set(default_u_opts + existing_u_from_master)))
-                            def_unit = str(default_item_data.get("Unit", unit_otomatis))
-                            idx_u = u_opts.index(def_unit) if def_unit in u_opts else 0
-                            u_val = st.selectbox(f"Unit {i+1}", u_opts, index=idx_u, key=f"unit_{i}")
-                        with c_item3:
-                            def_tm_str = str(default_item_data.get("Tanggal Mulai", ""))
-                            try:
-                                def_tm = datetime.strptime(def_tm_str, "%d %b %Y").date()
-                            except:
-                                def_tm = date.today()
-                            tm_val = st.date_input(f"Tanggal Mulai {i+1}", value=def_tm, key=f"tm_{i}")
-                        with c_item4:
-                            def_ts_str = str(default_item_data.get("Tanggal Selesai", ""))
-                            try:
-                                def_ts = datetime.strptime(def_ts_str, "%d %b %Y").date()
-                            except:
-                                def_ts = date.today()
-                            ts_val = st.date_input(f"Tanggal Selesai {i+1}", value=def_ts, key=f"ts_{i}")
-
-                        if is_provisional:
-                            try:
-                                def_harga_manual = float(default_item_data.get("Harga Satuan", 0.0))
-                            except:
-                                def_harga_manual = 0.0
-                            hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i+1} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}")
-                            hs_final = hs_manual
-                        else:
-                            hs_final = hs_otomatis
-
-                        formatted_hs = f"Rp {hs_final:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                        
-                        if is_estimated_sum:
-                            calc_total = (q_val * hs_final * 0.9) * (persen_val / 100.0)
-                        else:
-                            calc_total = q_val * hs_final * (persen_val / 100.0)
-
-                        formatted_total = f"Rp {calc_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-                        col_info1, col_info2 = st.columns(2)
-                        with col_info1:
-                            st.markdown(f"💰 **Harga Satuan (Modul 0):** `{formatted_hs}`")
-                        with col_info2:
-                            if is_estimated_sum:
-                                st.markdown(f"📊 **Estimasi Total Harga (Diskon 10%):** `{formatted_total}`")
+                            if is_provisional:
+                                try:
+                                    def_harga_manual = float(default_item_data.get("Harga Satuan", 0.0))
+                                except:
+                                    def_harga_manual = 0.0
+                                hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i+1} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}")
+                                hs_final = hs_manual
                             else:
-                                st.markdown(f"📊 **Estimasi Total Harga:** `{formatted_total}`")
+                                hs_final = hs_otomatis
 
-                        def_ket = str(default_item_data.get("Keterangan", ""))
-                        ket_val = st.text_input(f"Keterangan Tambahan {i+1}", value=def_ket, key=f"ket_{i}")
+                            formatted_hs = f"Rp {hs_final:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                            
+                            if is_estimated_sum:
+                                calc_total = (q_val * hs_final * 0.9) * (persen_val / 100.0)
+                            else:
+                                calc_total = q_val * hs_final * (persen_val / 100.0)
+
+                            formatted_total = f"Rp {calc_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+                            col_info1, col_info2 = st.columns(2)
+                            with col_info1:
+                                st.markdown(f"💰 **Harga Satuan (Modul 0):** `{formatted_hs}`")
+                            with col_info2:
+                                if is_estimated_sum:
+                                    st.markdown(f"📊 **Estimasi Total Harga (Diskon 10%):** `{formatted_total}`")
+                                else:
+                                    st.markdown(f"📊 **Estimasi Total Harga:** `{formatted_total}`")
+
+                            def_ket = str(default_item_data.get("Keterangan", ""))
+                            ket_val = st.text_input(f"Keterangan Tambahan {i+1}", value=def_ket, key=f"ket_{i}")
+                            st.markdown("---")
+
+                            items_data_input.append({
+                                "kategori": kat_pilih,
+                                "deskripsi": spek_pilih,
+                                "qty": q_val,
+                                "unit": u_val,
+                                "tgl_mulai": tm_val.strftime("%d %b %Y"),
+                                "tgl_selesai": ts_val.strftime("%d %b %Y"),
+                                "harga_satuan": hs_final,
+                                "keterangan": ket_val,
+                                "is_provisional": is_provisional,
+                                "is_estimated_sum": is_estimated_sum
+                            })
+
+                        grand_total_preview = 0
+                        for item_prev in items_data_input:
+                            if item_prev.get("is_provisional"):
+                                sub_prov = item_prev["qty"] * item_prev["harga_satuan"]
+                                grand_total_preview += (sub_prov * 1.15) * (persen_val / 100.0)
+                            elif item_prev.get("is_estimated_sum"):
+                                sub_est = item_prev["qty"] * item_prev["harga_satuan"] * 0.9
+                                grand_total_preview += sub_est * (persen_val / 100.0)
+                            else:
+                                grand_total_preview += (item_prev["qty"] * item_prev["harga_satuan"]) * (persen_val / 100.0)
+
+                        formatted_grand_total = f"Rp {grand_total_preview:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        
+                        st.markdown("---")
+                        st.markdown(f"### 🧮 **Grand Total Keseluruhan (Kontrol Input):** `{formatted_grand_total}`")
                         st.markdown("---")
 
-                        items_data_input.append({
-                            "kategori": kat_pilih,
-                            "deskripsi": spek_pilih,
-                            "qty": q_val,
-                            "unit": u_val,
-                            "tgl_mulai": tm_val.strftime("%d %b %Y"),
-                            "tgl_selesai": ts_val.strftime("%d %b %Y"),
-                            "harga_satuan": hs_final,
-                            "keterangan": ket_val,
-                            "is_provisional": is_provisional,
-                            "is_estimated_sum": is_estimated_sum
-                        })
+                        col_m1, col_m2 = st.columns(2)
+                        with col_m1:
+                            submit_tambah_baris = st.form_submit_button("➕ Tambah Baris Pekerjaan")
+                        with col_m2:
+                            submit_kurang_baris = st.form_submit_button("➖ Kurangi Baris Terakhir")
 
-                    grand_total_preview = 0
-                    for item_prev in items_data_input:
-                        if item_prev.get("is_provisional"):
-                            sub_prov = item_prev["qty"] * item_prev["harga_satuan"]
-                            grand_total_preview += (sub_prov * 1.15) * (persen_val / 100.0)
-                        elif item_prev.get("is_estimated_sum"):
-                            sub_est = item_prev["qty"] * item_prev["harga_satuan"] * 0.9
-                            grand_total_preview += sub_est * (persen_val / 100.0)
-                        else:
-                            grand_total_preview += (item_prev["qty"] * item_prev["harga_satuan"]) * (persen_val / 100.0)
+                        st.markdown("---")
+                        col_btn_save, col_btn_dist = st.columns(2)
+                        with col_btn_save:
+                            submit_simpan_sementara = st.form_submit_button("💾 Simpan / Update Data Sementara", type="secondary")
+                        with col_btn_dist:
+                            submit_proses_distribusi = st.form_submit_button("🚀 Proses & Distribusikan Data ke Dokumen Turunan", type="primary")
 
-                    formatted_grand_total = f"Rp {grand_total_preview:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    
-                    st.markdown("---")
-                    st.markdown(f"### 🧮 **Grand Total Keseluruhan (Kontrol Input):** `{formatted_grand_total}`")
-                    st.markdown("---")
-
-                    col_m1, col_m2 = st.columns(2)
-                    with col_m1:
-                        if st.button("➕ Tambah Baris Pekerjaan"):
+                        # Logika Penanganan Tombol Di Dalam Formulir
+                        if submit_tambah_baris:
                             st.session_state.num_rows += 1
                             st.rerun()
-                    with col_m2:
-                        if st.button("➖ Kurangi Baris Terakhir") and st.session_state.num_rows > 1:
+
+                        if submit_kurang_baris and st.session_state.num_rows > 1:
                             st.session_state.num_rows -= 1
                             st.rerun()
 
-                    st.markdown("---")
-                    col_btn_save, col_btn_dist = st.columns(2)
-                    with col_btn_save:
-                        if st.button("💾 Simpan / Update Data Sementara", type="secondary"):
+                        if submit_simpan_sementara:
                             waktu_aksi = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
                             existing_tx = muat_data_transaksi()
                             pi_target_simpan = str(selected_pi).strip()
@@ -1672,8 +1683,7 @@ if form_login_sistem():
                             simpan_data_transaksi(existing_tx)
                             st.success(f"💾 Berhasil menyimpan data sementara untuk PI [{pi_target_simpan}]!")
 
-                    with col_btn_dist:
-                        if st.button("🚀 Proses & Distribusikan Data ke Dokumen Turunan", type="primary"):
+                        if submit_proses_distribusi:
                             waktu_aksi = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
                             existing_tx = muat_data_transaksi()
                             pi_baru = str(selected_pi).strip()
@@ -1894,12 +1904,10 @@ if form_login_sistem():
 
                             col_dl1, col_dl2 = st.columns(2)
                             with col_dl1:
-                                # 1. Pilihan Nomor Kontrak untuk Excel
                                 list_kontrak_excel = ["-- Semua Kontrak --"] + sorted(list(df_filtered["Nomor Kontrak"].dropna().astype(str).unique()))
                                 excel_sel_kontrak = st.selectbox("📌 Pilih Kontrak untuk Excel:", list_kontrak_excel, key="excel_filter_kontrak")
 
                             with col_dl2:
-                                # 2. Pilihan Nomor PI (All Invoice / Nomor PI Tertentu)
                                 if excel_sel_kontrak != "-- Semua Kontrak --":
                                     pi_options_raw = sorted(list(df_filtered[df_filtered["Nomor Kontrak"].astype(str) == excel_sel_kontrak]["PI No."].dropna().astype(str).unique()), key=sort_pi_key, reverse=True)
                                 else:
@@ -1910,7 +1918,6 @@ if form_login_sistem():
 
                             col_dl3, col_dl4, col_dl5 = st.columns(3)
                             with col_dl3:
-                                # 3. Filter Tahun (Multiyear)
                                 def extract_year(val):
                                     try:
                                         dt = pd.to_datetime(val)
@@ -1928,7 +1935,6 @@ if form_login_sistem():
                                 excel_sel_tahun = st.selectbox("📅 Pilih Tahun:", excel_tahun_choices, key="excel_filter_tahun")
 
                             with col_dl4:
-                                # 4. Bulan Mulai
                                 bulan_dict = {
                                     "Januari": 1, "Februari": 2, "Maret": 3, "April": 4, 
                                     "Mei": 5, "Juni": 6, "Juli": 7, "Agustus": 8, 
@@ -1938,10 +1944,8 @@ if form_login_sistem():
                                 excel_sel_bulan_mulai = st.selectbox("🗓️ Bulan Mulai:", ["-- Pilih --"] + bulan_names, key="excel_bulan_mulai")
 
                             with col_dl5:
-                                # 5. Bulan Selesai
                                 excel_sel_bulan_selesai = st.selectbox("🗓️ Bulan Selesai:", ["-- Pilih --"] + bulan_names, key="excel_bulan_selesai")
 
-                            # Proses Filter DataFrame Berdasarkan Pilihan Kustom di Atas untuk Excel
                             df_excel_target = df_filtered.copy()
 
                             if excel_sel_kontrak != "-- Semua Kontrak --":
