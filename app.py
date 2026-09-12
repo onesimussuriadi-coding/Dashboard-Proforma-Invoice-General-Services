@@ -987,7 +987,7 @@ if form_login_sistem():
                                 st.rerun()
                     else:
                         matched_pi_records_sorted = sorted(
-                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
+                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, data_get('Nomor Kontrak', '-')) if 'data_get' in globals() else d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
                             key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
                             reverse=True
                         )
@@ -1911,30 +1911,32 @@ if form_login_sistem():
                                 formatted_subtotal = f"Rp {subtotal_pi:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
                                 st.markdown(f"""
-                                    <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 12px 18px; border-radius: 6px; margin-top: 15px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="font-weight: bold; color: #0f172a; font-size: 14px;">📄 Nomor Proforma Invoice (PI): {pi_val}</span>
-                                        <span style="font-weight: bold; color: #047857; font-size: 14px;">Subtotal PI: {formatted_subtotal}</span>
+                                    <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px 15px; border-radius: 6px; margin-top: 15px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: bold; color: #0f172a; font-size: 13px;">📄 Nomor Proforma Invoice (PI): {pi_val}</span>
+                                        <span style="font-weight: bold; color: #047857; font-size: 13px;">Subtotal PI: {formatted_subtotal}</span>
                                     </div>
                                 """, unsafe_allow_html=True)
 
-                                cols_header = st.columns([2, 2, 1.5, 1.5, 2, 3, 0.8, 1, 1.5, 1.5, 0.8])
-                                with cols_header[0]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Nomor Kontrak</p>", unsafe_allow_html=True)
-                                with cols_header[1]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Nomor PI</p>", unsafe_allow_html=True)
-                                with cols_header[2]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Nomor PO</p>", unsafe_allow_html=True)
-                                with cols_header[3]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Nomor WO</p>", unsafe_allow_html=True)
-                                with cols_header[4]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Kategori</p>", unsafe_allow_html=True)
-                                with cols_header[5]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Uraian Pekerjaan</p>", unsafe_allow_html=True)
-                                with cols_header[6]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Qty</p>", unsafe_allow_html=True)
-                                with cols_header[7]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Satuan</p>", unsafe_allow_html=True)
-                                with cols_header[8]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Unit Price</p>", unsafe_allow_html=True)
-                                with cols_header[9]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Total Harga</p>", unsafe_allow_html=True)
-                                with cols_header[10]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Aksi</p>", unsafe_allow_html=True)
-                                
-                                st.markdown("<hr style='margin: 4px 0 8px 0; border-color: #94a3b8;'>", unsafe_allow_html=True)
+                                # Membuat tabel HTML interaktif dengan gaya baris zig-zag (abu-abu terang & putih bergantian) serta huruf kecil/padat
+                                headers_tx_html = """
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor Kontrak</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor PI</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor PO</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor WO</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Kategori</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Uraian Pekerjaan</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: center;'>Qty</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: center;'>Satuan</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: right;'>Unit Price</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: right;'>Total Harga</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: center; width: 60px;'>Aksi</th>
+                                """
 
-                                for idx_row, row_data in df_pi_group.iterrows():
-                                    cols_disp_ui = st.columns([2, 2, 1.5, 1.5, 2, 3, 0.8, 1, 1.5, 1.5, 0.8])
-                                    
+                                rows_tx_html = ""
+                                for row_i, (idx_row, row_data) in enumerate(df_pi_group.iterrows()):
+                                    # Efek Zig-Zag / Zebra Striping (Baris genap abu-abu terang #f8fafc, baris ganjil putih #ffffff)
+                                    bg_color = "#f8fafc" if row_i % 2 == 0 else "#ffffff"
+
                                     val_k = bersih_angka(row_data.get("Nomor Kontrak", "-"))
                                     val_pi = bersih_angka(row_data.get("PI No.", "-"))
                                     val_po = bersih_angka(row_data.get("Nomor PO", "-"))
@@ -1959,21 +1961,39 @@ if form_login_sistem():
                                     except:
                                         val_tot = str(row_data.get('Total Harga', ''))
 
-                                    with cols_disp_ui[0]: st.text(val_k)
-                                    with cols_disp_ui[1]: st.text(val_pi)
-                                    with cols_disp_ui[2]: st.text(val_po)
-                                    with cols_disp_ui[3]: st.text(val_wo)
-                                    with cols_disp_ui[4]: st.text(val_kat)
-                                    with cols_disp_ui[5]: st.text(val_desc)
-                                    with cols_disp_ui[6]: st.text(val_qty)
-                                    with cols_disp_ui[7]: st.text(val_unit)
-                                    with cols_disp_ui[8]: st.text(val_hs)
-                                    with cols_disp_ui[9]: st.text(val_tot)
-                                    with cols_disp_ui[10]:
-                                        if st.button("🗑️", key=f"del_tx_btn_{idx_row}", help="Hapus baris transaksi ini jika keliru"):
-                                            st.query_params["delete_tx_idx"] = str(idx_row)
-                                            st.rerun()
-                                    st.markdown("<hr style='margin: 4px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
+                                    rows_tx_html += f"""
+                                    <tr style="background-color: {bg_color};">
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_k}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_pi}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_po}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_wo}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_kat}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left; max-width: 220px; white-space: normal;">{val_desc}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: center;">{val_qty}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: center;">{val_unit}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: right; white-space: nowrap;">{val_hs}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: right; white-space: nowrap; font-weight: bold;">{val_tot}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: center;">
+                                            <a href="?delete_tx_idx={idx_row}" target="_self" style="text-decoration: none;">
+                                                <button style="background-color: #ef4444; color: white; border: none; padding: 2px 6px; border-radius: 3px; font-size: 10px; cursor: pointer;" title="Hapus Baris">🗑️</button>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    """
+
+                                full_table_html = f"""
+                                <div style="overflow-x: auto; margin-bottom: 15px; border-radius: 6px; border: 1px solid #cbd5e1;">
+                                    <table style="width: 100%; border-collapse: collapse; background-color: #ffffff;">
+                                        <thead>
+                                            <tr>{headers_tx_html}</tr>
+                                        </thead>
+                                        <tbody>
+                                            {rows_tx_html}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                """
+                                st.components.v1.html(full_table_html, height=len(df_pi_group) * 38 + 55, scrolling=False)
 
             elif menu == "Lihat Master Rekap Transaksi":
                 transaksi_list = muat_data_transaksi()
