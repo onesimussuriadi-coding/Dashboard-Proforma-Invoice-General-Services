@@ -1927,7 +1927,7 @@ if form_login_sistem():
                                 with cols_header[6]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Qty</p>", unsafe_allow_html=True)
                                 with cols_header[7]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Satuan</p>", unsafe_allow_html=True)
                                 with cols_header[8]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Unit Price</p>", unsafe_allow_html=True)
-                                with cols_header[9]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Total Harga</p>", unsafe_update_html=True) if hasattr(st, 'markdown') else None
+                                with cols_header[9]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Total Harga</p>", unsafe_allow_html=True)
                                 with cols_header[10]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Aksi</p>", unsafe_allow_html=True)
                                 
                                 st.markdown("<hr style='margin: 4px 0 8px 0; border-color: #94a3b8;'>", unsafe_allow_html=True)
