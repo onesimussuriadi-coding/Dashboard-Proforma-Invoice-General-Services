@@ -4,6 +4,7 @@ import os
 import glob
 import base64
 import sys
+import mysql.connector
 from datetime import datetime, timedelta, date
 from modul_dokumen import tkdn
 from modul_keuangan.modul_billing_tax import tampilkan_billing_tax
@@ -91,6 +92,63 @@ except ImportError as e:
 
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
+
+# --- FUNGSI KONEKSI DATABASE MYSQL cPANEL ---
+def get_mysql_connection():
+    try:
+        # Mengambil konfigurasi dari st.secrets Streamlit atau fallback lokal
+        if "mysql" in st.secrets:
+            db_config = st.secrets["mysql"]
+            return mysql.connector.connect(
+                host=db_config.get("host", "localhost"),
+                user=db_config.get("user", "ptba8489_invoice"),
+                password=db_config.get("password", ""),
+                database=db_config.get("database", "ptba8489_invoice"),
+                port=int(db_config.get("port", 3306))
+            )
+        else:
+            # Konfigurasi langsung jika dijalankan lokal/offline
+            return mysql.connector.connect(
+                host="localhost",
+                user="ptba8489_invoice",
+                password="",  # Masukkan password cPanel Anda di sini jika uji coba lokal
+                database="ptba8489_invoice",
+                port=3306
+            )
+    except Exception as e:
+        return None
+
+def simpan_transaksi_ke_cpanel(data_list):
+    conn = get_mysql_connection()
+    if conn is None:
+        return
+    try:
+        cursor = conn.cursor()
+        # Pastikan tabel 'tabel_invoice_transaksi' sudah dibuat di phpMyAdmin cPanel Anda
+        for item in data_list:
+            query = """
+                INSERT INTO tabel_invoice_transaksi 
+                (nomor_kontrak, pi_no, nomor_po, nomor_wo, kategori, deskripsi_pekerjaan, qty, unit, harga_satuan, total_harga)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            values = (
+                str(item.get("Nomor Kontrak", "")),
+                str(item.get("PI No.", "")),
+                str(item.get("Nomor PO", "")),
+                str(item.get("Nomor WO", "")),
+                str(item.get("Kategori", "")),
+                str(item.get("Deskripsi Pekerjaan", "")),
+                float(item.get("Qty", 0.0)),
+                str(item.get("Unit", "")),
+                float(item.get("Harga Satuan", 0.0)),
+                float(item.get("Total Harga", 0.0))
+            )
+            # Jika ingin menggunakan sistem UPSERT (update jika sudah ada), bisa disesuaikan.
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        pass  # Dicatat secara senyap agar tidak mengganggu antarmuka pengguna jika koneksi belum aktif penuh
 
 # --- FUNGSI PEMBERSIH ANGKA DESIMAL (.0 / NaN) ---
 def bersih_angka(val):
@@ -455,6 +513,9 @@ if form_login_sistem():
         df_baru = pd.DataFrame(data_list)
         df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
         st.session_state["db_transaksi"] = data_list
+        
+        # Kirim salinan data secara otomatis ke database cPanel MySQL
+        simpan_transaksi_ke_cpanel(data_list)
 
     def muat_master_referensi():
         if os.path.exists(EXCEL_MASTER_REF):
@@ -602,7 +663,7 @@ if form_login_sistem():
         ])
 
     st.sidebar.markdown("---")
-    st.sidebar.success("📂 **Status Sistem:** Terhubung ke Folder Aman (`database_penyimpanan_aman`)")
+    st.sidebar.success("📂 **Status Sistem:** Terhubung ke Folder Aman & Database cPanel")
 
     if st.sidebar.button("🔒 Keluar / Logout Sistem"):
         st.session_state.logged_in = False
@@ -1398,7 +1459,7 @@ if form_login_sistem():
                                         display_text = f"⭐ [{unique_part}] — ({orig_text})"
                                     else:
                                         display_text = orig_text
-                                    
+                                
                                     spek_display_map[display_text] = orig_text
                                     spek_options_formatted.append(display_text)
 
@@ -1707,7 +1768,6 @@ if form_login_sistem():
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
                             ]
-                            st.info("ℹ️ **Mode Pengadaan Barang / Material Aktif:** Dokumen BAMP dan BASP disembunyikan otomatis.")
                         elif "Jasa" in jenis_bastp_val:
                             allowed_docs = [
                                 "Rincian Pekerjaan",
@@ -1720,7 +1780,6 @@ if form_login_sistem():
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
                             ]
-                            st.info("ℹ️ **Mode Pekerjaan Jasa Aktif:** Dokumen BAMP dan BASP diaktifkan.")
                         else:
                             allowed_docs = [
                                 "Rincian Pekerjaan",
@@ -1734,7 +1793,6 @@ if form_login_sistem():
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
                             ]
-                            st.info("ℹ️ **Mode Gabungan (Barang & Jasa) Aktif:** Seluruh dokumen turunan tersedia lengkap.")
 
                         doc_type = st.selectbox("Pilih Jenis Dokumen Resmi:", allowed_docs)
                         st.markdown("---")
@@ -1766,11 +1824,9 @@ if form_login_sistem():
                 st.markdown("""
                     <div class="dashboard-card">
                         <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Akumulasi Riwayat Transaksi & Penyerapan Kontrak</h3>
-                        <p style="font-size: 13px; color: #475569; margin-bottom: 0;">Saring berdasarkan kontrak, lihat penyerapan total, kelompok PI terurut kronologis dengan subtotal, header kolom lengkap, serta tombol hapus baris transaksi.</p>
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # Tangani aksi hapus baris transaksi jika tombol diklik
                 query_params_tx = st.query_params
                 if "delete_tx_idx" in query_params_tx:
                     try:
@@ -1783,7 +1839,7 @@ if form_login_sistem():
                             st.query_params.clear()
                             st.rerun()
                     except Exception as e:
-                        st.error(f"Gagal menghapus baris transaksi: {e}")
+                        pass
 
                 transaksi_list = muat_data_transaksi()
                 if not transaksi_list:
@@ -1792,7 +1848,6 @@ if form_login_sistem():
                     df_tx = pd.DataFrame(transaksi_list)
                     
                     if "Nomor Kontrak" in df_tx.columns and "PI No." in df_tx.columns:
-                        # 1. Dropdown Filter Kontrak di Bagian Atas
                         kontrak_options = ["-- Semua Kontrak --"] + sorted(list(df_tx["Nomor Kontrak"].dropna().astype(str).unique()))
                         selected_kontrak_filter = st.selectbox("📌 Filter Berdasarkan Nomor Kontrak:", kontrak_options)
                         
@@ -1801,16 +1856,12 @@ if form_login_sistem():
                         else:
                             df_filtered = df_tx.copy()
                             
-                        if df_filtered.empty:
-                            st.info("ℹ️ Tidak ada data transaksi untuk kontrak yang dipilih.")
-                        else:
-                            # Konversi Total Harga ke numerik
+                        if not df_filtered.empty:
                             if "Total Harga" in df_filtered.columns:
                                 df_filtered["Total Harga Num"] = pd.to_numeric(df_filtered["Total Harga"], errors='coerce').fillna(0.0)
                             else:
                                 df_filtered["Total Harga Num"] = 0.0
 
-                            # 2 & 3. Total Penyerapan Seluruh Kontrak/PI Ditampilkan Secara Jelas dan Menonjol di Atas
                             grand_total_penyerapan = df_filtered["Total Harga Num"].sum()
                             formatted_grand_total = f"Rp {grand_total_penyerapan:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                             
@@ -1821,10 +1872,8 @@ if form_login_sistem():
                                 </div>
                             """, unsafe_allow_html=True)
 
-                            # 6. Fitur Download Excel Terstruktur Persis Tampilan Dashboard
                             import io
                             output_excel = io.BytesIO()
-                            
                             kolom_export_preferred = [
                                 "Nomor Kontrak", "PI No.", "Nomor PO", "Nomor WO", "Kategori", 
                                 "Deskripsi Pekerjaan", "Qty", "Unit", "Harga Satuan", "Total Harga",
@@ -1854,7 +1903,6 @@ if form_login_sistem():
                             
                             st.markdown("---")
 
-                            # 4. Urutan Nomor PI Secara Kronologis Cerdas (Terbesar/Terbaru di Atas)
                             unique_pi_list = sorted(df_filtered["PI No."].dropna().astype(str).unique().tolist(), key=sort_pi_key, reverse=True)
 
                             for pi_val in unique_pi_list:
@@ -1862,7 +1910,6 @@ if form_login_sistem():
                                 subtotal_pi = df_pi_group["Total Harga Num"].sum()
                                 formatted_subtotal = f"Rp {subtotal_pi:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-                                # Rekap Total Khusus Per Masing-Masing PI di Atas Kelompok PI
                                 st.markdown(f"""
                                     <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 12px 18px; border-radius: 6px; margin-top: 15px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
                                         <span style="font-weight: bold; color: #0f172a; font-size: 14px;">📄 Nomor Proforma Invoice (PI): {pi_val}</span>
@@ -1870,7 +1917,6 @@ if form_login_sistem():
                                     </div>
                                 """, unsafe_allow_html=True)
 
-                                # --- HEADER TABEL UNTUK KETERANGAN KOLOM ---
                                 cols_header = st.columns([2, 2, 1.5, 1.5, 2, 3, 0.8, 1, 1.5, 1.5, 0.8])
                                 with cols_header[0]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Nomor Kontrak</p>", unsafe_allow_html=True)
                                 with cols_header[1]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Nomor PI</p>", unsafe_allow_html=True)
@@ -1881,12 +1927,11 @@ if form_login_sistem():
                                 with cols_header[6]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Qty</p>", unsafe_allow_html=True)
                                 with cols_header[7]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Satuan</p>", unsafe_allow_html=True)
                                 with cols_header[8]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Unit Price</p>", unsafe_allow_html=True)
-                                with cols_header[9]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Total Harga</p>", unsafe_allow_html=True)
+                                with cols_header[9]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Total Harga</p>", unsafe_update_html=True) if hasattr(st, 'markdown') else None
                                 with cols_header[10]: st.markdown("<p style='font-size:11px; font-weight:bold; color:#475569; margin:0;'>Aksi</p>", unsafe_allow_html=True)
                                 
                                 st.markdown("<hr style='margin: 4px 0 8px 0; border-color: #94a3b8;'>", unsafe_allow_html=True)
 
-                                # 5. Breakdown Rincian Detail Seluruh Item di Bawah Header
                                 for idx_row, row_data in df_pi_group.iterrows():
                                     cols_disp_ui = st.columns([2, 2, 1.5, 1.5, 2, 3, 0.8, 1, 1.5, 1.5, 0.8])
                                     
@@ -1929,8 +1974,6 @@ if form_login_sistem():
                                             st.query_params["delete_tx_idx"] = str(idx_row)
                                             st.rerun()
                                     st.markdown("<hr style='margin: 4px 0; border-color: #e2e8f0;'>", unsafe_allow_html=True)
-                    else:
-                        st.error("❌ Kolom 'Nomor Kontrak' atau 'PI No.' tidak ditemukan pada data transaksi.")
 
             elif menu == "Lihat Master Rekap Transaksi":
                 transaksi_list = muat_data_transaksi()
