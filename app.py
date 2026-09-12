@@ -143,7 +143,7 @@ def simpan_transaksi_ke_cpanel(data_list):
                 float(item.get("Harga Satuan", 0.0)),
                 float(item.get("Total Harga", 0.0))
             )
-            # Jika ingin menggunakan sistem UPSERT (update jika sudah ada), bisa disesuaikan.
+            cursor.execute(query, values)
         conn.commit()
         cursor.close()
         conn.close()
