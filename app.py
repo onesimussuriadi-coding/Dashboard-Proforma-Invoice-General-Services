@@ -686,7 +686,7 @@ if form_login_sistem():
             transaksi_list = muat_data_transaksi()
             if menu == "Input & Cetak Faktur Pajak":
                 tampilkan_faktur_pajak(transaksi_list if transaksi_list else [], menu)
-            elif menu == "Pemantauan Proses Pembayaran":
+            elif menu == "Pemantauan Pembayaran":
                 tampilkan_pemantauan_pembayaran()
             else:
                 tampilkan_billing_tax(transaksi_list if transaksi_list else [], menu)
@@ -987,7 +987,7 @@ if form_login_sistem():
                                 st.rerun()
                     else:
                         matched_pi_records_sorted = sorted(
-                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, data_get('Nomor Kontrak', '-')) if 'data_get' in globals() else d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
+                            [(i, d) for i, d in enumerate(saved_db_list) if isinstance(d, dict) and bersih_angka(d.get(1, d.get('Nomor Kontrak', '-'))) == selected_kontrak_input], 
                             key=lambda x: (sort_pi_key(x[1].get(0, x[1].get('Proforma Invoice No.', ''))), x[0]), 
                             reverse=True
                         )
@@ -1872,6 +1872,89 @@ if form_login_sistem():
                                 </div>
                             """, unsafe_allow_html=True)
 
+                            # --- PANEL PENGATURAN FILTER KUSTOM UNTUK DOWNLOAD EXCEL ---
+                            st.markdown("""
+                                <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                                    <h4 style="margin-top:0; font-size: 14px; color: #0f172a;">⚙️ Pengaturan Filter Kustom untuk Download Laporan Excel</h4>
+                                </div>
+                            """, unsafe_allow_html=True)
+
+                            col_dl1, col_dl2 = st.columns(2)
+                            with col_dl1:
+                                # 1. Pilihan Nomor Kontrak untuk Excel
+                                list_kontrak_excel = ["-- Semua Kontrak --"] + sorted(list(df_filtered["Nomor Kontrak"].dropna().astype(str).unique()))
+                                excel_sel_kontrak = st.selectbox("📌 Pilih Kontrak untuk Excel:", list_kontrak_excel, key="excel_filter_kontrak")
+
+                            with col_dl2:
+                                # 2. Pilihan Nomor PI (All Invoice / Nomor PI Tertentu)
+                                if excel_sel_kontrak != "-- Semua Kontrak --":
+                                    pi_options_raw = sorted(list(df_filtered[df_filtered["Nomor Kontrak"].astype(str) == excel_sel_kontrak]["PI No."].dropna().astype(str).unique()), key=sort_pi_key, reverse=True)
+                                else:
+                                    pi_options_raw = sorted(list(df_filtered["PI No."].dropna().astype(str).unique()), key=sort_pi_key, reverse=True)
+                                
+                                excel_pi_choices = ["-- Semua Invoice (All Invoice) --"] + pi_options_raw
+                                excel_sel_pi = st.selectbox("📄 Pilih Nomor Invoice untuk Excel:", excel_pi_choices, key="excel_filter_pi")
+
+                            col_dl3, col_dl4, col_dl5 = st.columns(3)
+                            with col_dl3:
+                                # 3. Filter Tahun (Multiyear)
+                                # Ekstrak tahun dari kolom Tanggal PI jika ada, atau default tahun sekarang
+                                def extract_year(val):
+                                    try:
+                                        dt = pd.to_datetime(val)
+                                        return str(dt.year)
+                                    except:
+                                        return ""
+                                
+                                if "Tanggal PI" in df_filtered.columns:
+                                    df_filtered["Tahun_PI"] = df_filtered["Tanggal PI"].apply(extract_year)
+                                    tahun_list = sorted([t for t in df_filtered["Tahun_PI"].unique() if t and t != "nan"], reverse=True)
+                                else:
+                                    tahun_list = [str(datetime.now().year)]
+
+                                excel_tahun_choices = ["-- Semua Tahun (All Years) --"] + tahun_list
+                                excel_sel_tahun = st.selectbox("📅 Pilih Tahun:", excel_tahun_choices, key="excel_filter_tahun")
+
+                            with col_dl4:
+                                # 4. Bulan Mulai
+                                bulan_dict = {
+                                    "Januari": 1, "Februari": 2, "Maret": 3, "April": 4, 
+                                    "Mei": 5, "Juni": 6, "Juli": 7, "Agustus": 8, 
+                                    "September": 9, "Oktober": 10, "November": 11, "Desember": 12
+                                }
+                                bulan_names = list(bulan_dict.keys())
+                                excel_sel_bulan_mulai = st.selectbox("🗓️ Bulan Mulai:", ["-- Pilih --"] + bulan_names, key="excel_bulan_mulai")
+
+                            with col_dl5:
+                                # 5. Bulan Selesai
+                                excel_sel_bulan_selesai = st.selectbox("🗓️ Bulan Selesai:", ["-- Pilih --"] + bulan_names, key="excel_bulan_selesai")
+
+                            # Proses Filter DataFrame Berdasarkan Pilihan Kustom di Atas untuk Excel
+                            df_excel_target = df_filtered.copy()
+
+                            if excel_sel_kontrak != "-- Semua Kontrak --":
+                                df_excel_target = df_excel_target[df_excel_target["Nomor Kontrak"].astype(str) == excel_sel_kontrak]
+
+                            if excel_sel_pi != "-- Semua Invoice (All Invoice) --":
+                                df_excel_target = df_excel_target[df_excel_target["PI No."].astype(str) == excel_sel_pi]
+
+                            if excel_sel_tahun != "-- Semua Tahun (All Years) --" and "Tahun_PI" in df_excel_target.columns:
+                                df_excel_target = df_excel_target[df_excel_target["Tahun_PI"] == excel_sel_tahun]
+
+                            if excel_sel_bulan_mulai != "-- Pilih --" and excel_sel_bulan_selesai != "-- Pilih --":
+                                m_start = bulan_dict[excel_sel_bulan_mulai]
+                                m_end = bulan_dict[excel_sel_bulan_selesai]
+                                
+                                def filter_by_month(val):
+                                    try:
+                                        dt = pd.to_datetime(val)
+                                        return m_start <= dt.month <= m_end
+                                    except:
+                                        return True # Jika tanggal tidak valid, biarkan lolos agar tidak kosong
+                                
+                                if "Tanggal PI" in df_excel_target.columns:
+                                    df_excel_target = df_excel_target[df_excel_target["Tanggal PI"].apply(filter_by_month)]
+
                             import io
                             output_excel = io.BytesIO()
                             kolom_export_preferred = [
@@ -1879,10 +1962,10 @@ if form_login_sistem():
                                 "Deskripsi Pekerjaan", "Qty", "Unit", "Harga Satuan", "Total Harga",
                                 "Tanggal PI", "Ditujukan Kepada", "Nomor WAN / SA", "Percent"
                             ]
-                            existing_cols_export = [col for col in kolom_export_preferred if col in df_filtered.columns]
-                            other_cols_export = [col for col in df_filtered.columns if col not in existing_cols_export and col != "Total Harga Num"]
+                            existing_cols_export = [col for col in kolom_export_preferred if col in df_excel_target.columns]
+                            other_cols_export = [col for col in df_excel_target.columns if col not in existing_cols_export and col != "Total Harga Num" and col != "Tahun_PI"]
                             
-                            df_export_final = df_filtered[existing_cols_export + other_cols_export].copy()
+                            df_export_final = df_excel_target[existing_cols_export + other_cols_export].copy()
                             
                             for col_num_fmt in ["Harga Satuan", "Total Harga", "Qty"]:
                                 if col_num_fmt in df_export_final.columns:
@@ -1893,10 +1976,11 @@ if form_login_sistem():
                             
                             excel_data = output_excel.getvalue()
                             
+                            st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
                             st.download_button(
-                                label="📥 Download Laporan Riwayat Transaksi Excel Sesuai Dashboard (.xlsx)",
+                                label="📥 Download Laporan Riwayat Transaksi Excel Sesuai Pilihan Filter (.xlsx)",
                                 data=excel_data,
-                                file_name=f"Akumulasi_Riwayat_Transaksi_{selected_kontrak_filter.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                                file_name=f"Laporan_Riwayat_Transaksi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True
                             )
@@ -1917,7 +2001,6 @@ if form_login_sistem():
                                     </div>
                                 """, unsafe_allow_html=True)
 
-                                # Membuat tabel HTML interaktif dengan gaya baris zig-zag (abu-abu terang & putih bergantian) serta huruf kecil/padat
                                 headers_tx_html = """
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor Kontrak</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor PI</th>
@@ -1934,7 +2017,6 @@ if form_login_sistem():
 
                                 rows_tx_html = ""
                                 for row_i, (idx_row, row_data) in enumerate(df_pi_group.iterrows()):
-                                    # Efek Zig-Zag / Zebra Striping (Baris genap abu-abu terang #f8fafc, baris ganjil putih #ffffff)
                                     bg_color = "#f8fafc" if row_i % 2 == 0 else "#ffffff"
 
                                     val_k = bersih_angka(row_data.get("Nomor Kontrak", "-"))
@@ -1966,7 +2048,7 @@ if form_login_sistem():
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_k}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_pi}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_po}</td>
-                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_wo}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px, 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_wo}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_kat}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left; max-width: 220px; white-space: normal;">{val_desc}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: center;">{val_qty}</td>
