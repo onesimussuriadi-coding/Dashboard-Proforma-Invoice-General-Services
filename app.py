@@ -121,7 +121,7 @@ def get_mysql_connection():
 def simpan_transaksi_ke_cpanel(data_list):
     conn = get_mysql_connection()
     if conn is None:
-        return
+        return False
     try:
         cursor = conn.cursor()
         # Pastikan tabel 'tabel_invoice_transaksi' sudah dibuat di phpMyAdmin cPanel Anda
@@ -147,8 +147,9 @@ def simpan_transaksi_ke_cpanel(data_list):
         conn.commit()
         cursor.close()
         conn.close()
+        return True
     except Exception as e:
-        pass  # Dicatat secara senyap agar tidak mengganggu antarmuka pengguna jika koneksi belum aktif penuh
+        return False  # Dicatat secara senyap agar tidak mengganggu antarmuka pengguna jika koneksi belum aktif penuh
 
 # --- FUNGSI PEMBERSIH ANGKA DESIMAL (.0 / NaN) ---
 def bersih_angka(val):
@@ -664,6 +665,18 @@ if form_login_sistem():
 
     st.sidebar.markdown("---")
     st.sidebar.success("📂 **Status Sistem:** Terhubung ke Folder Aman & Database cPanel")
+
+    # Tombol Tambahan Sinkronisasi Manual ke cPanel di Sidebar
+    if st.sidebar.button("🔄 Sinkronisasi cPanel Sekarang"):
+        tx_data_sync = muat_data_transaksi()
+        if tx_data_sync:
+            berhasil_sync = simpan_transaksi_ke_cpanel(tx_data_sync)
+            if berhasil_sync:
+                st.sidebar.success("✅ Sinkronisasi ke cPanel berhasil!")
+            else:
+                st.sidebar.error("❌ Gagal terhubung ke cPanel MySQL.")
+        else:
+            st.sidebar.warning("⚠️ Tidak ada data transaksi untuk disinkronkan.")
 
     if st.sidebar.button("🔒 Keluar / Logout Sistem"):
         st.session_state.logged_in = False
@@ -1460,8 +1473,8 @@ if form_login_sistem():
                                     else:
                                         display_text = orig_text
                                 
-                                    spek_display_map[display_text] = orig_text
-                                    spek_options_formatted.append(display_text)
+                                        spek_display_map[display_text] = orig_text
+                                        spek_options_formatted.append(display_text)
 
                                 def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", ""))
                                 default_display_val = spek_options_formatted[0]
@@ -1898,7 +1911,6 @@ if form_login_sistem():
                             col_dl3, col_dl4, col_dl5 = st.columns(3)
                             with col_dl3:
                                 # 3. Filter Tahun (Multiyear)
-                                # Ekstrak tahun dari kolom Tanggal PI jika ada, atau default tahun sekarang
                                 def extract_year(val):
                                     try:
                                         dt = pd.to_datetime(val)

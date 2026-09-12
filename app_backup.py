@@ -4,6 +4,7 @@ import os
 import glob
 import base64
 import sys
+import mysql.connector
 from datetime import datetime, timedelta, date
 from modul_dokumen import tkdn
 from modul_keuangan.modul_billing_tax import tampilkan_billing_tax
@@ -92,6 +93,63 @@ except ImportError as e:
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
 
+# --- FUNGSI KONEKSI DATABASE MYSQL cPANEL ---
+def get_mysql_connection():
+    try:
+        # Mengambil konfigurasi dari st.secrets Streamlit atau fallback lokal
+        if "mysql" in st.secrets:
+            db_config = st.secrets["mysql"]
+            return mysql.connector.connect(
+                host=db_config.get("host", "localhost"),
+                user=db_config.get("user", "ptba8489_invoice"),
+                password=db_config.get("password", ""),
+                database=db_config.get("database", "ptba8489_invoice"),
+                port=int(db_config.get("port", 3306))
+            )
+        else:
+            # Konfigurasi langsung jika dijalankan lokal/offline
+            return mysql.connector.connect(
+                host="localhost",
+                user="ptba8489_invoice",
+                password="",  # Masukkan password cPanel Anda di sini jika uji coba lokal
+                database="ptba8489_invoice",
+                port=3306
+            )
+    except Exception as e:
+        return None
+
+def simpan_transaksi_ke_cpanel(data_list):
+    conn = get_mysql_connection()
+    if conn is None:
+        return
+    try:
+        cursor = conn.cursor()
+        # Pastikan tabel 'tabel_invoice_transaksi' sudah dibuat di phpMyAdmin cPanel Anda
+        for item in data_list:
+            query = """
+                INSERT INTO tabel_invoice_transaksi 
+                (nomor_kontrak, pi_no, nomor_po, nomor_wo, kategori, deskripsi_pekerjaan, qty, unit, harga_satuan, total_harga)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            values = (
+                str(item.get("Nomor Kontrak", "")),
+                str(item.get("PI No.", "")),
+                str(item.get("Nomor PO", "")),
+                str(item.get("Nomor WO", "")),
+                str(item.get("Kategori", "")),
+                str(item.get("Deskripsi Pekerjaan", "")),
+                float(item.get("Qty", 0.0)),
+                str(item.get("Unit", "")),
+                float(item.get("Harga Satuan", 0.0)),
+                float(item.get("Total Harga", 0.0))
+            )
+            cursor.execute(query, values)
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        pass  # Dicatat secara senyap agar tidak mengganggu antarmuka pengguna jika koneksi belum aktif penuh
+
 # --- FUNGSI PEMBERSIH ANGKA DESIMAL (.0 / NaN) ---
 def bersih_angka(val):
     if val is None:
@@ -141,7 +199,6 @@ if form_login_sistem():
             color: #000000 !important;
         }
         
-        /* Memperlebar kotak popover / dropdown menu Streamlit */
         div[data-baseweb="popover"] {
             min-width: 650px !important;
             max-width: 900px !important;
@@ -456,6 +513,9 @@ if form_login_sistem():
         df_baru = pd.DataFrame(data_list)
         df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
         st.session_state["db_transaksi"] = data_list
+        
+        # Kirim salinan data secara otomatis ke database cPanel MySQL
+        simpan_transaksi_ke_cpanel(data_list)
 
     def muat_master_referensi():
         if os.path.exists(EXCEL_MASTER_REF):
@@ -603,7 +663,7 @@ if form_login_sistem():
         ])
 
     st.sidebar.markdown("---")
-    st.sidebar.success("📂 **Status Sistem:** Terhubung ke Folder Aman (`database_penyimpanan_aman`)")
+    st.sidebar.success("📂 **Status Sistem:** Terhubung ke Folder Aman & Database cPanel")
 
     if st.sidebar.button("🔒 Keluar / Logout Sistem"):
         st.session_state.logged_in = False
@@ -626,7 +686,7 @@ if form_login_sistem():
             transaksi_list = muat_data_transaksi()
             if menu == "Input & Cetak Faktur Pajak":
                 tampilkan_faktur_pajak(transaksi_list if transaksi_list else [], menu)
-            elif menu == "Pemantauan Proses Pembayaran":
+            elif menu == "Pemantauan Pembayaran":
                 tampilkan_pemantauan_pembayaran()
             else:
                 tampilkan_billing_tax(transaksi_list if transaksi_list else [], menu)
@@ -1238,6 +1298,8 @@ if form_login_sistem():
                     ditujukan_kepada = bersih_angka(matched_record.get(10, matched_record.get("Pihak Pertama", "")))
                     alamat_pihak_pertama = bersih_angka(matched_record.get(11, matched_record.get("Alamat Pihak Pertama", "")))
                     jangka_waktu = bersih_angka(matched_record.get(5, matched_record.get("Jangka Waktu Kontrak", "")))
+                    
+                    nomor_wo_default = bersih_angka(matched_record.get(21, matched_record.get("Nomor WO", "-")))
                 
                     with col2:
                         raw_po_num = loaded_tx_items[0].get("Nomor PO", matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))) if loaded_tx_items else matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))
@@ -1252,6 +1314,10 @@ if form_login_sistem():
                         def_desc_po = bersih_angka(loaded_tx_items[0].get("Deskripsi PO", matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))) if loaded_tx_items else bersih_angka(matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))
 
                         nomor_po = st.text_input("Nomor PO", def_po_num if def_po_num else "-")
+                        
+                        raw_wo_num = loaded_tx_items[0].get("Nomor WO", nomor_wo_default) if loaded_tx_items else nomor_wo_default
+                        nomor_wo = st.text_input("Nomor WO", bersih_angka(raw_wo_num) if raw_wo_num else "-")
+
                         nomor_wan_sa = st.text_input("Nomor WAN / SA (Work Authorization Notice / Service Agreement)", def_wan_num if def_wan_num else "-")
                         tanggal_po = st.text_input("Tanggal PO", def_po_date if def_po_date else "-")
                         mata_uang = st.text_input("Mata Uang", "IDR")
@@ -1393,7 +1459,7 @@ if form_login_sistem():
                                         display_text = f"⭐ [{unique_part}] — ({orig_text})"
                                     else:
                                         display_text = orig_text
-                                    
+                                
                                     spek_display_map[display_text] = orig_text
                                     spek_options_formatted.append(display_text)
 
@@ -1437,7 +1503,7 @@ if form_login_sistem():
                                 def_qty = 1.0
                             q_val = st.number_input(f"Qty {i+1}", value=def_qty, key=f"qty_{i}")
                         with c_item2:
-                            default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg", "Pallet"]
+                            default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg", "Pallet", "Ltr"]
                             existing_u_from_master = df_ref["Unit"].dropna().astype(str).unique().tolist() if "Unit" in df_ref.columns else []
                             u_opts = sorted(list(set(default_u_opts + existing_u_from_master)))
                             def_unit = str(default_item_data.get("Unit", unit_otomatis))
@@ -1565,6 +1631,7 @@ if form_login_sistem():
                                     "Alamat Pihak Pertama": alamat_pihak_pertama,
                                     "Jangka Waktu Kontrak": jangka_waktu,
                                     "Nomor PO": nomor_po,
+                                    "Nomor WO": nomor_wo,
                                     "Nomor WAN / SA": nomor_wan_sa,
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
@@ -1625,6 +1692,7 @@ if form_login_sistem():
                                     "Alamat Pihak Pertama": alamat_pihak_pertama,
                                     "Jangka Waktu Kontrak": jangka_waktu,
                                     "Nomor PO": nomor_po,
+                                    "Nomor WO": nomor_wo,
                                     "Nomor WAN / SA": nomor_wan_sa,
                                     "Deskripsi PO": desc_po,
                                     "Tanggal PO": tanggal_po,
@@ -1691,7 +1759,6 @@ if form_login_sistem():
                     if filtered_transaksi_target:
                         jenis_bastp_val = str(filtered_transaksi_target[0].get("Jenis BASTP", "")).strip()
 
-                        # Logika Penentuan Dokumen Berdasarkan Jenis BASTP yang Dipilih
                         if "Barang / Material" in jenis_bastp_val:
                             allowed_docs = [
                                 "Rincian Pekerjaan",
@@ -1701,7 +1768,6 @@ if form_login_sistem():
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
                             ]
-                            st.info("ℹ️ **Mode Pengadaan Barang / Material Aktif:** Dokumen BAMP dan BASP disembunyikan otomatis.")
                         elif "Jasa" in jenis_bastp_val:
                             allowed_docs = [
                                 "Rincian Pekerjaan",
@@ -1714,7 +1780,6 @@ if form_login_sistem():
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
                             ]
-                            st.info("ℹ️ **Mode Pekerjaan Jasa Aktif:** Dokumen BAMP dan BASP diaktifkan.")
                         else:
                             allowed_docs = [
                                 "Rincian Pekerjaan",
@@ -1728,7 +1793,6 @@ if form_login_sistem():
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
                             ]
-                            st.info("ℹ️ **Mode Gabungan (Barang & Jasa) Aktif:** Seluruh dokumen turunan tersedia lengkap.")
 
                         doc_type = st.selectbox("Pilih Jenis Dokumen Resmi:", allowed_docs)
                         st.markdown("---")
@@ -1759,48 +1823,259 @@ if form_login_sistem():
             elif menu == "Lihat Akumulasi Riwayat Transaksi":
                 st.markdown("""
                     <div class="dashboard-card">
-                        <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Akumulasi Riwayat Transaksi Rincian Pekerjaan</h3>
-                        <p style="font-size: 13px; color: #475569; margin-bottom: 0;">Tabel riwayat transaksi mandiri Modul 2. Kelola penghapusan dan pemanggilan data secara langsung tanpa beralih modul.</p>
+                        <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Akumulasi Riwayat Transaksi & Penyerapan Kontrak</h3>
                     </div>
                 """, unsafe_allow_html=True)
                 
-                tx_records = muat_data_transaksi()
-                if not tx_records:
-                    st.info("ℹ️ Belum ada data riwayat transaksi tersimpan.")
+                query_params_tx = st.query_params
+                if "delete_tx_idx" in query_params_tx:
+                    try:
+                        del_tx_idx = int(query_params_tx["delete_tx_idx"])
+                        all_tx_current = muat_data_transaksi()
+                        if 0 <= del_tx_idx < len(all_tx_current):
+                            removed_item = all_tx_current.pop(del_tx_idx)
+                            simpan_data_transaksi(all_tx_current)
+                            st.success(f"✅ Berhasil menghapus baris transaksi (PI: {removed_item.get('PI No.', '-')}) secara permanen!")
+                            st.query_params.clear()
+                            st.rerun()
+                    except Exception as e:
+                        pass
+
+                transaksi_list = muat_data_transaksi()
+                if not transaksi_list:
+                    st.info("⚠️ Belum ada data transaksi rincian pekerjaan yang tercatat.")
                 else:
-                    for original_idx, rec in enumerate(tx_records):
-                        with st.container():
-                            col_t1, col_t2, col_t3, col_t4 = st.columns([2, 3, 2, 1.5])
-                            with col_t1:
-                                st.write(f"**Kontrak:** {bersih_angka(rec.get('Nomor Kontrak', '-'))}")
-                            with col_t2:
-                                st.write(f"**PI No:** {bersih_angka(rec.get('PI No.', '-'))}")
-                            with col_t3:
-                                total_val = rec.get('Total Harga', 0)
-                                try:
-                                    t_num = float(total_val)
-                                    t_str = f"Rp {t_num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                                except:
-                                    t_str = str(total_val)
-                                st.write(f"**Total:** {t_str}")
-                            with col_t4:
-                                sub_col1, sub_col2 = st.columns(2)
-                                with sub_col1:
-                                    if st.button("✏️", key=f"edit_btn_{original_idx}", help="Panggil data"):
-                                        st.session_state["forced_kontrak"] = str(rec.get("Nomor Kontrak", ""))
-                                        st.session_state["forced_pi"] = str(rec.get("PI No.", ""))
-                                        st.session_state["loaded_pi_target"] = str(rec.get("PI No.", ""))
-                                        matched_items = [t for t in tx_records if str(t.get("PI No.")) == str(rec.get("PI No."))]
-                                        st.session_state["num_rows"] = len(matched_items) if matched_items else 1
-                                        st.success(f"Memuat PI {rec.get('PI No.')}")
-                                        st.rerun()
-                                with sub_col2:
-                                    if st.button("🗑️", key=f"del_btn_{original_idx}", help="Hapus permanen"):
-                                        tx_records.pop(original_idx)
-                                        simpan_data_transaksi(tx_records)
-                                        st.success("✅ Data berhasil dihapus permanen!")
-                                        st.rerun()
-                        st.markdown("---")
+                    df_tx = pd.DataFrame(transaksi_list)
+                    
+                    if "Nomor Kontrak" in df_tx.columns and "PI No." in df_tx.columns:
+                        kontrak_options = ["-- Semua Kontrak --"] + sorted(list(df_tx["Nomor Kontrak"].dropna().astype(str).unique()))
+                        selected_kontrak_filter = st.selectbox("📌 Filter Berdasarkan Nomor Kontrak:", kontrak_options)
+                        
+                        if selected_kontrak_filter != "-- Semua Kontrak --":
+                            df_filtered = df_tx[df_tx["Nomor Kontrak"].astype(str) == selected_kontrak_filter].copy()
+                        else:
+                            df_filtered = df_tx.copy()
+                            
+                        if not df_filtered.empty:
+                            if "Total Harga" in df_filtered.columns:
+                                df_filtered["Total Harga Num"] = pd.to_numeric(df_filtered["Total Harga"], errors='coerce').fillna(0.0)
+                            else:
+                                df_filtered["Total Harga Num"] = 0.0
+
+                            grand_total_penyerapan = df_filtered["Total Harga Num"].sum()
+                            formatted_grand_total = f"Rp {grand_total_penyerapan:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                            
+                            st.markdown(f"""
+                                <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center; border-left: 5px solid #10b981;">
+                                    <h4 style="margin:0; font-size: 14px; color: #34d399; text-transform: uppercase;">Total Akumulasi Penyerapan Kontrak</h4>
+                                    <h2 style="margin: 8px 0 0 0; font-size: 26px; color: #ffffff;">{formatted_grand_total}</h2>
+                                </div>
+                            """, unsafe_allow_html=True)
+
+                            # --- PANEL PENGATURAN FILTER KUSTOM UNTUK DOWNLOAD EXCEL ---
+                            st.markdown("""
+                                <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                                    <h4 style="margin-top:0; font-size: 14px; color: #0f172a;">⚙️ Pengaturan Filter Kustom untuk Download Laporan Excel</h4>
+                                </div>
+                            """, unsafe_allow_html=True)
+
+                            col_dl1, col_dl2 = st.columns(2)
+                            with col_dl1:
+                                # 1. Pilihan Nomor Kontrak untuk Excel
+                                list_kontrak_excel = ["-- Semua Kontrak --"] + sorted(list(df_filtered["Nomor Kontrak"].dropna().astype(str).unique()))
+                                excel_sel_kontrak = st.selectbox("📌 Pilih Kontrak untuk Excel:", list_kontrak_excel, key="excel_filter_kontrak")
+
+                            with col_dl2:
+                                # 2. Pilihan Nomor PI (All Invoice / Nomor PI Tertentu)
+                                if excel_sel_kontrak != "-- Semua Kontrak --":
+                                    pi_options_raw = sorted(list(df_filtered[df_filtered["Nomor Kontrak"].astype(str) == excel_sel_kontrak]["PI No."].dropna().astype(str).unique()), key=sort_pi_key, reverse=True)
+                                else:
+                                    pi_options_raw = sorted(list(df_filtered["PI No."].dropna().astype(str).unique()), key=sort_pi_key, reverse=True)
+                                
+                                excel_pi_choices = ["-- Semua Invoice (All Invoice) --"] + pi_options_raw
+                                excel_sel_pi = st.selectbox("📄 Pilih Nomor Invoice untuk Excel:", excel_pi_choices, key="excel_filter_pi")
+
+                            col_dl3, col_dl4, col_dl5 = st.columns(3)
+                            with col_dl3:
+                                # 3. Filter Tahun (Multiyear)
+                                # Ekstrak tahun dari kolom Tanggal PI jika ada, atau default tahun sekarang
+                                def extract_year(val):
+                                    try:
+                                        dt = pd.to_datetime(val)
+                                        return str(dt.year)
+                                    except:
+                                        return ""
+                                
+                                if "Tanggal PI" in df_filtered.columns:
+                                    df_filtered["Tahun_PI"] = df_filtered["Tanggal PI"].apply(extract_year)
+                                    tahun_list = sorted([t for t in df_filtered["Tahun_PI"].unique() if t and t != "nan"], reverse=True)
+                                else:
+                                    tahun_list = [str(datetime.now().year)]
+
+                                excel_tahun_choices = ["-- Semua Tahun (All Years) --"] + tahun_list
+                                excel_sel_tahun = st.selectbox("📅 Pilih Tahun:", excel_tahun_choices, key="excel_filter_tahun")
+
+                            with col_dl4:
+                                # 4. Bulan Mulai
+                                bulan_dict = {
+                                    "Januari": 1, "Februari": 2, "Maret": 3, "April": 4, 
+                                    "Mei": 5, "Juni": 6, "Juli": 7, "Agustus": 8, 
+                                    "September": 9, "Oktober": 10, "November": 11, "Desember": 12
+                                }
+                                bulan_names = list(bulan_dict.keys())
+                                excel_sel_bulan_mulai = st.selectbox("🗓️ Bulan Mulai:", ["-- Pilih --"] + bulan_names, key="excel_bulan_mulai")
+
+                            with col_dl5:
+                                # 5. Bulan Selesai
+                                excel_sel_bulan_selesai = st.selectbox("🗓️ Bulan Selesai:", ["-- Pilih --"] + bulan_names, key="excel_bulan_selesai")
+
+                            # Proses Filter DataFrame Berdasarkan Pilihan Kustom di Atas untuk Excel
+                            df_excel_target = df_filtered.copy()
+
+                            if excel_sel_kontrak != "-- Semua Kontrak --":
+                                df_excel_target = df_excel_target[df_excel_target["Nomor Kontrak"].astype(str) == excel_sel_kontrak]
+
+                            if excel_sel_pi != "-- Semua Invoice (All Invoice) --":
+                                df_excel_target = df_excel_target[df_excel_target["PI No."].astype(str) == excel_sel_pi]
+
+                            if excel_sel_tahun != "-- Semua Tahun (All Years) --" and "Tahun_PI" in df_excel_target.columns:
+                                df_excel_target = df_excel_target[df_excel_target["Tahun_PI"] == excel_sel_tahun]
+
+                            if excel_sel_bulan_mulai != "-- Pilih --" and excel_sel_bulan_selesai != "-- Pilih --":
+                                m_start = bulan_dict[excel_sel_bulan_mulai]
+                                m_end = bulan_dict[excel_sel_bulan_selesai]
+                                
+                                def filter_by_month(val):
+                                    try:
+                                        dt = pd.to_datetime(val)
+                                        return m_start <= dt.month <= m_end
+                                    except:
+                                        return True # Jika tanggal tidak valid, biarkan lolos agar tidak kosong
+                                
+                                if "Tanggal PI" in df_excel_target.columns:
+                                    df_excel_target = df_excel_target[df_excel_target["Tanggal PI"].apply(filter_by_month)]
+
+                            import io
+                            output_excel = io.BytesIO()
+                            kolom_export_preferred = [
+                                "Nomor Kontrak", "PI No.", "Nomor PO", "Nomor WO", "Kategori", 
+                                "Deskripsi Pekerjaan", "Qty", "Unit", "Harga Satuan", "Total Harga",
+                                "Tanggal PI", "Ditujukan Kepada", "Nomor WAN / SA", "Percent"
+                            ]
+                            existing_cols_export = [col for col in kolom_export_preferred if col in df_excel_target.columns]
+                            other_cols_export = [col for col in df_excel_target.columns if col not in existing_cols_export and col != "Total Harga Num" and col != "Tahun_PI"]
+                            
+                            df_export_final = df_excel_target[existing_cols_export + other_cols_export].copy()
+                            
+                            for col_num_fmt in ["Harga Satuan", "Total Harga", "Qty"]:
+                                if col_num_fmt in df_export_final.columns:
+                                    df_export_final[col_num_fmt] = pd.to_numeric(df_export_final[col_num_fmt], errors='coerce').round(2)
+
+                            with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
+                                df_export_final.to_excel(writer, index=False, sheet_name='Akumulasi Riwayat Transaksi')
+                            
+                            excel_data = output_excel.getvalue()
+                            
+                            st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+                            st.download_button(
+                                label="📥 Download Laporan Riwayat Transaksi Excel Sesuai Pilihan Filter (.xlsx)",
+                                data=excel_data,
+                                file_name=f"Laporan_Riwayat_Transaksi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True
+                            )
+                            
+                            st.markdown("---")
+
+                            unique_pi_list = sorted(df_filtered["PI No."].dropna().astype(str).unique().tolist(), key=sort_pi_key, reverse=True)
+
+                            for pi_val in unique_pi_list:
+                                df_pi_group = df_filtered[df_filtered["PI No."].astype(str) == pi_val]
+                                subtotal_pi = df_pi_group["Total Harga Num"].sum()
+                                formatted_subtotal = f"Rp {subtotal_pi:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+                                st.markdown(f"""
+                                    <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px 15px; border-radius: 6px; margin-top: 15px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: bold; color: #0f172a; font-size: 13px;">📄 Nomor Proforma Invoice (PI): {pi_val}</span>
+                                        <span style="font-weight: bold; color: #047857; font-size: 13px;">Subtotal PI: {formatted_subtotal}</span>
+                                    </div>
+                                """, unsafe_allow_html=True)
+
+                                headers_tx_html = """
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor Kontrak</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor PI</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor PO</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor WO</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Kategori</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Uraian Pekerjaan</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: center;'>Qty</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: center;'>Satuan</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: right;'>Unit Price</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: right;'>Total Harga</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: center; width: 60px;'>Aksi</th>
+                                """
+
+                                rows_tx_html = ""
+                                for row_i, (idx_row, row_data) in enumerate(df_pi_group.iterrows()):
+                                    bg_color = "#f8fafc" if row_i % 2 == 0 else "#ffffff"
+
+                                    val_k = bersih_angka(row_data.get("Nomor Kontrak", "-"))
+                                    val_pi = bersih_angka(row_data.get("PI No.", "-"))
+                                    val_po = bersih_angka(row_data.get("Nomor PO", "-"))
+                                    val_wo = bersih_angka(row_data.get("Nomor WO", "-"))
+                                    val_kat = bersih_angka(row_data.get("Kategori", "-"))
+                                    val_desc = bersih_angka(row_data.get("Deskripsi Pekerjaan", "-"))
+                                    
+                                    try:
+                                        val_qty = f"{float(row_data.get('Qty', 0)):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                    except:
+                                        val_qty = str(row_data.get('Qty', ''))
+                                        
+                                    val_unit = bersih_angka(row_data.get("Unit", "-"))
+                                    
+                                    try:
+                                        val_hs = f"{float(row_data.get('Harga Satuan', 0)):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                    except:
+                                        val_hs = str(row_data.get('Harga Satuan', ''))
+                                        
+                                    try:
+                                        val_tot = f"{float(row_data.get('Total Harga', 0)):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                    except:
+                                        val_tot = str(row_data.get('Total Harga', ''))
+
+                                    rows_tx_html += f"""
+                                    <tr style="background-color: {bg_color};">
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_k}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_pi}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_po}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px, 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_wo}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_kat}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left; max-width: 220px; white-space: normal;">{val_desc}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: center;">{val_qty}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: center;">{val_unit}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: right; white-space: nowrap;">{val_hs}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: right; white-space: nowrap; font-weight: bold;">{val_tot}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: center;">
+                                            <a href="?delete_tx_idx={idx_row}" target="_self" style="text-decoration: none;">
+                                                <button style="background-color: #ef4444; color: white; border: none; padding: 2px 6px; border-radius: 3px; font-size: 10px; cursor: pointer;" title="Hapus Baris">🗑️</button>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    """
+
+                                full_table_html = f"""
+                                <div style="overflow-x: auto; margin-bottom: 15px; border-radius: 6px; border: 1px solid #cbd5e1;">
+                                    <table style="width: 100%; border-collapse: collapse; background-color: #ffffff;">
+                                        <thead>
+                                            <tr>{headers_tx_html}</tr>
+                                        </thead>
+                                        <tbody>
+                                            {rows_tx_html}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                """
+                                st.components.v1.html(full_table_html, height=len(df_pi_group) * 38 + 55, scrolling=False)
 
             elif menu == "Lihat Master Rekap Transaksi":
                 transaksi_list = muat_data_transaksi()
