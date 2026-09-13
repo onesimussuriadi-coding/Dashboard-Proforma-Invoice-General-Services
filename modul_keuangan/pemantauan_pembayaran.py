@@ -91,13 +91,23 @@ def tampilkan_pemantauan_pembayaran():
 
     invoice_list = muat_invoice_resmi()
 
+    # --- KOREKSI PRESISI TINGGI: PENCARIAN KOLOM NOMOR INVOICE SEBENARNYA ---
     def cari_nama_kolom_invoice(sample_obj):
         if not sample_obj:
             return "Nomor Invoice"
+        
+        # Cari prioritas yang mengandung kata 'resmi' atau 'invoice'
         for k in sample_obj.keys():
             k_low = str(k).lower()
-            if "resmi" in k_low or "invoice" in k_low:
+            if "resmi" in k_low or ("invoice" in k_low and "tanggal" not in k_low and "tgl" not in k_low):
                 return k
+                
+        # Jika tidak ketemu, cari kolom string yang format isinya tidak menyerupai timestamp (YYYY-MM-DD)
+        for k in sample_obj.keys():
+            k_low = str(k).lower()
+            if not any(exc in k_low for exc in ["waktu", "time", "date", "tanggal", "tgl", "timestamp", "update", "created"]):
+                return k
+                
         return list(sample_obj.keys())[0]
 
     sample_inv = invoice_list[0] if invoice_list else {}
@@ -363,10 +373,16 @@ def tampilkan_pemantauan_pembayaran():
     
     inv_list_filtered_contract = [inv for inv in invoice_list if str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() == str(form_kontrak_pilih).strip()]
     
-    # KOREKSI PENTING: Memastikan dropdown invoice mengambil nomor invoice resmi yang valid, bukan timestamp
-    all_inv_no_contract = [str(inv.get(inv_key, "")).strip() for inv in inv_list_filtered_contract if inv.get(inv_key) and not str(inv.get(inv_key, "")).startswith("2026-")]
+    # Filter ketat nomor invoice agar hanya mengambil string format nomor invoice asli (misal mengandung '/' atau 'BSS')
+    all_inv_no_contract = []
+    for inv in inv_list_filtered_contract:
+        val_inv = str(inv.get(inv_key, "")).strip()
+        if val_inv and not val_inv.startswith("2026-") and ("/" in val_inv or "BSS" in val_inv or len(val_inv) > 5):
+            all_inv_no_contract.append(val_inv)
+            
+    # Fallback jika list kosong
     if not all_inv_no_contract:
-        all_inv_no_contract = [str(inv.get(inv_key, "")).strip() for inv in inv_list_filtered_contract if inv.get(inv_key)]
+        all_inv_no_contract = [str(inv.get(inv_key, "")).strip() for inv in inv_list_filtered_contract if inv.get(inv_key) and not str(inv.get(inv_key, "")).startswith("2026-")]
 
     if not all_inv_no_contract and payment_records:
         all_inv_no_contract = sorted(list(dict.fromkeys([str(p.get("Nomor Invoice", "")).strip() for p in payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(form_kontrak_pilih).strip() and p.get("Nomor Invoice")])))
