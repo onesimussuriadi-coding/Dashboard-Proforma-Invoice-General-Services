@@ -142,11 +142,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             {"Customer": "JOB Pertamina - Medco E&P Tomori Sulawesi", "NPWP": "002.796.802.3-081.000"}
         ]
 
-    def simpan_database_npwp(data_list):
-        df_baru = pd.DataFrame(data_list)
-        df_baru.to_excel(EXCEL_NPWP, index=False)
-        st.session_state["db_npwp"] = data_list
-
     if "db_billing" not in st.session_state:
         st.session_state["db_billing"] = muat_data_billing()
 
@@ -201,7 +196,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         target_pi_val = data_edit_aktif.get("PI No.", "") if is_mode_edit else ""
         target_po_val = data_edit_aktif.get("Nomor PO", "") if is_mode_edit else ""
 
-        # --- KUMPULKAN NOMOR WAN / SA YANG SUDAH TER-INVOICE ---
         wan_sudah_di_invoice = set()
         for idx_b, b_item in enumerate(billing_records):
             if is_mode_edit and idx_b == active_billing_idx:
@@ -224,10 +218,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     valid_transaksi_list.append(t)
 
         if not valid_transaksi_list and not is_mode_edit:
-            st.warning("⚠️ Semua Nomor WAN / SA yang tersedia sudah dibuatkan invoice resminya. Tidak ada WAN baru untuk diproses.")
+            st.warning("⚠️ Semua Nomor WAN / SA yang tersedia sudah dibuatkan invoice resminya.")
             return
 
-        # --- HIERARKI UTAMA BERDASARKAN WAN DI KIRI ---
         list_sawanan_valid = sorted(list(dict.fromkeys([str(t.get("Nomor WAN / SA")) for t in valid_transaksi_list if t.get("Nomor WAN / SA")])))
         if is_mode_edit and target_sawanan_val and target_sawanan_val not in list_sawanan_valid:
             list_sawanan_valid.append(target_sawanan_val)
@@ -243,16 +236,12 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         with col_h1:
             selected_sawanan_m3 = st.selectbox("1️⃣ Pilih Nomor WAN / SA (Indikator Utama):", list_sawanan_valid if list_sawanan_valid else [target_sawanan_val], index=idx_sawanan_def if list_sawanan_valid else 0, key="m3_sel_sawanan")
 
-        # --- MEKANISME DINAMIS: RESET PI JIKA WAN BERUBAH ---
         last_selected_wan = st.session_state.get("m3_last_wan_tracked", "")
         if last_selected_wan != selected_sawanan_m3:
             st.session_state["m3_last_wan_tracked"] = selected_sawanan_m3
             st.session_state["m3_pi_index_reset"] = 0
 
-        # FILTER KETAT: Ambil baris berdasarkan WAN yang dipilih
         filtered_by_sawanan = [t for t in valid_transaksi_list if str(t.get("Nomor WAN / SA")) == str(selected_sawanan_m3)]
-        
-        # Ambil Nomor Kontrak otomatis dari WAN yang dipilih
         auto_kontrak_val = filtered_by_sawanan[0].get("Nomor Kontrak", target_kontrak_val) if filtered_by_sawanan else target_kontrak_val
         selected_kontrak_m3 = auto_kontrak_val
 
@@ -271,19 +260,19 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
         matched_transaksi = [t for t in filtered_by_sawanan if str(t.get("PI No.")) == str(selected_pi_m3)]
         selected_po_m3 = matched_transaksi[0].get("Nomor PO", target_po_val) if matched_transaksi else target_po_val
-        
-        # Total Nilai murni dari Modul 2
-        total_nilai_pi_modul2 = sum([parse_harga_presisi(t.get("Total Harga", 0)) for t in matched_transaksi])
 
-        st.info(f"📌 **Kontrak Otomatis Terikat:** `{selected_kontrak_m3}`")
+        # KALKULASI TAGIHAN GROSS (KOTOR) & DISKON SECARA PRESISI
+        gross_subtotal_m2 = 0.0
+        for t in matched_transaksi:
+            q_val = parse_harga_presisi(t.get("Qty", 0))
+            h_val = parse_harga_presisi(t.get("Harga Satuan", 0))
+            gross_subtotal_m2 += (q_val * h_val)
 
         if is_mode_edit:
             customer_default = data_edit_aktif.get("Customer", "")
             alamat_default = data_edit_aktif.get("Alamat Customer", "")
             bank_string_dinamis = data_edit_aktif.get("Informasi Bank", "<b>Bank Name :</b> BANK RAKYAT INDONESIA (PERSERO) Tbk.<br><b>Branch :</b> Cabang Luwuk<br><b>Account No :</b> 0167 0167 8888 303<br><b>Account Name :</b> PT. BANGGAI SENTRAL SULAWESI")
             deskripsi_default = data_edit_aktif.get("Keterangan Invoice", "")
-            nilai_default_tagihan = float(data_edit_aktif.get("Nilai Invoice", 0.0))
-            
             is_prof_sum_default = bool(data_edit_aktif.get("Gunakan Professional Sum", False))
             is_estimasi_sum_default = bool(data_edit_aktif.get("Gunakan Estimasi Sum", False))
             add_cost_default = float(data_edit_aktif.get("Add Cost", 0.0) or 0.0)
@@ -302,22 +291,18 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 bank_string_dinamis = "<b>Bank Name :</b> BANK RAKYAT INDONESIA (PERSERO) Tbk.<br><b>Branch :</b> Cabang Luwuk<br><b>Account No :</b> 0167 0167 8888 303<br><b>Account Name :</b> PT. BANGGAI SENTRAL SULAWESI"
             
             deskripsi_default = matched_transaksi[0].get("Deskripsi PO", "") if matched_transaksi else ""
-            nilai_default_tagihan = total_nilai_pi_modul2
             
             is_prof_sum_default = False
             is_estimasi_sum_default = False
-            if matched_transaksi and any("professional" in str(t.get("Kategori", "")).lower() or "provisional" in str(t.get("Kategori", "")).lower() or "professional" in str(t.get("Deskripsi Pekerjaan", "")).lower() for t in matched_transaksi):
+            if matched_transaksi and any("professional" in str(t.get("Kategori", "")).lower() or "provisional" in str(t.get("Kategori", "")).lower() for t in matched_transaksi):
                 is_prof_sum_default = True
-            
             if matched_transaksi and any("estimated" in str(t.get("Kategori", "")).lower() or "estimasi" in str(t.get("Kategori", "")).lower() for t in matched_transaksi):
                 is_estimasi_sum_default = True
 
-            if is_prof_sum_default:
-                add_cost_default = nilai_default_tagihan / 1.15
-                mgmt_fee_default = nilai_default_tagihan - add_cost_default
-            else:
-                add_cost_default = 0.0
-                mgmt_fee_default = 0.0
+            add_cost_default = 0.0
+            mgmt_fee_default = 0.0
+
+        st.info(f"📌 **Kontrak Otomatis Terikat:** `{selected_kontrak_m3}`")
 
         with st.form("form_input_billing_resmi"):
             col_b1, col_b2 = st.columns(2)
@@ -352,43 +337,42 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         pass
                 tanggal_jatuh_tempo = st.date_input("Tanggal Jatuh Tempo (Due Date)", value=due_date_val)
 
-                st.markdown(f"**Nilai Acuan Aktif (Modul 2):** Rp {nilai_default_tagihan:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-                nilai_invoice_resmi = st.number_input("Total Nilai Tagihan Invoice (Rp)", min_value=0.0, value=float(nilai_default_tagihan), step=1000.0, format="%.2f")
-
             st.markdown("---")
-            st.markdown("#### 💼 Pengaturan Khusus Metode Khusus (Professional Sum & Estimasi Sum)")
+            st.markdown("#### 💼 Pengaturan Khusus Metode (Professional Sum & Estimasi Sum / Diskon)")
             
             col_met1, col_met2 = st.columns(2)
             with col_met1:
                 gunakan_prof_sum = st.checkbox("Professional Sum (Add Cost & Management Fee 15%)", value=is_prof_sum_default)
             with col_met2:
-                gunakan_estimasi_sum = st.checkbox("Estimasi Sum (Tampilkan Potongan Diskon 10% di Summary Invoice)", value=is_estimasi_sum_default)
+                gunakan_estimasi_sum = st.checkbox("Estimasi Sum (Skema Diskon 10% ESTIMATED SUM)", value=is_estimasi_sum_default)
             
             input_add_cost = 0.0
             input_mgmt_fee = 0.0
             if gunakan_prof_sum:
-                def_ac = add_cost_default if add_cost_default > 0 else (nilai_invoice_resmi / 1.15)
-                def_mf = mgmt_fee_default if mgmt_fee_default > 0 else (nilai_invoice_resmi - def_ac)
+                def_ac = add_cost_default if add_cost_default > 0 else (gross_subtotal_m2 / 1.15)
+                def_mf = mgmt_fee_default if mgmt_fee_default > 0 else (gross_subtotal_m2 - def_ac)
 
                 col_ps1, col_ps2 = st.columns(2)
                 with col_ps1:
                     input_add_cost = st.number_input("Nilai Add Cost (Murni, Rp)", min_value=0.0, value=float(def_ac), step=1000.0, format="%.2f")
                 with col_ps2:
-                    input_mgmt_fee = st.number_input("Nilai Management / Handling Fee 15% (Rp)", min_value=0.0, value=float(def_mf), step=1000.0, format="%.2f")
+                    input_mgmt_fee = st.number_input("Nilai Management Fee 15% (Rp)", min_value=0.0, value=float(def_mf), step=1000.0, format="%.2f")
                 
-                subtotal_ps = input_add_cost + input_mgmt_fee
-                st.info(f"💡 **Simulasi Professional Sum:** Add Cost (Rp {input_add_cost:,.2f}) + Management Fee 15% (Rp {input_mgmt_fee:,.2f}) = **Rp {subtotal_ps:,.2f}**".replace(",", "X").replace(".", ",").replace("X", "."))
-
-            effective_nilai_invoice = nilai_invoice_resmi
-            if gunakan_estimasi_sum:
-                st.info(f"💡 **Mode Estimasi Sum Aktif:** Menampilkan rincian kotor di tabel item dan pemotongan Diskon 10% secara transparan di tabel summary bawah.")
+                gross_tagihan_akhir = input_add_cost + input_mgmt_fee
+                diskon_nominal_akhir = 0.0
+                dpp_invoice_akhir = gross_tagihan_akhir
+            elif gunakan_estimasi_sum:
+                gross_tagihan_akhir = gross_subtotal_m2
+                diskon_nominal_akhir = gross_tagihan_akhir * 0.10
+                dpp_invoice_akhir = gross_tagihan_akhir - diskon_nominal_akhir
+                st.info(f"💡 **ESTIMATED SUM Breakdown:** Gross (Rp {gross_tagihan_akhir:,.2f}) - Diskon 10% (Rp {diskon_nominal_akhir:,.2f}) = **DPP Invoice (Rp {dpp_invoice_akhir:,.2f})**".replace(",", "X").replace(".", ",").replace("X", "."))
+            else:
+                gross_tagihan_akhir = gross_subtotal_m2
+                diskon_nominal_akhir = 0.0
+                dpp_invoice_akhir = gross_tagihan_akhir
 
             st.markdown("---")
-            keterangan_invoice_resmi = st.text_area(
-                "📝 Deskripsi Keterangan Invoice Utama:",
-                value=deskripsi_default,
-                height=90
-            )
+            keterangan_invoice_resmi = st.text_area("📝 Deskripsi Keterangan Invoice Utama:", value=deskripsi_default, height=90)
 
             st.markdown("---")
             st.markdown("#### 🧮 Kalkulasi Otomatis Pajak (PPN 11% & PPh)")
@@ -405,17 +389,18 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             with col_p3:
                 persen_pph = st.number_input("Tarif PPh (%)", min_value=0.0, max_value=10.0, value=def_tarif_pph, step=0.5)
 
-            ppn_nominal = effective_nilai_invoice * 0.11 if kena_ppn else 0.0
-            base_pph = input_mgmt_fee if gunakan_prof_sum else effective_nilai_invoice
+            ppn_nominal = dpp_invoice_akhir * 0.11 if kena_ppn else 0.0
+            base_pph = input_mgmt_fee if gunakan_prof_sum else dpp_invoice_akhir
             pph_nominal = base_pph * (persen_pph / 100.0) if kena_pph else 0.0
 
-            total_pembayaran_netto = effective_nilai_invoice + ppn_nominal - pph_nominal
+            total_pembayaran_netto = dpp_invoice_akhir + ppn_nominal - pph_nominal
 
             st.markdown(f"""
-                * **Dasar Tagihan Invoice (Efektif/DPP Dasar):** Rp {effective_nilai_invoice:,.2f}
-                * **Dasar Pengenaan PPh:** Rp {base_pph:,.2f}
+                * **Tagihan Kotor (Gross Subtotal):** Rp {gross_tagihan_akhir:,.2f}
+                * **Potongan Diskon (10%):** ( Rp {diskon_nominal_akhir:,.2f} )
+                * **Dasar Pengenaan Pajak (DPP):** **Rp {dpp_invoice_akhir:,.2f}**
                 * **Nilai PPN (11%):** Rp {ppn_nominal:,.2f}
-                * **Potongan PPh ({persen_pph}%):** Rp {pph_nominal:,.2f}
+                * **Potongan PPh ({persen_pph}%):** ( Rp {pph_nominal:,.2f} )
                 * **Total Netto Diterima:** **Rp {total_pembayaran_netto:,.2f}**
             """.replace(",", "X").replace(".", ",").replace("X", "."))
 
@@ -431,9 +416,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
             if submit_simpan_baru or submit_save_as or submit_update:
                 if not nomor_invoice_resmi:
-                    st.error("⚠️ Nomor Invoice Resmi wajib diisi oleh Tim Accounting!")
+                    st.error("⚠️ Nomor Invoice Resmi wajib diisi!")
                 elif not selected_pi_m3:
-                    st.error("⚠️ Silakan pilih Nomor Proforma Invoice (PI) rujukan terlebih dahulu!")
+                    st.error("⚠️ Silakan pilih Nomor Proforma Invoice (PI) rujukan!")
                 else:
                     waktu_aksi = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
                     item_billing_baru = {
@@ -449,7 +434,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         "Jatuh Tempo": str(tanggal_jatuh_tempo),
                         "Keterangan Invoice": keterangan_invoice_resmi,
                         "Informasi Bank": bank_string_dinamis,
-                        "Nilai Invoice": effective_nilai_invoice,
+                        "Nilai Gross (Bruto)": gross_tagihan_akhir,
+                        "Diskon Nominal (10%)": diskon_nominal_akhir,
+                        "Nilai Invoice": dpp_invoice_akhir,
                         "Gunakan Professional Sum": 1 if gunakan_prof_sum else 0,
                         "Gunakan Estimasi Sum": 1 if gunakan_estimasi_sum else 0,
                         "Add Cost": input_add_cost if gunakan_prof_sum else 0.0,
@@ -468,55 +455,13 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         current_billing[active_billing_idx] = item_billing_baru
                         simpan_data_billing(current_billing)
                         st.session_state["last_saved_billing_record"] = item_billing_baru
-                        st.success("✨ Data Invoice & Pajak berhasil di-update dengan hierarki WAN/SA terpilih!")
+                        st.success("✨ Data Invoice & Pajak berhasil di-update!")
                     elif submit_save_as or submit_simpan_baru:
                         current_billing.append(item_billing_baru)
                         simpan_data_billing(current_billing)
                         st.session_state["last_saved_billing_record"] = item_billing_baru
                         st.success("🎉 Data Invoice & Pajak baru berhasil disimpan!")
                         st.session_state["edit_billing_idx"] = None
-
-        # --- PREVIEW DARI DATA TERSIMPAN ---
-        if "last_saved_billing_record" in st.session_state:
-            saved_rec = st.session_state["last_saved_billing_record"]
-            st.markdown("---")
-            st.markdown("##### 🔍 Rincian Data Invoice Tersimpan (Preview Review)")
-            
-            s_inv = saved_rec.get("Nomor Invoice Resmi", "-")
-            s_po = saved_rec.get("Nomor PO", "-")
-            s_wan = saved_rec.get("Nomor SA / WAN", "-")
-            s_cust = saved_rec.get("Customer", "-")
-            s_val = float(saved_rec.get("Nilai Invoice", 0))
-            s_ppn = float(saved_rec.get("PPN Nominal", 0))
-            s_pph = float(saved_rec.get("PPh Nominal", 0))
-            s_netto = float(saved_rec.get("Total Netto", 0))
-            s_is_ps = bool(saved_rec.get("Gunakan Professional Sum", False))
-            s_is_es = bool(saved_rec.get("Gunakan Estimasi Sum", False))
-            s_ac = float(saved_rec.get("Add Cost", 0))
-            s_mf = float(saved_rec.get("Management Fee", 0))
-
-            def fmt_idr(val):
-                return f"Rp {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-            col_prev1, col_prev2 = st.columns(2)
-            with col_prev1:
-                st.markdown(f"""
-                    * **Nomor Invoice Resmi:** `{s_inv}`
-                    * **Nomor PO:** `{s_po}`
-                    * **Nomor WAN / SA:** `{s_wan}`
-                    * **Customer:** `{s_cust}`
-                    * **Total Tagihan Bersih (DPP):** **{fmt_idr(s_val)}**
-                """)
-            with col_prev2:
-                st.markdown(f"""
-                    * **Professional Sum:** `{'Aktif' if s_is_ps else 'Tidak Aktif'}`
-                    * **Estimasi Sum (Diskon Rincian):** `{'Aktif' if s_is_es else 'Tidak Aktif'}`
-                    {"* **Add Cost:** " + fmt_idr(s_ac) if s_is_ps else ""}
-                    {"* **Management Fee (15%):** " + fmt_idr(s_mf) if s_is_ps else ""}
-                    * **PPN (11%):** {fmt_idr(s_ppn)}
-                    * **Potongan PPh:** ( {fmt_idr(s_pph)} )
-                    * **Total Netto Diterima:** **{fmt_idr(s_netto)}**
-                """)
 
     # --- MENU 2: PRATINJAU, CETAK & DOWNLOAD PDF INVOICE ---
     elif menu_pilihan == "Pratinjau, Cetak & Download PDF Invoice":
@@ -534,11 +479,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
             col_sel_jenis, col_ctrl1 = st.columns([1.5, 2.5])
             with col_sel_jenis:
-                jenis_dok_terpilih = st.selectbox(
-                    "📄 Pilih Jenis Dokumen:", 
-                    ["Invoice & Tax Billing", "Kuitansi Pembayaran"],
-                    key="select_jenis_dok_m3"
-                )
+                jenis_dok_terpilih = st.selectbox("📄 Pilih Jenis Dokumen:", ["Invoice & Tax Billing", "Kuitansi Pembayaran"], key="select_jenis_dok_m3")
             with col_ctrl1:
                 selected_inv_preview = st.selectbox("🔄 Panggil Ulang Nomor Invoice Disimpan:", list_inv_resmi, key="preview_panggil_inv")
 
@@ -548,11 +489,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
             if jenis_dok_terpilih == "Kuitansi Pembayaran":
                 st.markdown("##### 🧾 Pratinjau Kuitansi Berdasarkan Invoice Terpilih")
-                
                 if selected_record:
                     pi_rujukan = selected_record.get("PI No.")
                     matched_tx_kuitansi = [t.copy() for t in transaksi_list if str(t.get("PI No.")) == str(pi_rujukan)]
-                    
                     if not matched_tx_kuitansi and transaksi_list:
                         matched_tx_kuitansi = [transaksi_list[0].copy()]
                     elif not matched_tx_kuitansi:
@@ -590,21 +529,16 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     val_netto = float(selected_record.get('Total Netto', 0) or 0)
 
                     raw_prof_sum = selected_record.get('Gunakan Professional Sum', False)
-                    is_prof_sum_akt = False
-                    if str(raw_prof_sum).lower() in ['true', '1', 'yes', '1.0']:
-                        is_prof_sum_akt = True
+                    is_prof_sum_akt = str(raw_prof_sum).lower() in ['true', '1', 'yes', '1.0']
                     
                     raw_est_sum = selected_record.get('Gunakan Estimasi Sum', False)
-                    is_est_sum_akt = False
-                    if str(raw_est_sum).lower() in ['true', '1', 'yes', '1.0']:
-                        is_est_sum_akt = True
+                    is_est_sum_akt = str(raw_est_sum).lower() in ['true', '1', 'yes', '1.0']
 
                     val_add_cost = float(selected_record.get('Add Cost', 0) or 0)
                     val_mgmt_fee = float(selected_record.get('Management Fee', 0) or 0)
 
                     nomor_sa_wan_val = format_nomor_bersih(selected_record.get('Nomor SA / WAN', ''))
                     nomor_po_val = format_nomor_bersih(selected_record.get('Nomor PO', selected_record.get('Nomor PO Rujukan', '-')))
-                    
                     kontrak_no_val = format_nomor_bersih(selected_record.get('Kontrak No.', '-'))
                     bank_info_val = selected_record.get('Informasi Bank', '<b>Bank Name :</b> BANK RAKYAT INDONESIA (PERSERO) Tbk.<br><b>Branch :</b> Cabang Luwuk<br><b>Account No :</b> 0167 0167 8888 303<br><b>Account Name :</b> PT. BANGGAI SENTRAL SULAWESI')
 
@@ -619,7 +553,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     tanggal_cetak_str = datetime.today().strftime("%m/%d/%Y, %I:%M %p")
                     deskripsi_keterangan_inv = str(selected_record.get('Keterangan Invoice', ''))
 
-                    # AMBIL ITEM DETAIL DARI MODUL 2 BERDASARKAN PI RUJUKAN
                     pi_rujukan_inv = selected_record.get('PI No.')
                     matched_items_m2 = [t for t in transaksi_list if str(t.get('PI No.')) == str(pi_rujukan_inv)]
 
@@ -656,12 +589,10 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             if "estimated" in str(kategori).lower() or "estimasi" in str(kategori).lower():
                                 has_estimated_sum_category = True
                             
-                            # HITUNG MURNI MENGGUNAKAN HARGASATUAN KOTOR (QTY * HARGA SATUAN)
                             amount_murni_row = qty_val * harga_satuan_val
                             gross_subtotal += amount_murni_row
                             
                             keterangan_row = row_m2.get('Keterangan', '')
-                            
                             desc_full = f"<b>{uraian}</b>"
                             if kategori:
                                 desc_full += f"<br><span style='font-size: 10px; color: #334155;'>Kategori: {kategori}</span>"
@@ -689,7 +620,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         </tr>
                         """
 
-                    # LOGIKA PEMOTONGAN DISKON 10% KHUSUS ESTIMATED SUM
+                    # LOGIKA MEMOTONG DISKON 10% ESTIMATED SUM
                     discount_10_nominal = 0.0
                     if has_estimated_sum_category and not is_prof_sum_akt:
                         discount_10_nominal = gross_subtotal * 0.10
@@ -699,7 +630,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
                     dpp_nilai_lain = total_amount_due * (11 / 12) if val_ppn > 0 else total_amount_due
 
-                    # POPULASI BARIS SUMMARY
+                    # SUSUN HTML TABEL RINGKASAN HARGA (SUMMARY TABLE)
                     summary_rows_html = ""
                     if has_estimated_sum_category and discount_10_nominal > 0:
                         summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 5px; font-weight: bold; color: #334155;">Gross Subtotal</td><td style="border-bottom: 1px solid #000; padding: 5px; text-align: right; color: #334155;">Rp {gross_subtotal:,.2f}</td></tr>'
@@ -941,7 +872,21 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         billing_records = muat_data_billing()
         if billing_records:
             df_bill = pd.DataFrame(billing_records)
-            st.dataframe(df_bill, use_container_width=True)
+            
+            # MEMASTIKAN KOLOM BRUTO & DISKON DITAMPILKAN DI DATAFRAME TERSIMPAN
+            kolom_prioritas = [
+                "Nomor Invoice Resmi", "Customer", "Kontrak No.", "Nomor PO", "Nomor SA / WAN",
+                "Nilai Gross (Bruto)", "Diskon Nominal (10%)", "Nilai Invoice", 
+                "Gunakan Professional Sum", "Add Cost", "Management Fee", 
+                "PPN Nominal", "PPh Nominal", "Total Netto", "Update Terakhir"
+            ]
+            
+            # Urutkan kolom jika ada
+            kolom_ada = [c for c in kolom_prioritas if c in df_bill.columns]
+            kolom_sisa = [c for c in df_bill.columns if c not in kolom_prioritas]
+            df_display = df_bill[kolom_ada + kolom_sisa]
+            
+            st.dataframe(df_display, use_container_width=True)
             
             st.markdown("---")
             st.markdown("#### 🗑️ Hapus Data Invoice Tersimpan")
