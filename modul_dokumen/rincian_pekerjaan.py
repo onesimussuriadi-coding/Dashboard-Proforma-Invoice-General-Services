@@ -173,31 +173,28 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         qty_val = float(m.get('Qty', 0))
         harga_satuan_asli = float(m.get('Harga Satuan', 0))
         percent_val = float(m.get('Percent', 100.0))
-        ket_awal = str(m.get('Keterangan', '-'))
+        kategori_awal = str(m.get('Kategori', '-'))
 
-        # Penyesuaian khusus Estimated Sum / Estimasi Sum (Diskon 10%)
+        # Penyesuaian khusus Estimated Sum / Estimasi Sum (Diskon 10% & Harga Satuan Efektif)
         if "estimated" in kategori_str or "estimasi" in kategori_str:
-            harga_satuan_val = harga_satuan_asli * 0.9  # Harga setelah diskon 10% (misal 7.500 jadi 6.750)
+            harga_satuan_val = harga_satuan_asli * 0.9  # Harga setelah diskon 10%
             total_harga_val = (qty_val * harga_satuan_val) * (percent_val / 100.0)
             
-            # Tambahkan keterangan diskon secara transparan jika belum ada
-            if "diskon" not in ket_awal.lower():
-                keterangan_final = f"{ket_awal} (Termasuk Diskon 10% dari Harga Penawaran Rp {harga_satuan_asli:,.2f})"
-            else:
-                keterangan_final = ket_awal
+            # Format teks kategori dengan tambahan keterangan diskon dan harga penawaran asli
+            kategori_display = f"{kategori_awal}<br><span style='font-size: 8px; font-weight: normal; color: #334155;'>(Diskon 10% dari Harga Penawaran Rp {harga_satuan_asli:,.2f})</span>"
         elif "provisional" in kategori_str or "professional" in kategori_str:
             harga_satuan_val = harga_satuan_asli
             total_harga_val = (qty_val * harga_satuan_val) * 1.15 * (percent_val / 100.0)
-            keterangan_final = ket_awal
+            kategori_display = kategori_awal
         else:
             harga_satuan_val = harga_satuan_asli
             total_harga_val = (qty_val * harga_satuan_val) * (percent_val / 100.0)
-            keterangan_final = ket_awal
+            kategori_display = kategori_awal
 
         rows_html += f"""
             <tr>
                 <td style="text-align: center;">{idx}</td>
-                <td>{m.get('Kategori', '-')}</td>
+                <td>{kategori_display}</td>
                 <td>{m.get('Deskripsi Pekerjaan', '-')}</td>
                 <td style="text-align: center;">{qty_val:,.2f}</td>
                 <td style="text-align: center;">{m.get('Unit', '-')}</td>
@@ -205,7 +202,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <td style="text-align: center; white-space: nowrap;">{m.get('Tanggal Selesai', '-')}</td>
                 <td style="text-align: right;">{harga_satuan_val:,.2f}</td>
                 <td style="text-align: right;">{total_harga_val:,.2f}</td>
-                <td>{keterangan_final}</td>
+                <td>{m.get('Keterangan', '-')}</td>
             </tr>
         """
 
