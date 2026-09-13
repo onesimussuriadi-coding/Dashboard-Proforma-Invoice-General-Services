@@ -272,7 +272,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         matched_transaksi = [t for t in filtered_by_sawanan if str(t.get("PI No.")) == str(selected_pi_m3)]
         selected_po_m3 = matched_transaksi[0].get("Nomor PO", target_po_val) if matched_transaksi else target_po_val
         
-        # PERBAIKAN: Total Nilai murni dari Modul 2 (sudah memperhitungkan diskon satuan dari rincian pekerjaan)
+        # Total Nilai murni dari Modul 2
         total_nilai_pi_modul2 = sum([parse_harga_presisi(t.get("Total Harga", 0)) for t in matched_transaksi])
 
         st.info(f"📌 **Kontrak Otomatis Terikat:** `{selected_kontrak_m3}`")
@@ -309,7 +309,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             if matched_transaksi and any("professional" in str(t.get("Kategori", "")).lower() or "provisional" in str(t.get("Kategori", "")).lower() or "professional" in str(t.get("Deskripsi Pekerjaan", "")).lower() for t in matched_transaksi):
                 is_prof_sum_default = True
             
-            # Cek otomatis jika ada kategori estimasi sum di modul 2
             if matched_transaksi and any("estimated" in str(t.get("Kategori", "")).lower() or "estimasi" in str(t.get("Kategori", "")).lower() for t in matched_transaksi):
                 is_estimasi_sum_default = True
 
@@ -363,7 +362,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             with col_met1:
                 gunakan_prof_sum = st.checkbox("Professional Sum (Add Cost & Management Fee 15%)", value=is_prof_sum_default)
             with col_met2:
-                gunakan_estimasi_sum = st.checkbox("Estimasi Sum (Gunakan Harga Bersih dari Rincian Pekerjaan)", value=is_estimasi_sum_default)
+                gunakan_estimasi_sum = st.checkbox("Estimasi Sum (Tampilkan Potongan Diskon 10% di Summary Invoice)", value=is_estimasi_sum_default)
             
             input_add_cost = 0.0
             input_mgmt_fee = 0.0
@@ -380,10 +379,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 subtotal_ps = input_add_cost + input_mgmt_fee
                 st.info(f"💡 **Simulasi Professional Sum:** Add Cost (Rp {input_add_cost:,.2f}) + Management Fee 15% (Rp {input_mgmt_fee:,.2f}) = **Rp {subtotal_ps:,.2f}**".replace(",", "X").replace(".", ",").replace("X", "."))
 
-            # PERBAIKAN UTAMA: Nilai Invoice Murni tanpa pengalian diskon ganda (karena modul 2 sudah menghitung diskon satuan per item)
             effective_nilai_invoice = nilai_invoice_resmi
             if gunakan_estimasi_sum:
-                st.info(f"💡 **Mode Estimasi Sum Aktif:** Menggunakan Total Nilai Bersih dari Rincian Pekerjaan (Rp {nilai_invoice_resmi:,.2f}) tanpa potongan diskon ganda.")
+                st.info(f"💡 **Mode Estimasi Sum Aktif:** Menampilkan rincian kotor di tabel item dan pemotongan Diskon 10% secara transparan di tabel summary bawah.")
 
             st.markdown("---")
             keterangan_invoice_resmi = st.text_area(
@@ -414,7 +412,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             total_pembayaran_netto = effective_nilai_invoice + ppn_nominal - pph_nominal
 
             st.markdown(f"""
-                * **Dasar Tagihan Invoice (Efektif):** Rp {effective_nilai_invoice:,.2f}
+                * **Dasar Tagihan Invoice (Efektif/DPP Dasar):** Rp {effective_nilai_invoice:,.2f}
                 * **Dasar Pengenaan PPh:** Rp {base_pph:,.2f}
                 * **Nilai PPN (11%):** Rp {ppn_nominal:,.2f}
                 * **Potongan PPh ({persen_pph}%):** Rp {pph_nominal:,.2f}
@@ -478,7 +476,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         st.success("🎉 Data Invoice & Pajak baru berhasil disimpan!")
                         st.session_state["edit_billing_idx"] = None
 
-        # --- PREVIEW / RINCIAN DATA TERSIMPAN (DI BAWAH TOMBOL SIMPAN/UPDATE) ---
+        # --- PREVIEW DARI DATA TERSIMPAN ---
         if "last_saved_billing_record" in st.session_state:
             saved_rec = st.session_state["last_saved_billing_record"]
             st.markdown("---")
@@ -590,13 +588,17 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     val_ppn = float(selected_record.get('PPN Nominal', 0) or 0)
                     val_pph = float(selected_record.get('PPh Nominal', 0) or 0)
                     val_netto = float(selected_record.get('Total Netto', 0) or 0)
-                    dpp_nilai_lain = val_inv * (11 / 12) if val_ppn > 0 else val_inv
 
                     raw_prof_sum = selected_record.get('Gunakan Professional Sum', False)
                     is_prof_sum_akt = False
                     if str(raw_prof_sum).lower() in ['true', '1', 'yes', '1.0']:
                         is_prof_sum_akt = True
                     
+                    raw_est_sum = selected_record.get('Gunakan Estimasi Sum', False)
+                    is_est_sum_akt = False
+                    if str(raw_est_sum).lower() in ['true', '1', 'yes', '1.0']:
+                        is_est_sum_akt = True
+
                     val_add_cost = float(selected_record.get('Add Cost', 0) or 0)
                     val_mgmt_fee = float(selected_record.get('Management Fee', 0) or 0)
 
@@ -621,6 +623,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     pi_rujukan_inv = selected_record.get('PI No.')
                     matched_items_m2 = [t for t in transaksi_list if str(t.get('PI No.')) == str(pi_rujukan_inv)]
 
+                    gross_subtotal = 0.0
+                    has_estimated_sum_category = is_est_sum_akt
+
                     if is_prof_sum_akt:
                         tabel_item_html = f"""
                         <tr>
@@ -638,8 +643,8 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {val_mgmt_fee:,.2f}</td>
                         </tr>
                         """
+                        gross_subtotal = val_add_cost + val_mgmt_fee
                     elif matched_items_m2:
-                        # Render item secara dinamis dari rincian pekerjaan Modul 2
                         tabel_item_html = ""
                         for idx_m2, row_m2 in enumerate(matched_items_m2, 1):
                             uraian = row_m2.get('Uraian Pekerjaan', '')
@@ -647,7 +652,14 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             qty_val = parse_harga_presisi(row_m2.get('Qty', 0))
                             satuan_val = row_m2.get('Satuan', 'Ea')
                             harga_satuan_val = parse_harga_presisi(row_m2.get('Harga Satuan', 0))
-                            total_harga_val = parse_harga_presisi(row_m2.get('Total Harga', 0))
+                            
+                            if "estimated" in str(kategori).lower() or "estimasi" in str(kategori).lower():
+                                has_estimated_sum_category = True
+                            
+                            # HITUNG MURNI MENGGUNAKAN HARGASATUAN KOTOR (QTY * HARGA SATUAN)
+                            amount_murni_row = qty_val * harga_satuan_val
+                            gross_subtotal += amount_murni_row
+                            
                             keterangan_row = row_m2.get('Keterangan', '')
                             
                             desc_full = f"<b>{uraian}</b>"
@@ -662,10 +674,11 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                 <td style="border: 1px solid #000; padding: 8px; vertical-align: top;">{desc_full}</td>
                                 <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">{qty_val:,.0f} {satuan_val}</td>
                                 <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {harga_satuan_val:,.2f}</td>
-                                <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {total_harga_val:,.2f}</td>
+                                <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {amount_murni_row:,.2f}</td>
                             </tr>
                             """
                     else:
+                        gross_subtotal = val_inv
                         tabel_item_html = f"""
                         <tr>
                             <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: center; vertical-align: top;">1</td>
@@ -675,6 +688,31 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: right; vertical-align: top;">Rp {val_inv:,.2f}</td>
                         </tr>
                         """
+
+                    # LOGIKA PEMOTONGAN DISKON 10% KHUSUS ESTIMATED SUM
+                    discount_10_nominal = 0.0
+                    if has_estimated_sum_category and not is_prof_sum_akt:
+                        discount_10_nominal = gross_subtotal * 0.10
+                        total_amount_due = gross_subtotal - discount_10_nominal
+                    else:
+                        total_amount_due = val_inv
+
+                    dpp_nilai_lain = total_amount_due * (11 / 12) if val_ppn > 0 else total_amount_due
+
+                    # POPULASI BARIS SUMMARY
+                    summary_rows_html = ""
+                    if has_estimated_sum_category and discount_10_nominal > 0:
+                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 5px; font-weight: bold; color: #334155;">Gross Subtotal</td><td style="border-bottom: 1px solid #000; padding: 5px; text-align: right; color: #334155;">Rp {gross_subtotal:,.2f}</td></tr>'
+                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 5px; font-weight: bold; color: #c2410c;">Discount (10%)</td><td style="border-bottom: 1px solid #000; padding: 5px; text-align: right; color: #c2410c;">(Rp {discount_10_nominal:,.2f})</td></tr>'
+                    
+                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 6px; font-weight: bold;">Total Amount Due</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right; font-weight: bold;">Rp {total_amount_due:,.2f}</td></tr>'
+                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 6px; font-size: 10px; color: #475569;">DPP Nilai Lain (11/12)</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right; font-size: 10px; color: #475569;">Rp {dpp_nilai_lain:,.2f}</td></tr>'
+                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 6px;">VAT (PPN 11%)</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right;">Rp {val_ppn:,.2f}</td></tr>'
+                    
+                    if val_pph > 0:
+                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 6px; color: #b91c1c;">Potongan PPh</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right; color: #b91c1c;">(Rp {val_pph:,.2f})</td></tr>'
+                    
+                    summary_rows_html += f'<tr style="background-color: #f1f5f9; font-weight: bold;"><td style="padding: 8px; border-top: 2px solid #000;">T O T A L</td><td style="padding: 8px; border-top: 2px solid #000; text-align: right;">Rp {val_netto:,.2f}</td></tr>'
 
                     html_invoice = f"""
                     <!DOCTYPE html>
@@ -814,14 +852,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                             </td>
                                             <td colspan="2" style="border: 1px solid #000; padding: 0; vertical-align: top;">
                                                 <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-                                                    <tr><td style="border-bottom: 1px solid #000; padding: 6px; font-weight: bold;">Total Amount Due</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right;">Rp {val_inv:,.2f}</td></tr>
-                                                    <tr><td style="border-bottom: 1px solid #000; padding: 6px; font-size: 10px; color: #475569;">DPP Nilai Lain (11/12)</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right; font-size: 10px; color: #475569;">Rp {dpp_nilai_lain:,.2f}</td></tr>
-                                                    <tr><td style="border-bottom: 1px solid #000; padding: 6px;">VAT (PPN 11%)</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right;">Rp {val_ppn:,.2f}</td></tr>
-                                                    {f"<tr><td style='border-bottom: 1px solid #000; padding: 6px; color: #b91c1c;'>Potongan PPh</td><td style='border-bottom: 1px solid #000; padding: 6px; text-align: right; color: #b91c1c;'>(Rp {val_pph:,.2f})</td></tr>" if val_pph > 0 else ""}
-                                                    <tr style="background-color: #f1f5f9; font-weight: bold;">
-                                                        <td style="padding: 8px; border-top: 2px solid #000;">T O T A L</td>
-                                                        <td style="padding: 8px; border-top: 2px solid #000; text-align: right;">Rp {val_netto:,.2f}</td>
-                                                    </tr>
+                                                    {summary_rows_html}
                                                 </table>
                                             </td>
                                         </tr>
