@@ -1136,7 +1136,7 @@ if form_login_sistem():
                 st.markdown("""
                     <div class="dashboard-card">
                         <h3 style="margin-top:0; color:#065f46; font-size:18px;">📂 Daftar Database Identifikasi Tersimpan</h3>
-                        <p style="font-size: 13px; color: #475569; margin-bottom: 0;">Kelola dan hapus data PI ganda secara langsung dengan aman tanpa membuka tab baru.</p>
+                        <p style="font-size: 13px; color: #475569; margin-bottom: 0;">Kelola dan hapus data PI ganda secara langsung dengan aman berdasarkan filter kontrak dan nomor PI.</p>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -1144,25 +1144,73 @@ if form_login_sistem():
                 if not saved_records:
                     st.info("ℹ️ Belum ada data database tersimpan di folder aman.")
                 else:
+                    # Filter Berdasarkan Nomor Kontrak dan Nomor PI
+                    list_all_kontrak = ["-- Semua Kontrak (All Contracts) --"] + sorted(list(set(
+                        bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-'))) for rec in saved_records if bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-'))) != ''
+                    )))
+
+                    col_fdb1, col_fdb2 = st.columns(2)
+                    with col_fdb1:
+                        selected_filter_kontrak = st.selectbox("📌 Filter Berdasarkan Nomor Kontrak:", list_all_kontrak, key="db_filter_kontrak_v4")
+
+                    # Filter PI berdasarkan kontrak yang dipilih
+                    if selected_filter_kontrak != "-- Semua Kontrak (All Contracts) --":
+                        pi_filtered_candidates = [
+                            bersih_angka(rec.get(0, rec.get('Proforma Invoice No.', '-'))) 
+                            for rec in saved_records 
+                            if bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-'))) == selected_filter_kontrak and bersih_angka(rec.get(0, rec.get('Proforma Invoice No.', '-'))) != ''
+                        ]
+                    else:
+                        pi_filtered_candidates = [
+                            bersih_angka(rec.get(0, rec.get('Proforma Invoice No.', '-'))) 
+                            for rec in saved_records 
+                            if bersih_angka(rec.get(0, rec.get('Proforma Invoice No.', '-'))) != ''
+                        ]
+
+                    list_all_pi = ["-- Semua PI (All PI) --"] + sorted(list(set(pi_filtered_candidates)), key=sort_pi_key, reverse=True)
+
+                    with col_fdb2:
+                        selected_filter_pi = st.selectbox("📄 Filter Berdasarkan Nomor PI:", list_all_pi, key="db_filter_pi_v4")
+
+                    st.markdown("---")
+
+                    # Terapkan filter ke record
+                    filtered_records_list = []
                     for original_idx, rec in enumerate(saved_records):
-                        with st.container():
-                            pi_num = bersih_angka(rec.get(0, rec.get('Proforma Invoice No.', '-')))
-                            kontrak_num = bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-')))
-                            
-                            col_s1, col_s2, col_s3, col_s4 = st.columns([1.5, 3, 2.5, 1])
-                            with col_s1:
-                                st.write(f"**Baris #{original_idx+1}**")
-                            with col_s2:
-                                st.write(f"**Kontrak:** {kontrak_num if kontrak_num else '-'}")
-                            with col_s3:
-                                st.write(f"**PI No:** {pi_num if pi_num else '-'}")
-                            with col_s4:
-                                if st.button("🗑️ Hapus", key=f"del_db_row_{original_idx}", help="Hapus permanen baris ini"):
-                                    saved_records.pop(original_idx)
-                                    simpan_data_invoice(saved_records)
-                                    st.success("✅ Berhasil menghapus baris data database secara permanen!")
-                                    st.rerun()
-                        st.markdown("---")
+                        c_kontrak = bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-')))
+                        c_pi = bersih_angka(rec.get(0, rec.get('Proforma Invoice No.', '-')))
+
+                        match_k = (selected_filter_kontrak == "-- Semua Kontrak (All Contracts) --") or (c_kontrak == selected_filter_kontrak)
+                        match_pi = (selected_filter_pi == "-- Semua PI (All PI) --") or (c_pi == selected_filter_pi)
+
+                        if match_k and match_pi:
+                            filtered_records_list.append((original_idx, rec))
+
+                    if not filtered_records_list:
+                        st.warning("⚠️ Tidak ada data database yang cocok dengan filter yang dipilih.")
+                    else:
+                        st.info(ampilkan_info := f"Menampilkan {len(filtered_records_list)} data tersimpan:")
+                        
+                        for original_idx, rec in filtered_records_list:
+                            with st.container():
+                                pi_num = bersih_angka(rec.get(0, rec.get('Proforma Invoice No', '-')))
+                                kontrak_num = bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-')))
+                                judul_k = bersih_angka(rec.get(7, rec.get('Judul Kontrak', '-')))
+                                
+                                col_s1, col_s2, col_s3, col_s4 = st.columns([1, 2.5, 3.5, 1])
+                                with col_s1:
+                                    st.write(f"**#{original_idx+1}**")
+                                with col_s2:
+                                    st.write(f"**Kontrak:** `{kontrak_num}`")
+                                with col_s3:
+                                    st.write(f"**PI No:** `{pi_num}`<br><small style='color:#475569;'>{judul_k[:50]}...</small>", unsafe_allow_html=True)
+                                with col_s4:
+                                    if st.button("🗑️ Hapus", key=f"del_db_row_{original_idx}", help="Hapus permanen baris ini"):
+                                        saved_records.pop(original_idx)
+                                        simpan_data_invoice(saved_records)
+                                        st.success("✅ Berhasil menghapus baris data database secara permanen!")
+                                        st.rerun()
+                            st.markdown("---")
 
         elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
             if menu == "Input & Proses Rincian Pekerjaan":
