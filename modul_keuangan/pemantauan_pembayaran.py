@@ -38,7 +38,7 @@ def tampilkan_pemantauan_pembayaran():
         except:
             return 0.0
 
-    # --- 1. MODUL 3 BERDIRI SENDIRI: HANYA MEMBACA DARI FILE TERSIMPAN MODUL 3 ---
+    # --- 1. MODUL 3: MEMBACA DARI FILE TERSIMPAN MODUL 3 SENDIRI ---
     def muat_invoice_tersimpan_modul3():
         spesifik_file = [
             os.path.join(DIR_DATABASE, "database_billing_tax.xlsx"),
@@ -122,7 +122,7 @@ def tampilkan_pemantauan_pembayaran():
                     return str(v)[:10]
         return str(date.today())
 
-    # --- 2. TARIK TOTAL KONTRAK DARI MASTER MODUL 2 ---
+    # --- 2. AMBIL TOTAL KONTRAK DARI MODUL 2 (LIHAT MASTER REKAP TRANSAKSI) ---
     def muat_total_kontrak_modul2():
         plafon_files = [
             os.path.join(DIR_DATABASE, "database_plafon_kontrak.xlsx"),
@@ -169,10 +169,16 @@ def tampilkan_pemantauan_pembayaran():
         filtered_invoice_list = invoice_list
         filtered_payment_records = payment_records
 
-    # --- 3. REKAPITULASI KEUANGAN DENGAN PRESISI DESIMAL ---
+    # --- 3. REKAPITULASI KEUANGAN DENGAN 4 KOTAK STATISTIK & PRESISI DESIMAL ---
     if invoice_list or payment_records:
         hari_ini = date.today()
         
+        total_nilai_kontrak_aktif = 0.0
+        if filter_kontrak_pilih != "-- Semua Nomor Kontrak (ALL) --":
+            total_nilai_kontrak_aktif = master_kontrak_plafon.get(str(filter_kontrak_pilih).strip(), 0.0)
+        else:
+            total_nilai_kontrak_aktif = sum(master_kontrak_plafon.values())
+
         total_seluruh_tagihan = 0.0
         total_sudah_dibayar = 0.0
 
@@ -233,33 +239,43 @@ def tampilkan_pemantauan_pembayaran():
 
         st.markdown("---")
         st.markdown(f"##### 💰 Rekapitulasi Saldo Keuangan & Tagihan ({filter_kontrak_pilih})")
-        c_fin1, c_fin2, c_fin3 = st.columns(3)
+        
+        # 4 KOTAK REKAPITULASI SEJAJAR
+        c_fin0, c_fin1, c_fin2, c_fin3 = st.columns(4)
+        with c_fin0:
+            st.markdown(f"""
+                <div style="background-color: #1e293b; color: white; padding: 16px; border-radius: 8px; text-align: center; border-left: 5px solid #6366f1;">
+                    <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 600;">TOTAL KONTRAK (PLAFON)</p>
+                    <h3 style="margin: 6px 0 0 0; font-size: 17px; color: #ffffff;">{fmt_rp_satu_baris(total_nilai_kontrak_aktif)}</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #818cf8;">Master Plafon Kontrak</p>
+                </div>
+            """, unsafe_allow_html=True)
         with c_fin1:
             st.markdown(f"""
-                <div style="background-color: #1e293b; color: white; padding: 18px; border-radius: 8px; text-align: center; border-left: 5px solid #38bdf8;">
-                    <p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600;">TOTAL SELURUH TAGIHAN</p>
-                    <h3 style="margin: 6px 0 0 0; font-size: 19px; color: #ffffff;">{fmt_rp_satu_baris(total_seluruh_tagihan)}</h3>
-                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #38bdf8;">100.00% dari Total Portofolio</p>
+                <div style="background-color: #1e293b; color: white; padding: 16px; border-radius: 8px; text-align: center; border-left: 5px solid #38bdf8;">
+                    <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 600;">TOTAL SELURUH TAGIHAN</p>
+                    <h3 style="margin: 6px 0 0 0; font-size: 17px; color: #ffffff;">{fmt_rp_satu_baris(total_seluruh_tagihan)}</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #38bdf8;">100.00% dari Tagihan</p>
                 </div>
             """, unsafe_allow_html=True)
         with c_fin2:
             st.markdown(f"""
-                <div style="background-color: #1e293b; color: white; padding: 18px; border-radius: 8px; text-align: center; border-left: 5px solid #10b981;">
-                    <p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600;">TOTAL SUDAH DIBAYARKAN</p>
-                    <h3 style="margin: 6px 0 0 0; font-size: 19px; color: #34d399;">{fmt_rp_satu_baris(total_sudah_dibayar)}</h3>
-                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #34d399;">{persen_dibayar:.2f}% (Rasio Realisasi)</p>
+                <div style="background-color: #1e293b; color: white; padding: 16px; border-radius: 8px; text-align: center; border-left: 5px solid #10b981;">
+                    <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 600;">TOTAL SUDAH DIBAYARKAN</p>
+                    <h3 style="margin: 6px 0 0 0; font-size: 17px; color: #34d399;">{fmt_rp_satu_baris(total_sudah_dibayar)}</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #34d399;">{persen_dibayar:.2f}% (Realisasi)</p>
                 </div>
             """, unsafe_allow_html=True)
         with c_fin3:
             st.markdown(f"""
-                <div style="background-color: #1e293b; color: white; padding: 18px; border-radius: 8px; text-align: center; border-left: 5px solid #f59e0b;">
-                    <p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600;">SISA SALDO BELUM TERBAYAR</p>
-                    <h3 style="margin: 6px 0 0 0; font-size: 19px; color: #fbbf24;">{fmt_rp_satu_baris(sisa_belum_terbayar)}</h3>
-                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #fbbf24;">{persen_sisa:.2f}% (Outstanding Piutang)</p>
+                <div style="background-color: #1e293b; color: white; padding: 16px; border-radius: 8px; text-align: center; border-left: 5px solid #f59e0b;">
+                    <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 600;">SISA BELUM TERBAYAR</p>
+                    <h3 style="margin: 6px 0 0 0; font-size: 17px; color: #fbbf24;">{fmt_rp_satu_baris(sisa_belum_terbayar)}</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #fbbf24;">{persen_sisa:.2f}% (Piutang)</p>
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- TABEL RINCIAN REKAPITULASI PER NOMOR KONTRAK ---
+        # --- TABEL RINCIAN AKUMULASI PER NOMOR KONTRAK ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak")
         
@@ -285,8 +301,8 @@ def tampilkan_pemantauan_pembayaran():
             elif st_byr == "Sebagian (DP / Termin)":
                 summary_contract_map[c_no]["terbayar"] += (gt * 0.5)
 
-        rh_cols = st.columns([1.5, 1.0, 1.8, 1.8, 1.8, 1.2, 1.0])
-        r_headers = ["Nomor Kontrak", "Jml Dok", "Total Tagihan (Rp)", "Sudah Dibayar (Rp)", "Sisa Piutang (Rp)", "Realisasi (%)", "Status"]
+        rh_cols = st.columns([1.5, 0.9, 1.8, 1.8, 1.8, 1.8, 1.1, 0.9])
+        r_headers = ["Nomor Kontrak", "Jml Dok", "Total Nilai Kontrak", "Total Tagihan", "Sudah Dibayar", "Sisa Piutang", "Realisasi", "Status"]
         for rh, rht in zip(rh_cols, r_headers):
             with rh:
                 st.markdown(f"<span style='font-size: 11px; font-weight: bold; color: #0f172a;'>{rht}</span>", unsafe_allow_html=True)
@@ -295,6 +311,7 @@ def tampilkan_pemantauan_pembayaran():
         tot_sum_tagihan = 0.0
         tot_sum_terbayar = 0.0
         tot_sum_piutang = 0.0
+        tot_sum_plafon = 0.0
         tot_jml_dok = 0
 
         def fmt_small_rp(val):
@@ -305,49 +322,120 @@ def tampilkan_pemantauan_pembayaran():
             t_tag = c_val["tagihan"]
             t_byr = c_val["terbayar"]
             t_piu = t_tag - t_byr
+            t_plafon = master_kontrak_plafon.get(c_key, 0.0)
             pct_real = (t_byr / t_tag * 100) if t_tag > 0 else 0.0
             
             tot_sum_tagihan += t_tag
             tot_sum_terbayar += t_byr
             tot_sum_piutang += t_piu
+            tot_sum_plafon += t_plafon
             tot_jml_dok += c_val["jml_inv"]
 
             st_teks = "🟢 Lengkap" if c_val["lunas"] == c_val["jml_inv"] else f"🟡 {c_val['lunas']}/{c_val['jml_inv']} Lunas"
 
-            rc_cols = st.columns([1.5, 1.0, 1.8, 1.8, 1.8, 1.2, 1.0])
+            rc_cols = st.columns([1.5, 0.9, 1.8, 1.8, 1.8, 1.8, 1.1, 0.9])
             with rc_cols[0]:
                 st.markdown(f"**{c_key}**", unsafe_allow_html=True)
             with rc_cols[1]:
                 st.markdown(f"<small>{c_val['jml_inv']} Dok</small>", unsafe_allow_html=True)
             with rc_cols[2]:
-                st.markdown(fmt_small_rp(t_tag), unsafe_allow_html=True)
+                st.markdown(fmt_small_rp(t_plafon), unsafe_allow_html=True)
             with rc_cols[3]:
-                st.markdown(fmt_small_rp(t_byr), unsafe_allow_html=True)
+                st.markdown(fmt_small_rp(t_tag), unsafe_allow_html=True)
             with rc_cols[4]:
-                st.markdown(fmt_small_rp(t_piu), unsafe_allow_html=True)
+                st.markdown(fmt_small_rp(t_byr), unsafe_allow_html=True)
             with rc_cols[5]:
-                st.markdown(f"<small><b>{pct_real:.2f}%</b></small>", unsafe_allow_html=True)
+                st.markdown(fmt_small_rp(t_piu), unsafe_allow_html=True)
             with rc_cols[6]:
+                st.markdown(f"<small><b>{pct_real:.2f}%</b></small>", unsafe_allow_html=True)
+            with rc_cols[7]:
                 st.markdown(f"<small>{st_teks}</small>", unsafe_allow_html=True)
             st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
 
         tot_pct_overall = (tot_sum_terbayar / tot_sum_tagihan * 100) if tot_sum_tagihan > 0 else 0.0
-        tot_cols = st.columns([1.5, 1.0, 1.8, 1.8, 1.8, 1.2, 1.0])
+        tot_cols = st.columns([1.5, 0.9, 1.8, 1.8, 1.8, 1.8, 1.1, 0.9])
         with tot_cols[0]:
             st.markdown("**TOTAL KESELURUHAN**", unsafe_allow_html=True)
         with tot_cols[1]:
             st.markdown(f"**{tot_jml_dok} Dok**", unsafe_allow_html=True)
         with tot_cols[2]:
-            st.markdown(f"**<span style='white-space: nowrap;'>Rp {tot_sum_tagihan:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
+            st.markdown(f"**<span style='white-space: nowrap;'>Rp {tot_sum_plafon:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
         with tot_cols[3]:
-            st.markdown(f"**<span style='white-space: nowrap;'>Rp {tot_sum_terbayar:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
+            st.markdown(f"**<span style='white-space: nowrap;'>Rp {tot_sum_tagihan:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
         with tot_cols[4]:
-            st.markdown(f"**<span style='white-space: nowrap;'>Rp {tot_sum_piutang:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
+            st.markdown(f"**<span style='white-space: nowrap;'>Rp {tot_sum_terbayar:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
         with tot_cols[5]:
-            st.markdown(f"**{tot_pct_overall:.2f}%**", unsafe_allow_html=True)
+            st.markdown(f"**<span style='white-space: nowrap;'>Rp {tot_sum_piutang:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
         with tot_cols[6]:
+            st.markdown(f"**{tot_pct_overall:.2f}%**", unsafe_allow_html=True)
+        with tot_cols[7]:
             st.markdown("**100%**", unsafe_allow_html=True)
         st.markdown("<hr style='margin: 4px 0; border-top: 2px solid #0f172a;'>", unsafe_allow_html=True)
+
+        # --- DIAGRAM / GRAFIK KOMPARASI KEUANGAN & PERSENTASE ---
+        st.markdown("---")
+        st.markdown("##### 📈 Grafik Visualisasi Komparasi Keuangan & Kinerja Pembayaran")
+        
+        col_g1, col_g2 = st.columns([2, 1])
+        with col_g1:
+            df_grafik = pd.DataFrame({
+                "Komponen Keuangan": ["Total Plafon Kontrak", "Total Tagihan", "Sudah Dibayar", "Sisa Piutang"],
+                "Nominal (Rp)": [total_nilai_kontrak_aktif if total_nilai_kontrak_aktif > 0 else tot_sum_plafon, total_seluruh_tagihan, total_sudah_dibayar, sisa_belum_terbayar]
+            }).set_index("Komponen Keuangan")
+            st.bar_chart(df_grafik, color="#38bdf8")
+            
+        with col_g2:
+            st.markdown(f"""
+                <div style="background-color: #0f172a; color: #f8fafc; padding: 16px; border-radius: 8px; font-size: 13px;">
+                    <p style="font-weight: bold; color: #38bdf8; margin-bottom: 8px;">💡 Ringkasan Analisis Eksekutif:</p>
+                    <ul style="padding-left: 18px; margin: 0; color: #cbd5e1;">
+                        <li><b>Rasio Realisasi:</b> <code>{persen_dibayar:.2f}%</code></li>
+                        <li><b>Rasio Piutang:</b> <code>{persen_sisa:.2f}%</code></li>
+                        <li><b>Dokumen Lunas:</b> <code>{jml_lunas} Dokumen</code></li>
+                        <li><b>Dokumen Overdue:</b> <code>{jml_overdue} Dokumen</code></li>
+                    </ul>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # --- INDIKATOR AGING & JATUH TEMPO ---
+        st.markdown("---")
+        st.markdown("##### 🚨 Indikator Peringatan & Aging Status Pembayaran")
+        c_m1, c_m2, c_m3, c_m4 = st.columns(4)
+        def fmt_rp(val):
+            return f"Rp {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        with c_m1:
+            st.markdown(f"""
+                <div style="background-color: #3b82f6; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 8px;">
+                    <h3 style="margin: 0; font-size: 18px; white-space: nowrap;">{jml_aman} Dokumen</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 13px; font-weight: 700; white-space: nowrap;">{fmt_rp(val_aman)}</p>
+                    <p style="margin: 4px 0 0 0; font-size: 11px;">🔵 Aman / Terkendali</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with c_m2:
+            st.markdown(f"""
+                <div style="background-color: #eab308; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 8px;">
+                    <h3 style="margin: 0; font-size: 18px; white-space: nowrap;">{jml_warning} Dokumen</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 13px; font-weight: 700; white-space: nowrap;">{fmt_rp(val_warning)}</p>
+                    <p style="margin: 4px 0 0 0; font-size: 11px;">🟡 Jatuh Tempo (≤7 Hari)</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with c_m3:
+            st.markdown(f"""
+                <div style="background-color: #ef4444; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 8px;">
+                    <h3 style="margin: 0; font-size: 18px; white-space: nowrap;">{jml_overdue} Dokumen</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 13px; font-weight: 700; white-space: nowrap;">{fmt_rp(val_overdue)}</p>
+                    <p style="margin: 4px 0 0 0; font-size: 11px;">🔴 OVERDUE (Terlambat)</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with c_m4:
+            st.markdown(f"""
+                <div style="background-color: #10b981; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 8px;">
+                    <h3 style="margin: 0; font-size: 18px; white-space: nowrap;">{jml_lunas} Dokumen</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 13px; font-weight: 700; white-space: nowrap;">{fmt_rp(val_lunas)}</p>
+                    <p style="margin: 4px 0 0 0; font-size: 11px;">🟢 Lunas (Selesai)</p>
+                </div>
+            """, unsafe_allow_html=True)
 
     # --- 4. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN (HANYA AMBIL DARI MODUL 3) ---
     st.markdown("---")
@@ -584,10 +672,9 @@ def tampilkan_pemantauan_pembayaran():
                             st.error("❌ Password verifikasi salah!")
                 with col_vk2:
                     if st.button("❌ Batal", key=f"btn_no_del_{idx}"):
-                        if f"confirm_del_{idx}" in st.session_status if "confirm_del_{idx}" in st.session_state else True:
-                            if f"confirm_del_{idx}" in st.session_state:
-                                del st.session_state[f"confirm_del_{idx}"]
-                            st.rerun()
+                        if f"confirm_del_{idx}" in st.session_state:
+                            del st.session_state[f"confirm_del_{idx}"]
+                        st.rerun()
 
             st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
     else:
