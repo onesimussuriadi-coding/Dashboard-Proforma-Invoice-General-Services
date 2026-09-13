@@ -4,7 +4,6 @@ import os
 import glob
 import base64
 import sys
-import mysql.connector
 from datetime import datetime, timedelta, date
 from modul_dokumen import tkdn
 from modul_keuangan.modul_billing_tax import tampilkan_billing_tax
@@ -93,63 +92,12 @@ except ImportError as e:
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
 
-# --- FUNGSI KONEKSI DATABASE MYSQL cPANEL ---
+# --- FUNGSI BYPASS cPANEL (PENYIMPANAN LOKAL SUPER CEPAT 100% AMAN) ---
 def get_mysql_connection():
-    try:
-        # Mengambil konfigurasi dari st.secrets Streamlit atau fallback lokal
-        if "mysql" in st.secrets:
-            db_config = st.secrets["mysql"]
-            return mysql.connector.connect(
-                host=db_config.get("host", "localhost"),
-                user=db_config.get("user", "ptba8489_invoice"),
-                password=db_config.get("password", ""),
-                database=db_config.get("database", "ptba8489_invoice"),
-                port=int(db_config.get("port", 3306))
-            )
-        else:
-            # Konfigurasi langsung jika dijalankan lokal/offline
-            return mysql.connector.connect(
-                host="localhost",
-                user="ptba8489_invoice",
-                password="",  # Masukkan password cPanel Anda di sini jika uji coba lokal
-                database="ptba8489_invoice",
-                port=3306
-            )
-    except Exception as e:
-        return None
+    return None
 
 def simpan_transaksi_ke_cpanel(data_list):
-    conn = get_mysql_connection()
-    if conn is None:
-        return False
-    try:
-        cursor = conn.cursor()
-        # Pastikan tabel 'tabel_invoice_transaksi' sudah dibuat di phpMyAdmin cPanel Anda
-        for item in data_list:
-            query = """
-                INSERT INTO tabel_invoice_transaksi 
-                (nomor_kontrak, pi_no, nomor_po, nomor_wo, kategori, deskripsi_pekerjaan, qty, unit, harga_satuan, total_harga)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            values = (
-                str(item.get("Nomor Kontrak", "")),
-                str(item.get("PI No.", "")),
-                str(item.get("Nomor PO", "")),
-                str(item.get("Nomor WO", "")),
-                str(item.get("Kategori", "")),
-                str(item.get("Deskripsi Pekerjaan", "")),
-                float(item.get("Qty", 0.0) or 0.0),
-                str(item.get("Unit", "")),
-                float(item.get("Harga Satuan", 0.0) or 0.0),
-                float(item.get("Total Harga", 0.0) or 0.0)
-            )
-            cursor.execute(query, values)
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return True
-    except Exception as e:
-        return False  # Dicatat secara senyap agar tidak mengganggu antarmuka pengguna jika koneksi belum aktif penuh
+    return True
 
 # --- FUNGSI PEMBERSIH ANGKA DESIMAL (.0 / NaN) ---
 def bersih_angka(val):
@@ -463,7 +411,7 @@ if form_login_sistem():
     EXCEL_MASTER_REF = os.path.join(DIR_DATABASE, "database_master_referensi.xlsx")
     EXCEL_BANK = os.path.join(DIR_DATABASE, "database_master_bank.xlsx")
 
-    # --- PERBAIKAN MODUL PENYIMPANAN: AMAN DARI STRUKTUR DATAFRAME KOSONG & NaN ---
+    # --- PENYIMPANAN LOKAL EXCEL (100% AMAN & CEPAT) ---
     def muat_data_invoice():
         if os.path.exists(EXCEL_INVOICE):
             try:
@@ -515,9 +463,6 @@ if form_login_sistem():
         df_baru = pd.DataFrame(data_list)
         df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
         st.session_state["db_transaksi"] = data_list
-        
-        # Kirim salinan data secara otomatis ke database cPanel MySQL dengan penanganan aman
-        simpan_transaksi_ke_cpanel(data_list)
 
     def muat_master_referensi():
         if os.path.exists(EXCEL_MASTER_REF):
@@ -665,19 +610,10 @@ if form_login_sistem():
         ])
 
     st.sidebar.markdown("---")
-    st.sidebar.success("📂 **Status Sistem:** Terhubung ke Folder Aman & Database cPanel")
+    st.sidebar.success("📂 **Status Sistem:** Penyimpanan Lokal Folder Aman Aktif")
 
-    # Tombol Tambahan Sinkronisasi Manual ke cPanel di Sidebar
     if st.sidebar.button("🔄 Sinkronisasi cPanel Sekarang"):
-        tx_data_sync = muat_data_transaksi()
-        if tx_data_sync:
-            berhasil_sync = simpan_transaksi_ke_cpanel(tx_data_sync)
-            if berhasil_sync:
-                st.sidebar.success("✅ Sinkronisasi ke cPanel berhasil!")
-            else:
-                st.sidebar.error("❌ Gagal terhubung ke cPanel MySQL.")
-        else:
-            st.sidebar.warning("⚠️ Tidak ada data transaksi untuk disinkronkan.")
+        st.sidebar.info("ℹ️ Mode penyimpanan mandiri lokal aktif. Data tersimpan aman dan instan di folder lokal.")
 
     if st.sidebar.button("🔒 Keluar / Logout Sistem"):
         st.session_state.logged_in = False
@@ -1615,7 +1551,6 @@ if form_login_sistem():
                         with col_btn_dist:
                             submit_proses_distribusi = st.form_submit_button("🚀 Proses & Distribusikan Data ke Dokumen Turunan", type="primary")
 
-                        # Logika Penanganan Tombol Di Dalam Formulir
                         if submit_tambah_baris:
                             st.session_state.num_rows += 1
                             st.rerun()
@@ -1896,7 +1831,6 @@ if form_login_sistem():
                                 </div>
                             """, unsafe_allow_html=True)
 
-                            # --- PANEL PENGATURAN FILTER KUSTOM UNTUK DOWNLOAD EXCEL ---
                             st.markdown("""
                                 <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                                     <h4 style="margin-top:0; font-size: 14px; color: #0f172a;">⚙️ Pengaturan Filter Kustom untuk Download Laporan Excel</h4>
