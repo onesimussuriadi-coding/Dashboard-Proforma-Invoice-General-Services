@@ -84,7 +84,6 @@ except ImportError:
 try:
     from modul_keamanan.autentikasi import form_login_sistem, render_panel_manajemen_akun
 except ImportError:
-    # Fallback autentikasi mandiri jika modul eksternal belum tersedia
     def form_login_sistem():
         return True
     def render_panel_manajemen_akun():
@@ -240,7 +239,7 @@ def tampilkan_pemantauan_pembayaran():
     st.markdown("---")
     st.markdown("##### 🔍 Filter Tampilan & Rekapitulasi Berdasarkan Kontrak")
     opsi_filter_kontrak = ["-- Semua Nomor Kontrak (ALL) --"] + all_contracts
-    filter_kontrak_pilih = st.selectbox("Pilih Nomor Kontrak untuk Filter Dashboard:", opsi_filter_kontrak, key="filter_kontrak_dashboard")
+    filter_kontrak_pilih = st.selectbox("Pilih Nomor Kontrak untuk Filter Dashboard:", opsi_filter_kontrak, key="filter_kontrak_dashboard_mod3")
 
     if filter_kontrak_pilih != "-- Semua Nomor Kontrak (ALL) --":
         filtered_payment_records = [p for p in payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(filter_kontrak_pilih).strip()]
@@ -249,7 +248,6 @@ def tampilkan_pemantauan_pembayaran():
         filtered_payment_records = payment_records
         filtered_invoice_list = invoice_list
 
-    # --- KARTU REKAPITULASI KEUANGAN UTAMA & ANALISIS AGING ---
     if payment_records:
         hari_ini = date.today()
         
@@ -325,7 +323,6 @@ def tampilkan_pemantauan_pembayaran():
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- TABEL RINCIAN REKAPITULASI PER NOMOR KONTRAK ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak")
         
@@ -406,7 +403,6 @@ def tampilkan_pemantauan_pembayaran():
             st.markdown("**100%**", unsafe_allow_html=True)
         st.markdown("<hr style='margin: 4px 0; border-top: 2px solid #0f172a;'>", unsafe_allow_html=True)
 
-        # --- GRAFIK ANALISA PROFESIONAL (BAR CHART & PERSENTASE) ---
         st.markdown("---")
         st.markdown("##### 📈 Grafik Analisis Komparasi Keuangan & Persentase Kinerja Penagihan")
         
@@ -472,7 +468,7 @@ def tampilkan_pemantauan_pembayaran():
 
     col_fc1, col_fc2 = st.columns([1.5, 2.5])
     with col_fc1:
-        form_kontrak_pilih = st.selectbox("1️⃣ Pilih Nomor Kontrak:", all_contracts, key="form_input_kontrak_sel")
+        form_kontrak_pilih = st.selectbox("1️⃣ Pilih Nomor Kontrak:", all_contracts, key="form_input_kontrak_sel_mod3")
     
     inv_list_filtered_contract = [inv for inv in invoice_list if str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() == str(form_kontrak_pilih).strip()]
     
@@ -494,8 +490,8 @@ def tampilkan_pemantauan_pembayaran():
     opsi_panggil_bayar = ["-- Pilih Data Tersimpan untuk Diedit / Panggil Ulang --"] + list_saved_payment_no
 
     with col_fc2:
-        pilihan_panggil_bayar = st.selectbox("2️⃣ Panggil Ulang Data Pemantauan Tersimpan (Kontrak Terpilih):", opsi_panggil_bayar, key="select_panggil_bayar")
-        if st.button("📥 Panggil untuk Diedit", use_container_width=True):
+        pilihan_panggil_bayar = st.selectbox("2️⃣ Panggil Ulang Data Pemantauan Tersimpan (Kontrak Terpilih):", opsi_panggil_bayar, key="select_panggil_bayar_mod3")
+        if st.button("📥 Panggil untuk Diedit", key="btn_panggil_edit_mod3", use_container_width=True):
             if pilihan_panggil_bayar != "-- Pilih Data Tersimpan untuk Diedit / Panggil Ulang --":
                 st.session_state["active_invoice_selected"] = str(pilihan_panggil_bayar).strip()
                 st.success(f"📋 Memuat data pemantauan Invoice `{pilihan_panggil_bayar}`")
@@ -506,9 +502,9 @@ def tampilkan_pemantauan_pembayaran():
         default_select_idx = list_inv_aktif.index(active_edit_inv)
 
     if not list_inv_aktif:
-        selected_inv = st.text_input("3️⃣ Ketik Nomor Invoice Aktif:", value=active_edit_inv)
+        selected_inv = st.text_input("3️⃣ Ketik Nomor Invoice Aktif:", value=active_edit_inv, key="txt_inv_aktif_mod3")
     else:
-        selected_inv = st.selectbox("3️⃣ Pilih Nomor Invoice Aktif:", list_inv_aktif, index=default_select_idx if default_select_idx < len(list_inv_aktif) else 0, key="dropdown_master_invoice_aktif")
+        selected_inv = st.selectbox("3️⃣ Pilih Nomor Invoice Aktif:", list_inv_aktif, index=default_select_idx if default_select_idx < len(list_inv_aktif) else 0, key="dropdown_master_invoice_aktif_mod3")
 
     inv_data = next((inv for inv in invoice_list if str(inv.get(inv_key, "")).strip() == str(selected_inv)), {})
     existing_pay = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == str(selected_inv)), {})
@@ -531,10 +527,10 @@ def tampilkan_pemantauan_pembayaran():
     status_opsi = ["Belum Dibayar", "Sebagian (DP / Termin)", "Lunas"]
     def_status = existing_pay.get("Status Pembayaran", "Belum Dibayar")
     idx_st = status_opsi.index(def_status) if def_status in status_opsi else 0
-    status_pembayaran = st.selectbox("Status Pembayaran:", status_opsi, index=idx_st, key="select_status_pembayaran_live")
+    status_pembayaran = st.selectbox("Status Pembayaran:", status_opsi, index=idx_st, key="select_status_pembayaran_live_mod3")
 
     # --- FORM INPUT & UPDATE ---
-    with st.form("form_update_pembayaran"):
+    with st.form("form_update_pembayaran_mod3"):
         col_p1, col_p2 = st.columns(2)
         with col_p1:
             default_faktur = existing_pay.get("Nomor Faktur Pajak", "")
@@ -745,18 +741,18 @@ if form_login_sistem():
     st.sidebar.markdown("---")
 
     if user_role == "Staff Timesheet":
-        modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan"])
+        modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan"], key="modul_staff_timesheet")
     elif user_role == "Finance / Invoice":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "💰 Modul 3: Invoice & Tax Management",
             "📁 Arsip Dokumen Customer & Pendukung"
-        ])
+        ], key="modul_finance_inv")
     elif user_role == "Staf Marketing / Operasional":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "📁 Modul 1: Database & Master Kontrak",
             "📄 Modul 2: Invoice & Dokumen Turunan",
             "📁 Arsip Dokumen Customer & Pendukung"
-        ])
+        ], key="modul_marketing_ops")
     else: 
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "📁 Modul 0: Master Referensi Harga & Pekerjaan",
@@ -764,7 +760,7 @@ if form_login_sistem():
             "📄 Modul 2: Invoice & Dokumen Turunan",
             "💰 Modul 3: Invoice & Tax Management",
             "📁 Arsip Dokumen Customer & Pendukung"
-        ])
+        ], key="modul_utama_all")
 
     st.sidebar.markdown("---")
 
@@ -774,12 +770,12 @@ if form_login_sistem():
         menu = st.sidebar.radio("Pilih Menu:", [
             "Input & Kelola Master Referensi",
             "Lihat Daftar Master Referensi Tersimpan"
-        ])
+        ], key="menu_mod0")
     elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
         menu = st.sidebar.radio("Pilih Menu:", [
             "Input Database & Invoice (31 Kolom)",
             "Lihat Database Tersimpan"
-        ])
+        ], key="menu_mod1")
     elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
         menu = st.sidebar.radio("Pilih Menu:", [
             "Input Data Invoice Resmi",
@@ -787,7 +783,7 @@ if form_login_sistem():
             "Pemantauan Proses Pembayaran",
             "Pratinjau, Cetak & Download PDF Invoice",
             "Lihat Daftar Invoice & Pajak Tersimpan"
-        ])
+        ], key="menu_mod3")
     elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung":
         menu = "Arsip Dokumen Customer & Pendukung"
     else:
@@ -796,15 +792,15 @@ if form_login_sistem():
             "Pratinjau, Cetak & Download PDF Dokumen",
             "Lihat Akumulasi Riwayat Transaksi",
             "Lihat Master Rekap Transaksi"
-        ])
+        ], key="menu_mod_lain")
 
     st.sidebar.markdown("---")
     st.sidebar.success("📂 **Status Sistem:** Penyimpanan Lokal Folder Aman Aktif")
 
-    if st.sidebar.button("🔄 Sinkronisasi cPanel Sekarang"):
+    if st.sidebar.button("🔄 Sinkronisasi cPanel Sekarang", key="btn_sync_cpanel"):
         st.sidebar.info("ℹ️ Mode penyimpanan mandiri lokal aktif. Data tersimpan aman dan instan di folder lokal.")
 
-    if st.sidebar.button("🔒 Keluar / Logout Sistem"):
+    if st.sidebar.button("🔒 Keluar / Logout Sistem", key="btn_logout_sys"):
         st.session_state.logged_in = False
         st.rerun()
 
