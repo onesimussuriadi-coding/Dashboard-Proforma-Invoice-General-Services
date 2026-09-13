@@ -1189,9 +1189,12 @@ if form_login_sistem():
                     if not filtered_records_list:
                         st.warning("⚠️ Tidak ada data database yang cocok dengan filter yang dipilih.")
                     else:
-                        st.info(ampilkan_info := f"Menampilkan {len(filtered_records_list)} data tersimpan:")
+                        st.info(f"Menampilkan {len(filtered_records_list)} data tersimpan:")
                         
-                        for original_idx, rec in filtered_records_list:
+                        # URUTKAN DARI NOMOR PALING BESAR DI ATAS KE NOMOR PALING KECIL DI BAWAH (REVERSE)
+                        filtered_records_list_sorted = sorted(filtered_records_list, key=lambda x: x[0], reverse=True)
+
+                        for original_idx, rec in filtered_records_list_sorted:
                             with st.container():
                                 pi_num = bersih_angka(rec.get(0, rec.get('Proforma Invoice No', '-')))
                                 kontrak_num = bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-')))
