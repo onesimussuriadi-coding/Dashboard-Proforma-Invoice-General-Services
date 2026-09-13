@@ -814,11 +814,24 @@ if form_login_sistem():
                 st.info("Modul Faktur Pajak sedang dimuat.")
         elif menu == "Pemantauan Proses Pembayaran":
             tampilkan_pemantauan_pembayaran()
-        else:
+        elif menu == "Input Data Invoice Resmi":
             if 'tampilkan_billing_tax' in globals():
                 tampilkan_billing_tax(transaksi_list, menu)
             else:
                 st.info("Modul Billing & Tax sedang dimuat.")
+        elif menu == "Pratinjau, Cetak & Download PDF Invoice":
+            if 'tampilkan_billing_tax' in globals():
+                tampilkan_billing_tax(transaksi_list, menu)
+            else:
+                st.info("Modul Billing & Tax sedang dimuat.")
+        elif menu == "Lihat Daftar Invoice & Pajak Tersimpan":
+            if 'tampilkan_billing_tax' in globals():
+                tampilkan_billing_tax(transaksi_list, menu)
+            else:
+                st.info("Modul Billing & Tax sedang dimuat.")
+        else:
+            tampilkan_pemantauan_pembayaran()
+            
     elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung":
         if 'tampilkan_arsip_pendukung' in globals():
             tampilkan_arsip_pendukung()
