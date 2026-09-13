@@ -4,10 +4,8 @@ import os
 import glob
 import base64
 import sys
+import io
 from datetime import datetime, timedelta, date
-from modul_dokumen import tkdn
-from modul_keuangan.modul_billing_tax import tampilkan_billing_tax
-from modul_keamanan.autentikasi import form_login_sistem, render_panel_manajemen_akun
 
 # Menambahkan path untuk pemanggilan folder modul_dokumen
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -88,6 +86,18 @@ try:
     from modul_keuangan.pemantauan_pembayaran import tampilkan_pemantauan_pembayaran
 except ImportError as e:
     st.error(f"Gagal memuat modul pemantauan_pembayaran: {e}")
+
+# Import Modul Billing & Tax
+try:
+    from modul_keuangan.modul_billing_tax import tampilkan_billing_tax
+except ImportError as e:
+    st.error(f"Gagal memuat modul billing_tax: {e}")
+
+# Import Modul Keamanan: Autentikasi
+try:
+    from modul_keamanan.autentikasi import form_login_sistem, render_panel_manajemen_akun
+except ImportError as e:
+    st.error(f"Gagal memuat modul autentikasi: {e}")
 
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
@@ -411,7 +421,7 @@ if form_login_sistem():
     EXCEL_MASTER_REF = os.path.join(DIR_DATABASE, "database_master_referensi.xlsx")
     EXCEL_BANK = os.path.join(DIR_DATABASE, "database_master_bank.xlsx")
 
-    # --- PENYIMPANAN LOKAL EXCEL (100% AMAN & CEPAT) ---
+    # --- PENYIMPANAN LOKAL EXCEL PERMANEN (100% AMAN & PERSISTEN) ---
     def muat_data_invoice():
         if os.path.exists(EXCEL_INVOICE):
             try:
@@ -420,10 +430,12 @@ if form_login_sistem():
                     df = df.dropna(how='all')
                     for col in df.columns:
                         df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
-                    return df.to_dict(orient="records")
-            except:
+                    data_records = df.to_dict(orient="records")
+                    st.session_state["db_tersimpan"] = data_records
+                    return data_records
+            except Exception as e:
                 pass
-        return []
+        return st.session_state.get("db_tersimpan", [])
 
     def simpan_data_invoice(data_list):
         waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
@@ -446,10 +458,12 @@ if form_login_sistem():
                     for col in df.columns:
                         if col not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']:
                             df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
-                    return df.to_dict(orient="records")
-            except:
+                    data_records = df.to_dict(orient="records")
+                    st.session_state["db_transaksi"] = data_records
+                    return data_records
+            except Exception as e:
                 pass
-        return []
+        return st.session_state.get("db_transaksi", [])
 
     def simpan_data_transaksi(data_list):
         waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
@@ -472,10 +486,12 @@ if form_login_sistem():
                     for col in df.columns:
                         if col not in ['Harga Satuan']:
                             df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
-                    return df.to_dict(orient="records")
-            except:
+                    data_records = df.to_dict(orient="records")
+                    st.session_state["db_master_ref"] = data_records
+                    return data_records
+            except Exception as e:
                 pass
-        return []
+        return st.session_state.get("db_master_ref", [])
 
     def simpan_master_referensi(data_list):
         waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
@@ -506,10 +522,12 @@ if form_login_sistem():
                 if df is not None and not df.empty:
                     for col in df.columns:
                         df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
-                    return df.to_dict(orient="records")
-            except:
+                    data_records = df.to_dict(orient="records")
+                    st.session_state["db_master_bank"] = data_records
+                    return data_records
+            except Exception as e:
                 pass
-        return default_banks
+        return st.session_state.get("db_master_bank", default_banks)
 
     def simpan_master_bank(data_list):
         for item in data_list:
@@ -610,10 +628,10 @@ if form_login_sistem():
         ])
 
     st.sidebar.markdown("---")
-    st.sidebar.success("📂 **Status Sistem:** Penyimpanan Lokal Folder Aman Aktif")
+    st.sidebar.success("📂 **Status Sistem:** Penyimpanan Permanen Lokal Aktif")
 
-    if st.sidebar.button("🔄 Sinkronisasi cPanel Sekarang"):
-        st.sidebar.info("ℹ️ Mode penyimpanan mandiri lokal aktif. Data tersimpan aman dan instan di folder lokal.")
+    if st.sidebar.button("🔄 Sinkronisasi Sistem Sekarang"):
+        st.sidebar.info("ℹ️ Mode penyimpanan lokal persisten aktif.")
 
     if st.sidebar.button("🔒 Keluar / Logout Sistem"):
         st.session_state.logged_in = False
@@ -1125,11 +1143,11 @@ if form_login_sistem():
                             if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(current_data):
                                 current_data[st.session_state["edit_index"]] = data_terinput
                                 simpan_data_invoice(current_data)
-                                st.success("✨ Data berhasil diperbarui!")
+                                st.success("✨ Data berhasil diperbarui secara permanen!")
                         elif submit_save_as or submit_baru:
                             current_data.append(data_terinput)
                             simpan_data_invoice(current_data)
-                            st.success("🎉 Data berhasil disimpan!")
+                            st.success("🎉 Data berhasil disimpan secara permanen!")
                             st.session_state["edit_index"] = None
 
             elif menu == "Lihat Database Tersimpan":
@@ -1144,7 +1162,6 @@ if form_login_sistem():
                 if not saved_records:
                     st.info("ℹ️ Belum ada data database tersimpan di folder aman.")
                 else:
-                    # Filter Berdasarkan Nomor Kontrak dan Nomor PI
                     list_all_kontrak = ["-- Semua Kontrak (All Contracts) --"] + sorted(list(set(
                         bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-'))) for rec in saved_records if bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-'))) != ''
                     )))
@@ -1153,7 +1170,6 @@ if form_login_sistem():
                     with col_fdb1:
                         selected_filter_kontrak = st.selectbox("📌 Filter Berdasarkan Nomor Kontrak:", list_all_kontrak, key="db_filter_kontrak_v4")
 
-                    # Filter PI berdasarkan kontrak yang dipilih
                     if selected_filter_kontrak != "-- Semua Kontrak (All Contracts) --":
                         pi_filtered_candidates = [
                             bersih_angka(rec.get(0, rec.get('Proforma Invoice No.', '-'))) 
@@ -1174,7 +1190,6 @@ if form_login_sistem():
 
                     st.markdown("---")
 
-                    # Terapkan filter ke record
                     filtered_records_list = []
                     for original_idx, rec in enumerate(saved_records):
                         c_kontrak = bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-')))
@@ -1191,22 +1206,31 @@ if form_login_sistem():
                     else:
                         st.info(f"Menampilkan {len(filtered_records_list)} data tersimpan:")
                         
-                        # URUTKAN DARI NOMOR PALING BESAR DI ATAS KE NOMOR PALING KECIL DI BAWAH (REVERSE)
                         filtered_records_list_sorted = sorted(filtered_records_list, key=lambda x: x[0], reverse=True)
 
                         for original_idx, rec in filtered_records_list_sorted:
                             with st.container():
-                                pi_num = bersih_angka(rec.get(0, rec.get('Proforma Invoice No', '-')))
+                                pi_num = bersih_angka(rec.get(0, rec.get('Proforma Invoice No.', '-')))
                                 kontrak_num = bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-')))
                                 judul_k = bersih_angka(rec.get(7, rec.get('Judul Kontrak', '-')))
                                 
-                                col_s1, col_s2, col_s3, col_s4 = st.columns([1, 2.5, 3.5, 1])
+                                po_num = bersih_angka(rec.get(8, rec.get('Nomor Purchase Order', '-')))
+                                wo_num = bersih_angka(rec.get(21, rec.get('Nomor WO', '-')))
+                                ctr_num = bersih_angka(rec.get(23, rec.get('Nomor CTR', '-')))
+                                
+                                col_s1, col_s2, col_s3, col_s4 = st.columns([0.8, 2.2, 4.5, 1.5])
                                 with col_s1:
                                     st.write(f"**#{original_idx+1}**")
                                 with col_s2:
-                                    st.write(f"**Kontrak:** `{kontrak_num}`")
+                                    st.write(f"**Kontrak:**<br>`{kontrak_num}`", unsafe_allow_html=True)
                                 with col_s3:
-                                    st.write(f"**PI No:** `{pi_num}`<br><small style='color:#475569;'>{judul_k[:50]}...</small>", unsafe_allow_html=True)
+                                    st.markdown(f"""
+                                        **PI No:** `{pi_num if pi_num else '-'}`<br>
+                                        <span style='color:#0369a1; font-weight:600;'>🏷️ PO:</span> `{po_num if po_num and po_num != '-' else 'Belum Diisi'}` &nbsp;|&nbsp; 
+                                        <span style='color:#0369a1; font-weight:600;'>⚙️ WO:</span> `{wo_num if wo_num and wo_num != '-' else 'Belum Diisi'}` &nbsp;|&nbsp; 
+                                        <span style='color:#0369a1; font-weight:600;'>📌 CTR:</span> `{ctr_num if ctr_num and ctr_num != '-' else 'Belum Diisi'}`<br>
+                                        <small style='color:#475569;'>{judul_k[:60]}...</small>
+                                    """, unsafe_allow_html=True)
                                 with col_s4:
                                     if st.button("🗑️ Hapus", key=f"del_db_row_{original_idx}", help="Hapus permanen baris ini"):
                                         saved_records.pop(original_idx)
@@ -1300,23 +1324,26 @@ if form_login_sistem():
                     alamat_pihak_pertama = bersih_angka(matched_record.get(11, matched_record.get("Alamat Pihak Pertama", "")))
                     jangka_waktu = bersih_angka(matched_record.get(5, matched_record.get("Jangka Waktu Kontrak", "")))
                     
-                    nomor_wo_default = bersih_angka(matched_record.get(21, matched_record.get("Nomor WO", "-")))
+                    nomor_po_default_m1 = bersih_angka(matched_record.get(8, matched_record.get("Nomor Purchase Order", "-")))
+                    nomor_wo_default_m1 = bersih_angka(matched_record.get(21, matched_record.get("Nomor WO", "-")))
+                    tanggal_po_default_m1 = bersih_angka(matched_record.get(9, matched_record.get("Tanggal Purchase Order", "")))
+                    desc_po_default_m1 = bersih_angka(matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))
                 
                     with col2:
-                        raw_po_num = loaded_tx_items[0].get("Nomor PO", matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))) if loaded_tx_items else matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))
+                        raw_po_num = nomor_po_default_m1 if (nomor_po_default_m1 and nomor_po_default_m1 != "-") else (loaded_tx_items[0].get("Nomor PO", "") if loaded_tx_items else "")
                         def_po_num = bersih_angka(raw_po_num)
                         
                         raw_wan_num = loaded_tx_items[0].get("Nomor WAN / SA", "") if loaded_tx_items else ""
                         def_wan_num = bersih_angka(raw_wan_num)
 
-                        raw_po_date = loaded_tx_items[0].get("Tanggal PO", matched_record.get(9, matched_record.get("Tanggal Purchase Order", ""))) if loaded_tx_items else matched_record.get(9, matched_record.get("Tanggal Purchase Order", ""))
+                        raw_po_date = tanggal_po_default_m1 if tanggal_po_default_m1 else (loaded_tx_items[0].get("Tanggal PO", "") if loaded_tx_items else "")
                         def_po_date = bersih_angka(raw_po_date)
 
-                        def_desc_po = bersih_angka(loaded_tx_items[0].get("Deskripsi PO", matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))) if loaded_tx_items else bersih_angka(matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))
+                        def_desc_po = desc_po_default_m1 if desc_po_default_m1 else (bersih_angka(loaded_tx_items[0].get("Deskripsi PO", "")) if loaded_tx_items else "")
 
                         nomor_po = st.text_input("Nomor PO", def_po_num if def_po_num else "-")
                         
-                        raw_wo_num = loaded_tx_items[0].get("Nomor WO", nomor_wo_default) if loaded_tx_items else nomor_wo_default
+                        raw_wo_num = nomor_wo_default_m1 if (nomor_wo_default_m1 and nomor_wo_default_m1 != "-") else (loaded_tx_items[0].get("Nomor WO", "") if loaded_tx_items else "")
                         nomor_wo = st.text_input("Nomor WO", bersih_angka(raw_wo_num) if raw_wo_num else "-")
 
                         nomor_wan_sa = st.text_input("Nomor WAN / SA (Work Authorization Notice / Service Agreement)", def_wan_num if def_wan_num else "-")
@@ -1419,7 +1446,6 @@ if form_login_sistem():
                     if "num_rows" not in st.session_state:
                         st.session_state.num_rows = len(loaded_tx_items) if loaded_tx_items else 1
 
-                    # --- FORMULIR RUMAH UTAMA UNTUK BARIS PEKERJAAN & TOMBOL AKSI ---
                     with st.form("form_proses_rincian_pekerjaan"):
                         items_data_input = []
                         
@@ -1668,7 +1694,7 @@ if form_login_sistem():
                                 existing_tx.append(data_transaksi)
 
                             simpan_data_transaksi(existing_tx)
-                            st.success(f"💾 Berhasil menyimpan data sementara untuk PI [{pi_target_simpan}]!")
+                            st.success(f"💾 Berhasil menyimpan data sementara secara permanen untuk PI [{pi_target_simpan}]!")
 
                         if submit_proses_distribusi:
                             waktu_aksi = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
@@ -1729,7 +1755,7 @@ if form_login_sistem():
 
                             simpan_data_transaksi(existing_tx)
                             st.session_state.num_rows = 1
-                            st.success(f"🎉 Berhasil mendistribusikan data untuk Proforma Invoice [{pi_baru}] ke dokumen turunan!")
+                            st.success(f"🎉 Berhasil mendistribusikan data secara permanen untuk Proforma Invoice [{pi_baru}] ke dokumen turunan!")
 
             elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
                 transaksi_list = muat_data_transaksi()
@@ -1957,7 +1983,6 @@ if form_login_sistem():
                                 if "Tanggal PI" in df_excel_target.columns:
                                     df_excel_target = df_excel_target[df_excel_target["Tanggal PI"].apply(filter_by_month)]
 
-                            import io
                             output_excel = io.BytesIO()
                             kolom_export_preferred = [
                                 "Nomor Kontrak", "PI No.", "Nomor PO", "Nomor WO", "Kategori", 
