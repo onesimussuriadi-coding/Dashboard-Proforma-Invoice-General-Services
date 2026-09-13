@@ -131,18 +131,24 @@ def tampilkan_proforma_invoice(transaksi_list):
     for idx, m in enumerate(mutasi_terpilih, start=1):
         kategori_str = str(m.get('Kategori', '')).lower()
         qty_val = float(m.get('Qty', 0.0))
-        unit_price = float(m.get('Harga Satuan', 0.0))
+        unit_price = float(m.get('Harga Satuan', 0.0))  # Harga satuan murni sesuai kontrak
         percent_val = float(m.get('Percent', 100.0))
+        kategori_awal = str(m.get('Kategori', 'MONTHLY BASIS'))
 
-        # Perhitungan mandiri per baris Total Harga Proforma Invoice dengan penambahan Estimated Sum (Diskon 10%)
+        # Perhitungan mandiri per baris Total Harga Proforma Invoice
         if "provisional" in kategori_str or "professional" in kategori_str:
             total_item = (qty_val * unit_price) * 1.15 * (percent_val / 100.0)
+            kategori_display = kategori_awal
         elif "estimated" in kategori_str or "estimasi" in kategori_str:
             total_item = (qty_val * unit_price * 0.9) * (percent_val / 100.0)
+            harga_diskon_val = unit_price * 0.9
+            # Tambahkan catatan diskon tepat di bawah kategori
+            kategori_display = f"{kategori_awal}<br><span style='font-size: 8.5px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {unit_price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
         else:
             total_item = (qty_val * unit_price) * (percent_val / 100.0)
+            kategori_display = kategori_awal
 
-        desc_text = f"<b>{m.get('Kategori', 'MONTHLY BASIS')}</b><br>{m.get('Deskripsi Pekerjaan', '-')}"
+        desc_text = f"<b>{kategori_display}</b><br>{m.get('Deskripsi Pekerjaan', '-')}"
         if m.get('Keterangan'):
             desc_text += f"<br><span style='font-size: 10px; color: #334155;'>{m.get('Keterangan')}</span>"
         
