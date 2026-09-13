@@ -243,7 +243,13 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         with col_h1:
             selected_sawanan_m3 = st.selectbox("1️⃣ Pilih Nomor WAN / SA (Indikator Utama):", list_sawanan_valid if list_sawanan_valid else [target_sawanan_val], index=idx_sawanan_def if list_sawanan_valid else 0, key="m3_sel_sawanan")
 
-        # FILTER KETAT: Ambil baris berdasarkan WAN yang dipilih, lalu tentukan Kontrak & PI secara otomatis
+        # --- MEKANISME DINAMIS: RESET PI JIKA WAN BERUBAH ---
+        last_selected_wan = st.session_state.get("m3_last_wan_tracked", "")
+        if last_selected_wan != selected_sawanan_m3:
+            st.session_state["m3_last_wan_tracked"] = selected_sawanan_m3
+            st.session_state["m3_pi_index_reset"] = 0
+
+        # FILTER KETAT: Ambil baris berdasarkan WAN yang dipilih
         filtered_by_sawanan = [t for t in valid_transaksi_list if str(t.get("Nomor WAN / SA")) == str(selected_sawanan_m3)]
         
         # Ambil Nomor Kontrak otomatis dari WAN yang dipilih
@@ -256,7 +262,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         if is_mode_edit and target_pi_val and target_pi_val not in list_pi_m3:
             list_pi_m3.append(target_pi_val)
 
-        idx_pi_def = 0
+        idx_pi_def = st.session_state.get("m3_pi_index_reset", 0)
         if is_mode_edit and target_pi_val in list_pi_m3:
             idx_pi_def = list_pi_m3.index(str(target_pi_val))
 
