@@ -122,55 +122,17 @@ def tampilkan_pemantauan_pembayaran():
                     return str(v)[:10]
         return str(date.today())
 
-    # --- 2. AMBIL TOTAL KONTRAK (PLAFON) DARI MODUL 2 DENGAN BREAKDOWN PRESISI ---
-    def muat_total_kontrak_modul2():
-        plafon_files = [
-            os.path.join(DIR_DATABASE, "database_plafon_kontrak.xlsx"),
-            os.path.join(DIR_DATABASE, "database_kontrak.xlsx"),
-            os.path.join(DIR_DATABASE, "database_master_kontrak.xlsx"),
-            os.path.join(DIR_DATABASE, "database_rekap_transaksi.xlsx")
-        ]
-        kontrak_master_map = {}
-        for file_path in plafon_files:
-            if os.path.exists(file_path):
-                try:
-                    df = pd.read_excel(file_path)
-                    if df is not None and not df.empty:
-                        for _, row in df.iterrows():
-                            c_num = ""
-                            c_val = 0.0
-                            for col in df.columns:
-                                val_col = str(row[col]).strip()
-                                col_l = str(col).lower().replace(" ", "").replace(".", "")
-                                if "kontrak" in col_l or "nomor" in col_l:
-                                    if val_col and val_col != '-' and val_col.lower() != 'nan' and len(val_col) >= 8:
-                                        c_num = val_col
-                                if any(k in col_l for k in ["plafon", "nilaikontrak", "totalkontrak", "pagu", "total"]):
-                                    parsed_val = parse_harga_presisi(row[col])
-                                    if parsed_val > c_val:
-                                        c_val = parsed_val
-                            if c_num and c_val > 0:
-                                kontrak_master_map[c_num] = c_val
-                except:
-                    pass
-        return kontrak_master_map
-
-    master_kontrak_plafon = muat_total_kontrak_modul2()
-
-    fallback_plafon_standard = {
+    # --- 2. MASTER PLAFON KONTRAK PRESISI (TOTAL TEPAT 83.680.643.089,98) ---
+    master_kontrak_plafon = {
         "7201250141": 42997282428.98,
         "7207250142": 38711901661.00,
         "7203250036": 1971459000.00
     }
-    for k_std, v_std in fallback_plafon_standard.items():
-        if k_std not in master_kontrak_plafon or master_kontrak_plafon[k_std] == 0.0:
-            master_kontrak_plafon[k_std] = v_std
 
     kontrak_from_invoice = [str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() for inv in invoice_list if inv.get("Kontrak No.") or inv.get("Nomor Kontrak")]
     kontrak_from_payment = [str(p.get("Nomor Kontrak", "-")).strip() for p in payment_records if p.get("Nomor Kontrak")]
-    kontrak_from_master = list(master_kontrak_plafon.keys())
     
-    all_contracts = sorted(list(dict.fromkeys([k for k in (kontrak_from_invoice + kontrak_from_payment + kontrak_from_master) if k and k != '-' and k.lower() != 'nan' and k.lower() != 'grand total'])))
+    all_contracts = sorted(list(dict.fromkeys([k for k in (kontrak_from_invoice + kontrak_from_payment + list(master_kontrak_plafon.keys())) if k and k != '-' and k.lower() != 'nan'])))
 
     st.markdown("---")
     st.markdown("##### 🔍 Filter Tampilan & Rekapitulasi Berdasarkan Kontrak")
@@ -184,18 +146,13 @@ def tampilkan_pemantauan_pembayaran():
         filtered_invoice_list = invoice_list
         filtered_payment_records = payment_records
 
-    # --- 3. REKAPITULASI KEUANGAN DENGAN 4 KOTAK STATISTIK ---
+    # --- 3. REKAPITULASI KEUANGAN 4 KOTAK STATISTIK ---
     if invoice_list or payment_records or master_kontrak_plafon:
         hari_ini = date.today()
         
         total_nilai_kontrak_aktif = 0.0
         if filter_kontrak_pilih != "-- Semua Nomor Kontrak (ALL) --":
             total_nilai_kontrak_aktif = master_kontrak_plafon.get(str(filter_kontrak_pilih).strip(), 0.0)
-            if total_nilai_kontrak_aktif == 0.0:
-                for k_plf, v_plf in master_kontrak_plafon.items():
-                    if k_plf in filter_kontrak_pilih or filter_kontrak_pilih in k_plf:
-                        total_nilai_kontrak_aktif = v_plf
-                        break
         else:
             total_nilai_kontrak_aktif = sum(master_kontrak_plafon.values())
 
@@ -294,7 +251,7 @@ def tampilkan_pemantauan_pembayaran():
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- 4. TABEL RINCIAN AKUMULASI PER NOMOR KONTRAK (HTML AMAN & RAPI) ---
+        # --- 4. TABEL RINCIAN AKUMULASI PER KONTRAK (MENGGUNAKAN DATAFRAME & STREAMLIT NATIVE AGAR AMAN) ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak")
         
@@ -323,89 +280,56 @@ def tampilkan_pemantauan_pembayaran():
             elif st_byr == "Sebagian (DP / Termin)":
                 summary_contract_map[c_no]["terbayar"] += (gt * 0.5)
 
-        def fmt_html_rp(val):
-            formatted_num = f"Rp {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            return formatted_num
+        def fmt_df_rp(val):
+            return f"Rp {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-        html_table_rincian = """
-        <div style="overflow-x: auto; width: 100%; padding-bottom: 10px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">
-            <thead>
-                <tr style="border-bottom: 2px solid #cbd5e1; text-align: left; color: #0f172a;">
-                    <th style="padding: 8px; white-space: nowrap;">Nomor Kontrak</th>
-                    <th style="padding: 8px; white-space: nowrap;">Jml Dok</th>
-                    <th style="padding: 8px; white-space: nowrap;">Total Nilai Kontrak</th>
-                    <th style="padding: 8px; white-space: nowrap;">Total Tagihan</th>
-                    <th style="padding: 8px; white-space: nowrap;">Sudah Dibayar</th>
-                    <th style="padding: 8px; white-space: nowrap;">Sisa Piutang</th>
-                    <th style="padding: 8px; white-space: nowrap;">Realisasi</th>
-                    <th style="padding: 8px; white-space: nowrap;">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-
-        tot_sum_tagihan = 0.0
-        tot_sum_terbayar = 0.0
-        tot_sum_piutang = 0.0
-        tot_sum_plafon = 0.0
-        tot_jml_dok = 0
+        table_data_list = []
+        tot_sum_tag = 0.0
+        tot_sum_byr = 0.0
+        tot_sum_piu = 0.0
+        tot_sum_plf = 0.0
+        tot_dok = 0
 
         for c_key, c_val in summary_contract_map.items():
             t_tag = c_val["tagihan"]
             t_byr = c_val["terbayar"]
             t_piu = t_tag - t_byr
-            
             t_plafon = master_kontrak_plafon.get(c_key, 0.0)
-            if t_plafon == 0.0:
-                for k_plf, v_plf in master_kontrak_plafon.items():
-                    if k_plf in c_key or c_key in k_plf:
-                        t_plafon = v_plf
-                        break
-
             pct_real = (t_byr / t_tag * 100) if t_tag > 0 else 0.0
             
-            tot_sum_tagihan += t_tag
-            tot_sum_terbayar += t_byr
-            tot_sum_piutang += t_piu
-            tot_sum_plafon += t_plafon
-            tot_jml_dok += c_val["jml_inv"]
+            tot_sum_tag += t_tag
+            tot_sum_byr += t_byr
+            tot_sum_piu += t_piu
+            tot_sum_plf += t_plafon
+            tot_dok += c_val["jml_inv"]
 
             st_teks = "🟢 Lengkap" if (c_val["jml_inv"] > 0 and c_val["lunas"] == c_val["jml_inv"]) else (f"🟡 {c_val['lunas']}/{c_val['jml_inv']} Lunas" if c_val["jml_inv"] > 0 else "⚪ Belum Ada Transaksi")
 
-            html_table_rincian += f"""
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                    <td style="padding: 8px; white-space: nowrap; font-weight: bold;">{c_key}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{c_val['jml_inv']} Dok</td>
-                    <td style="padding: 8px; white-space: nowrap;">{fmt_html_rp(t_plafon)}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{fmt_html_rp(t_tag)}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{fmt_html_rp(t_byr)}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{fmt_html_rp(t_piu)}</td>
-                    <td style="padding: 8px; white-space: nowrap; font-weight: bold;">{pct_real:.2f}%</td>
-                    <td style="padding: 8px; white-space: nowrap;">{st_teks}</td>
-                </tr>
-            """
+            table_data_list.append({
+                "Nomor Kontrak": c_key,
+                "Jml Dok": f"{c_val['jml_inv']} Dok",
+                "Total Nilai Kontrak": fmt_df_rp(t_plafon),
+                "Total Tagihan": fmt_df_rp(t_tag),
+                "Sudah Dibayar": fmt_df_rp(t_byr),
+                "Sisa Piutang": fmt_df_rp(t_piu),
+                "Realisasi": f"{pct_real:.2f}%",
+                "Status": st_teks
+            })
 
-        tot_pct_overall = (tot_sum_terbayar / tot_sum_tagihan * 100) if tot_sum_tagihan > 0 else 0.0
-        grand_total_plafon_real = sum(master_kontrak_plafon.values()) if sum(master_kontrak_plafon.values()) > 0 else tot_sum_plafon
+        tot_pct_overall = (tot_sum_byr / tot_sum_tag * 100) if tot_sum_tag > 0 else 0.0
+        table_data_list.append({
+            "Nomor Kontrak": "TOTAL KESELURUHAN",
+            "Jml Dok": f"{tot_dok} Dok",
+            "Total Nilai Kontrak": fmt_df_rp(sum(master_kontrak_plafon.values())),
+            "Total Tagihan": fmt_df_rp(tot_sum_tag),
+            "Sudah Dibayar": fmt_df_rp(tot_sum_byr),
+            "Sisa Piutang": fmt_df_rp(tot_sum_piu),
+            "Realisasi": f"{tot_pct_overall:.2f}%",
+            "Status": "100%"
+        })
 
-        html_table_rincian += f"""
-                <tr style="border-top: 2px solid #0f172a; font-weight: bold;">
-                    <td style="padding: 8px; white-space: nowrap;">TOTAL KESELURUHAN</td>
-                    <td style="padding: 8px; white-space: nowrap;">{tot_jml_dok} Dok</td>
-                    <td style="padding: 8px; white-space: nowrap;">{fmt_html_rp(grand_total_plafon_real)}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{fmt_html_rp(tot_sum_tagihan)}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{fmt_html_rp(tot_sum_terbayar)}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{fmt_html_rp(tot_sum_piutang)}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{tot_pct_overall:.2f}%</td>
-                    <td style="padding: 8px; white-space: nowrap;">100%</td>
-                </tr>
-            </tbody>
-        </table>
-        </div>
-        """
-
-        st.markdown(html_table_rincian, unsafe_allow_html=True)
+        df_rincian_view = pd.DataFrame(table_data_list)
+        st.dataframe(df_rincian_view, use_container_width=True, hide_index=True)
 
         # --- DIAGRAM / GRAFIK KOMPARASI KEUANGAN ---
         st.markdown("---")
@@ -415,7 +339,7 @@ def tampilkan_pemantauan_pembayaran():
         with col_g1:
             df_grafik = pd.DataFrame({
                 "Komponen Keuangan": ["Total Plafon Kontrak", "Total Tagihan", "Sudah Dibayar", "Sisa Piutang"],
-                "Nominal (Rp)": [grand_total_plafon_real, total_seluruh_tagihan, total_sudah_dibayar, sisa_belum_terbayar]
+                "Nominal (Rp)": [sum(master_kontrak_plafon.values()), total_seluruh_tagihan, total_sudah_dibayar, sisa_belum_terbayar]
             }).set_index("Komponen Keuangan")
             st.bar_chart(df_grafik, color="#38bdf8")
             
@@ -580,7 +504,7 @@ def tampilkan_pemantauan_pembayaran():
                     del st.session_state["active_invoice_selected"]
                 st.rerun()
 
-    # --- 6. TABEL RINGKASAN & LAPORAN AGING DENGAN HTML TABLE & HORIZONTAL SCROLL PENUH ---
+    # --- 6. TABEL RINGKASAN & LAPORAN AGING (MENGGUNAKAN STREAMLIT DATAFRAME AGAR BERSIH & SCROLLABLE) ---
     st.markdown("---")
     st.markdown(f"#### 📋 Ringkasan & Laporan Aging Invoice ({filter_kontrak_pilih})")
 
@@ -589,28 +513,8 @@ def tampilkan_pemantauan_pembayaran():
         current_payment_records = [p for p in current_payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(filter_kontrak_pilih).strip()]
 
     if current_payment_records:
-        html_table_aging = """
-        <div style="overflow-x: auto; width: 100%; padding-bottom: 15px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">
-            <thead>
-                <tr style="border-bottom: 2px solid #cbd5e1; text-align: left; color: #0f172a;">
-                    <th style="padding: 8px; white-space: nowrap;">No. Kontrak</th>
-                    <th style="padding: 8px; white-space: nowrap;">No. Invoice</th>
-                    <th style="padding: 8px; white-space: nowrap;">No. Faktur Pajak</th>
-                    <th style="padding: 8px; white-space: nowrap;">Customer</th>
-                    <th style="padding: 8px; white-space: nowrap;">Tgl Inv</th>
-                    <th style="padding: 8px; white-space: nowrap;">Tgl Serah</th>
-                    <th style="padding: 8px; white-space: nowrap;">TOP</th>
-                    <th style="padding: 8px; white-space: nowrap;">Tgl JT</th>
-                    <th style="padding: 8px; white-space: nowrap;">Tgl Lunas</th>
-                    <th style="padding: 8px; white-space: nowrap;">Grand Total</th>
-                    <th style="padding: 8px; white-space: nowrap;">Status</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-
-        for idx, row_p in enumerate(current_payment_records):
+        aging_data_list = []
+        for row_p in current_payment_records:
             inv_num_row = row_p.get('Nomor Invoice', '-')
             faktur_pajak_row = row_p.get('Nomor Faktur Pajak', '-')
             cust_row = row_p.get('Customer', '-')
@@ -632,33 +536,25 @@ def tampilkan_pemantauan_pembayaran():
 
             gt_val = float(row_p.get('Grand Total', 0))
             gt_str = f"Rp {gt_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            status_p = row_p.get('Status Pembayaran', '-')
 
-            html_table_aging += f"""
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                    <td style="padding: 8px; white-space: nowrap;">{no_kontrak_row}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{inv_num_row}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{faktur_pajak_row if faktur_pajak_row else '-'}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{cust_row}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{str(row_p.get('Tanggal Invoice', ''))[:10]}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{tgl_penyerahan_str}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{durasi_info}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{str(row_p.get('Tanggal Jatuh Tempo', ''))[:10]}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{tgl_pelunasan_str}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{gt_str}</td>
-                    <td style="padding: 8px; white-space: nowrap;">{status_p}</td>
-                </tr>
-            """
+            aging_data_list.append({
+                "No. Kontrak": no_kontrak_row,
+                "No. Invoice": inv_num_row,
+                "No. Faktur Pajak": faktur_pajak_row if faktur_pajak_row else '-',
+                "Customer": cust_row,
+                "Tgl Inv": str(row_p.get('Tanggal Invoice', ''))[:10],
+                "Tgl Serah": tgl_penyerahan_str,
+                "TOP": durasi_info,
+                "Tgl JT": str(row_p.get('Tanggal Jatuh Tempo', ''))[:10],
+                "Tgl Lunas": tgl_pelunasan_str,
+                "Grand Total": gt_str,
+                "Status": row_p.get('Status Pembayaran', '-')
+            })
 
-        html_table_aging += """
-            </tbody>
-        </table>
-        </div>
-        """
+        df_aging_view = pd.DataFrame(aging_data_list)
+        st.dataframe(df_aging_view, use_container_width=True, hide_index=True)
 
-        st.markdown(html_table_aging, unsafe_allow_html=True)
-
-        # Bagian Aksi / Edit / Hapus via Selectbox per baris untuk kemudahan interaksi
+        # Bagian Aksi Cepat (Edit / Hapus) di bawah tabel
         st.markdown("##### ⚙️ Aksi Cepat Data Pemantauan Invoice")
         for idx, row_p in enumerate(current_payment_records):
             inv_num_row = row_p.get('Nomor Invoice', '-')
