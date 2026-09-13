@@ -171,16 +171,28 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     for idx, m in enumerate(matching_mutasi_list, start=1):
         kategori_str = str(m.get('Kategori', '')).lower()
         qty_val = float(m.get('Qty', 0))
-        harga_satuan_val = float(m.get('Harga Satuan', 0))
+        harga_satuan_asli = float(m.get('Harga Satuan', 0))
         percent_val = float(m.get('Percent', 100.0))
+        ket_awal = str(m.get('Keterangan', '-'))
 
-        # Perhitungan mandiri per baris untuk Total Harga dengan penanganan formula khusus
-        if "provisional" in kategori_str or "professional" in kategori_str:
-            total_harga_val = (qty_val * harga_satuan_val) * 1.15 * (percent_val / 100.0)
-        elif "estimated" in kategori_str or "estimasi" in kategori_str:
-            total_harga_val = (qty_val * harga_satuan_val * 0.9) * (percent_val / 100.0)
-        else:
+        # Penyesuaian khusus Estimated Sum / Estimasi Sum (Diskon 10%)
+        if "estimated" in kategori_str or "estimasi" in kategori_str:
+            harga_satuan_val = harga_satuan_asli * 0.9  # Harga setelah diskon 10% (misal 7.500 jadi 6.750)
             total_harga_val = (qty_val * harga_satuan_val) * (percent_val / 100.0)
+            
+            # Tambahkan keterangan diskon secara transparan jika belum ada
+            if "diskon" not in ket_awal.lower():
+                keterangan_final = f"{ket_awal} (Termasuk Diskon 10% dari Harga Penawaran Rp {harga_satuan_asli:,.2f})"
+            else:
+                keterangan_final = ket_awal
+        elif "provisional" in kategori_str or "professional" in kategori_str:
+            harga_satuan_val = harga_satuan_asli
+            total_harga_val = (qty_val * harga_satuan_val) * 1.15 * (percent_val / 100.0)
+            keterangan_final = ket_awal
+        else:
+            harga_satuan_val = harga_satuan_asli
+            total_harga_val = (qty_val * harga_satuan_val) * (percent_val / 100.0)
+            keterangan_final = ket_awal
 
         rows_html += f"""
             <tr>
@@ -193,7 +205,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <td style="text-align: center; white-space: nowrap;">{m.get('Tanggal Selesai', '-')}</td>
                 <td style="text-align: right;">{harga_satuan_val:,.2f}</td>
                 <td style="text-align: right;">{total_harga_val:,.2f}</td>
-                <td>{m.get('Keterangan', '-')}</td>
+                <td>{keterangan_final}</td>
             </tr>
         """
 
