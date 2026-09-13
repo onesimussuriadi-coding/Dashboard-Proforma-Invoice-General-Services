@@ -138,10 +138,10 @@ def simpan_transaksi_ke_cpanel(data_list):
                 str(item.get("Nomor WO", "")),
                 str(item.get("Kategori", "")),
                 str(item.get("Deskripsi Pekerjaan", "")),
-                float(item.get("Qty", 0.0)),
+                float(item.get("Qty", 0.0) or 0.0),
                 str(item.get("Unit", "")),
-                float(item.get("Harga Satuan", 0.0)),
-                float(item.get("Total Harga", 0.0))
+                float(item.get("Harga Satuan", 0.0) or 0.0),
+                float(item.get("Total Harga", 0.0) or 0.0)
             )
             cursor.execute(query, values)
         conn.commit()
@@ -328,7 +328,7 @@ if form_login_sistem():
             except:
                 pass
 
-        total_tagihan = sum([float(item.get("Total Harga", item.get("TOTAL", 0.0))) for item in transaksi_list]) if isinstance(transaksi_list, list) else 0.0
+        total_tagihan = sum([float(item.get("Total Harga", item.get("TOTAL", 0.0)) or 0.0) for item in transaksi_list]) if isinstance(transaksi_list, list) else 0.0
         if total_tagihan <= 0:
             total_tagihan = float(t_data.get("Total Amount", t_data.get("TOTAL", 51818130.0) if isinstance(t_data.get("TOTAL"), (int, float)) else 51818130.0))
 
@@ -463,6 +463,7 @@ if form_login_sistem():
     EXCEL_MASTER_REF = os.path.join(DIR_DATABASE, "database_master_referensi.xlsx")
     EXCEL_BANK = os.path.join(DIR_DATABASE, "database_master_bank.xlsx")
 
+    # --- PERBAIKAN MODUL PENYIMPANAN: AMAN DARI STRUKTUR DATAFRAME KOSONG & NaN ---
     def muat_data_invoice():
         if os.path.exists(EXCEL_INVOICE):
             try:
@@ -515,7 +516,7 @@ if form_login_sistem():
         df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
         st.session_state["db_transaksi"] = data_list
         
-        # Kirim salinan data secara otomatis ke database cPanel MySQL
+        # Kirim salinan data secara otomatis ke database cPanel MySQL dengan penanganan aman
         simpan_transaksi_ke_cpanel(data_list)
 
     def muat_master_referensi():
@@ -798,7 +799,7 @@ if form_login_sistem():
                     with col2:
                         uraian_ref = st.text_area("Uraian Pekerjaan / Spesifikasi Alat", value=str(def_ref.get("Uraian Pekerjaan", "")), height=105)
                         try:
-                            val_hs_num = float(def_ref.get("Harga Satuan", 0.0))
+                            val_hs_num = float(def_ref.get("Harga Satuan", 0.0) or 0.0)
                         except:
                             val_hs_num = 0.0
                         harga_satuan_ref = st.number_input("Harga Satuan Tetap (Rp)", min_value=0.0, value=val_hs_num, step=1000.0, format="%.2f")
@@ -1344,8 +1345,8 @@ if form_login_sistem():
                         "Pekerjaan Gabungan (Barang & Jasa)"
                     ]
                     
-                    def_jenis_bastb = loaded_tx_items[0].get("Jenis BASTP", opsi_jenis_bastp[1]) if loaded_tx_items else opsi_jenis_bastp[1]
-                    idx_bastp = opsi_jenis_bastp.index(def_jenis_bastb) if def_jenis_bastb in opsi_jenis_bastp else 1
+                    def_jenis_bastp = loaded_tx_items[0].get("Jenis BASTP", opsi_jenis_bastp[1]) if loaded_tx_items else opsi_jenis_bastp[1]
+                    idx_bastp = opsi_jenis_bastp.index(def_jenis_bastp) if def_jenis_bastp in opsi_jenis_bastp else 1
                     
                     jenis_bastp_pilih = st.selectbox(
                         "Pilih Jenis BASTP untuk Dokumen Turunan:",
@@ -1407,7 +1408,7 @@ if form_login_sistem():
                         st.text_input("Atas Nama Rekening", value=bank_acc_name if bank_acc_name else "-", disabled=True)
                         attn_to = st.text_input("Attn. (Penerima Invoice)", value=attn_to if attn_to else "-")
                         try:
-                            def_percent = float(loaded_tx_items[0].get("Percent", 100.0)) if loaded_tx_items else 100.0
+                            def_percent = float(loaded_tx_items[0].get("Percent", 100.0) or 100.0) if loaded_tx_items else 100.0
                         except:
                             def_percent = 100.0
                         persen_val = st.number_input("Persentase Tagihan (%)", min_value=1.0, max_value=100.0, value=def_percent)
@@ -1505,7 +1506,7 @@ if form_login_sistem():
                                     if not m_row.empty:
                                         row_m = m_row.iloc[0]
                                         try:
-                                            hs_otomatis = float(row_m.get("Harga Satuan", 0.0))
+                                            hs_otomatis = float(row_m.get("Harga Satuan", 0.0) or 0.0)
                                         except:
                                             hs_otomatis = 0.0
                                         unit_otomatis = str(row_m.get("Unit", "Month"))
@@ -1513,7 +1514,7 @@ if form_login_sistem():
                             c_item1, c_item2, c_item3, c_item4 = st.columns([1, 1, 1, 1])
                             with c_item1:
                                 try:
-                                    def_qty = float(default_item_data.get("Qty", 1.0))
+                                    def_qty = float(default_item_data.get("Qty", 1.0) or 1.0)
                                 except:
                                     def_qty = 1.0
                                 q_val = st.number_input(f"Qty {i+1}", value=def_qty, key=f"qty_{i}")
@@ -1541,7 +1542,7 @@ if form_login_sistem():
 
                             if is_provisional:
                                 try:
-                                    def_harga_manual = float(default_item_data.get("Harga Satuan", 0.0))
+                                    def_harga_manual = float(default_item_data.get("Harga Satuan", 0.0) or 0.0)
                                 except:
                                     def_harga_manual = 0.0
                                 hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i+1} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}")
@@ -2043,19 +2044,19 @@ if form_login_sistem():
                                     val_desc = bersih_angka(row_data.get("Deskripsi Pekerjaan", "-"))
                                     
                                     try:
-                                        val_qty = f"{float(row_data.get('Qty', 0)):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                        val_qty = f"{float(row_data.get('Qty', 0) or 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                                     except:
                                         val_qty = str(row_data.get('Qty', ''))
                                         
                                     val_unit = bersih_angka(row_data.get("Unit", "-"))
                                     
                                     try:
-                                        val_hs = f"{float(row_data.get('Harga Satuan', 0)):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                        val_hs = f"{float(row_data.get('Harga Satuan', 0) or 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                                     except:
                                         val_hs = str(row_data.get('Harga Satuan', ''))
                                         
                                     try:
-                                        val_tot = f"{float(row_data.get('Total Harga', 0)):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                        val_tot = f"{float(row_data.get('Total Harga', 0) or 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                                     except:
                                         val_tot = str(row_data.get('Total Harga', ''))
 
