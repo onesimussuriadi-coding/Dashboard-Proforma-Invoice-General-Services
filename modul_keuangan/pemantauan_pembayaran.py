@@ -157,7 +157,6 @@ def tampilkan_pemantauan_pembayaran():
 
     master_kontrak_plafon = muat_total_kontrak_modul2()
 
-    # Fallback tambahan jika file master belum lengkap terindeks, masukkan standar kontrak yang diketahui
     fallback_plafon_standard = {
         "7201250141": 42997282428.98,
         "7207250142": 38711901661.00,
@@ -167,7 +166,6 @@ def tampilkan_pemantauan_pembayaran():
         if k_std not in master_kontrak_plafon or master_kontrak_plafon[k_std] == 0.0:
             master_kontrak_plafon[k_std] = v_std
 
-    # Kumpulkan seluruh daftar nomor kontrak unik (termasuk yang belum ada transaksinya seperti 7203250036)
     kontrak_from_invoice = [str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() for inv in invoice_list if inv.get("Kontrak No.") or inv.get("Nomor Kontrak")]
     kontrak_from_payment = [str(p.get("Nomor Kontrak", "-")).strip() for p in payment_records if p.get("Nomor Kontrak")]
     kontrak_from_master = list(master_kontrak_plafon.keys())
@@ -296,12 +294,11 @@ def tampilkan_pemantauan_pembayaran():
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- 4. TABEL RINCIAN AKUMULASI PER NOMOR KONTRAK DENGAN HTML TABLE & HORIZONTAL SCROLL ---
+        # --- 4. TABEL RINCIAN AKUMULASI PER NOMOR KONTRAK (HTML AMAN & RAPI) ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak")
         
         summary_contract_map = {}
-        # Masukkan seluruh kontrak master ke map rincian agar kontrak yang belum ada invoice tetap tampil
         for k_m in all_contracts:
             summary_contract_map[k_m] = {"tagihan": 0.0, "terbayar": 0.0, "jml_inv": 0, "lunas": 0}
 
@@ -330,7 +327,6 @@ def tampilkan_pemantauan_pembayaran():
             formatted_num = f"Rp {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             return formatted_num
 
-        # Buat render tabel HTML dinamis murni dengan overflow-x auto agar bisa digeser ke kiri dan kanan tanpa menimpa
         html_table_rincian = """
         <div style="overflow-x: auto; width: 100%; padding-bottom: 10px;">
         <table style="width: 100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">
@@ -584,7 +580,7 @@ def tampilkan_pemantauan_pembayaran():
                     del st.session_state["active_invoice_selected"]
                 st.rerun()
 
-    # --- 6. TABEL RINGKASAN & LAPORAN AGING DENGAN SCROLL HORIZONTAL & FONT STANDAR ---
+    # --- 6. TABEL RINGKASAN & LAPORAN AGING DENGAN HTML TABLE & HORIZONTAL SCROLL PENUH ---
     st.markdown("---")
     st.markdown(f"#### 📋 Ringkasan & Laporan Aging Invoice ({filter_kontrak_pilih})")
 
@@ -593,18 +589,32 @@ def tampilkan_pemantauan_pembayaran():
         current_payment_records = [p for p in current_payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(filter_kontrak_pilih).strip()]
 
     if current_payment_records:
-        st.markdown('<div style="overflow-x: auto; width: 100%; padding-bottom: 12px;">', unsafe_allow_html=True)
-        
-        hdr_cols = st.columns([1.2, 1.5, 1.4, 2.2, 1.0, 1.0, 0.8, 1.0, 1.0, 1.3, 1.1, 1.1])
-        headers_text = ["No. Kontrak", "No. Invoice", "No. Faktur Pajak", "Customer", "Tgl Inv", "Tgl Serah", "TOP", "Tgl JT", "Tgl Lunas", "Grand Total", "Status", "Aksi"]
-        for hc, ht in zip(hdr_cols, headers_text):
-            with hc:
-                st.markdown(f"<span style='font-size: 11px; font-weight: bold; color: #0f172a; white-space: nowrap;'>{ht}</span>", unsafe_allow_html=True)
-        st.markdown("<hr style='margin: 4px 0; border-top: 2px solid #cbd5e1;'>", unsafe_allow_html=True)
+        html_table_aging = """
+        <div style="overflow-x: auto; width: 100%; padding-bottom: 15px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; font-family: sans-serif;">
+            <thead>
+                <tr style="border-bottom: 2px solid #cbd5e1; text-align: left; color: #0f172a;">
+                    <th style="padding: 8px; white-space: nowrap;">No. Kontrak</th>
+                    <th style="padding: 8px; white-space: nowrap;">No. Invoice</th>
+                    <th style="padding: 8px; white-space: nowrap;">No. Faktur Pajak</th>
+                    <th style="padding: 8px; white-space: nowrap;">Customer</th>
+                    <th style="padding: 8px; white-space: nowrap;">Tgl Inv</th>
+                    <th style="padding: 8px; white-space: nowrap;">Tgl Serah</th>
+                    <th style="padding: 8px; white-space: nowrap;">TOP</th>
+                    <th style="padding: 8px; white-space: nowrap;">Tgl JT</th>
+                    <th style="padding: 8px; white-space: nowrap;">Tgl Lunas</th>
+                    <th style="padding: 8px; white-space: nowrap;">Grand Total</th>
+                    <th style="padding: 8px; white-space: nowrap;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
 
         for idx, row_p in enumerate(current_payment_records):
             inv_num_row = row_p.get('Nomor Invoice', '-')
             faktur_pajak_row = row_p.get('Nomor Faktur Pajak', '-')
+            cust_row = row_p.get('Customer', '-')
+            no_kontrak_row = row_p.get('Nomor Kontrak', '-')
            
             tgl_penyerahan_str = str(row_p.get('Tanggal Penyerahan', ''))[:10]
             tgl_pelunasan_raw = str(row_p.get('Tanggal Pelunasan', '-'))
@@ -620,32 +630,42 @@ def tampilkan_pemantauan_pembayaran():
                 except:
                     pass
 
-            cols_r = st.columns([1.2, 1.5, 1.4, 2.2, 1.0, 1.0, 0.8, 1.0, 1.0, 1.3, 1.1, 1.1])
-            with cols_r[0]:
-                st.markdown(f"<small style='white-space: nowrap;'>{row_p.get('Nomor Kontrak', '-')}</small>", unsafe_allow_html=True)
-            with cols_r[1]:
-                # Font nomor invoice disamakan standar tanpa pembesaran khusus
-                st.markdown(f"<small style='white-space: nowrap;'>{inv_num_row}</small>", unsafe_allow_html=True)
-            with cols_r[2]:
-                st.markdown(f"<small style='white-space: nowrap;'>{faktur_pajak_row if faktur_pajak_row else '-'}</small>", unsafe_allow_html=True)
-            with cols_r[3]:
-                st.markdown(f"<small style='white-space: normal; display: inline-block; max-width: 180px;'>{row_p.get('Customer', '-')}</small>", unsafe_allow_html=True)
-            with cols_r[4]:
-                st.markdown(f"<small style='white-space: nowrap;'>{str(row_p.get('Tanggal Invoice', ''))[:10]}</small>", unsafe_allow_html=True)
-            with cols_r[5]:
-                st.markdown(f"<small style='white-space: nowrap;'>{tgl_penyerahan_str}</small>", unsafe_allow_html=True)
-            with cols_r[6]:
-                st.markdown(f"<small style='white-space: nowrap;'>{durasi_info}</small>", unsafe_allow_html=True)
-            with cols_r[7]:
-                st.markdown(f"<small style='white-space: nowrap;'>{str(row_p.get('Tanggal Jatuh Tempo', ''))[:10]}</small>", unsafe_allow_html=True)
-            with cols_r[8]:
-                st.markdown(f"<small style='white-space: nowrap;'>{tgl_pelunasan_str}</small>", unsafe_allow_html=True)
-            with cols_r[9]:
-                gt_val = float(row_p.get('Grand Total', 0))
-                st.markdown(f"<small style='white-space: nowrap;'>Rp {gt_val:,.2f}</small>".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
-            with cols_r[10]:
-                st.markdown(f"<small style='white-space: nowrap;'>{row_p.get('Status Pembayaran', '-')}</small>", unsafe_allow_html=True)
-            with cols_r[11]:
+            gt_val = float(row_p.get('Grand Total', 0))
+            gt_str = f"Rp {gt_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            status_p = row_p.get('Status Pembayaran', '-')
+
+            html_table_aging += f"""
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 8px; white-space: nowrap;">{no_kontrak_row}</td>
+                    <td style="padding: 8px; white-space: nowrap;">{inv_num_row}</td>
+                    <td style="padding: 8px; white-space: nowrap;">{faktur_pajak_row if faktur_pajak_row else '-'}</td>
+                    <td style="padding: 8px; white-space: nowrap;">{cust_row}</td>
+                    <td style="padding: 8px; white-space: nowrap;">{str(row_p.get('Tanggal Invoice', ''))[:10]}</td>
+                    <td style="padding: 8px; white-space: nowrap;">{tgl_penyerahan_str}</td>
+                    <td style="padding: 8px; white-space: nowrap;">{durasi_info}</td>
+                    <td style="padding: 8px; white-space: nowrap;">{str(row_p.get('Tanggal Jatuh Tempo', ''))[:10]}</td>
+                    <td style="padding: 8px; white-space: nowrap;">{tgl_pelunasan_str}</td>
+                    <td style="padding: 8px; white-space: nowrap;">{gt_str}</td>
+                    <td style="padding: 8px; white-space: nowrap;">{status_p}</td>
+                </tr>
+            """
+
+        html_table_aging += """
+            </tbody>
+        </table>
+        </div>
+        """
+
+        st.markdown(html_table_aging, unsafe_allow_html=True)
+
+        # Bagian Aksi / Edit / Hapus via Selectbox per baris untuk kemudahan interaksi
+        st.markdown("##### ⚙️ Aksi Cepat Data Pemantauan Invoice")
+        for idx, row_p in enumerate(current_payment_records):
+            inv_num_row = row_p.get('Nomor Invoice', '-')
+            c_ak1, c_ak2 = st.columns([3, 1])
+            with c_ak1:
+                st.markdown(f"<small>Invoice: <b>{inv_num_row}</b> (Kontrak: {row_p.get('Nomor Kontrak', '-')})</small>", unsafe_allow_html=True)
+            with c_ak2:
                 aksi_pilih = st.selectbox("Aksi", ["-- Pilih --", "✏️ Edit", "🗑️ Hapus"], key=f"aksi_{idx}_{inv_num_row}", label_visibility="collapsed")
                 if aksi_pilih == "✏️ Edit":
                     st.session_state["active_invoice_selected"] = str(inv_num_row).strip()
@@ -677,9 +697,5 @@ def tampilkan_pemantauan_pembayaran():
                         if f"confirm_del_{idx}" in st.session_state:
                             del st.session_state[f"confirm_del_{idx}"]
                         st.rerun()
-
-            st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.info("ℹ️ Belum ada data pemantauan pembayaran yang tersimpan untuk filter kontrak ini.")
