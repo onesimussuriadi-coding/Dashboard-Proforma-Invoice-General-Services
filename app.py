@@ -1144,7 +1144,6 @@ if form_login_sistem():
                 if not saved_records:
                     st.info("ℹ️ Belum ada data database tersimpan di folder aman.")
                 else:
-                    # Filter Berdasarkan Nomor Kontrak dan Nomor PI
                     list_all_kontrak = ["-- Semua Kontrak (All Contracts) --"] + sorted(list(set(
                         bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-'))) for rec in saved_records if bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-'))) != ''
                     )))
@@ -1153,7 +1152,6 @@ if form_login_sistem():
                     with col_fdb1:
                         selected_filter_kontrak = st.selectbox("📌 Filter Berdasarkan Nomor Kontrak:", list_all_kontrak, key="db_filter_kontrak_v4")
 
-                    # Filter PI berdasarkan kontrak yang dipilih
                     if selected_filter_kontrak != "-- Semua Kontrak (All Contracts) --":
                         pi_filtered_candidates = [
                             bersih_angka(rec.get(0, rec.get('Proforma Invoice No.', '-'))) 
@@ -1174,7 +1172,6 @@ if form_login_sistem():
 
                     st.markdown("---")
 
-                    # Terapkan filter ke record
                     filtered_records_list = []
                     for original_idx, rec in enumerate(saved_records):
                         c_kontrak = bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-')))
@@ -1191,22 +1188,32 @@ if form_login_sistem():
                     else:
                         st.info(f"Menampilkan {len(filtered_records_list)} data tersimpan:")
                         
-                        # URUTKAN DARI NOMOR PALING BESAR DI ATAS KE NOMOR PALING KECIL DI BAWAH (REVERSE)
                         filtered_records_list_sorted = sorted(filtered_records_list, key=lambda x: x[0], reverse=True)
 
                         for original_idx, rec in filtered_records_list_sorted:
                             with st.container():
-                                pi_num = bersih_angka(rec.get(0, rec.get('Proforma Invoice No', '-')))
+                                pi_num = bersih_angka(rec.get(0, rec.get('Proforma Invoice No.', '-')))
                                 kontrak_num = bersih_angka(rec.get(1, rec.get('Nomor Kontrak', '-')))
                                 judul_k = bersih_angka(rec.get(7, rec.get('Judul Kontrak', '-')))
                                 
-                                col_s1, col_s2, col_s3, col_s4 = st.columns([1, 2.5, 3.5, 1])
+                                # AMBIL IDENTITAS PO, WO, DAN CTR UNTUK BREAKDOWN
+                                po_num = bersih_angka(rec.get(8, rec.get('Nomor Purchase Order', '-')))
+                                wo_num = bersih_angka(rec.get(21, rec.get('Nomor WO', '-')))
+                                ctr_num = bersih_angka(rec.get(23, rec.get('Nomor CTR', '-')))
+                                
+                                col_s1, col_s2, col_s3, col_s4 = st.columns([0.8, 2.2, 4.5, 1.5])
                                 with col_s1:
                                     st.write(f"**#{original_idx+1}**")
                                 with col_s2:
-                                    st.write(f"**Kontrak:** `{kontrak_num}`")
+                                    st.write(f"**Kontrak:**<br>`{kontrak_num}`", unsafe_allow_html=True)
                                 with col_s3:
-                                    st.write(f"**PI No:** `{pi_num}`<br><small style='color:#475569;'>{judul_k[:50]}...</small>", unsafe_allow_html=True)
+                                    st.markdown(f"""
+                                        **PI No:** `{pi_num if pi_num else '-'}`<br>
+                                        <span style='color:#0369a1; font-weight:600;'>🏷️ PO:</span> `{po_num if po_num and po_num != '-' else 'Belum Diisi'}` &nbsp;|&nbsp; 
+                                        <span style='color:#0369a1; font-weight:600;'>⚙️ WO:</span> `{wo_num if wo_num and wo_num != '-' else 'Belum Diisi'}` &nbsp;|&nbsp; 
+                                        <span style='color:#0369a1; font-weight:600;'>📌 CTR:</span> `{ctr_num if ctr_num and ctr_num != '-' else 'Belum Diisi'}`<br>
+                                        <small style='color:#475569;'>{judul_k[:60]}...</small>
+                                    """, unsafe_allow_html=True)
                                 with col_s4:
                                     if st.button("🗑️ Hapus", key=f"del_db_row_{original_idx}", help="Hapus permanen baris ini"):
                                         saved_records.pop(original_idx)
