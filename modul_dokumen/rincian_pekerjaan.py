@@ -171,23 +171,22 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     for idx, m in enumerate(matching_mutasi_list, start=1):
         kategori_str = str(m.get('Kategori', '')).lower()
         qty_val = float(m.get('Qty', 0))
-        harga_satuan_asli = float(m.get('Harga Satuan', 0))
+        harga_satuan_val = float(m.get('Harga Satuan', 0))  # Harga satuan tetap murni sesuai kontrak
         percent_val = float(m.get('Percent', 100.0))
         kategori_awal = str(m.get('Kategori', '-'))
+        keterangan_murni = str(m.get('Keterangan', '-'))  # Keterangan dibiarkan murni sesuai modul 1/2
 
-        # Penyesuaian khusus Estimated Sum / Estimasi Sum (Diskon 10% & Harga Satuan Efektif)
+        # Penyesuaian khusus Estimated Sum: Tambahkan catatan diskon 10% di bawah teks Kategori
         if "estimated" in kategori_str or "estimasi" in kategori_str:
-            harga_satuan_val = harga_satuan_asli * 0.9  # Harga setelah diskon 10%
-            total_harga_val = (qty_val * harga_satuan_val) * (percent_val / 100.0)
+            total_harga_val = (qty_val * harga_satuan_val * 0.9) * (percent_val / 100.0)
             
-            # Format teks kategori dengan tambahan keterangan diskon dan harga penawaran asli
-            kategori_display = f"{kategori_awal}<br><span style='font-size: 8px; font-weight: normal; color: #334155;'>(Diskon 10% dari Harga Penawaran Rp {harga_satuan_asli:,.2f})</span>"
+            # Harga satuan efektif setelah diskon untuk referensi di kategori
+            harga_diskon_val = harga_satuan_val * 0.9
+            kategori_display = f"{kategori_awal}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {harga_satuan_val:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
         elif "provisional" in kategori_str or "professional" in kategori_str:
-            harga_satuan_val = harga_satuan_asli
             total_harga_val = (qty_val * harga_satuan_val) * 1.15 * (percent_val / 100.0)
             kategori_display = kategori_awal
         else:
-            harga_satuan_val = harga_satuan_asli
             total_harga_val = (qty_val * harga_satuan_val) * (percent_val / 100.0)
             kategori_display = kategori_awal
 
@@ -202,7 +201,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <td style="text-align: center; white-space: nowrap;">{m.get('Tanggal Selesai', '-')}</td>
                 <td style="text-align: right;">{harga_satuan_val:,.2f}</td>
                 <td style="text-align: right;">{total_harga_val:,.2f}</td>
-                <td>{m.get('Keterangan', '-')}</td>
+                <td>{keterangan_murni}</td>
             </tr>
         """
 
