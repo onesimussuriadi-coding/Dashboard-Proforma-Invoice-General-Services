@@ -342,7 +342,7 @@ def tampilkan_pemantauan_pembayaran():
         df_rincian_view = pd.DataFrame(table_data_list)
         st.dataframe(df_rincian_view, use_container_width=True, hide_index=True)
 
-    # --- 5. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN (DENGAN KOLOM POTONGAN PPH, PPN WAPU, & SELISIH TERPISAH) ---
+    # --- 5. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN (DENGAN TOMBOL SIMPAN YANG RESPONSIF) ---
     st.markdown("---")
     st.markdown("##### 📝 Form Input & Pembaruan Status Pembayaran (Berdasarkan Kontrak)")
 
@@ -414,101 +414,95 @@ def tampilkan_pemantauan_pembayaran():
     idx_st = status_opsi.index(def_status) if def_status in status_opsi else 0
     status_pembayaran = st.selectbox("Status Pembayaran:", status_opsi, index=idx_st, key="select_status_pembayaran_live")
 
-    with st.form("form_update_pembayaran"):
-        col_p1, col_p2 = st.columns(2)
-        with col_p1:
-            default_faktur = existing_pay.get("Nomor Faktur Pajak", "")
-            nomor_faktur_pajak = st.text_input("Nomor Faktur Pajak (Diterbitkan setelah Invoice):", value=str(default_faktur))
+    # Menggunakan container biasa (bukan st.form) agar tombol simpan merespons secara instan dan menampilkan notifikasi sukses
+    default_faktur = existing_pay.get("Nomor Faktur Pajak", "")
+    nomor_faktur_pajak = st.text_input("Nomor Faktur Pajak (Diterbitkan setelah Invoice):", value=str(default_faktur), key="input_faktur_pajak")
 
-            default_tgl_serah = datetime.today().date()
-            if existing_pay.get("Tanggal Penyerahan"):
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        default_tgl_serah = datetime.today().date()
+        if existing_pay.get("Tanggal Penyerahan"):
+            try:
+                default_tgl_serah = datetime.strptime(str(existing_pay.get("Tanggal Penyerahan"))[:10], "%Y-%m-%d").date()
+            except:
+                pass
+        tgl_penyerahan = st.date_input("Tanggal Invoice Diserahkan ke Klien:", value=default_tgl_serah, key="input_tgl_serah")
+
+        default_top = int(existing_pay.get("TOP Hari", 30))
+        top_hari = st.number_input("Term of Payment (TOP dalam Hari):", min_value=0, value=default_top, step=5, key="input_top_hari")
+
+        default_bayar_akt = float(existing_pay.get("Nominal Pembayaran Aktual", grand_total_otomatis))
+        nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Bank/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0, key="input_bayar_aktual")
+
+    with col_p2:
+        raw_tgl_lunas_exist = str(existing_pay.get("Tanggal Pelunasan", "-"))
+        ada_tgl_lunas_exist = (raw_tgl_lunas_exist != "-" and raw_tgl_lunas_exist.strip() != "")
+
+        if status_pembayaran in ["Sebagian (DP / Termin)", "Lunas"]:
+            default_tgl_lunas = datetime.today().date()
+            if ada_tgl_lunas_exist:
                 try:
-                    default_tgl_serah = datetime.strptime(str(existing_pay.get("Tanggal Penyerahan"))[:10], "%Y-%m-%d").date()
+                    default_tgl_lunas = datetime.strptime(raw_tgl_lunas_exist[:10], "%Y-%m-%d").date()
                 except:
                     pass
-            tgl_penyerahan = st.date_input("Tanggal Invoice Diserahkan ke Klien:", value=default_tgl_serah)
+            tgl_pelunasan = st.date_input("Tanggal Pelunasan Aktual:", value=default_tgl_lunas, key="input_tgl_lunas")
+        else:
+            st.markdown("📅 Tanggal Pelunasan Aktual: **... (Belum Ada Pembayaran / Kosong)**")
+            tgl_pelunasan = None
 
-            default_top = int(existing_pay.get("TOP Hari", 30))
-            top_hari = st.number_input("Term of Payment (TOP dalam Hari):", min_value=0, value=default_top, step=5)
+        default_pot_pph = float(existing_pay.get("Potongan PPh", 0.0))
+        potongan_pph = st.number_input("Potongan PPh (Pasal 23 / 22):", min_value=0.0, value=default_pot_pph, step=1000.0, key="input_pot_pph")
 
-            # Input Nominal Pembayaran Aktual yang masuk ke Bank/Kas
-            default_bayar_akt = float(existing_pay.get("Nominal Pembayaran Aktual", grand_total_otomatis))
-            nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Bank/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0)
+        default_pot_wapu = float(existing_pay.get("Potongan PPN WAPU", 0.0))
+        potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Dipotong Klien WAPU):", min_value=0.0, value=default_pot_wapu, step=1000.0, key="input_pot_wapu")
 
-        with col_p2:
-            st.markdown(f"**Status Pembayaran Terpilih:** `{status_pembayaran}`")
+        default_selisih_lain = float(existing_pay.get("Selisih Lainnya", 0.0))
+        selisih_lainnya = st.number_input("Selisih Lainnya (Pembulatan / Admin):", min_value=0.0, value=default_selisih_lain, step=1000.0, key="input_selisih_lain")
 
-            raw_tgl_lunas_exist = str(existing_pay.get("Tanggal Pelunasan", "-"))
-            ada_tgl_lunas_exist = (raw_tgl_lunas_exist != "-" and raw_tgl_lunas_exist.strip() != "")
+    catatan_bayar = st.text_area("Catatan / Keterangan Pembayaran:", value=str(existing_pay.get("Catatan", "")), key="input_catatan_bayar")
 
-            if status_pembayaran in ["Sebagian (DP / Termin)", "Lunas"]:
-                default_tgl_lunas = datetime.today().date()
-                if ada_tgl_lunas_exist:
-                    try:
-                        default_tgl_lunas = datetime.strptime(raw_tgl_lunas_exist[:10], "%Y-%m-%d").date()
-                    except:
-                        pass
-                tgl_pelunasan = st.date_input("Tanggal Pelunasan Aktual:", value=default_tgl_lunas)
-            else:
-                st.markdown("📅 Tanggal Pelunasan Aktual: **... (Belum Ada Pembayaran / Kosong)**")
-                tgl_pelunasan = None
+    if st.button("💾 Simpan Pemantauan Pembayaran", type="primary", use_container_width=True):
+        if not selected_inv.strip():
+            st.error("❌ Nomor Invoice tidak boleh kosong!")
+        else:
+            tgl_jatuh_tempo = tgl_penyerahan + timedelta(days=int(top_hari))
 
-            # Kolom Potongan Pajak Terpisah (PPh, PPN WAPU, Selisih Lainnya)
-            default_pot_pph = float(existing_pay.get("Potongan PPh", 0.0))
-            potongan_pph = st.number_input("Potongan PPh (Pasal 23 / 22):", min_value=0.0, value=default_pot_pph, step=1000.0)
+            durasi_riil_hari = 0
+            str_tgl_pelunasan_final = "-"
+            if status_pembayaran in ["Sebagian (DP / Termin)", "Lunas"] and tgl_pelunasan:
+                str_tgl_pelunasan_final = tgl_pelunasan.strftime("%Y-%m-%d")
+                durasi_riil_hari = (tgl_pelunasan - tgl_penyerahan).days
 
-            default_pot_wapu = float(existing_pay.get("Potongan PPN WAPU", 0.0))
-            potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Dipotong Langsung Klien WAPU):", min_value=0.0, value=default_pot_wapu, step=1000.0)
+            data_update = {
+                "Nomor Kontrak": form_kontrak_pilih,
+                "Nomor Invoice": selected_inv,
+                "Nomor Faktur Pajak": nomor_faktur_pajak,
+                "Customer": inv_data.get("Customer", existing_pay.get("Customer", "-")),
+                "Tanggal Invoice": tgl_invoice_bawaan,
+                "Tanggal Penyerahan": tgl_penyerahan.strftime("%Y-%m-%d"),
+                "TOP Hari": top_hari,
+                "Tanggal Jatuh Tempo": tgl_jatuh_tempo.strftime("%Y-%m-%d"),
+                "Tanggal Pelunasan": str_tgl_pelunasan_final,
+                "Durasi Riil Hari": durasi_riil_hari,
+                "Grand Total": grand_total_otomatis,
+                "Nominal Pembayaran Aktual": nominal_pembayaran_aktual,
+                "Potongan PPh": potongan_pph,
+                "Potongan PPN WAPU": potongan_ppn_wapu,
+                "Selisih Lainnya": selisih_lainnya,
+                "Status Pembayaran": status_pembayaran,
+                "Catatan": catatan_bayar,
+                "Update Terakhir": datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+            }
 
-            default_selisih_lain = float(existing_pay.get("Selisih Lainnya", 0.0))
-            selisih_lainnya = st.number_input("Selisih Lainnya (Pembulatan / Biaya Admin):", min_value=0.0, value=default_selisih_lain, step=1000.0)
+            clean_records = [p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() != str(selected_inv).strip()]
+            clean_records.append(data_update)
+            simpan_status_pembayaran(clean_records)
+            st.success(f"🎉 Berhasil menyimpan data pemantauan untuk Invoice [{selected_inv}]! Dana masuk bank tercatat Rp {nominal_pembayaran_aktual:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+            if "active_invoice_selected" in st.session_state:
+                del st.session_state["active_invoice_selected"]
+            st.rerun()
 
-        catatan_bayar = st.text_area("Catatan / Keterangan Pembayaran:", value=str(existing_pay.get("Catatan", "")))
-
-        submit_simpan = st.form_submit_button("💾 Simpan Pemantauan Pembayaran", type="primary", use_container_width=True)
-
-        if submit_simpan:
-            if not selected_inv.strip():
-                st.error("❌ Nomor Invoice tidak boleh kosong!")
-            else:
-                tgl_jatuh_tempo = tgl_penyerahan + timedelta(days=int(top_hari))
-
-                durasi_riil_hari = 0
-                str_tgl_pelunasan_final = "-"
-                if status_pembayaran in ["Sebagian (DP / Termin)", "Lunas"] and tgl_pelunasan:
-                    str_tgl_pelunasan_final = tgl_pelunasan.strftime("%Y-%m-%d")
-                    durasi_riil_hari = (tgl_pelunasan - tgl_penyerahan).days
-
-                data_update = {
-                    "Nomor Kontrak": form_kontrak_pilih,
-                    "Nomor Invoice": selected_inv,
-                    "Nomor Faktur Pajak": nomor_faktur_pajak,
-                    "Customer": inv_data.get("Customer", existing_pay.get("Customer", "-")),
-                    "Tanggal Invoice": tgl_invoice_bawaan,
-                    "Tanggal Penyerahan": tgl_penyerahan.strftime("%Y-%m-%d"),
-                    "TOP Hari": top_hari,
-                    "Tanggal Jatuh Tempo": tgl_jatuh_tempo.strftime("%Y-%m-%d"),
-                    "Tanggal Pelunasan": str_tgl_pelunasan_final,
-                    "Durasi Riil Hari": durasi_riil_hari,
-                    "Grand Total": grand_total_otomatis,
-                    "Nominal Pembayaran Aktual": nominal_pembayaran_aktual,
-                    "Potongan PPh": potongan_pph,
-                    "Potongan PPN WAPU": potongan_ppn_wapu,
-                    "Selisih Lainnya": selisih_lainnya,
-                    "Status Pembayaran": status_pembayaran,
-                    "Catatan": catatan_bayar,
-                    "Update Terakhir": datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-                }
-
-                clean_records = [p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() != str(selected_inv).strip()]
-                clean_records.append(data_update)
-                simpan_status_pembayaran(clean_records)
-                st.success(f"🎉 Berhasil menyimpan data pemantauan untuk Invoice [{selected_inv}]!")
-                if "active_invoice_selected" in st.session_state:
-                    del st.session_state["active_invoice_selected"]
-                st.rerun()
-
-    # --- 6. TABEL RINGKASAN & LAPORAN AGING ---
+    # --- 6. TABEL RINGKASAN & LAPORAN AGING (MENAMPILKAN RINCIAN TOTAL TAGIHAN, POTONGAN & DANA MASUK BANK) ---
     st.markdown("---")
     st.markdown(f"#### 📋 Ringkasan & Laporan Aging Invoice ({filter_kontrak_pilih})")
 
@@ -539,20 +533,26 @@ def tampilkan_pemantauan_pembayaran():
                     pass
 
             gt_val = float(row_p.get('Grand Total', 0))
-            gt_str = f"Rp {gt_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            
             b_akt = float(row_p.get('Nominal Pembayaran Aktual', gt_val))
             p_pph = float(row_p.get('Potongan PPh', 0.0))
             p_wapu = float(row_p.get('Potongan PPN WAPU', 0.0))
+            s_lain = float(row_p.get('Selisih Lainnya', 0.0))
             
-            ket_pot_list = []
+            # Format tampilan kolom Grand Total agar informatif mencerminkan rincian pemotongan & dana masuk bank
+            gt_str = f"Rp {gt_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            b_akt_str = f"Rp {b_akt:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            
+            rincian_ket = f"Tagihan: {gt_str} | Masuk Bank: <b>{b_akt_str}</b>"
+            pot_info_list = []
             if p_pph > 0:
-                ket_pot_list.append(f"PPh: {p_pph:,.2f}")
+                pot_info_list.append(f"PPh: {p_pph:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
             if p_wapu > 0:
-                ket_pot_list.append(f"WAPU: {p_wapu:,.2f}")
+                pot_info_list.append(f"WAPU: {p_wapu:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+            if s_lain > 0:
+                pot_info_list.append(f"Selisih: {s_lain:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
             
-            ket_str = f" (Terima: Rp {b_akt:,.2f}" + (", " + ", ".join(ket_pot_list) if ket_pot_list else "") + ")"
-            ket_str = ket_str.replace(",", "X").replace(".", ",").replace("X", ".") if (p_pph > 0 or p_wapu > 0) else ""
+            if pot_info_list:
+                rincian_ket += f" (Potongan: {', '.join(pot_info_list)})"
 
             aging_data_list.append({
                 "No. Kontrak": no_kontrak_row,
@@ -564,7 +564,7 @@ def tampilkan_pemantauan_pembayaran():
                 "TOP": durasi_info,
                 "Tgl JT": str(row_p.get('Tanggal Jatuh Tempo', ''))[:10],
                 "Tgl Lunas": tgl_pelunasan_str,
-                "Grand Total": gt_str + ket_str,
+                "Grand Total & Rincian Pembayaran": rincian_ket,
                 "Status": row_p.get('Status Pembayaran', '-')
             })
 
