@@ -178,10 +178,11 @@ def tampilkan_pemantauan_pembayaran():
             matching_pay = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == inv_no_val), {})
             status_byr = matching_pay.get("Status Pembayaran", "Belum Dibayar")
             
-            # Perhitungan realisasi bayar (memperhitungkan nominal bayar aktual + potongan pph/pajak jika ada)
             bayar_aktual = float(matching_pay.get("Nominal Pembayaran Aktual", g_total if status_byr == "Lunas" else 0.0))
-            potongan_pajak = float(matching_pay.get("Potongan Pajak PPh", 0.0))
-            total_efektif_bayar = bayar_aktual + potongan_pajak
+            pot_pph = float(matching_pay.get("Potongan PPh", 0.0))
+            pot_ppn_wapu = float(matching_pay.get("Potongan PPN WAPU", 0.0))
+            selisih_lain = float(matching_pay.get("Selisih Lainnya", 0.0))
+            total_efektif_bayar = bayar_aktual + pot_pph + pot_ppn_wapu + selisih_lain
 
             if status_byr == "Lunas" or total_efektif_bayar >= (g_total - 100):
                 total_sudah_dibayar += g_total
@@ -274,8 +275,10 @@ def tampilkan_pemantauan_pembayaran():
             matching_pay_rc = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == inv_no_rc), {})
             st_byr = matching_pay_rc.get("Status Pembayaran", "Belum Dibayar")
             b_akt = float(matching_pay_rc.get("Nominal Pembayaran Aktual", gt if st_byr == "Lunas" else 0.0))
-            p_pajak = float(matching_pay_rc.get("Potongan Pajak PPh", 0.0))
-            t_efektif = b_akt + p_pajak
+            p_pph = float(matching_pay_rc.get("Potongan PPh", 0.0))
+            p_wapu = float(matching_pay_rc.get("Potongan PPN WAPU", 0.0))
+            s_lain = float(matching_pay_rc.get("Selisih Lainnya", 0.0))
+            t_efektif = b_akt + p_pph + p_wapu + s_lain
             
             if c_no not in summary_contract_map:
                 summary_contract_map[c_no] = {"tagihan": 0.0, "terbayar": 0.0, "jml_inv": 0, "lunas": 0}
@@ -339,7 +342,7 @@ def tampilkan_pemantauan_pembayaran():
         df_rincian_view = pd.DataFrame(table_data_list)
         st.dataframe(df_rincian_view, use_container_width=True, hide_index=True)
 
-    # --- 5. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN (DENGAN INPUT POTONGAN PPH & SELISIH) ---
+    # --- 5. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN (DENGAN KOLOM POTONGAN PPH, PPN WAPU, & SELISIH TERPISAH) ---
     st.markdown("---")
     st.markdown("##### 📝 Form Input & Pembaruan Status Pembayaran (Berdasarkan Kontrak)")
 
@@ -450,15 +453,15 @@ def tampilkan_pemantauan_pembayaran():
                 st.markdown("📅 Tanggal Pelunasan Aktual: **... (Belum Ada Pembayaran / Kosong)**")
                 tgl_pelunasan = None
 
-            # Input Potongan PPh / Pajak / Selisih
-            default_pot_pajak = float(existing_pay.get("Potongan Pajak PPh", 0.0))
-            potongan_pajak_pph = st.number_input("Nilai Potongan PPh / Pajak / Selisih:", min_value=0.0, value=default_pot_pajak, step=1000.0)
+            # Kolom Potongan Pajak Terpisah (PPh, PPN WAPU, Selisih Lainnya)
+            default_pot_pph = float(existing_pay.get("Potongan PPh", 0.0))
+            potongan_pph = st.number_input("Potongan PPh (Pasal 23 / 22):", min_value=0.0, value=default_pot_pph, step=1000.0)
 
-            # Kategori Selisih / Potongan
-            kategori_selisih_opsi = ["PPh 23 / PPh Pasal 22", "PPN", "Selisih Lainnya (Kurang Bayar / Biaya Admin)"]
-            def_kat = existing_pay.get("Kategori Selisih", "PPh 23 / PPh Pasal 22")
-            idx_kat = kategori_selisih_opsi.index(def_kat) if def_kat in kategori_selisih_opsi else 0
-            kategori_selisih = st.selectbox("Kategori / Keterangan Selisih Potongan:", kategori_selisih_opsi, index=idx_kat)
+            default_pot_wapu = float(existing_pay.get("Potongan PPN WAPU", 0.0))
+            potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Dipotong Langsung Klien WAPU):", min_value=0.0, value=default_pot_wapu, step=1000.0)
+
+            default_selisih_lain = float(existing_pay.get("Selisih Lainnya", 0.0))
+            selisih_lainnya = st.number_input("Selisih Lainnya (Pembulatan / Biaya Admin):", min_value=0.0, value=default_selisih_lain, step=1000.0)
 
         catatan_bayar = st.text_area("Catatan / Keterangan Pembayaran:", value=str(existing_pay.get("Catatan", "")))
 
@@ -489,8 +492,9 @@ def tampilkan_pemantauan_pembayaran():
                     "Durasi Riil Hari": durasi_riil_hari,
                     "Grand Total": grand_total_otomatis,
                     "Nominal Pembayaran Aktual": nominal_pembayaran_aktual,
-                    "Potongan Pajak PPh": potongan_pajak_pph,
-                    "Kategori Selisih": kategori_selisih,
+                    "Potongan PPh": potongan_pph,
+                    "Potongan PPN WAPU": potongan_ppn_wapu,
+                    "Selisih Lainnya": selisih_lainnya,
                     "Status Pembayaran": status_pembayaran,
                     "Catatan": catatan_bayar,
                     "Update Terakhir": datetime.today().strftime("%Y-%m-%d %H:%M:%S")
@@ -537,9 +541,18 @@ def tampilkan_pemantauan_pembayaran():
             gt_val = float(row_p.get('Grand Total', 0))
             gt_str = f"Rp {gt_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            bayar_akt_val = float(row_p.get('Nominal Pembayaran Aktual', gt_val))
-            pot_pph_val = float(row_p.get('Potongan Pajak PPh', 0.0))
-            ket_pot = f" (Bayar: Rp {bayar_akt_val:,.2f}, Pot: Rp {pot_pph_val:,.2f})".replace(",", "X").replace(".", ",").replace("X", ".") if pot_pph_val > 0 else ""
+            b_akt = float(row_p.get('Nominal Pembayaran Aktual', gt_val))
+            p_pph = float(row_p.get('Potongan PPh', 0.0))
+            p_wapu = float(row_p.get('Potongan PPN WAPU', 0.0))
+            
+            ket_pot_list = []
+            if p_pph > 0:
+                ket_pot_list.append(f"PPh: {p_pph:,.2f}")
+            if p_wapu > 0:
+                ket_pot_list.append(f"WAPU: {p_wapu:,.2f}")
+            
+            ket_str = f" (Terima: Rp {b_akt:,.2f}" + (", " + ", ".join(ket_pot_list) if ket_pot_list else "") + ")"
+            ket_str = ket_str.replace(",", "X").replace(".", ",").replace("X", ".") if (p_pph > 0 or p_wapu > 0) else ""
 
             aging_data_list.append({
                 "No. Kontrak": no_kontrak_row,
@@ -551,7 +564,7 @@ def tampilkan_pemantauan_pembayaran():
                 "TOP": durasi_info,
                 "Tgl JT": str(row_p.get('Tanggal Jatuh Tempo', ''))[:10],
                 "Tgl Lunas": tgl_pelunasan_str,
-                "Grand Total": gt_str + ket_pot,
+                "Grand Total": gt_str + ket_str,
                 "Status": row_p.get('Status Pembayaran', '-')
             })
 
