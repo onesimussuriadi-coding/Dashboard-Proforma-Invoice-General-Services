@@ -1488,7 +1488,7 @@ if form_login_sistem():
                                             display_text = f"⭐ [{unique_part}] — ({orig_text})"
                                         else:
                                             display_text = orig_text
-                                    
+                                        
                                             spek_display_map[display_text] = orig_text
                                             spek_options_formatted.append(display_text)
 
@@ -1985,9 +1985,9 @@ if form_login_sistem():
 
                             output_excel = io.BytesIO()
                             kolom_export_preferred = [
-                                "Nomor Kontrak", "PI No.", "Nomor PO", "Nomor WO", "Kategori", 
+                                "Nomor Kontrak", "PI No.", "Nomor PO", "Nomor WAN / SA", "Kategori", 
                                 "Deskripsi Pekerjaan", "Qty", "Unit", "Harga Satuan", "Total Harga",
-                                "Tanggal PI", "Ditujukan Kepada", "Nomor WAN / SA", "Percent"
+                                "Tanggal PI", "Ditujukan Kepada", "Percent"
                             ]
                             existing_cols_export = [col for col in kolom_export_preferred if col in df_excel_target.columns]
                             other_cols_export = [col for col in df_excel_target.columns if col not in existing_cols_export and col != "Total Harga Num" and col != "Tahun_PI"]
@@ -2028,11 +2028,12 @@ if form_login_sistem():
                                     </div>
                                 """, unsafe_allow_html=True)
 
+                                # --- HEADER TABEL: DIGANTI KOLOM NOMOR WO MENJADI NOMOR WAN / NOMOR SA ---
                                 headers_tx_html = """
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor Kontrak</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor PI</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor PO</th>
-                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor WO</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor WAN / Nomor SA</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Kategori</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Uraian Pekerjaan</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: center;'>Qty</th>
@@ -2049,7 +2050,12 @@ if form_login_sistem():
                                     val_k = bersih_angka(row_data.get("Nomor Kontrak", "-"))
                                     val_pi = bersih_angka(row_data.get("PI No.", "-"))
                                     val_po = bersih_angka(row_data.get("Nomor PO", "-"))
-                                    val_wo = bersih_angka(row_data.get("Nomor WO", "-"))
+                                    
+                                    # MENGAMBIL DATA NOMOR WAN / SA DENGAN FALLBACK AMAN
+                                    val_wan_sa = bersih_angka(row_data.get("Nomor WAN / SA", row_data.get("WAN Nomor", row_data.get("WAN", row_data.get("SA Nomor", "-")))))
+                                    if not val_wan_sa:
+                                        val_wan_sa = "-"
+
                                     val_kat = bersih_angka(row_data.get("Kategori", "-"))
                                     val_desc = bersih_angka(row_data.get("Deskripsi Pekerjaan", "-"))
                                     
@@ -2075,7 +2081,7 @@ if form_login_sistem():
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_k}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_pi}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_po}</td>
-                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_wo}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_wan_sa}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_kat}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left; max-width: 220px; white-space: normal;">{val_desc}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: center;">{val_qty}</td>
