@@ -227,23 +227,8 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             st.warning("⚠️ Semua Nomor WAN / SA yang tersedia sudah dibuatkan invoice resminya. Tidak ada WAN baru untuk diproses.")
             return
 
-        list_kontrak_valid = sorted(list(dict.fromkeys([str(t.get("Nomor Kontrak")) for t in valid_transaksi_list if t.get("Nomor Kontrak")])))
-        if is_mode_edit and target_kontrak_val and target_kontrak_val not in list_kontrak_valid:
-            list_kontrak_valid.append(target_kontrak_val)
-
-        idx_kontrak_def = 0
-        if str(target_kontrak_val) in list_kontrak_valid:
-            idx_kontrak_def = list_kontrak_valid.index(str(target_kontrak_val))
-
-        st.markdown("---")
-        st.markdown("##### 🔍 Saringan Hierarki Data Sumber (Kontrak $\rightarrow$ Nomor WAN / SA $\rightarrow$ PI & PO)")
-        
-        col_h1, col_h2, col_h3 = st.columns(3)
-        with col_h1:
-            selected_kontrak_m3 = st.selectbox("1️⃣ Pilih Nomor Kontrak", list_kontrak_valid if list_kontrak_valid else [target_kontrak_val], index=idx_kontrak_def, key="m3_sel_kontrak")
-
-        filtered_by_kontrak = [t for t in valid_transaksi_list if str(t.get("Nomor Kontrak")) == str(selected_kontrak_m3)]
-        list_sawanan_valid = sorted(list(dict.fromkeys([str(t.get("Nomor WAN / SA")) for t in filtered_by_kontrak if t.get("Nomor WAN / SA")])))
+        # --- HIERARKI UTAMA BERDASARKAN WAN DI KIRI ---
+        list_sawanan_valid = sorted(list(dict.fromkeys([str(t.get("Nomor WAN / SA")) for t in valid_transaksi_list if t.get("Nomor WAN / SA")])))
         if is_mode_edit and target_sawanan_val and target_sawanan_val not in list_sawanan_valid:
             list_sawanan_valid.append(target_sawanan_val)
 
@@ -251,32 +236,39 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         if str(target_sawanan_val) in list_sawanan_valid:
             idx_sawanan_def = list_sawanan_valid.index(str(target_sawanan_val))
 
-        with col_h2:
-            selected_sawanan_m3 = st.selectbox("2️⃣ Pilih Nomor WAN / SA (Belum Ter-invoice)", list_sawanan_valid if list_sawanan_valid else [target_sawanan_val], index=idx_sawanan_def if list_sawanan_valid else 0, key="m3_sel_sawanan")
+        st.markdown("---")
+        st.markdown("##### 🔍 Saringan Hierarki Data Sumber (Nomor WAN / SA $\rightarrow$ Nomor PI & PO, dengan Kontrak Otomatis)")
+        
+        col_h1, col_h2 = st.columns(2)
+        with col_h1:
+            selected_sawanan_m3 = st.selectbox("1️⃣ Pilih Nomor WAN / SA (Indikator Utama):", list_sawanan_valid if list_sawanan_valid else [target_sawanan_val], index=idx_sawanan_def if list_sawanan_valid else 0, key="m3_sel_sawanan")
 
-        filtered_by_sawanan = [t for t in filtered_by_kontrak if str(t.get("Nomor WAN / SA")) == str(selected_sawanan_m3)]
+        # FILTER KETAT: Ambil baris berdasarkan WAN yang dipilih, lalu tentukan Kontrak & PI secara otomatis
+        filtered_by_sawanan = [t for t in valid_transaksi_list if str(t.get("Nomor WAN / SA")) == str(selected_sawanan_m3)]
+        
+        # Ambil Nomor Kontrak otomatis dari WAN yang dipilih
+        auto_kontrak_val = filtered_by_sawanan[0].get("Nomor Kontrak", target_kontrak_val) if filtered_by_sawanan else target_kontrak_val
+        selected_kontrak_m3 = auto_kontrak_val
+
         raw_list_pi_m3 = list(dict.fromkeys([str(t.get("PI No.")) for t in filtered_by_sawanan if t.get("PI No.")]))
         list_pi_m3 = sorted(raw_list_pi_m3, key=sort_pi_key, reverse=True)
         
         if is_mode_edit and target_pi_val and target_pi_val not in list_pi_m3:
             list_pi_m3.append(target_pi_val)
 
-        last_selected_wan = st.session_state.get("last_wan_tracked", "")
-        if last_selected_wan != selected_sawanan_m3:
-            st.session_state["last_wan_tracked"] = selected_sawanan_m3
-            st.session_state["m3_pi_index_reset"] = 0
-
-        idx_pi_def = st.session_state.get("m3_pi_index_reset", 0)
+        idx_pi_def = 0
         if is_mode_edit and target_pi_val in list_pi_m3:
             idx_pi_def = list_pi_m3.index(str(target_pi_val))
 
-        with col_h3:
-            selected_pi_m3 = st.selectbox("3️⃣ Pilih Nomor Proforma Invoice (PI)", list_pi_m3 if list_pi_m3 else [target_pi_val], index=idx_pi_def if idx_pi_def < len(list_pi_m3) else 0, key="m3_sel_pi")
+        with col_h2:
+            selected_pi_m3 = st.selectbox("2️⃣ Pilih Nomor Proforma Invoice (PI):", list_pi_m3 if list_pi_m3 else [target_pi_val], index=idx_pi_def if idx_pi_def < len(list_pi_m3) else 0, key="m3_sel_pi")
 
         matched_transaksi = [t for t in filtered_by_sawanan if str(t.get("PI No.")) == str(selected_pi_m3)]
         selected_po_m3 = matched_transaksi[0].get("Nomor PO", target_po_val) if matched_transaksi else target_po_val
         
         total_nilai_pi_modul2 = sum([parse_harga_presisi(t.get("Total Harga", 0)) for t in matched_transaksi])
+
+        st.info(f"📌 **Kontrak Otomatis Terikat:** `{selected_kontrak_m3}`")
 
         if is_mode_edit:
             customer_default = data_edit_aktif.get("Customer", "")
@@ -320,7 +312,8 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         with st.form("form_input_billing_resmi"):
             col_b1, col_b2 = st.columns(2)
             with col_b1:
-                st.markdown(f"**PI Rujukan Aktif:** `{selected_pi_m3}`")
+                st.markdown(f"**WAN / SA Terpilih:** `{selected_sawanan_m3}`")
+                st.markdown(f"**PI Rujukan Terpilih:** `{selected_pi_m3}`")
                 st.markdown(f"**Nomor PO Otomatis Terikat:** `{selected_po_m3}`")
                 customer_name = st.text_input("Customer / Klien", value=customer_default)
                 alamat_customer = st.text_area("Alamat Klien", value=alamat_default, height=75)
