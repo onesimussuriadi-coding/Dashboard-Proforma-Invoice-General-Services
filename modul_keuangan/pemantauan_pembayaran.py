@@ -150,15 +150,15 @@ def tampilkan_pemantauan_pembayaran():
     opsi_filter_kontrak = ["-- Semua Nomor Kontrak (ALL) --"] + all_contracts
     filter_kontrak_pilih = st.selectbox("Pilih Nomor Kontrak untuk Filter Dashboard:", opsi_filter_kontrak, key="filter_kontrak_dashboard")
 
-    # Filter data jika memilih nomor kontrak tertentu, atau gunakan seluruh data jika ALL
+    # Logika Pemisahan Data Berdasarkan Filter Kontrak
     if filter_kontrak_pilih != "-- Semua Nomor Kontrak (ALL) --":
-        filtered_payment_records = [p for p in payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(filter_kontrak_pilih).strip()]
         filtered_invoice_list = [inv for inv in invoice_list if str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() == str(filter_kontrak_pilih).strip()]
+        filtered_payment_records = [p for p in payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(filter_kontrak_pilih).strip()]
     else:
-        filtered_payment_records = payment_records
         filtered_invoice_list = invoice_list
+        filtered_payment_records = payment_records
 
-    # --- KARTU REKAPITULASI KEUANGAN UTAMA & ANALISIS AGING ---
+    # --- KARTU REKAPITULASI KEUANGAN UTAMA (BERDASARKAN FILTER) ---
     if invoice_list or payment_records:
         hari_ini = date.today()
         
@@ -170,9 +170,7 @@ def tampilkan_pemantauan_pembayaran():
         jml_overdue = 0; val_overdue = 0.0
         jml_lunas = 0; val_lunas = 0.0
 
-        target_eval_list = filtered_invoice_list if filter_kontrak_pilih != "-- Semua Nomor Kontrak (ALL) --" else invoice_list
-        if not target_eval_list:
-            target_eval_list = filtered_payment_records
+        target_eval_list = filtered_invoice_list if filtered_invoice_list else filtered_payment_records
 
         for inv_item in target_eval_list:
             inv_no_val = str(inv_item.get("Nomor Invoice Resmi", inv_item.get("Nomor Invoice", ""))).strip()
@@ -229,7 +227,7 @@ def tampilkan_pemantauan_pembayaran():
             st.markdown(f"""
                 <div style="background-color: #1e293b; color: white; padding: 18px; border-radius: 8px; text-align: center; border-left: 5px solid #38bdf8;">
                     <p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600;">TOTAL SELURUH TAGIHAN</p>
-                    <h3 style="margin: 6px 0 0 0; font-size: 20px; color: #ffffff;">{fmt_rp_satu_baris(total_seluruh_tagihan)}</h3>
+                    <h3 style="margin: 6px 0 0 0; font-size: 19px; color: #ffffff;">{fmt_rp_satu_baris(total_seluruh_tagihan)}</h3>
                     <p style="margin: 4px 0 0 0; font-size: 11px; color: #38bdf8;">100.00% dari Total Portofolio</p>
                 </div>
             """, unsafe_allow_html=True)
@@ -237,7 +235,7 @@ def tampilkan_pemantauan_pembayaran():
             st.markdown(f"""
                 <div style="background-color: #1e293b; color: white; padding: 18px; border-radius: 8px; text-align: center; border-left: 5px solid #10b981;">
                     <p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600;">TOTAL SUDAH DIBAYARKAN</p>
-                    <h3 style="margin: 6px 0 0 0; font-size: 20px; color: #34d399;">{fmt_rp_satu_baris(total_sudah_dibayar)}</h3>
+                    <h3 style="margin: 6px 0 0 0; font-size: 19px; color: #34d399;">{fmt_rp_satu_baris(total_sudah_dibayar)}</h3>
                     <p style="margin: 4px 0 0 0; font-size: 11px; color: #34d399;">{persen_dibayar:.2f}% (Rasio Realisasi)</p>
                 </div>
             """, unsafe_allow_html=True)
@@ -245,21 +243,18 @@ def tampilkan_pemantauan_pembayaran():
             st.markdown(f"""
                 <div style="background-color: #1e293b; color: white; padding: 18px; border-radius: 8px; text-align: center; border-left: 5px solid #f59e0b;">
                     <p style="margin: 0; font-size: 13px; color: #94a3b8; font-weight: 600;">SISA SALDO BELUM TERBAYAR</p>
-                    <h3 style="margin: 6px 0 0 0; font-size: 20px; color: #fbbf24;">{fmt_rp_satu_baris(sisa_belum_terbayar)}</h3>
+                    <h3 style="margin: 6px 0 0 0; font-size: 19px; color: #fbbf24;">{fmt_rp_satu_baris(sisa_belum_terbayar)}</h3>
                     <p style="margin: 4px 0 0 0; font-size: 11px; color: #fbbf24;">{persen_sisa:.2f}% (Outstanding Piutang)</p>
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- TABEL RINCIAN REKAPITULASI PER NOMOR KONTRAK ---
+        # --- TABEL RINCIAN REKAPITULASI PER NOMOR KONTRAK (SELALU MENAMPILKAN SEMUA KONTRAK BERBARIS) ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak")
         
         summary_contract_map = {}
-        source_contract_recs = filtered_invoice_list if filter_kontrak_pilih != "-- Semua Nomor Kontrak (ALL) --" else invoice_list
-        if not source_contract_recs:
-            source_contract_recs = filtered_payment_records
-
-        for item_rc in source_contract_recs:
+        # Selalu gunakan full invoice_list untuk tabel rincian agar semua kontrak (142, 141, dsb) tampil berbaris
+        for item_rc in invoice_list:
             c_no = str(item_rc.get("Kontrak No.", item_rc.get("Nomor Kontrak", "-"))).strip()
             inv_no_rc = str(item_rc.get("Nomor Invoice Resmi", item_rc.get("Nomor Invoice", ""))).strip()
             gt = ambil_grand_total_invoice_master(inv_no_rc)
