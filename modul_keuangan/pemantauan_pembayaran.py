@@ -39,13 +39,14 @@ def tampilkan_pemantauan_pembayaran():
             return 0.0
 
     # --- 1. MODUL 3: MEMBACA DARI FILE TERSIMPAN MODUL 3 ---
+    fn_invoice_candidates = [
+        os.path.join(DIR_DATABASE, "database_billing_tax.xlsx"),
+        os.path.join(DIR_DATABASE, "database_invoice_resmi.xlsx"),
+        os.path.join(DIR_DATABASE, "database_invoice.xlsx")
+    ]
+    
     def muat_invoice_tersimpan_modul3():
-        spesifik_file = [
-            os.path.join(DIR_DATABASE, "database_billing_tax.xlsx"),
-            os.path.join(DIR_DATABASE, "database_invoice_resmi.xlsx"),
-            os.path.join(DIR_DATABASE, "database_invoice.xlsx")
-        ]
-        for file_path in spesifik_file:
+        for file_path in fn_invoice_candidates:
             if os.path.exists(file_path):
                 try:
                     df = pd.read_excel(file_path)
@@ -122,7 +123,7 @@ def tampilkan_pemantauan_pembayaran():
                     return str(v)[:10]
         return str(date.today())
 
-    # --- 2. AMBIL TOTAL KONTRAK DARI MODUL 2 DENGAN NORMALISASI PRESISI ---
+    # --- 2. AMBIL TOTAL KONTRAK DARI MODUL 2 (DENGAN NORMALISASI Menyeluruh) ---
     def muat_total_kontrak_modul2():
         plafon_files = [
             os.path.join(DIR_DATABASE, "database_plafon_kontrak.xlsx"),
@@ -145,7 +146,9 @@ def tampilkan_pemantauan_pembayaran():
                                     if val_c and val_c != '-' and val_c.lower() != 'nan':
                                         c_num = val_c
                                 elif any(k in col_l for k in ["plafon", "nilaikontrak", "totalkontrak", "pagu", "totalnilaikontrak"]):
-                                    c_val = parse_harga_presisi(row[col])
+                                    val_Parsed_plf = parse_harga_presisi(row[col])
+                                    if val_Parsed_plf > c_val:
+                                        c_val = val_Parsed_plf
                             if c_num and c_val > 0:
                                 kontrak_master_map[c_num] = c_val
                 except:
@@ -276,7 +279,7 @@ def tampilkan_pemantauan_pembayaran():
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- TABEL RINCIAN AKUMULASI PER NOMOR KONTRAK (LEBAR KOLOM DILEBARKAN & FONT DISESUAIKAN) ---
+        # --- TABEL RINCIAN AKUMULASI PER NOMOR KONTRAK ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak")
         
@@ -302,7 +305,6 @@ def tampilkan_pemantauan_pembayaran():
             elif st_byr == "Sebagian (DP / Termin)":
                 summary_contract_map[c_no]["terbayar"] += (gt * 0.5)
 
-        # Proporsi kolom diperlebar agar tidak saling menimpa
         rh_cols = st.columns([1.5, 0.8, 2.0, 2.0, 2.0, 2.0, 1.0, 0.9])
         r_headers = ["Nomor Kontrak", "Jml Dok", "Total Nilai Kontrak", "Total Tagihan", "Sudah Dibayar", "Sisa Piutang", "Realisasi", "Status"]
         for rh, rht in zip(rh_cols, r_headers):
@@ -325,7 +327,6 @@ def tampilkan_pemantauan_pembayaran():
             t_byr = c_val["terbayar"]
             t_piu = t_tag - t_byr
             
-            # Pencarian plafon kontrak dengan normalisasi string
             t_plafon = 0.0
             for k_plf, v_plf in master_kontrak_plafon.items():
                 if str(k_plf).strip() == str(c_key).strip():
@@ -594,7 +595,7 @@ def tampilkan_pemantauan_pembayaran():
                     del st.session_state["active_invoice_selected"]
                 st.rerun()
 
-    # --- TABEL RINGKASAN & LAPORAN AGING ---
+    # --- 5. TABEL RINGKASAN & LAPORAN AGING DENGAN FITUR GESER (SCROLLABLE) ---
     st.markdown("---")
     st.markdown(f"#### 📋 Ringkasan & Laporan Aging Invoice ({filter_kontrak_pilih})")
 
@@ -603,11 +604,14 @@ def tampilkan_pemantauan_pembayaran():
         current_payment_records = [p for p in current_payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(filter_kontrak_pilih).strip()]
 
     if current_payment_records:
+        # Membungkus tabel dengan kontainer scroll horizontal CSS agar tidak terpotong-potong
+        st.markdown('<div style="overflow-x: auto; width: 100%;">', unsafe_allow_html=True)
+        
         hdr_cols = st.columns([1.1, 1.4, 1.3, 1.8, 0.9, 0.9, 0.6, 0.9, 0.9, 1.1, 1.0, 0.7, 0.7])
         headers_text = ["No. Kontrak", "No. Invoice", "No. Faktur Pajak", "Customer", "Tgl Inv", "Tgl Serah", "TOP", "Tgl JT", "Tgl Lunas", "Grand Total", "Status", "Edit", "Hapus"]
         for hc, ht in zip(hdr_cols, headers_text):
             with hc:
-                st.markdown(f"<span style='font-size: 11px; font-weight: bold; color: #0f172a;'>{ht}</span>", unsafe_allow_html=True)
+                st.markdown(f"<span style='font-size: 11px; font-weight: bold; color: #0f172a; white-space: nowrap;'>{ht}</span>", unsafe_allow_html=True)
         st.markdown("<hr style='margin: 4px 0; border-top: 2px solid #cbd5e1;'>", unsafe_allow_html=True)
 
         for idx, row_p in enumerate(current_payment_records):
@@ -630,28 +634,28 @@ def tampilkan_pemantauan_pembayaran():
 
             cols_r = st.columns([1.1, 1.4, 1.3, 1.8, 0.9, 0.9, 0.6, 0.9, 0.9, 1.1, 1.0, 0.7, 0.7])
             with cols_r[0]:
-                st.markdown(f"<small>{row_p.get('Nomor Kontrak', '-')}</small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='white-space: nowrap;'>{row_p.get('Nomor Kontrak', '-')}</small>", unsafe_allow_html=True)
             with cols_r[1]:
-                st.markdown(f"**{inv_num_row}**", unsafe_allow_html=True)
+                st.markdown(f"<b style='white-space: nowrap;'>{inv_num_row}</b>", unsafe_allow_html=True)
             with cols_r[2]:
-                st.markdown(f"<small>{faktur_pajak_row if faktur_pajak_row else '-'}</small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='white-space: nowrap;'>{faktur_pajak_row if faktur_pajak_row else '-'}</small>", unsafe_allow_html=True)
             with cols_r[3]:
-                st.markdown(f"<small>{row_p.get('Customer', '-')}</small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='white-space: nowrap;'>{row_p.get('Customer', '-')}</small>", unsafe_allow_html=True)
             with cols_r[4]:
-                st.markdown(f"<small>{str(row_p.get('Tanggal Invoice', ''))[:10]}</small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='white-space: nowrap;'>{str(row_p.get('Tanggal Invoice', ''))[:10]}</small>", unsafe_allow_html=True)
             with cols_r[5]:
-                st.markdown(f"<small>{tgl_penyerahan_str}</small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='white-space: nowrap;'>{tgl_penyerahan_str}</small>", unsafe_allow_html=True)
             with cols_r[6]:
-                st.markdown(f"<small>{durasi_info}</small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='white-space: nowrap;'>{durasi_info}</small>", unsafe_allow_html=True)
             with cols_r[7]:
-                st.markdown(f"<small>{str(row_p.get('Tanggal Jatuh Tempo', ''))[:10]}</small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='white-space: nowrap;'>{str(row_p.get('Tanggal Jatuh Tempo', ''))[:10]}</small>", unsafe_allow_html=True)
             with cols_r[8]:
-                st.markdown(f"<small>{tgl_pelunasan_str}</small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='white-space: nowrap;'>{tgl_pelunasan_str}</small>", unsafe_allow_html=True)
             with cols_r[9]:
                 gt_val = float(row_p.get('Grand Total', 0))
                 st.markdown(f"<small style='white-space: nowrap;'>Rp {gt_val:,.2f}</small>".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
             with cols_r[10]:
-                st.markdown(f"<small>{row_p.get('Status Pembayaran', '-')}</small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='white-space: nowrap;'>{row_p.get('Status Pembayaran', '-')}</small>", unsafe_allow_html=True)
             with cols_r[11]:
                 if st.button("✏️", key=f"tbl_edit_{idx}_{inv_num_row}", help="Edit Data"):
                     st.session_state["active_invoice_selected"] = str(inv_num_row).strip()
@@ -686,5 +690,7 @@ def tampilkan_pemantauan_pembayaran():
                         st.rerun()
 
             st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.info("ℹ️ Belum ada data pemantauan pembayaran yang tersimpan untuk filter kontrak ini.")
