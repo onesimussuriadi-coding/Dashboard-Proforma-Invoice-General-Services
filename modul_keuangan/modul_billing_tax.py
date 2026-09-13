@@ -106,7 +106,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
     st.markdown("""
         <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px;">
             <h3 style="margin:0; font-size: 20px;">💰 Modul 3: Invoice, Tax & Kuitansi Management (Accounting Department)</h3>
-            <p style="margin:4px 0 0 0; font-size: 12px; color: #34d399;">Panel khusus pengelolaan tagihan resmi, perhitungan pajak (PPN & PPh berbasis Management Fee), dan pencetakan dokumen keuangan terpusat.</p>
+            <p style="margin:4px 0 0 0; font-size: 12px; color: #34d399;">Panel khusus pengelolaan tagihan resmi, perhitungan pajak (PPN & PPh berbasis Management Fee / Estimasi Sum), dan pencetakan dokumen keuangan terpusat.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -286,6 +286,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             nilai_default_tagihan = float(data_edit_aktif.get("Nilai Invoice", 0.0))
             
             is_prof_sum_default = bool(data_edit_aktif.get("Gunakan Professional Sum", False))
+            is_estimasi_sum_default = bool(data_edit_aktif.get("Gunakan Estimasi Sum", False))
             add_cost_default = float(data_edit_aktif.get("Add Cost", 0.0) or 0.0)
             mgmt_fee_default = float(data_edit_aktif.get("Management Fee", 0.0) or 0.0)
         else:
@@ -305,6 +306,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             nilai_default_tagihan = total_nilai_pi_modul2
             
             is_prof_sum_default = False
+            is_estimasi_sum_default = False
             if matched_transaksi and any("professional" in str(t.get("Kategori", "")).lower() or "provisional" in str(t.get("Kategori", "")).lower() or "professional" in str(t.get("Deskripsi Pekerjaan", "")).lower() for t in matched_transaksi):
                 is_prof_sum_default = True
             
@@ -351,9 +353,13 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 nilai_invoice_resmi = st.number_input("Total Nilai Tagihan Invoice (Rp)", min_value=0.0, value=float(nilai_default_tagihan), step=1000.0, format="%.2f")
 
             st.markdown("---")
-            st.markdown("#### 💼 Pengaturan Khusus Professional Sum (Add Cost & Management Fee)")
+            st.markdown("#### 💼 Pengaturan Khusus Metode Khusus (Professional Sum & Estimasi Sum)")
             
-            gunakan_prof_sum = st.checkbox("Pisahkan rincian baris menjadi Professional Sum (Add Cost & Management Fee 15%)", value=is_prof_sum_default)
+            col_met1, col_met2 = st.columns(2)
+            with col_met1:
+                gunakan_prof_sum = st.checkbox("Professional Sum (Add Cost & Management Fee 15%)", value=is_prof_sum_default)
+            with col_met2:
+                gunakan_estimasi_sum = st.checkbox("Estimasi Sum (Diskon Harga Satuan 10%)", value=is_estimasi_sum_default)
             
             input_add_cost = 0.0
             input_mgmt_fee = 0.0
@@ -368,10 +374,12 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     input_mgmt_fee = st.number_input("Nilai Management / Handling Fee 15% (Rp)", min_value=0.0, value=float(def_mf), step=1000.0, format="%.2f")
                 
                 subtotal_ps = input_add_cost + input_mgmt_fee
-                st.info(f"💡 **Simulasi Perhitungan:** Add Cost (Rp {input_add_cost:,.2f}) + Management Fee 15% (Rp {input_mgmt_fee:,.2f}) = **Rp {subtotal_ps:,.2f}**".replace(",", "X").replace(".", ",").replace("X", "."))
-                
-                if abs(subtotal_ps - nilai_invoice_resmi) > 1.0:
-                    st.warning(f"⚠️ Catatan: Jumlah Add Cost + Management Fee (Rp {subtotal_ps:,.2f}) berbeda dengan Total Tagihan Utama (Rp {nilai_invoice_resmi:,.2f}).")
+                st.info(f"💡 **Simulasi Professional Sum:** Add Cost (Rp {input_add_cost:,.2f}) + Management Fee 15% (Rp {input_mgmt_fee:,.2f}) = **Rp {subtotal_ps:,.2f}**".replace(",", "X").replace(".", ",").replace("X", "."))
+
+            effective_nilai_invoice = nilai_invoice_resmi
+            if gunakan_estimasi_sum:
+                effective_nilai_invoice = nilai_invoice_resmi * 0.90
+                st.info(f"💡 **Simulasi Estimasi Sum (Diskon 10%):** Plafon Rp {nilai_invoice_resmi:,.2f} dikurangi Diskon 10% = **Rp {effective_nilai_invoice:,.2f}**".replace(",", "X").replace(".", ",").replace("X", "."))
 
             st.markdown("---")
             keterangan_invoice_resmi = st.text_area(
@@ -381,7 +389,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             )
 
             st.markdown("---")
-            st.markdown("#### 🧮 Kalkulasi Otomatis Pajak (PPN 11% & PPh Berbasis Management Fee)")
+            st.markdown("#### 🧮 Kalkulasi Otomatis Pajak (PPN 11% & PPh)")
 
             def_kena_ppn = bool(data_edit_aktif.get("Kena PPN", True)) if is_mode_edit else True
             def_kena_pph = bool(data_edit_aktif.get("Kena PPh", True)) if is_mode_edit else True
@@ -395,17 +403,17 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             with col_p3:
                 persen_pph = st.number_input("Tarif PPh (%)", min_value=0.0, max_value=10.0, value=def_tarif_pph, step=0.5)
 
-            ppn_nominal = nilai_invoice_resmi * 0.11 if kena_ppn else 0.0
-            base_pph = input_mgmt_fee if gunakan_prof_sum else nilai_invoice_resmi
+            ppn_nominal = effective_nilai_invoice * 0.11 if kena_ppn else 0.0
+            base_pph = input_mgmt_fee if gunakan_prof_sum else effective_nilai_invoice
             pph_nominal = base_pph * (persen_pph / 100.0) if kena_pph else 0.0
 
-            total_pembayaran_netto = nilai_invoice_resmi + ppn_nominal - pph_nominal
+            total_pembayaran_netto = effective_nilai_invoice + ppn_nominal - pph_nominal
 
             st.markdown(f"""
-                * **Dasar Tagihan Invoice:** Rp {nilai_invoice_resmi:,.2f}
-                * **Dasar Pengenaan PPh (Management Fee):** Rp {base_pph:,.2f}
+                * **Dasar Tagihan Invoice (Efektif):** Rp {effective_nilai_invoice:,.2f}
+                * **Dasar Pengenaan PPh:** Rp {base_pph:,.2f}
                 * **Nilai PPN (11%):** Rp {ppn_nominal:,.2f}
-                * **Potongan PPh ({persen_pph}% dari Management Fee):** Rp {pph_nominal:,.2f}
+                * **Potongan PPh ({persen_pph}%):** Rp {pph_nominal:,.2f}
                 * **Total Netto Diterima:** **Rp {total_pembayaran_netto:,.2f}**
             """.replace(",", "X").replace(".", ",").replace("X", "."))
 
@@ -439,8 +447,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         "Jatuh Tempo": str(tanggal_jatuh_tempo),
                         "Keterangan Invoice": keterangan_invoice_resmi,
                         "Informasi Bank": bank_string_dinamis,
-                        "Nilai Invoice": nilai_invoice_resmi,
+                        "Nilai Invoice": effective_nilai_invoice,
                         "Gunakan Professional Sum": 1 if gunakan_prof_sum else 0,
+                        "Gunakan Estimasi Sum": 1 if gunakan_estimasi_sum else 0,
                         "Add Cost": input_add_cost if gunakan_prof_sum else 0.0,
                         "Management Fee": input_mgmt_fee if gunakan_prof_sum else 0.0,
                         "PPN Nominal": ppn_nominal,
@@ -480,6 +489,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             s_pph = float(saved_rec.get("PPh Nominal", 0))
             s_netto = float(saved_rec.get("Total Netto", 0))
             s_is_ps = bool(saved_rec.get("Gunakan Professional Sum", False))
+            s_is_es = bool(saved_rec.get("Gunakan Estimasi Sum", False))
             s_ac = float(saved_rec.get("Add Cost", 0))
             s_mf = float(saved_rec.get("Management Fee", 0))
 
@@ -493,11 +503,12 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     * **Nomor PO:** `{s_po}`
                     * **Nomor WAN / SA:** `{s_wan}`
                     * **Customer:** `{s_cust}`
-                    * **Total Tagihan (DPP / Nilai Invoice):** **{fmt_idr(s_val)}**
+                    * **Total Tagihan Bersih (DPP):** **{fmt_idr(s_val)}**
                 """)
             with col_prev2:
                 st.markdown(f"""
-                    * **Professional Sum:** `{'Aktif (Add Cost & Management Fee)' if s_is_ps else 'Tidak Aktif'}`
+                    * **Professional Sum:** `{'Aktif' if s_is_ps else 'Tidak Aktif'}`
+                    * **Estimasi Sum (Diskon 10%):** `{'Aktif' if s_is_es else 'Tidak Aktif'}`
                     {"* **Add Cost:** " + fmt_idr(s_ac) if s_is_ps else ""}
                     {"* **Management Fee (15%):** " + fmt_idr(s_mf) if s_is_ps else ""}
                     * **PPN (11%):** {fmt_idr(s_ppn)}
