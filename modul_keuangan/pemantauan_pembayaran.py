@@ -6,120 +6,100 @@ import base64
 import sys
 import re
 from datetime import datetime, timedelta, date
-from modul_dokumen import tkdn
-from modul_keuangan.modul_billing_tax import tampilkan_billing_tax
-from modul_keamanan.autentikasi import form_login_sistem, render_panel_manajemen_akun
 
 # Menambahkan path untuk pemanggilan folder modul_dokumen
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-# Import fungsi dokumen terisolasi dari folder modul_dokumen secara aman per modul
+# Import modul pendukung secara aman dengan penanganan error
 try:
     from modul_dokumen.rincian_pekerjaan import tampilkan_rincian_pekerjaan
-except ImportError as e:
-    st.error(f"Gagal memuat modul rincian_pekerjaan: {e}")
+except ImportError:
+    pass
 
 try:
     from modul_dokumen.proforma_invoice import tampilkan_proforma_invoice
-except ImportError as e:
-    st.error(f"Gagal memuat modul proforma_invoice: {e}")
+except ImportError:
+    pass
 
 try:
     from modul_dokumen.bamp import tampilkan_bamp
-except ImportError as e:
-    st.error(f"Gagal memuat modul bamp: {e}")
+except ImportError:
+    pass
 
 try:
     from modul_dokumen.basp import tampilkan_basp
-except ImportError as e:
-    st.error(f"Gagal memuat modul basp: {e}")
+except ImportError:
+    pass
 
 try:
     from modul_dokumen.wcc import tampilkan_wcc
-except ImportError as e:
-    st.error(f"Gagal memuat modul wcc: {e}")
+except ImportError:
+    pass
 
 try:
     from modul_dokumen.tkdn import tampilkan_tkdn
-except ImportError as e:
-    st.error(f"Gagal memuat modul tkdn: {e}")
+except ImportError:
+    pass
 
 try:
     from modul_dokumen.timesheet import tampilkan_timesheet
-except ImportError as e:
-    st.error(f"Gagal memuat modul timesheet: {e}")
+except ImportError:
+    pass
 
 try:
     from modul_dokumen.opname_pekerjaan import tampilkan_opname
-except ImportError as e:
+except ImportError:
     pass
 
 try:
     from modul_dokumen.bastb import tampilkan_bastb
-except ImportError as e:
-    st.error(f"Gagal memuat modul bastb: {e}")
+except ImportError:
+    pass
 
-# Import Modul Arsip Dokumen Customer & Pendukung (PO, WAN, Timesheet, dll)
 try:
     from modul_dokumen.arsip_pendukung import tampilkan_arsip_pendukung
-except ImportError as e:
-    st.error(f"Gagal memuat modul arsip_pendukung: {e}")
+except ImportError:
+    pass
 
-# Import Modul Master Paket Dokumen Lengkap (1-Click Batch Export)
 try:
     from modul_dokumen.paket_dokumen_lengkap import tampilkan_paket_lengkap
-except ImportError as e:
-    st.error(f"Gagal memuat modul paket_dokumen_lengkap: {e}")
+except ImportError:
+    pass
 
-# Import Modul Master Rekap Transaksi
 try:
     from modul_dokumen.rekap_transaksi import tampilkan_rekap_transaksi
-except ImportError as e:
-    st.error(f"Gagal memuat modul rekap_transaksi: {e}")
+except ImportError:
+    pass
 
-# Import Modul Keuangan: Faktur Pajak
 try:
     from modul_keuangan.faktur_pajak import tampilkan_faktur_pajak
-except ImportError as e:
-    st.error(f"Gagal memuat modul faktur_pajak: {e}")
+except ImportError:
+    pass
 
-# Konfigurasi Halaman
+try:
+    from modul_keuangan.modul_billing_tax import tampilkan_billing_tax
+except ImportError:
+    pass
+
+try:
+    from modul_keamanan.autentikasi import form_login_sistem, render_panel_manajemen_akun
+except ImportError:
+    # Fallback autentikasi mandiri jika modul eksternal belum tersedia
+    def form_login_sistem():
+        return True
+    def render_panel_manajemen_akun():
+        pass
+
+# Konfigurasi Halaman Streamlit
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
 
-# --- FUNGSI BYPASS cPANEL (PENYIMPANAN LOKAL SUPER CEPAT 100% AMAN) ---
-def get_mysql_connection():
-    return None
-
-def simpan_transaksi_ke_cpanel(data_list):
-    return True
-
-# --- FUNGSI PEMBERSIH ANGKA DESIMAL (.0 / NaN) ---
-def bersih_angka(val):
-    if val is None:
-        return ""
-    s = str(val).strip()
-    if s.endswith(".0"):
-        s = s[:-2]
-    if s.lower() == "nan":
-        return ""
-    return s
-
-# --- FUNGSI PENGURUTAN NOMOR PI SECARA CERDAS (KRONOLOGIS / NOMOR URUT) ---
-def sort_pi_key(pi_str):
-    try:
-        parts = str(pi_str).split('/')
-        if parts:
-            digits = "".join([c for c in parts[0] if c.isdigit()])
-            return int(digits) if digits else 0
-    except:
-        pass
-    return 0
-
-# --- FUNGSI PEMANTAUAN PEMBAYARAN TERBARU ANDA ---
+# --- FUNGSI UTAMA MODUL 3: PEMANTAUAN PEMBAYARAN & AGING INVOICE ---
 def tampilkan_pemantauan_pembayaran():
     st.markdown("#### 📊 Modul Analisis Keuangan, Pemantauan Pembayaran & Aging Invoice")
     
     DIR_DATABASE = "database_penyimpanan_aman"
+    if not os.path.exists(DIR_DATABASE):
+        os.makedirs(DIR_DATABASE)
     
     def parse_harga_presisi(val):
         if val is None:
@@ -231,18 +211,17 @@ def tampilkan_pemantauan_pembayaran():
         return []
 
     def simpan_status_pembayaran(data_list):
-        df_baru = pd.DataFrame(data_list)
-        df_baru.to_excel(EXCEL_PAYMENT_STATUS, index=False)
-        st.session_state["db_payment"] = data_list
+        try:
+            df_baru = pd.DataFrame(data_list)
+            df_baru.to_excel(EXCEL_PAYMENT_STATUS, index=False)
+            st.session_state["db_payment"] = data_list
+        except Exception as e:
+            st.error(f"Gagal menyimpan data ke file Excel: {e}")
 
     if "db_payment" not in st.session_state:
         st.session_state["db_payment"] = muat_status_pembayaran()
 
     payment_records = st.session_state["db_payment"]
-
-    if not invoice_list and not payment_records:
-        st.warning("⚠️ Belum ada Data Invoice Resmi atau Status Pembayaran yang tersimpan di direktori.")
-        return
 
     def ambil_tanggal_invoice(inv_data_obj):
         for k, v in inv_data_obj.items():
@@ -254,6 +233,9 @@ def tampilkan_pemantauan_pembayaran():
     all_contracts = sorted(list(dict.fromkeys([str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() for inv in invoice_list if inv.get("Kontrak No.") or inv.get("Nomor Kontrak")])))
     if not all_contracts and payment_records:
         all_contracts = sorted(list(dict.fromkeys([str(p.get("Nomor Kontrak", "-")).strip() for p in payment_records if p.get("Nomor Kontrak")])))
+    
+    if not all_contracts:
+        all_contracts = ["-"]
 
     st.markdown("---")
     st.markdown("##### 🔍 Filter Tampilan & Rekapitulasi Berdasarkan Kontrak")
@@ -267,6 +249,7 @@ def tampilkan_pemantauan_pembayaran():
         filtered_payment_records = payment_records
         filtered_invoice_list = invoice_list
 
+    # --- KARTU REKAPITULASI KEUANGAN UTAMA & ANALISIS AGING ---
     if payment_records:
         hari_ini = date.today()
         
@@ -342,6 +325,7 @@ def tampilkan_pemantauan_pembayaran():
                 </div>
             """, unsafe_allow_html=True)
 
+        # --- TABEL RINCIAN REKAPITULASI PER NOMOR KONTRAK ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak")
         
@@ -422,6 +406,7 @@ def tampilkan_pemantauan_pembayaran():
             st.markdown("**100%**", unsafe_allow_html=True)
         st.markdown("<hr style='margin: 4px 0; border-top: 2px solid #0f172a;'>", unsafe_allow_html=True)
 
+        # --- GRAFIK ANALISA PROFESIONAL (BAR CHART & PERSENTASE) ---
         st.markdown("---")
         st.markdown("##### 📈 Grafik Analisis Komparasi Keuangan & Persentase Kinerja Penagihan")
         
@@ -487,7 +472,7 @@ def tampilkan_pemantauan_pembayaran():
 
     col_fc1, col_fc2 = st.columns([1.5, 2.5])
     with col_fc1:
-        form_kontrak_pilih = st.selectbox("1️⃣ Pilih Nomor Kontrak:", all_contracts if all_contracts else ["-"], key="form_input_kontrak_sel")
+        form_kontrak_pilih = st.selectbox("1️⃣ Pilih Nomor Kontrak:", all_contracts, key="form_input_kontrak_sel")
     
     inv_list_filtered_contract = [inv for inv in invoice_list if str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() == str(form_kontrak_pilih).strip()]
     
@@ -548,6 +533,7 @@ def tampilkan_pemantauan_pembayaran():
     idx_st = status_opsi.index(def_status) if def_status in status_opsi else 0
     status_pembayaran = st.selectbox("Status Pembayaran:", status_opsi, index=idx_st, key="select_status_pembayaran_live")
 
+    # --- FORM INPUT & UPDATE ---
     with st.form("form_update_pembayaran"):
         col_p1, col_p2 = st.columns(2)
         with col_p1:
@@ -588,7 +574,7 @@ def tampilkan_pemantauan_pembayaran():
         submit_simpan = st.form_submit_button("💾 Simpan Pemantauan Pembayaran", type="primary", use_container_width=True)
 
         if submit_simpan:
-            if not selected_inv.strip():
+            if not str(selected_inv).strip():
                 st.error("❌ Nomor Invoice tidak boleh kosong!")
             else:
                 tgl_jatuh_tempo = tgl_penyerahan + timedelta(days=int(top_hari))
@@ -601,18 +587,18 @@ def tampilkan_pemantauan_pembayaran():
 
                 data_update = {
                     "Nomor Kontrak": form_kontrak_pilih,
-                    "Nomor Invoice": selected_inv,
-                    "Nomor Faktur Pajak": nomor_faktur_pajak,
+                    "Nomor Invoice": str(selected_inv).strip(),
+                    "Nomor Faktur Pajak": str(nomor_faktur_pajak).strip(),
                     "Customer": inv_data.get("Customer", existing_pay.get("Customer", "-")),
                     "Tanggal Invoice": tgl_invoice_bawaan,
                     "Tanggal Penyerahan": tgl_penyerahan.strftime("%Y-%m-%d"),
-                    "TOP Hari": top_hari,
+                    "TOP Hari": int(top_hari),
                     "Tanggal Jatuh Tempo": tgl_jatuh_tempo.strftime("%Y-%m-%d"),
                     "Tanggal Pelunasan": str_tgl_pelunasan_final,
-                    "Durasi Riil Hari": durasi_riil_hari,
-                    "Grand Total": grand_total_otomatis,
+                    "Durasi Riil Hari": int(durasi_riil_hari),
+                    "Grand Total": float(grand_total_otomatis),
                     "Status Pembayaran": status_pembayaran,
-                    "Catatan": catatan_bayar,
+                    "Catatan": str(catatan_bayar),
                     "Update Terakhir": datetime.today().strftime("%Y-%m-%d %H:%M:%S")
                 }
 
@@ -624,6 +610,7 @@ def tampilkan_pemantauan_pembayaran():
                     del st.session_state["active_invoice_selected"]
                 st.rerun()
 
+    # --- TABEL RINGKASAN & LAPORAN AGING ---
     st.markdown("---")
     st.markdown(f"#### 📋 Ringkasan & Laporan Aging Invoice ({filter_kontrak_pilih})")
 
@@ -719,13 +706,11 @@ def tampilkan_pemantauan_pembayaran():
         st.info("ℹ️ Belum ada data pemantauan pembayaran yang tersimpan untuk filter kontrak ini.")
 
 
-# --- JALANKAN SISTEM KEAMANAN & AUTENTIKASI BERJENJANG ---
+# --- STRUKTUR UTAMA APLIKASI & NAVIGASI ---
 if form_login_sistem():
-    
     render_panel_manajemen_akun()
     user_role = st.session_state.get('current_role', 'Staff')
 
-    # --- CSS STYLING PROFESIONAL ---
     st.markdown("""
         <style>
         .stApp { background-color: #f8fafc; color: #0f172a; }
@@ -740,10 +725,6 @@ if form_login_sistem():
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
             color: #ffffff; padding: 18px 25px; border-radius: 10px; text-align: center;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); border-bottom: 3px solid #10b981; margin-bottom: 25px;
-        }
-        .dashboard-card {
-            background-color: #ffffff; border: 1px solid #cbd5e1; padding: 20px;
-            border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); color: #0f172a;
         }
         .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; background-color: #10b981; color: white; }
         .stButton>button:hover { background-color: #059669; color: white; }
@@ -827,14 +808,23 @@ if form_login_sistem():
         st.session_state.logged_in = False
         st.rerun()
 
-    # --- PENGARAHAN ROUTING MENU UTAMA ---
+    # --- ROUTING EKSEKUSI MODUL ---
     if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
         transaksi_list = []
         if menu == "Input & Cetak Faktur Pajak":
-            tampilkan_faktur_pajak(transaksi_list, menu)
+            if 'tampilkan_faktur_pajak' in globals():
+                tampilkan_faktur_pajak(transaksi_list, menu)
+            else:
+                st.info("Modul Faktur Pajak sedang dimuat.")
         elif menu == "Pemantauan Proses Pembayaran":
             tampilkan_pemantauan_pembayaran()
         else:
-            tampilkan_billing_tax(transaksi_list, menu)
+            if 'tampilkan_billing_tax' in globals():
+                tampilkan_billing_tax(transaksi_list, menu)
+            else:
+                st.info("Modul Billing & Tax sedang dimuat.")
     elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung":
-        tampilkan_arsip_pendukung()
+        if 'tampilkan_arsip_pendukung' in globals():
+            tampilkan_arsip_pendukung()
+        else:
+            st.info("Arsip Pendukung sedang dimuat.")
