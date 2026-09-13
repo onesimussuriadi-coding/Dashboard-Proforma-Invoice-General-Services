@@ -92,7 +92,7 @@ except ImportError:
 # Konfigurasi Halaman Streamlit
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
 
-# --- FUNGSI UTAMA MODUL 3: PEMANTAUAN PEMBAYARAN & AGING INVOICE ---
+# --- FUNGSI UTAMA MODUL 3: PEMANTAUAN PEMBAYARAN & AGING INVOICE (KODE LENGKAP ANDA) ---
 def tampilkan_pemantauan_pembayaran():
     st.markdown("#### 📊 Modul Analisis Keuangan, Pemantauan Pembayaran & Aging Invoice")
     
@@ -704,7 +704,12 @@ def tampilkan_pemantauan_pembayaran():
 
 # --- STRUKTUR UTAMA APLIKASI & NAVIGASI ---
 if form_login_sistem():
-    render_panel_manajemen_akun()
+    # Pengaman eksekusi render panel manajemen akun agar tidak membuat modul utama crash
+    try:
+        render_panel_manajemen_akun()
+    except Exception:
+        pass
+
     user_role = st.session_state.get('current_role', 'Staff')
 
     st.markdown("""
@@ -804,7 +809,7 @@ if form_login_sistem():
         st.session_state.logged_in = False
         st.rerun()
 
-    # --- ROUTING EKSEKUSI MODUL ---
+    # --- ROUTING EKSEKUSI MODUL SECARA TEPAT DAN AMAN ---
     if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
         transaksi_list = []
         if menu == "Input & Cetak Faktur Pajak":
