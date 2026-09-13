@@ -422,10 +422,18 @@ def tampilkan_paket_lengkap(transaksi_list):
         tgl_mulai_item = str(m.get('Tanggal Mulai', tgl_pi))
         tgl_selesai_item = str(m.get('Tanggal Selesai', tgl_pi))
 
+        # --- PENYESUAIAN KATEGORI & DISKON UNTUK RINCIAN PEKERJAAN ---
+        kat_lower = kat.lower()
+        if "estimated" in kat_lower or "estimasi" in kat_lower:
+            harga_diskon_val = price * 0.9
+            kat_display = f"{kat}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
+        else:
+            kat_display = kat
+
         rincian_rows_html += f"""
             <tr>
                 <td style="text-align: center; width: 4%;">{idx}</td>
-                <td style="text-align: left; padding-left: 4px; word-wrap: break-word; width: 11%;">{kat}</td>
+                <td style="text-align: left; padding-left: 4px; word-wrap: break-word; width: 11%;">{kat_display}</td>
                 <td style="text-align: left; padding-left: 5px; word-wrap: break-word; width: 22%;">{desc}</td>
                 <td style="text-align: center; width: 5%;">{qty:.2f}</td>
                 <td style="text-align: center; width: 6%;">{unit}</td>
@@ -437,9 +445,16 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
-        desc_full_pi = f"<b>{kat}</b><br>{desc}"
+        # --- PENYESUAIAN DESKRIPSI UNTUK PROFORMA INVOICE ---
+        if "estimated" in kat_lower or "estimasi" in kat_lower:
+            harga_diskon_val = price * 0.9
+            desc_full_pi = f"<b>{kat}</b><br><span style='font-size: 8.5px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 2px;'>(Diskon 10% dari harga penawaran Rp {price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span><br>{desc}"
+        else:
+            desc_full_pi = f"<b>{kat}</b><br>{desc}"
+            
         if ket:
             desc_full_pi += f"<br>{ket}"
+            
         pi_rows_html += f"""
             <tr>
                 <td style="text-align: center; width: 6%;">{idx}</td>
