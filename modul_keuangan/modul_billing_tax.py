@@ -178,10 +178,13 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             if st.button("📥 Panggil", key="btn_panggil_inv_resmi"):
                 if pilihan_inv_panggil == "-- Buat Invoice Baru (Formulir Kosong) --":
                     st.session_state["edit_billing_idx"] = None
+                    if "last_saved_billing_record" in st.session_state:
+                        del st.session_state["last_saved_billing_record"]
                 else:
                     for idx, item in enumerate(billing_records):
                         if str(item.get("Nomor Invoice Resmi")) == pilihan_inv_panggil:
                             st.session_state["edit_billing_idx"] = idx
+                            st.session_state["last_saved_billing_record"] = item
                             break
                 st.rerun()
 
@@ -251,7 +254,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         with col_h2:
             selected_sawanan_m3 = st.selectbox("2️⃣ Pilih Nomor WAN / SA (Belum Ter-invoice)", list_sawanan_valid if list_sawanan_valid else [target_sawanan_val], index=idx_sawanan_def if list_sawanan_valid else 0, key="m3_sel_sawanan")
 
-        # FILTER KETAT: Ambil hanya baris yang sejalur dengan WAN yang dipilih
         filtered_by_sawanan = [t for t in filtered_by_kontrak if str(t.get("Nomor WAN / SA")) == str(selected_sawanan_m3)]
         raw_list_pi_m3 = list(dict.fromkeys([str(t.get("PI No.")) for t in filtered_by_sawanan if t.get("PI No.")]))
         list_pi_m3 = sorted(raw_list_pi_m3, key=sort_pi_key, reverse=True)
@@ -259,7 +261,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         if is_mode_edit and target_pi_val and target_pi_val not in list_pi_m3:
             list_pi_m3.append(target_pi_val)
 
-        # Mekanisme pelacakan & reset state agar pilihan PI bergerak dinamis mengikuti WAN yang dipilih
         last_selected_wan = st.session_state.get("last_wan_tracked", "")
         if last_selected_wan != selected_sawanan_m3:
             st.session_state["last_wan_tracked"] = selected_sawanan_m3
@@ -455,12 +456,54 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     if submit_update and active_billing_idx is not None and active_billing_idx < len(current_billing):
                         current_billing[active_billing_idx] = item_billing_baru
                         simpan_data_billing(current_billing)
+                        st.session_state["last_saved_billing_record"] = item_billing_baru
                         st.success("✨ Data Invoice & Pajak berhasil di-update dengan hierarki WAN/SA terpilih!")
                     elif submit_save_as or submit_simpan_baru:
                         current_billing.append(item_billing_baru)
                         simpan_data_billing(current_billing)
+                        st.session_state["last_saved_billing_record"] = item_billing_baru
                         st.success("🎉 Data Invoice & Pajak baru berhasil disimpan!")
                         st.session_state["edit_billing_idx"] = None
+
+        # --- PREVIEW / RINCIAN DATA TERSIMPAN (DI BAWAH TOMBOL SIMPAN/UPDATE) ---
+        if "last_saved_billing_record" in st.session_state:
+            saved_rec = st.session_state["last_saved_billing_record"]
+            st.markdown("---")
+            st.markdown("##### 🔍 Rincian Data Invoice Tersimpan (Preview Review)")
+            
+            s_inv = saved_rec.get("Nomor Invoice Resmi", "-")
+            s_po = saved_rec.get("Nomor PO", "-")
+            s_wan = saved_rec.get("Nomor SA / WAN", "-")
+            s_cust = saved_rec.get("Customer", "-")
+            s_val = float(saved_rec.get("Nilai Invoice", 0))
+            s_ppn = float(saved_rec.get("PPN Nominal", 0))
+            s_pph = float(saved_rec.get("PPh Nominal", 0))
+            s_netto = float(saved_rec.get("Total Netto", 0))
+            s_is_ps = bool(saved_rec.get("Gunakan Professional Sum", False))
+            s_ac = float(saved_rec.get("Add Cost", 0))
+            s_mf = float(saved_rec.get("Management Fee", 0))
+
+            def fmt_idr(val):
+                return f"Rp {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+            col_prev1, col_prev2 = st.columns(2)
+            with col_prev1:
+                st.markdown(f"""
+                    * **Nomor Invoice Resmi:** `{s_inv}`
+                    * **Nomor PO:** `{s_po}`
+                    * **Nomor WAN / SA:** `{s_wan}`
+                    * **Customer:** `{s_cust}`
+                    * **Total Tagihan (DPP / Nilai Invoice):** **{fmt_idr(s_val)}**
+                """)
+            with col_prev2:
+                st.markdown(f"""
+                    * **Professional Sum:** `{'Aktif (Add Cost & Management Fee)' if s_is_ps else 'Tidak Aktif'}`
+                    {"* **Add Cost:** " + fmt_idr(s_ac) if s_is_ps else ""}
+                    {"* **Management Fee (15%):** " + fmt_idr(s_mf) if s_is_ps else ""}
+                    * **PPN (11%):** {fmt_idr(s_ppn)}
+                    * **Potongan PPh:** ( {fmt_idr(s_pph)} )
+                    * **Total Netto Diterima:** **{fmt_idr(s_netto)}**
+                """)
 
     # --- MENU 2: PRATINJAU, CETAK & DOWNLOAD PDF INVOICE ---
     elif menu_pilihan == "Pratinjau, Cetak & Download PDF Invoice":
