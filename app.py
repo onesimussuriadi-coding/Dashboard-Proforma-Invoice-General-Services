@@ -636,7 +636,7 @@ if form_login_sistem():
             transaksi_list = muat_data_transaksi()
             if menu == "Input & Cetak Faktur Pajak":
                 tampilkan_faktur_pajak(transaksi_list if transaksi_list else [], menu)
-            elif menu == "Pemantauan Pembayaran":
+            elif menu == "Pemantauan Proses Pembayaran":
                 tampilkan_pemantauan_pembayaran()
             else:
                 tampilkan_billing_tax(transaksi_list if transaksi_list else [], menu)
