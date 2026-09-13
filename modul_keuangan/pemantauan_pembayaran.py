@@ -13,10 +13,7 @@ def tampilkan_pemantauan_pembayaran():
         if val is None:
             return 0.0
         if isinstance(val, (int, float)):
-            v = float(val)
-            while v > 10_000_000_000:
-                v /= 10.0
-            return v
+            return float(val)
         
         s = str(val).strip()
         if not s or s.lower() == 'nan':
@@ -24,56 +21,25 @@ def tampilkan_pemantauan_pembayaran():
         
         s = s.replace("Rp", "").replace(" ", "")
         
-        if ',' in s:
-            parts = s.split(',')
-            integer_part = parts[0]
-            decimal_part = parts[1] if len(parts) > 1 else '00'
-            integer_digits = "".join(re.findall(r'\d+', integer_part))
-            clean_str = f"{integer_digits}.{decimal_part[:2]}"
-        elif '.' in s:
-            parts = s.split('.')
-            if len(parts) > 2:
-                integer_digits = "".join(re.findall(r'\d+', s))
-                clean_str = integer_digits
-            elif len(parts) == 2 and len(parts[1]) <= 2:
-                clean_str = s
+        if ',' in s and '.' in s:
+            if s.rfind(',') > s.rfind('.'):
+                s = s.replace('.', '').replace(',', '.')
             else:
-                integer_digits = "".join(re.findall(r'\d+', s))
-                clean_str = integer_digits
-        else:
-            integer_digits = "".join(re.findall(r'\d+', s))
-            clean_str = integer_digits
-
+                s = s.replace(',', '')
+        elif ',' in s:
+            if s.count(',') == 1 and len(s.split(',')[1]) <= 2:
+                s = s.replace(',', '.')
+            else:
+                s = s.replace(',', '')
+        
+        cleaned_digits = "".join(re.findall(r'[0-9\.]+', s))
         try:
-            res = float(clean_str)
-            if res > 5_000_000_000 and res < 50_000_000_000:
-                res /= 10.0
-            return res
+            return float(cleaned_digits)
         except:
             return 0.0
 
-    def muat_invoice_resmi():
-        if not os.path.exists(DIR_DATABASE):
-            return []
-        
-        semua_file = os.listdir(DIR_DATABASE)
-        kemungkinan_file = [
-            os.path.join(DIR_DATABASE, f) for f in semua_file
-            if f.endswith('.xlsx') and not f.startswith('~$')
-        ]
-        
-        gabungan_invoice = []
-        for file_path in kemungkinan_file:
-            try:
-                df = pd.read_excel(file_path)
-                if df is not None and not df.empty:
-                    gabungan_invoice.extend(df.to_dict(orient="records"))
-            except:
-                pass
-
-        if gabungan_invoice:
-            return gabungan_invoice
-
+    # --- 1. MODUL 3 BERDIRI SENDIRI: HANYA MEMBACA DARI FILE TERSIMPAN MODUL 3 ---
+    def muat_invoice_tersimpan_modul3():
         spesifik_file = [
             os.path.join(DIR_DATABASE, "database_billing_tax.xlsx"),
             os.path.join(DIR_DATABASE, "database_invoice_resmi.xlsx"),
@@ -89,25 +55,15 @@ def tampilkan_pemantauan_pembayaran():
                     pass
         return []
 
-    invoice_list = muat_invoice_resmi()
+    invoice_list = muat_invoice_tersimpan_modul3()
 
-    # --- KOREKSI PRESISI TINGGI: PENCARIAN KOLOM NOMOR INVOICE SEBENARNYA ---
     def cari_nama_kolom_invoice(sample_obj):
         if not sample_obj:
             return "Nomor Invoice"
-        
-        # Cari prioritas yang mengandung kata 'resmi' atau 'invoice'
         for k in sample_obj.keys():
             k_low = str(k).lower()
             if "resmi" in k_low or ("invoice" in k_low and "tanggal" not in k_low and "tgl" not in k_low):
                 return k
-                
-        # Jika tidak ketemu, cari kolom string yang format isinya tidak menyerupai timestamp (YYYY-MM-DD)
-        for k in sample_obj.keys():
-            k_low = str(k).lower()
-            if not any(exc in k_low for exc in ["waktu", "time", "date", "tanggal", "tgl", "timestamp", "update", "created"]):
-                return k
-                
         return list(sample_obj.keys())[0]
 
     sample_inv = invoice_list[0] if invoice_list else {}
@@ -118,7 +74,8 @@ def tampilkan_pemantauan_pembayaran():
             found_no = str(inv.get(inv_key, inv.get("Nomor Invoice Resmi", inv.get("Nomor Invoice", "")))).strip()
             if found_no == str(inv_no).strip():
                 for k, v in inv.items():
-                    if any(kata in str(k).lower() for kata in ["grand", "total", "jumlah", "tagihan", "nilai", "amount"]):
+                    k_low = str(k).lower()
+                    if any(kata in k_low for kata in ["netto", "grand", "total", "jumlah", "tagihan", "nilai", "amount"]):
                         val_parsed = parse_harga_presisi(v)
                         if val_parsed > 0:
                             return val_parsed
@@ -155,7 +112,7 @@ def tampilkan_pemantauan_pembayaran():
     payment_records = st.session_state["db_payment"]
 
     if not invoice_list and not payment_records:
-        st.warning("⚠️ Belum ada Data Invoice Resmi atau Status Pembayaran yang tersimpan di direktori.")
+        st.warning("⚠️ Belum ada Data Invoice Tersimpan di Modul 3.")
         return
 
     def ambil_tanggal_invoice(inv_data_obj):
@@ -165,7 +122,36 @@ def tampilkan_pemantauan_pembayaran():
                     return str(v)[:10]
         return str(date.today())
 
-    # --- PENGUMPULAN DAFTAR KONTRAK ---
+    # --- 2. TARIK TOTAL KONTRAK DARI MASTER MODUL 2 ---
+    def muat_total_kontrak_modul2():
+        plafon_files = [
+            os.path.join(DIR_DATABASE, "database_plafon_kontrak.xlsx"),
+            os.path.join(DIR_DATABASE, "database_kontrak.xlsx"),
+            os.path.join(DIR_DATABASE, "database_master_kontrak.xlsx")
+        ]
+        kontrak_master_map = {}
+        for file_path in plafon_files:
+            if os.path.exists(file_path):
+                try:
+                    df = pd.read_excel(file_path)
+                    if df is not None and not df.empty:
+                        for _, row in df.iterrows():
+                            c_num = ""
+                            c_val = 0.0
+                            for col in df.columns:
+                                col_l = str(col).lower()
+                                if "kontrak" in col_l and "no" in col_l:
+                                    c_num = str(row[col]).strip()
+                                elif any(k in col_l for k in ["plafon", "nilai kontrak", "total kontrak", "pagu"]):
+                                    c_val = parse_harga_presisi(row[col])
+                            if c_num and c_num != '-' and c_val > 0:
+                                kontrak_master_map[c_num] = c_val
+                except:
+                    pass
+        return kontrak_master_map
+
+    master_kontrak_plafon = muat_total_kontrak_modul2()
+
     kontrak_from_invoice = [str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() for inv in invoice_list if inv.get("Kontrak No.") or inv.get("Nomor Kontrak")]
     kontrak_from_payment = [str(p.get("Nomor Kontrak", "-")).strip() for p in payment_records if p.get("Nomor Kontrak")]
     
@@ -183,7 +169,7 @@ def tampilkan_pemantauan_pembayaran():
         filtered_invoice_list = invoice_list
         filtered_payment_records = payment_records
 
-    # --- KARTU REKAPITULASI KEUANGAN UTAMA ---
+    # --- 3. REKAPITULASI KEUANGAN DENGAN PRESISI DESIMAL ---
     if invoice_list or payment_records:
         hari_ini = date.today()
         
@@ -363,7 +349,7 @@ def tampilkan_pemantauan_pembayaran():
             st.markdown("**100%**", unsafe_allow_html=True)
         st.markdown("<hr style='margin: 4px 0; border-top: 2px solid #0f172a;'>", unsafe_allow_html=True)
 
-    # --- FORM INPUT & PEMBARUAN STATUS PEMBAYARAN ---
+    # --- 4. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN (HANYA AMBIL DARI MODUL 3) ---
     st.markdown("---")
     st.markdown("##### 📝 Form Input & Pembaruan Status Pembayaran (Berdasarkan Kontrak)")
 
@@ -373,16 +359,14 @@ def tampilkan_pemantauan_pembayaran():
     
     inv_list_filtered_contract = [inv for inv in invoice_list if str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() == str(form_kontrak_pilih).strip()]
     
-    # Filter ketat nomor invoice agar hanya mengambil string format nomor invoice asli (misal mengandung '/' atau 'BSS')
     all_inv_no_contract = []
     for inv in inv_list_filtered_contract:
         val_inv = str(inv.get(inv_key, "")).strip()
-        if val_inv and not val_inv.startswith("2026-") and ("/" in val_inv or "BSS" in val_inv or len(val_inv) > 5):
+        if val_inv and not val_inv.startswith("2026-") and len(val_inv) > 3:
             all_inv_no_contract.append(val_inv)
             
-    # Fallback jika list kosong
     if not all_inv_no_contract:
-        all_inv_no_contract = [str(inv.get(inv_key, "")).strip() for inv in inv_list_filtered_contract if inv.get(inv_key) and not str(inv.get(inv_key, "")).startswith("2026-")]
+        all_inv_no_contract = [str(inv.get(inv_key, "")).strip() for inv in inv_list_filtered_contract if inv.get(inv_key)]
 
     if not all_inv_no_contract and payment_records:
         all_inv_no_contract = sorted(list(dict.fromkeys([str(p.get("Nomor Invoice", "")).strip() for p in payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(form_kontrak_pilih).strip() and p.get("Nomor Invoice")])))
@@ -600,9 +584,10 @@ def tampilkan_pemantauan_pembayaran():
                             st.error("❌ Password verifikasi salah!")
                 with col_vk2:
                     if st.button("❌ Batal", key=f"btn_no_del_{idx}"):
-                        if f"confirm_del_{idx}" in st.session_state:
-                            del st.session_state[f"confirm_del_{idx}"]
-                        st.rerun()
+                        if f"confirm_del_{idx}" in st.session_status if "confirm_del_{idx}" in st.session_state else True:
+                            if f"confirm_del_{idx}" in st.session_state:
+                                del st.session_state[f"confirm_del_{idx}"]
+                            st.rerun()
 
             st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
     else:
