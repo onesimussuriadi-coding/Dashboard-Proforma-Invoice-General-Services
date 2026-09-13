@@ -421,7 +421,7 @@ if form_login_sistem():
     EXCEL_MASTER_REF = os.path.join(DIR_DATABASE, "database_master_referensi.xlsx")
     EXCEL_BANK = os.path.join(DIR_DATABASE, "database_master_bank.xlsx")
 
-    # --- PENYIMPANAN LOKAL EXCEL PERMANEN (100% AMAN & PERSISTEN) ---
+    # --- PENYIMPANAN LOKAL EXCEL PERMANEN (100% AMAN & PERSISTEN AUTO-SYNC) ---
     def muat_data_invoice():
         if os.path.exists(EXCEL_INVOICE):
             try:
@@ -539,17 +539,11 @@ if form_login_sistem():
         df_baru.to_excel(EXCEL_BANK, index=False)
         st.session_state["db_master_bank"] = data_list
 
-    if "db_tersimpan" not in st.session_state:
-        st.session_state["db_tersimpan"] = muat_data_invoice()
-
-    if "db_transaksi" not in st.session_state:
-        st.session_state["db_transaksi"] = muat_data_transaksi()
-
-    if "db_master_ref" not in st.session_state:
-        st.session_state["db_master_ref"] = muat_master_referensi()
-
-    if "db_master_bank" not in st.session_state:
-        st.session_state["db_master_bank"] = muat_master_bank()
+    # --- SINKRONISASI TINGKAT SISTEM: SELALU MUAT ULANG DATA DARI DISK EXCEL AGAR PERPINDAHAN SHEET SELALU UTUH 100% ---
+    st.session_state["db_tersimpan"] = muat_data_invoice()
+    st.session_state["db_transaksi"] = muat_data_transaksi()
+    st.session_state["db_master_ref"] = muat_master_referensi()
+    st.session_state["db_master_bank"] = muat_master_bank()
 
     if "edit_index" not in st.session_state:
         st.session_state["edit_index"] = None
@@ -631,7 +625,11 @@ if form_login_sistem():
     st.sidebar.success("📂 **Status Sistem:** Penyimpanan Permanen Lokal Aktif")
 
     if st.sidebar.button("🔄 Sinkronisasi Sistem Sekarang"):
-        st.sidebar.info("ℹ️ Mode penyimpanan lokal persisten aktif.")
+        st.session_state["db_tersimpan"] = muat_data_invoice()
+        st.session_state["db_transaksi"] = muat_data_transaksi()
+        st.session_state["db_master_ref"] = muat_master_referensi()
+        st.session_state["db_master_bank"] = muat_master_bank()
+        st.sidebar.info("ℹ️ Mode penyimpanan lokal persisten disinkronkan.")
 
     if st.sidebar.button("🔒 Keluar / Logout Sistem"):
         st.session_state.logged_in = False
@@ -799,7 +797,7 @@ if form_login_sistem():
                                 st.success("✨ Data Master Referensi berhasil di-update!")
                             else:
                                 master_data.append(item_baru)
-                                st.success("🎉 Data Master Referensi baru beserta riwayat kontrak fleksibel berhasil disimpan!")
+                                st.success("🎉 Data Master Referensi baru berhasil disimpan!")
                             
                             simpan_master_referensi(master_data)
                             st.session_state["edit_master_index"] = None
@@ -930,11 +928,7 @@ if form_login_sistem():
                     </div>
                 """, unsafe_allow_html=True)
 
-                disk_check = muat_data_invoice()
-                if disk_check and len(disk_check) > len(st.session_state["db_tersimpan"]):
-                    st.session_state["db_tersimpan"] = disk_check
-
-                saved_db_list = st.session_state["db_tersimpan"]
+                saved_db_list = muat_data_invoice()
 
                 if len(saved_db_list) > 0:
                     list_kontrak_db = sorted(list(set(bersih_angka(data.get(1, data.get('Nomor Kontrak', '-'))) for data in saved_db_list if isinstance(data, dict) and bersih_angka(data.get(1, data.get('Nomor Kontrak', '-'))) != '')))
@@ -1149,6 +1143,7 @@ if form_login_sistem():
                             simpan_data_invoice(current_data)
                             st.success("🎉 Data berhasil disimpan secara permanen!")
                             st.session_state["edit_index"] = None
+                        st.rerun()
 
             elif menu == "Lihat Database Tersimpan":
                 st.markdown("""
@@ -1488,7 +1483,7 @@ if form_login_sistem():
                                             display_text = f"⭐ [{unique_part}] — ({orig_text})"
                                         else:
                                             display_text = orig_text
-                                    
+                                        
                                             spek_display_map[display_text] = orig_text
                                             spek_options_formatted.append(display_text)
 
@@ -1695,6 +1690,7 @@ if form_login_sistem():
 
                             simpan_data_transaksi(existing_tx)
                             st.success(f"💾 Berhasil menyimpan data sementara secara permanen untuk PI [{pi_target_simpan}]!")
+                            st.rerun()
 
                         if submit_proses_distribusi:
                             waktu_aksi = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
@@ -1756,6 +1752,7 @@ if form_login_sistem():
                             simpan_data_transaksi(existing_tx)
                             st.session_state.num_rows = 1
                             st.success(f"🎉 Berhasil mendistribusikan data secara permanen untuk Proforma Invoice [{pi_baru}] ke dokumen turunan!")
+                            st.rerun()
 
             elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
                 transaksi_list = muat_data_transaksi()
@@ -1985,9 +1982,9 @@ if form_login_sistem():
 
                             output_excel = io.BytesIO()
                             kolom_export_preferred = [
-                                "Nomor Kontrak", "PI No.", "Nomor PO", "Nomor WO", "Kategori", 
+                                "Nomor Kontrak", "PI No.", "Nomor PO", "Nomor WAN / SA", "Kategori", 
                                 "Deskripsi Pekerjaan", "Qty", "Unit", "Harga Satuan", "Total Harga",
-                                "Tanggal PI", "Ditujukan Kepada", "Nomor WAN / SA", "Percent"
+                                "Tanggal PI", "Ditujukan Kepada", "Percent"
                             ]
                             existing_cols_export = [col for col in kolom_export_preferred if col in df_excel_target.columns]
                             other_cols_export = [col for col in df_excel_target.columns if col not in existing_cols_export and col != "Total Harga Num" and col != "Tahun_PI"]
@@ -2028,11 +2025,12 @@ if form_login_sistem():
                                     </div>
                                 """, unsafe_allow_html=True)
 
+                                # --- HEADER TABEL: DIGANTI KOLOM NOMOR WO MENJADI NOMOR WAN / NOMOR SA ---
                                 headers_tx_html = """
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor Kontrak</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor PI</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor PO</th>
-                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor WO</th>
+                                    <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor WAN / Nomor SA</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Kategori</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Uraian Pekerjaan</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: center;'>Qty</th>
@@ -2049,7 +2047,12 @@ if form_login_sistem():
                                     val_k = bersih_angka(row_data.get("Nomor Kontrak", "-"))
                                     val_pi = bersih_angka(row_data.get("PI No.", "-"))
                                     val_po = bersih_angka(row_data.get("Nomor PO", "-"))
-                                    val_wo = bersih_angka(row_data.get("Nomor WO", "-"))
+                                    
+                                    # MENGAMBIL DATA NOMOR WAN / SA DENGAN FALLBACK AMAN
+                                    val_wan_sa = bersih_angka(row_data.get("Nomor WAN / SA", row_data.get("WAN Nomor", row_data.get("WAN", row_data.get("SA Nomor", "-")))))
+                                    if not val_wan_sa:
+                                        val_wan_sa = "-"
+
                                     val_kat = bersih_angka(row_data.get("Kategori", "-"))
                                     val_desc = bersih_angka(row_data.get("Deskripsi Pekerjaan", "-"))
                                     
@@ -2075,7 +2078,7 @@ if form_login_sistem():
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_k}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_pi}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_po}</td>
-                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_wo}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_wan_sa}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_kat}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left; max-width: 220px; white-space: normal;">{val_desc}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: center;">{val_qty}</td>
