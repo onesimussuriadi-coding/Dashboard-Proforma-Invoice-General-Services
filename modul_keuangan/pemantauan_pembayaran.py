@@ -38,7 +38,15 @@ def tampilkan_pemantauan_pembayaran():
         except:
             return 0.0
 
-    # --- 1. MODUL 3: MEMBACA DARI FILE TERSIMPAN MODUL 3 ---
+    def fmt_rp(val):
+        num = float(val or 0.0)
+        return f"Rp {num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def fmt_rp_satu_baris(val):
+        formatted_num = fmt_rp(val)
+        return f'<span style="white-space: nowrap; display: inline-block;">{formatted_num}</span>'
+
+    # --- 1. MEMBACA DATA INVOICE TERSIMPAN (MODUL 3) ---
     def muat_invoice_tersimpan_modul3():
         spesifik_file = [
             os.path.join(DIR_DATABASE, "database_billing_tax.xlsx"),
@@ -69,17 +77,52 @@ def tampilkan_pemantauan_pembayaran():
     sample_inv = invoice_list[0] if invoice_list else {}
     inv_key = cari_nama_kolom_invoice(sample_inv)
 
-    def ambil_grand_total_invoice_master(inv_no):
+    def ambil_detail_invoice_master(inv_no):
+        """Mengekstrak DPP, PPN, dan Total Tagihan (DPP+PPN) dari database Modul 3."""
         for inv in invoice_list:
             found_no = str(inv.get(inv_key, inv.get("Nomor Invoice Resmi", inv.get("Nomor Invoice", "")))).strip()
             if found_no == str(inv_no).strip():
+                dpp_val = 0.0
+                ppn_val = 0.0
+                total_val = 0.0
+                
+                # Cek kolom DPP
                 for k, v in inv.items():
                     k_low = str(k).lower()
-                    if any(kata in k_low for kata in ["netto", "grand", "total", "jumlah", "tagihan", "nilai", "amount"]):
-                        val_parsed = parse_harga_presisi(v)
-                        if val_parsed > 0:
-                            return val_parsed
-        return 0.0
+                    if any(kata in k_low for kata in ["dpp", "gross", "bruto", "nilai invoice"]):
+                        val_p = parse_harga_presisi(v)
+                        if val_p > dpp_val:
+                            dpp_val = val_p
+                            
+                # Cek kolom PPN
+                for k, v in inv.items():
+                    k_low = str(k).lower()
+                    if "ppn" in k_low and "wapu" not in k_low:
+                        val_p = parse_harga_presisi(v)
+                        if val_p > ppn_val:
+                            ppn_val = val_p
+
+                # Cek kolom Grand Total / Netto / Total Tagihan
+                for k, v in inv.items():
+                    k_low = str(k).lower()
+                    if any(kata in k_low for kata in ["netto", "grand", "total netto", "total tagihan", "total amount"]):
+                        val_p = parse_harga_presisi(v)
+                        if val_p > total_val:
+                            total_val = val_p
+
+                if total_val == 0.0:
+                    total_val = dpp_val + ppn_val
+                elif dpp_val == 0.0 and total_val > 0:
+                    dpp_val = total_val / 1.11 if ppn_val > 0 else total_val
+                    if ppn_val == 0.0:
+                        ppn_val = total_val - dpp_val
+
+                return {
+                    "dpp": dpp_val,
+                    "ppn": ppn_val,
+                    "total_tagihan": total_val
+                }
+        return {"dpp": 0.0, "ppn": 0.0, "total_tagihan": 0.0}
 
     EXCEL_PAYMENT_STATUS = os.path.join(DIR_DATABASE, "database_status_pembayaran.xlsx")
 
@@ -91,11 +134,15 @@ def tampilkan_pemantauan_pembayaran():
                     records = df.to_dict(orient="records")
                     for r in records:
                         inv_no = r.get("Nomor Invoice", "")
-                        master_gt = ambil_grand_total_invoice_master(inv_no)
-                        if master_gt > 0:
-                            r["Grand Total"] = master_gt
+                        dtl = ambil_detail_invoice_master(inv_no)
+                        if dtl["total_tagihan"] > 0:
+                            r["Grand Total"] = dtl["total_tagihan"]
+                            r["Nilai DPP"] = dtl["dpp"]
+                            r["Nilai PPN"] = dtl["ppn"]
                         else:
                             r["Grand Total"] = parse_harga_presisi(r.get("Grand Total", 0.0))
+                            r["Nilai DPP"] = parse_harga_presisi(r.get("Nilai DPP", r["Grand Total"] / 1.11))
+                            r["Nilai PPN"] = parse_harga_presisi(r.get("Nilai PPN", r["Grand Total"] - r["Nilai DPP"]))
                     return records
             except:
                 pass
@@ -122,17 +169,22 @@ def tampilkan_pemantauan_pembayaran():
                     return str(v)[:10]
         return str(date.today())
 
-    # --- 2. MASTER PLAFON KONTRAK PRESISI (TOTAL TEPAT 83.680.643.089,98) ---
-    master_kontrak_plafon = {
+    # --- 2. MASTER PLAFON KONTRAK PRESISI (DPP & INCLUDE PPN 11%) ---
+    master_kontrak_plafon_dpp = {
         "7201250141": 42997282428.98,
         "7207250142": 38711901661.00,
         "7203250036": 1971459000.00
+    }
+    
+    # Plafon Include PPN 11% (DPP * 1.11)
+    master_kontrak_plafon_inc_ppn = {
+        k: v * 1.11 for k, v in master_kontrak_plafon_dpp.items()
     }
 
     kontrak_from_invoice = [str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() for inv in invoice_list if inv.get("Kontrak No.") or inv.get("Nomor Kontrak")]
     kontrak_from_payment = [str(p.get("Nomor Kontrak", "-")).strip() for p in payment_records if p.get("Nomor Kontrak")]
     
-    all_contracts = sorted(list(dict.fromkeys([k for k in (kontrak_from_invoice + kontrak_from_payment + list(master_kontrak_plafon.keys())) if k and k != '-' and k.lower() != 'nan'])))
+    all_contracts = sorted(list(dict.fromkeys([k for k in (kontrak_from_invoice + kontrak_from_payment + list(master_kontrak_plafon_dpp.keys())) if k and k != '-' and k.lower() != 'nan'])))
 
     st.markdown("---")
     st.markdown("##### 🔍 Filter Tampilan & Rekapitulasi Berdasarkan Kontrak")
@@ -146,79 +198,52 @@ def tampilkan_pemantauan_pembayaran():
         filtered_invoice_list = invoice_list
         filtered_payment_records = payment_records
 
-    # --- 3. REKAPITULASI KEUANGAN 4 KOTAK STATISTIK ---
-    if invoice_list or payment_records or master_kontrak_plafon:
+    # --- 3. REKAPITULASI KEUANGAN KOTAK STATISTIK (DENGAN DEKOMPOSISI INC. PPN) ---
+    if invoice_list or payment_records or master_kontrak_plafon_dpp:
         hari_ini = date.today()
         
-        total_nilai_kontrak_aktif = 0.0
+        plafon_dpp_aktif = 0.0
+        plafon_inc_ppn_aktif = 0.0
+        
         if filter_kontrak_pilih != "-- Semua Nomor Kontrak (ALL) --":
-            total_nilai_kontrak_aktif = master_kontrak_plafon.get(str(filter_kontrak_pilih).strip(), 0.0)
+            plafon_dpp_aktif = master_kontrak_plafon_dpp.get(str(filter_kontrak_pilih).strip(), 0.0)
+            plafon_inc_ppn_aktif = master_kontrak_plafon_inc_ppn.get(str(filter_kontrak_pilih).strip(), 0.0)
         else:
-            total_nilai_kontrak_aktif = sum(master_kontrak_plafon.values())
+            plafon_dpp_aktif = sum(master_kontrak_plafon_dpp.values())
+            plafon_inc_ppn_aktif = sum(master_kontrak_plafon_inc_ppn.values())
 
-        total_seluruh_tagihan = 0.0
-        total_sudah_dibayar = 0.0
-
-        jml_aman = 0; val_aman = 0.0
-        jml_warning = 0; val_warning = 0.0
-        jml_overdue = 0; val_overdue = 0.0
-        jml_lunas = 0; val_lunas = 0.0
+        total_seluruh_tagihan_inc_ppn = 0.0
+        total_pembayaran_netto_bank = 0.0
+        total_potongan_pajak_all = 0.0
 
         target_eval_list = filtered_invoice_list if filtered_invoice_list else filtered_payment_records
 
         for inv_item in target_eval_list:
             inv_no_val = str(inv_item.get(inv_key, inv_item.get("Nomor Invoice Resmi", inv_item.get("Nomor Invoice", "")))).strip()
-            g_total = ambil_grand_total_invoice_master(inv_no_val)
-            if g_total == 0.0:
+            dtl = ambil_detail_invoice_master(inv_no_val)
+            g_total_inc_ppn = dtl["total_tagihan"]
+            
+            if g_total_inc_ppn == 0.0:
                 matching_pay = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == inv_no_val), {})
-                g_total = float(matching_pay.get("Grand Total", 0.0))
+                g_total_inc_ppn = float(matching_pay.get("Grand Total", 0.0))
 
-            total_seluruh_tagihan += g_total
+            total_seluruh_tagihan_inc_ppn += g_total_inc_ppn
             
             matching_pay = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == inv_no_val), {})
             status_byr = matching_pay.get("Status Pembayaran", "Belum Dibayar")
             
-            bayar_aktual = float(matching_pay.get("Nominal Pembayaran Aktual", g_total if status_byr == "Lunas" else 0.0))
+            bayar_aktual = float(matching_pay.get("Nominal Pembayaran Aktual", g_total_inc_ppn if status_byr == "Lunas" else 0.0))
             pot_pph = float(matching_pay.get("Potongan PPh", 0.0))
             pot_ppn_wapu = float(matching_pay.get("Potongan PPN WAPU", 0.0))
-            selisih_lain = float(matching_pay.get("Selisih Lainnya", 0.0))
-            total_efektif_bayar = bayar_aktual + pot_pph + pot_ppn_wapu + selisih_lain
+            
+            total_pembayaran_netto_bank += bayar_aktual
+            total_potongan_pajak_all += (pot_pph + pot_ppn_wapu)
 
-            if status_byr == "Lunas" or total_efektif_bayar >= (g_total - 100):
-                total_sudah_dibayar += g_total
-                jml_lunas += 1
-                val_lunas += g_total
-                continue
-            elif status_byr == "Sebagian (DP / Termin)":
-                total_sudah_dibayar += total_efektif_bayar if total_efektif_bayar > 0 else (g_total * 0.5)
-
-            try:
-                dt_jt_source = matching_pay.get("Tanggal Jatuh Tempo", "")
-                if not dt_jt_source:
-                    dt_jt_source = inv_item.get("Tanggal Jatuh Tempo", str(date.today()))
-                dt_jt = datetime.strptime(str(dt_jt_source)[:10], "%Y-%m-%d").date()
-                selisih = (hari_ini - dt_jt).days
-                if selisih > 0:
-                    jml_overdue += 1
-                    val_overdue += g_total
-                elif selisih >= -7:
-                    jml_warning += 1
-                    val_warning += g_total
-                else:
-                    jml_aman += 1
-                    val_aman += g_total
-            except:
-                jml_aman += 1
-                val_aman += g_total
-
-        sisa_belum_terbayar = total_seluruh_tagihan - total_sudah_dibayar
+        total_pengakuan_efektif = total_pembayaran_netto_bank + total_potongan_pajak_all
+        sisa_piutang_usaha_inc_ppn = total_seluruh_tagihan_inc_ppn - total_pengakuan_efektif
         
-        persen_dibayar = (total_sudah_dibayar / total_seluruh_tagihan * 100) if total_seluruh_tagihan > 0 else 0.0
-        persen_sisa = (sisa_belum_terbayar / total_seluruh_tagihan * 100) if total_seluruh_tagihan > 0 else 0.0
-
-        def fmt_rp_satu_baris(val):
-            formatted_num = f"Rp {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            return f'<span style="white-space: nowrap; display: inline-block;">{formatted_num}</span>'
+        persen_pembayaran_realisasi = (total_pengakuan_efektif / total_seluruh_tagihan_inc_ppn * 100) if total_seluruh_tagihan_inc_ppn > 0 else 0.0
+        persen_sisa_piutang = (sisa_piutang_usaha_inc_ppn / total_seluruh_tagihan_inc_ppn * 100) if total_seluruh_tagihan_inc_ppn > 0 else 0.0
 
         st.markdown("---")
         st.markdown(f"##### 💰 Rekapitulasi Saldo Keuangan & Tagihan ({filter_kontrak_pilih})")
@@ -227,91 +252,101 @@ def tampilkan_pemantauan_pembayaran():
         with c_fin0:
             st.markdown(f"""
                 <div style="background-color: #1e293b; color: white; padding: 16px; border-radius: 8px; text-align: center; border-left: 5px solid #6366f1;">
-                    <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 600;">TOTAL KONTRAK (PLAFON)</p>
-                    <h3 style="margin: 6px 0 0 0; font-size: 17px; color: #ffffff;">{fmt_rp_satu_baris(total_nilai_kontrak_aktif)}</h3>
-                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #818cf8;">Master Plafon Kontrak</p>
+                    <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">TOTAL KONTRAK (PLAFON)</p>
+                    <h3 style="margin: 4px 0 0 0; font-size: 15px; color: #ffffff;">DPP: {fmt_rp_satu_baris(plafon_dpp_aktif)}</h3>
+                    <h4 style="margin: 2px 0 0 0; font-size: 14px; color: #a5b4fc;">Inc. PPN: {fmt_rp_satu_baris(plafon_inc_ppn_aktif)}</h4>
+                    <p style="margin: 4px 0 0 0; font-size: 10px; color: #818cf8;">Master Plafon Rujukan</p>
                 </div>
             """, unsafe_allow_html=True)
         with c_fin1:
             st.markdown(f"""
                 <div style="background-color: #1e293b; color: white; padding: 16px; border-radius: 8px; text-align: center; border-left: 5px solid #38bdf8;">
-                    <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 600;">TOTAL SELURUH TAGIHAN</p>
-                    <h3 style="margin: 6px 0 0 0; font-size: 17px; color: #ffffff;">{fmt_rp_satu_baris(total_seluruh_tagihan)}</h3>
-                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #38bdf8;">100.00% dari Tagihan</p>
+                    <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">TOTAL TAGIHAN (INC. PPN)</p>
+                    <h3 style="margin: 6px 0 0 0; font-size: 16px; color: #ffffff;">{fmt_rp_satu_baris(total_seluruh_tagihan_inc_ppn)}</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #38bdf8;">Pengakuan Piutang Usaha (DPP+PPN)</p>
                 </div>
             """, unsafe_allow_html=True)
         with c_fin2:
             st.markdown(f"""
                 <div style="background-color: #1e293b; color: white; padding: 16px; border-radius: 8px; text-align: center; border-left: 5px solid #10b981;">
-                    <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 600;">TOTAL SUDAH DIBAYARKAN</p>
-                    <h3 style="margin: 6px 0 0 0; font-size: 17px; color: #34d399;">{fmt_rp_satu_baris(total_sudah_dibayar)}</h3>
-                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #34d399;">{persen_dibayar:.2f}% (Realisasi)</p>
+                    <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">DITERIMA BANK / KAS (NETTO)</p>
+                    <h3 style="margin: 6px 0 0 0; font-size: 16px; color: #34d399;">{fmt_rp_satu_baris(total_pembayaran_netto_bank)}</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #34d399;">{persen_pembayaran_realisasi:.2f}% Realisasi Masuk Bank</p>
                 </div>
             """, unsafe_allow_html=True)
         with c_fin3:
             st.markdown(f"""
                 <div style="background-color: #1e293b; color: white; padding: 16px; border-radius: 8px; text-align: center; border-left: 5px solid #f59e0b;">
-                    <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 600;">SISA BELUM TERBAYAR</p>
-                    <h3 style="margin: 6px 0 0 0; font-size: 17px; color: #fbbf24;">{fmt_rp_satu_baris(sisa_belum_terbayar)}</h3>
-                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #fbbf24;">{persen_sisa:.2f}% (Piutang)</p>
+                    <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">SISA PIUTANG USAN (INC. PPN)</p>
+                    <h3 style="margin: 6px 0 0 0; font-size: 16px; color: #fbbf24;">{fmt_rp_satu_baris(sisa_piutang_usaha_inc_ppn)}</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #fbbf24;">{persen_sisa_piutang:.2f}% Belum Tertagih</p>
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- 4. TABEL RINCIAN AKUMULASI PER KONTRAK ---
+        # --- 4. TABEL RINCIAN AKUMULASI PER KONTRAK (SINKRON INCLUDE PPN) ---
         st.markdown("---")
-        st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak")
+        st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak (De komposisi DPP & Inc. PPN)")
         
         summary_contract_map = {}
         for k_m in all_contracts:
-            summary_contract_map[k_m] = {"tagihan": 0.0, "terbayar": 0.0, "jml_inv": 0, "lunas": 0}
+            summary_contract_map[k_m] = {"dpp": 0.0, "ppn": 0.0, "tagihan_inc_ppn": 0.0, "terbayar_bank": 0.0, "potongan_pajak": 0.0, "jml_inv": 0, "lunas": 0}
 
         for item_rc in invoice_list:
             c_no = str(item_rc.get("Kontrak No.", item_rc.get("Nomor Kontrak", "-"))).strip()
             inv_no_rc = str(item_rc.get(inv_key, item_rc.get("Nomor Invoice Resmi", item_rc.get("Nomor Invoice", "")))).strip()
-            gt = ambil_grand_total_invoice_master(inv_no_rc)
-            if gt == 0.0:
-                gt = float(item_rc.get("Grand Total", 0.0))
+            
+            dtl_rc = ambil_detail_invoice_master(inv_no_rc)
+            t_dpp = dtl_rc["dpp"]
+            t_ppn = dtl_rc["ppn"]
+            t_inc = dtl_rc["total_tagihan"]
 
             matching_pay_rc = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == inv_no_rc), {})
             st_byr = matching_pay_rc.get("Status Pembayaran", "Belum Dibayar")
-            b_akt = float(matching_pay_rc.get("Nominal Pembayaran Aktual", gt if st_byr == "Lunas" else 0.0))
+            b_akt = float(matching_pay_rc.get("Nominal Pembayaran Aktual", t_inc if st_byr == "Lunas" else 0.0))
             p_pph = float(matching_pay_rc.get("Potongan PPh", 0.0))
             p_wapu = float(matching_pay_rc.get("Potongan PPN WAPU", 0.0))
-            s_lain = float(matching_pay_rc.get("Selisih Lainnya", 0.0))
-            t_efektif = b_akt + p_pph + p_wapu + s_lain
             
             if c_no not in summary_contract_map:
-                summary_contract_map[c_no] = {"tagihan": 0.0, "terbayar": 0.0, "jml_inv": 0, "lunas": 0}
+                summary_contract_map[c_no] = {"dpp": 0.0, "ppn": 0.0, "tagihan_inc_ppn": 0.0, "terbayar_bank": 0.0, "potongan_pajak": 0.0, "jml_inv": 0, "lunas": 0}
             
-            summary_contract_map[c_no]["tagihan"] += gt
+            summary_contract_map[c_no]["dpp"] += t_dpp
+            summary_contract_map[c_no]["ppn"] += t_ppn
+            summary_contract_map[c_no]["tagihan_inc_ppn"] += t_inc
             summary_contract_map[c_no]["jml_inv"] += 1
-            if st_byr == "Lunas" or t_efektif >= (gt - 100):
-                summary_contract_map[c_no]["terbayar"] += gt
-                summary_contract_map[c_no]["lunas"] += 1
-            elif st_byr == "Sebagian (DP / Termin)":
-                summary_contract_map[c_no]["terbayar"] += t_efektif
+            summary_contract_map[c_no]["terbayar_bank"] += b_akt
+            summary_contract_map[c_no]["potongan_pajak"] += (p_pph + p_wapu)
 
-        def fmt_df_rp(val):
-            return f"Rp {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            if st_byr == "Lunas" or (b_akt + p_pph + p_wapu) >= (t_inc - 100):
+                summary_contract_map[c_no]["lunas"] += 1
 
         table_data_list = []
-        tot_sum_tag = 0.0
-        tot_sum_byr = 0.0
-        tot_sum_piu = 0.0
-        tot_sum_plf = 0.0
+        tot_dpp_contr = 0.0
+        tot_inc_ppn_contr = 0.0
+        tot_sum_tag_inc = 0.0
+        tot_sum_byr_bank = 0.0
+        tot_sum_sisa_plafon = 0.0
+        tot_sum_piu_inc = 0.0
         tot_dok = 0
 
         for c_key, c_val in summary_contract_map.items():
-            t_tag = c_val["tagihan"]
-            t_byr = c_val["terbayar"]
-            t_piu = t_tag - t_byr
-            t_plafon = master_kontrak_plafon.get(c_key, 0.0)
-            pct_real = (t_byr / t_tag * 100) if t_tag > 0 else 0.0
+            plafon_dpp_k = master_kontrak_plafon_dpp.get(c_key, 0.0)
+            plafon_inc_ppn_k = master_kontrak_plafon_inc_ppn.get(c_key, 0.0)
             
-            tot_sum_tag += t_tag
-            tot_sum_byr += t_byr
-            tot_sum_piu += t_piu
-            tot_sum_plf += t_plafon
+            tag_inc_k = c_val["tagihan_inc_ppn"]
+            byr_bank_k = c_val["terbayar_bank"]
+            pot_pajak_k = c_val["potongan_pajak"]
+            pengakuan_total_k = byr_bank_k + pot_pajak_k
+            
+            sisa_plafon_k = plafon_inc_ppn_k - tag_inc_k
+            sisa_piutang_k = tag_inc_k - pengakuan_total_k
+            pct_real_k = (tag_inc_k / plafon_inc_ppn_k * 100) if plafon_inc_ppn_k > 0 else 0.0
+
+            tot_dpp_contr += plafon_dpp_k
+            tot_inc_ppn_contr += plafon_inc_ppn_k
+            tot_sum_tag_inc += tag_inc_k
+            tot_sum_byr_bank += byr_bank_k
+            tot_sum_sisa_plafon += sisa_plafon_k
+            tot_sum_piu_inc += sisa_piutang_k
             tot_dok += c_val["jml_inv"]
 
             st_teks = "🟢 Lengkap" if (c_val["jml_inv"] > 0 and c_val["lunas"] == c_val["jml_inv"]) else (f"🟡 {c_val['lunas']}/{c_val['jml_inv']} Lunas" if c_val["jml_inv"] > 0 else "⚪ Belum Ada Transaksi")
@@ -319,30 +354,34 @@ def tampilkan_pemantauan_pembayaran():
             table_data_list.append({
                 "Nomor Kontrak": c_key,
                 "Jml Dok": f"{c_val['jml_inv']} Dok",
-                "Total Nilai Kontrak": fmt_df_rp(t_plafon),
-                "Total Tagihan": fmt_df_rp(t_tag),
-                "Sudah Dibayar": fmt_df_rp(t_byr),
-                "Sisa Piutang": fmt_df_rp(t_piu),
-                "Realisasi": f"{pct_real:.2f}%",
+                "Nilai Kontrak (DPP)": fmt_rp(plafon_dpp_k),
+                "Nilai Kontrak (Inc. PPN)": fmt_rp(plafon_inc_ppn_k),
+                "Total Tagihan (Inc. PPN)": fmt_rp(tag_inc_k),
+                "Sudah Dibayar (Bank)": fmt_rp(byr_bank_k),
+                "Sisa Plafon (Inc. PPN)": fmt_rp(sisa_plafon_k),
+                "Sisa Piutang (Inc. PPN)": fmt_rp(sisa_piutang_k),
+                "Realisasi Plafon": f"{pct_real_k:.2f}%",
                 "Status": st_teks
             })
 
-        tot_pct_overall = (tot_sum_byr / tot_sum_tag * 100) if tot_sum_tag > 0 else 0.0
+        tot_pct_overall = (tot_sum_tag_inc / tot_inc_ppn_contr * 100) if tot_inc_ppn_contr > 0 else 0.0
         table_data_list.append({
             "Nomor Kontrak": "TOTAL KESELURUHAN",
             "Jml Dok": f"{tot_dok} Dok",
-            "Total Nilai Kontrak": fmt_df_rp(sum(master_kontrak_plafon.values())),
-            "Total Tagihan": fmt_df_rp(tot_sum_tag),
-            "Sudah Dibayar": fmt_df_rp(tot_sum_byr),
-            "Sisa Piutang": fmt_df_rp(tot_sum_piu),
-            "Realisasi": f"{tot_pct_overall:.2f}%",
+            "Nilai Kontrak (DPP)": fmt_rp(tot_dpp_contr),
+            "Nilai Kontrak (Inc. PPN)": fmt_rp(tot_inc_ppn_contr),
+            "Total Tagihan (Inc. PPN)": fmt_rp(tot_sum_tag_inc),
+            "Sudah Dibayar (Bank)": fmt_rp(tot_sum_byr_bank),
+            "Sisa Plafon (Inc. PPN)": fmt_rp(tot_sum_sisa_plafon),
+            "Sisa Piutang (Inc. PPN)": fmt_rp(tot_sum_piu_inc),
+            "Realisasi Plafon": f"{tot_pct_overall:.2f}%",
             "Status": "100%"
         })
 
         df_rincian_view = pd.DataFrame(table_data_list)
         st.dataframe(df_rincian_view, use_container_width=True, hide_index=True)
 
-    # --- 5. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN (DENGAN TOMBOL SIMPAN YANG RESPONSIF) ---
+    # --- 5. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN (DENGAN KALKULASI SELISIH & TOMBOL HITUNG BANK) ---
     st.markdown("---")
     st.markdown("##### 📝 Form Input & Pembaruan Status Pembayaran (Berdasarkan Kontrak)")
 
@@ -395,26 +434,38 @@ def tampilkan_pemantauan_pembayaran():
     existing_pay = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == str(selected_inv)), {})
 
     tgl_invoice_bawaan = ambil_tanggal_invoice(inv_data) if inv_data else str(existing_pay.get("Tanggal Invoice", date.today()))[:10]
-    grand_total_otomatis = ambil_grand_total_invoice_master(selected_inv)
-    if grand_total_otomatis == 0.0 and existing_pay:
-        grand_total_otomatis = float(existing_pay.get("Grand Total", 0.0))
-
-    formatted_grand_total = f"Rp {grand_total_otomatis:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     
+    dtl_inv_selected = ambil_detail_invoice_master(selected_inv)
+    dpp_otomatis = dtl_inv_selected["dpp"]
+    ppn_otomatis = dtl_inv_selected["ppn"]
+    total_tagihan_inc_ppn = dtl_inv_selected["total_tagihan"]
+    
+    if total_tagihan_inc_ppn == 0.0 and existing_pay:
+        total_tagihan_inc_ppn = float(existing_pay.get("Grand Total", 0.0))
+        dpp_otomatis = float(existing_pay.get("Nilai DPP", total_tagihan_inc_ppn / 1.11))
+        ppn_otomatis = float(existing_pay.get("Nilai PPN", total_tagihan_inc_ppn - dpp_otomatis))
+
     st.markdown(f"""
-        📄 **Informasi Invoice Terpilih:**  
-        - **Nomor Kontrak:** `{form_kontrak_pilih}`  
-        - **Nomor Invoice:** `{selected_inv}`  
-        - **Tanggal Invoice:** `{tgl_invoice_bawaan}`  
-        - **Nilai Nominal Invoice (Grand Total):** **{formatted_grand_total}**
-    """)
+        <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <h5 style="margin: 0 0 8px 0; color: #0f172a;">📄 Pengakuan Piutang Usaha Resmi (Invoice Inc. PPN):</h5>
+            <div style="display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px;">
+                <span>📌 <b>Nomor Kontrak:</b> <code>{form_kontrak_pilih}</code></span>
+                <span>📑 <b>Nomor Invoice:</b> <code>{selected_inv}</code></span>
+                <span>📅 <b>Tanggal Invoice:</b> <code>{tgl_invoice_bawaan}</code></span>
+            </div>
+            <div style="margin-top: 10px; font-size: 14px; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
+                <span>💰 <b>Nilai DPP:</b> {fmt_rp(dpp_otomatis)}</span> &nbsp;|&nbsp; 
+                <span>🏛️ <b>PPN (11%):</b> {fmt_rp(ppn_otomatis)}</span> &nbsp;|&nbsp; 
+                <span style="color: #0369a1; font-weight: bold; font-size: 15px;">📊 TOTAL TAGIHAN (PIUTANG INC. PPN): {fmt_rp(total_tagihan_inc_ppn)}</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
     status_opsi = ["Belum Dibayar", "Sebagian (DP / Termin)", "Lunas"]
     def_status = existing_pay.get("Status Pembayaran", "Belum Dibayar")
     idx_st = status_opsi.index(def_status) if def_status in status_opsi else 0
     status_pembayaran = st.selectbox("Status Pembayaran:", status_opsi, index=idx_st, key="select_status_pembayaran_live")
 
-    # Menggunakan container biasa (bukan st.form) agar tombol simpan merespons secara instan dan menampilkan notifikasi sukses
     default_faktur = existing_pay.get("Nomor Faktur Pajak", "")
     nomor_faktur_pajak = st.text_input("Nomor Faktur Pajak (Diterbitkan setelah Invoice):", value=str(default_faktur), key="input_faktur_pajak")
 
@@ -430,9 +481,6 @@ def tampilkan_pemantauan_pembayaran():
 
         default_top = int(existing_pay.get("TOP Hari", 30))
         top_hari = st.number_input("Term of Payment (TOP dalam Hari):", min_value=0, value=default_top, step=5, key="input_top_hari")
-
-        default_bayar_akt = float(existing_pay.get("Nominal Pembayaran Aktual", grand_total_otomatis))
-        nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Bank/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0, key="input_bayar_aktual")
 
     with col_p2:
         raw_tgl_lunas_exist = str(existing_pay.get("Tanggal Pelunasan", "-"))
@@ -450,16 +498,45 @@ def tampilkan_pemantauan_pembayaran():
             st.markdown("📅 Tanggal Pelunasan Aktual: **... (Belum Ada Pembayaran / Kosong)**")
             tgl_pelunasan = None
 
+    st.markdown("---")
+    st.markdown("##### 💵 Rincian Potongan Pajak & Penerimaan Kas/Bank")
+
+    col_pp1, col_pp2 = st.columns(2)
+    with col_pp1:
         default_pot_pph = float(existing_pay.get("Potongan PPh", 0.0))
         potongan_pph = st.number_input("Potongan PPh (Pasal 23 / 22):", min_value=0.0, value=default_pot_pph, step=1000.0, key="input_pot_pph")
 
+    with col_pp2:
         default_pot_wapu = float(existing_pay.get("Potongan PPN WAPU", 0.0))
         potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Dipotong Klien WAPU):", min_value=0.0, value=default_pot_wapu, step=1000.0, key="input_pot_wapu")
 
-        default_selisih_lain = float(existing_pay.get("Selisih Lainnya", 0.0))
-        selisih_lainnya = st.number_input("Selisih Lainnya (Pembulatan / Admin):", min_value=0.0, value=default_selisih_lain, step=1000.0, key="input_selisih_lain")
+    # Kalkulasi Estimasi Kas/Bank Seharusnya
+    nominal_bank_seharusnya = max(0.0, total_tagihan_inc_ppn - potongan_pph - potongan_ppn_wapu)
+    
+    st.markdown(f"💡 **Nilai Bersih Seharusnya Diterima Bank:** `{fmt_rp(nominal_bank_seharusnya)}` *(Total Tagihan - PPh - PPN WAPU)*")
+    
+    col_b1, col_b2 = st.columns([3, 1])
+    with col_b1:
+        default_bayar_akt = float(existing_pay.get("Nominal Pembayaran Aktual", nominal_bank_seharusnya))
+        nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Ketik Aktual Perbankan/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0, key="input_bayar_aktual")
+    with col_b2:
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+        if st.button("⚡ Hitung / Set Otomatis Diterima Bank", use_container_width=True):
+            st.session_state["input_bayar_aktual"] = nominal_bank_seharusnya
+            st.rerun()
 
-    catatan_bayar = st.text_area("Catatan / Keterangan Pembayaran:", value=str(existing_pay.get("Catatan", "")), key="input_catatan_bayar")
+    # Kalkulasi Selisih Pembayaran & Justifikasi
+    selisih_pembayaran = nominal_pembayaran_aktual - nominal_bank_seharusnya
+    
+    if abs(selisih_pembayaran) < 1.0:
+        st.success(f"✅ **LUNAS KANONIS:** Pembayaran diterima di Bank pas {fmt_rp(nominal_pembayaran_aktual)} (Tidak ada selisih).")
+    elif selisih_pembayaran < 0:
+        st.warning(f"⚠️ **TERDAPAT SELISIH KEKURANGAN:** Diterima Bank kurang {fmt_rp(abs(selisih_pembayaran))} dari perhitungan seharusnya.")
+    else:
+        st.info(f"ℹ️ **TERDAPAT KELEBIHAN:** Diterima Bank lebih {fmt_rp(selisih_pembayaran)} dari perhitungan seharusnya.")
+
+    default_catatan = str(existing_pay.get("Catatan", ""))
+    catatan_bayar = st.text_area("Justifikasi Selisih / Catatan Pembayaran (Wajib Diisi Jika Ada Selisih/Admin Bank):", value=default_catatan, key="input_catatan_bayar")
 
     if st.button("💾 Simpan Pemantauan Pembayaran", type="primary", use_container_width=True):
         if not selected_inv.strip():
@@ -484,11 +561,13 @@ def tampilkan_pemantauan_pembayaran():
                 "Tanggal Jatuh Tempo": tgl_jatuh_tempo.strftime("%Y-%m-%d"),
                 "Tanggal Pelunasan": str_tgl_pelunasan_final,
                 "Durasi Riil Hari": durasi_riil_hari,
-                "Grand Total": grand_total_otomatis,
+                "Nilai DPP": dpp_otomatis,
+                "Nilai PPN": ppn_otomatis,
+                "Grand Total": total_tagihan_inc_ppn,
                 "Nominal Pembayaran Aktual": nominal_pembayaran_aktual,
                 "Potongan PPh": potongan_pph,
                 "Potongan PPN WAPU": potongan_ppn_wapu,
-                "Selisih Lainnya": selisih_lainnya,
+                "Selisih Lainnya": selisih_pembayaran,
                 "Status Pembayaran": status_pembayaran,
                 "Catatan": catatan_bayar,
                 "Update Terakhir": datetime.today().strftime("%Y-%m-%d %H:%M:%S")
@@ -497,12 +576,12 @@ def tampilkan_pemantauan_pembayaran():
             clean_records = [p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() != str(selected_inv).strip()]
             clean_records.append(data_update)
             simpan_status_pembayaran(clean_records)
-            st.success(f"🎉 Berhasil menyimpan data pemantauan untuk Invoice [{selected_inv}]! Dana masuk bank tercatat Rp {nominal_pembayaran_aktual:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+            st.success(f"🎉 Berhasil menyimpan data pemantauan untuk Invoice [{selected_inv}]! Total Piutang: {fmt_rp(total_tagihan_inc_ppn)} | Netto Bank: {fmt_rp(nominal_pembayaran_aktual)}")
             if "active_invoice_selected" in st.session_state:
                 del st.session_state["active_invoice_selected"]
             st.rerun()
 
-    # --- 6. TABEL RINGKASAN & LAPORAN AGING (MENAMPILKAN RINCIAN TOTAL TAGIHAN, POTONGAN & DANA MASUK BANK) ---
+    # --- 6. TABEL RINGKASAN & LAPORAN AGING INVOICE ---
     st.markdown("---")
     st.markdown(f"#### 📋 Ringkasan & Laporan Aging Invoice ({filter_kontrak_pilih})")
 
@@ -517,7 +596,7 @@ def tampilkan_pemantauan_pembayaran():
             faktur_pajak_row = row_p.get('Nomor Faktur Pajak', '-')
             cust_row = row_p.get('Customer', '-')
             no_kontrak_row = row_p.get('Nomor Kontrak', '-')
-           
+            
             tgl_penyerahan_str = str(row_p.get('Tanggal Penyerahan', ''))[:10]
             tgl_pelunasan_raw = str(row_p.get('Tanggal Pelunasan', '-'))
             tgl_pelunasan_str = tgl_pelunasan_raw[:10] if tgl_pelunasan_raw and tgl_pelunasan_raw != "-" else "..."
@@ -538,21 +617,20 @@ def tampilkan_pemantauan_pembayaran():
             p_wapu = float(row_p.get('Potongan PPN WAPU', 0.0))
             s_lain = float(row_p.get('Selisih Lainnya', 0.0))
             
-            # Format tampilan kolom Grand Total agar informatif mencerminkan rincian pemotongan & dana masuk bank
-            gt_str = f"Rp {gt_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            b_akt_str = f"Rp {b_akt:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            gt_str = fmt_rp(gt_val)
+            b_akt_str = fmt_rp(b_akt)
             
             rincian_ket = f"Tagihan: {gt_str} | Masuk Bank: <b>{b_akt_str}</b>"
             pot_info_list = []
             if p_pph > 0:
-                pot_info_list.append(f"PPh: {p_pph:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                pot_info_list.append(f"PPh: {fmt_rp(p_pph)}")
             if p_wapu > 0:
-                pot_info_list.append(f"WAPU: {p_wapu:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-            if s_lain > 0:
-                pot_info_list.append(f"Selisih: {s_lain:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                pot_info_list.append(f"WAPU: {fmt_rp(p_wapu)}")
+            if abs(s_lain) > 0:
+                pot_info_list.append(f"Selisih: {fmt_rp(s_lain)}")
             
             if pot_info_list:
-                rincian_ket += f" (Potongan: {', '.join(pot_info_list)})"
+                rincian_ket += f" ({', '.join(pot_info_list)})"
 
             aging_data_list.append({
                 "No. Kontrak": no_kontrak_row,
@@ -564,14 +642,14 @@ def tampilkan_pemantauan_pembayaran():
                 "TOP": durasi_info,
                 "Tgl JT": str(row_p.get('Tanggal Jatuh Tempo', ''))[:10],
                 "Tgl Lunas": tgl_pelunasan_str,
-                "Grand Total & Rincian Pembayaran": rincian_ket,
+                "Total Tagihan & Rincian Pembayaran": rincian_ket,
                 "Status": row_p.get('Status Pembayaran', '-')
             })
 
         df_aging_view = pd.DataFrame(aging_data_list)
         st.dataframe(df_aging_view, use_container_width=True, hide_index=True)
 
-        # Bagian Aksi Cepat (Edit / Hapus) di bawah tabel
+        # Aksi Cepat (Edit / Hapus)
         st.markdown("##### ⚙️ Aksi Cepat Data Pemantauan Invoice")
         for idx, row_p in enumerate(current_payment_records):
             inv_num_row = row_p.get('Nomor Invoice', '-')
