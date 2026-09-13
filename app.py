@@ -1307,23 +1307,28 @@ if form_login_sistem():
                     alamat_pihak_pertama = bersih_angka(matched_record.get(11, matched_record.get("Alamat Pihak Pertama", "")))
                     jangka_waktu = bersih_angka(matched_record.get(5, matched_record.get("Jangka Waktu Kontrak", "")))
                     
-                    nomor_wo_default = bersih_angka(matched_record.get(21, matched_record.get("Nomor WO", "-")))
+                    # AMBIL LANGSUNG DARI MATCHED_RECORD (DATABASE MODUL 1) SEBAGAI PRIORITAS UTAMA
+                    nomor_po_default_m1 = bersih_angka(matched_record.get(8, matched_record.get("Nomor Purchase Order", "-")))
+                    nomor_wo_default_m1 = bersih_angka(matched_record.get(21, matched_record.get("Nomor WO", "-")))
+                    tanggal_po_default_m1 = bersih_angka(matched_record.get(9, matched_record.get("Tanggal Purchase Order", "")))
+                    desc_po_default_m1 = bersih_angka(matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))
                 
                     with col2:
-                        raw_po_num = loaded_tx_items[0].get("Nomor PO", matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))) if loaded_tx_items else matched_record.get(8, matched_record.get("Nomor Purchase Order", ""))
+                        # Prioritaskan data dari Modul 1 (matched_record), jika kosong baru cek transaksi
+                        raw_po_num = nomor_po_default_m1 if (nomor_po_default_m1 and nomor_po_default_m1 != "-") else (loaded_tx_items[0].get("Nomor PO", "") if loaded_tx_items else "")
                         def_po_num = bersih_angka(raw_po_num)
                         
                         raw_wan_num = loaded_tx_items[0].get("Nomor WAN / SA", "") if loaded_tx_items else ""
                         def_wan_num = bersih_angka(raw_wan_num)
 
-                        raw_po_date = loaded_tx_items[0].get("Tanggal PO", matched_record.get(9, matched_record.get("Tanggal Purchase Order", ""))) if loaded_tx_items else matched_record.get(9, matched_record.get("Tanggal Purchase Order", ""))
+                        raw_po_date = tanggal_po_default_m1 if tanggal_po_default_m1 else (loaded_tx_items[0].get("Tanggal PO", "") if loaded_tx_items else "")
                         def_po_date = bersih_angka(raw_po_date)
 
-                        def_desc_po = bersih_angka(loaded_tx_items[0].get("Deskripsi PO", matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))) if loaded_tx_items else bersih_angka(matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))
+                        def_desc_po = desc_po_default_m1 if desc_po_default_m1 else (bersih_angka(loaded_tx_items[0].get("Deskripsi PO", "")) if loaded_tx_items else "")
 
                         nomor_po = st.text_input("Nomor PO", def_po_num if def_po_num else "-")
                         
-                        raw_wo_num = loaded_tx_items[0].get("Nomor WO", nomor_wo_default) if loaded_tx_items else nomor_wo_default
+                        raw_wo_num = nomor_wo_default_m1 if (nomor_wo_default_m1 and nomor_wo_default_m1 != "-") else (loaded_tx_items[0].get("Nomor WO", "") if loaded_tx_items else "")
                         nomor_wo = st.text_input("Nomor WO", bersih_angka(raw_wo_num) if raw_wo_num else "-")
 
                         nomor_wan_sa = st.text_input("Nomor WAN / SA (Work Authorization Notice / Service Agreement)", def_wan_num if def_wan_num else "-")
