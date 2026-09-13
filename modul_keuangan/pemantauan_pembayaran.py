@@ -177,14 +177,19 @@ def tampilkan_pemantauan_pembayaran():
             
             matching_pay = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == inv_no_val), {})
             status_byr = matching_pay.get("Status Pembayaran", "Belum Dibayar")
+            
+            # Perhitungan realisasi bayar (memperhitungkan nominal bayar aktual + potongan pph/pajak jika ada)
+            bayar_aktual = float(matching_pay.get("Nominal Pembayaran Aktual", g_total if status_byr == "Lunas" else 0.0))
+            potongan_pajak = float(matching_pay.get("Potongan Pajak PPh", 0.0))
+            total_efektif_bayar = bayar_aktual + potongan_pajak
 
-            if status_byr == "Lunas":
+            if status_byr == "Lunas" or total_efektif_bayar >= (g_total - 100):
                 total_sudah_dibayar += g_total
                 jml_lunas += 1
                 val_lunas += g_total
                 continue
             elif status_byr == "Sebagian (DP / Termin)":
-                total_sudah_dibayar += (g_total * 0.5)
+                total_sudah_dibayar += total_efektif_bayar if total_efektif_bayar > 0 else (g_total * 0.5)
 
             try:
                 dt_jt_source = matching_pay.get("Tanggal Jatuh Tempo", "")
@@ -251,7 +256,7 @@ def tampilkan_pemantauan_pembayaran():
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- 4. TABEL RINCIAN AKUMULASI PER KONTRAK (MENGGUNAKAN DATAFRAME & STREAMLIT NATIVE AGAR AMAN) ---
+        # --- 4. TABEL RINCIAN AKUMULASI PER KONTRAK ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak")
         
@@ -268,17 +273,20 @@ def tampilkan_pemantauan_pembayaran():
 
             matching_pay_rc = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == inv_no_rc), {})
             st_byr = matching_pay_rc.get("Status Pembayaran", "Belum Dibayar")
+            b_akt = float(matching_pay_rc.get("Nominal Pembayaran Aktual", gt if st_byr == "Lunas" else 0.0))
+            p_pajak = float(matching_pay_rc.get("Potongan Pajak PPh", 0.0))
+            t_efektif = b_akt + p_pajak
             
             if c_no not in summary_contract_map:
                 summary_contract_map[c_no] = {"tagihan": 0.0, "terbayar": 0.0, "jml_inv": 0, "lunas": 0}
             
             summary_contract_map[c_no]["tagihan"] += gt
             summary_contract_map[c_no]["jml_inv"] += 1
-            if st_byr == "Lunas":
+            if st_byr == "Lunas" or t_efektif >= (gt - 100):
                 summary_contract_map[c_no]["terbayar"] += gt
                 summary_contract_map[c_no]["lunas"] += 1
             elif st_byr == "Sebagian (DP / Termin)":
-                summary_contract_map[c_no]["terbayar"] += (gt * 0.5)
+                summary_contract_map[c_no]["terbayar"] += t_efektif
 
         def fmt_df_rp(val):
             return f"Rp {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -331,32 +339,7 @@ def tampilkan_pemantauan_pembayaran():
         df_rincian_view = pd.DataFrame(table_data_list)
         st.dataframe(df_rincian_view, use_container_width=True, hide_index=True)
 
-        # --- DIAGRAM / GRAFIK KOMPARASI KEUANGAN ---
-        st.markdown("---")
-        st.markdown("##### 📈 Grafik Visualisasi Komparasi Keuangan & Kinerja Pembayaran")
-        
-        col_g1, col_g2 = st.columns([2, 1])
-        with col_g1:
-            df_grafik = pd.DataFrame({
-                "Komponen Keuangan": ["Total Plafon Kontrak", "Total Tagihan", "Sudah Dibayar", "Sisa Piutang"],
-                "Nominal (Rp)": [sum(master_kontrak_plafon.values()), total_seluruh_tagihan, total_sudah_dibayar, sisa_belum_terbayar]
-            }).set_index("Komponen Keuangan")
-            st.bar_chart(df_grafik, color="#38bdf8")
-            
-        with col_g2:
-            st.markdown(f"""
-                <div style="background-color: #0f172a; color: #f8fafc; padding: 16px; border-radius: 8px; font-size: 13px;">
-                    <p style="font-weight: bold; color: #38bdf8; margin-bottom: 8px;">💡 Ringkasan Analisis Eksekutif:</p>
-                    <ul style="padding-left: 18px; margin: 0; color: #cbd5e1;">
-                        <li><b>Rasio Realisasi:</b> <code>{persen_dibayar:.2f}%</code></li>
-                        <li><b>Rasio Piutang:</b> <code>{persen_sisa:.2f}%</code></li>
-                        <li><b>Dokumen Lunas:</b> <code>{jml_lunas} Dokumen</code></li>
-                        <li><b>Dokumen Overdue:</b> <code>{jml_overdue} Dokumen</code></li>
-                    </ul>
-                </div>
-            """, unsafe_allow_html=True)
-
-    # --- 5. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN ---
+    # --- 5. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN (DENGAN INPUT POTONGAN PPH & SELISIH) ---
     st.markdown("---")
     st.markdown("##### 📝 Form Input & Pembaruan Status Pembayaran (Berdasarkan Kontrak)")
 
@@ -445,6 +428,10 @@ def tampilkan_pemantauan_pembayaran():
             default_top = int(existing_pay.get("TOP Hari", 30))
             top_hari = st.number_input("Term of Payment (TOP dalam Hari):", min_value=0, value=default_top, step=5)
 
+            # Input Nominal Pembayaran Aktual yang masuk ke Bank/Kas
+            default_bayar_akt = float(existing_pay.get("Nominal Pembayaran Aktual", grand_total_otomatis))
+            nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Bank/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0)
+
         with col_p2:
             st.markdown(f"**Status Pembayaran Terpilih:** `{status_pembayaran}`")
 
@@ -462,6 +449,16 @@ def tampilkan_pemantauan_pembayaran():
             else:
                 st.markdown("📅 Tanggal Pelunasan Aktual: **... (Belum Ada Pembayaran / Kosong)**")
                 tgl_pelunasan = None
+
+            # Input Potongan PPh / Pajak / Selisih
+            default_pot_pajak = float(existing_pay.get("Potongan Pajak PPh", 0.0))
+            potongan_pajak_pph = st.number_input("Nilai Potongan PPh / Pajak / Selisih:", min_value=0.0, value=default_pot_pajak, step=1000.0)
+
+            # Kategori Selisih / Potongan
+            kategori_selisih_opsi = ["PPh 23 / PPh Pasal 22", "PPN", "Selisih Lainnya (Kurang Bayar / Biaya Admin)"]
+            def_kat = existing_pay.get("Kategori Selisih", "PPh 23 / PPh Pasal 22")
+            idx_kat = kategori_selisih_opsi.index(def_kat) if def_kat in kategori_selisih_opsi else 0
+            kategori_selisih = st.selectbox("Kategori / Keterangan Selisih Potongan:", kategori_selisih_opsi, index=idx_kat)
 
         catatan_bayar = st.text_area("Catatan / Keterangan Pembayaran:", value=str(existing_pay.get("Catatan", "")))
 
@@ -491,6 +488,9 @@ def tampilkan_pemantauan_pembayaran():
                     "Tanggal Pelunasan": str_tgl_pelunasan_final,
                     "Durasi Riil Hari": durasi_riil_hari,
                     "Grand Total": grand_total_otomatis,
+                    "Nominal Pembayaran Aktual": nominal_pembayaran_aktual,
+                    "Potongan Pajak PPh": potongan_pajak_pph,
+                    "Kategori Selisih": kategori_selisih,
                     "Status Pembayaran": status_pembayaran,
                     "Catatan": catatan_bayar,
                     "Update Terakhir": datetime.today().strftime("%Y-%m-%d %H:%M:%S")
@@ -504,7 +504,7 @@ def tampilkan_pemantauan_pembayaran():
                     del st.session_state["active_invoice_selected"]
                 st.rerun()
 
-    # --- 6. TABEL RINGKASAN & LAPORAN AGING (MENGGUNAKAN STREAMLIT DATAFRAME AGAR BERSIH & SCROLLABLE) ---
+    # --- 6. TABEL RINGKASAN & LAPORAN AGING ---
     st.markdown("---")
     st.markdown(f"#### 📋 Ringkasan & Laporan Aging Invoice ({filter_kontrak_pilih})")
 
@@ -536,6 +536,10 @@ def tampilkan_pemantauan_pembayaran():
 
             gt_val = float(row_p.get('Grand Total', 0))
             gt_str = f"Rp {gt_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            
+            bayar_akt_val = float(row_p.get('Nominal Pembayaran Aktual', gt_val))
+            pot_pph_val = float(row_p.get('Potongan Pajak PPh', 0.0))
+            ket_pot = f" (Bayar: Rp {bayar_akt_val:,.2f}, Pot: Rp {pot_pph_val:,.2f})".replace(",", "X").replace(".", ",").replace("X", ".") if pot_pph_val > 0 else ""
 
             aging_data_list.append({
                 "No. Kontrak": no_kontrak_row,
@@ -547,7 +551,7 @@ def tampilkan_pemantauan_pembayaran():
                 "TOP": durasi_info,
                 "Tgl JT": str(row_p.get('Tanggal Jatuh Tempo', ''))[:10],
                 "Tgl Lunas": tgl_pelunasan_str,
-                "Grand Total": gt_str,
+                "Grand Total": gt_str + ket_pot,
                 "Status": row_p.get('Status Pembayaran', '-')
             })
 
