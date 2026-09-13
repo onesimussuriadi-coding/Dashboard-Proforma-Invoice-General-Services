@@ -52,6 +52,7 @@ def tampilkan_pemantauan_pembayaran():
         except:
             return 0.0
 
+    # --- PERBAIKAN UTAMA: MENGGABUNGKAN SEMUA DATA DARI SEMUA FILE EXCEL DI DIREKTORI ---
     def muat_invoice_resmi():
         if not os.path.exists(DIR_DATABASE):
             return []
@@ -62,14 +63,19 @@ def tampilkan_pemantauan_pembayaran():
             if f.endswith('.xlsx') and not f.startswith('~$')
         ]
         
+        gabungan_invoice = []
         for file_path in kemungkinan_file:
             try:
                 df = pd.read_excel(file_path)
                 if df is not None and not df.empty:
-                    return df.to_dict(orient="records")
+                    gabungan_invoice.extend(df.to_dict(orient="records"))
             except:
                 pass
 
+        if gabungan_invoice:
+            return gabungan_invoice
+
+        # Fallback cadangan jika membaca file spesifik
         spesifik_file = [
             os.path.join(DIR_DATABASE, "database_billing_tax.xlsx"),
             os.path.join(DIR_DATABASE, "database_invoice_resmi.xlsx"),
@@ -139,7 +145,7 @@ def tampilkan_pemantauan_pembayaran():
                     return str(v)[:10]
         return str(date.today())
 
-    # --- PENGUMPULAN DAFTAR KONTRAK DARI MASTER & PAYMENT ---
+    # --- PENGUMPULAN DAFTAR KONTRAK DARI SEMUA SUMBER MASTER & PAYMENT ---
     kontrak_from_invoice = [str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() for inv in invoice_list if inv.get("Kontrak No.") or inv.get("Nomor Kontrak")]
     kontrak_from_payment = [str(p.get("Nomor Kontrak", "-")).strip() for p in payment_records if p.get("Nomor Kontrak")]
     
@@ -150,7 +156,7 @@ def tampilkan_pemantauan_pembayaran():
     opsi_filter_kontrak = ["-- Semua Nomor Kontrak (ALL) --"] + all_contracts
     filter_kontrak_pilih = st.selectbox("Pilih Nomor Kontrak untuk Filter Dashboard:", opsi_filter_kontrak, key="filter_kontrak_dashboard")
 
-    # Logika Pemisahan Data Berdasarkan Filter Kontrak
+    # Logika Filter Berdasarkan Pilihan Kontrak
     if filter_kontrak_pilih != "-- Semua Nomor Kontrak (ALL) --":
         filtered_invoice_list = [inv for inv in invoice_list if str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() == str(filter_kontrak_pilih).strip()]
         filtered_payment_records = [p for p in payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(filter_kontrak_pilih).strip()]
@@ -158,7 +164,7 @@ def tampilkan_pemantauan_pembayaran():
         filtered_invoice_list = invoice_list
         filtered_payment_records = payment_records
 
-    # --- KARTU REKAPITULASI KEUANGAN UTAMA (BERDASARKAN FILTER) ---
+    # --- KARTU REKAPITULASI KEUANGAN UTAMA ---
     if invoice_list or payment_records:
         hari_ini = date.today()
         
@@ -248,12 +254,11 @@ def tampilkan_pemantauan_pembayaran():
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- TABEL RINCIAN REKAPITULASI PER NOMOR KONTRAK (SELALU MENAMPILKAN SEMUA KONTRAK BERBARIS) ---
+        # --- TABEL RINCIAN REKAPITULASI PER NOMOR KONTRAK ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak")
         
         summary_contract_map = {}
-        # Selalu gunakan full invoice_list untuk tabel rincian agar semua kontrak (142, 141, dsb) tampil berbaris
         for item_rc in invoice_list:
             c_no = str(item_rc.get("Kontrak No.", item_rc.get("Nomor Kontrak", "-"))).strip()
             inv_no_rc = str(item_rc.get("Nomor Invoice Resmi", item_rc.get("Nomor Invoice", ""))).strip()
@@ -623,8 +628,8 @@ def tampilkan_pemantauan_pembayaran():
                             updated_recs = [p for p in all_master_recs if str(p.get("Nomor Invoice", "")).strip() != str(inv_num_row).strip()]
                             simpan_status_pembayaran(updated_recs)
                             st.success(f"🗑️ Data pemantauan Invoice [{inv_num_row}] berhasil dihapus!")
-                            if f"confirm_del_{idx}" in st.session_state:
-                                del st.session_state[f"confirm_del_{idx}"]
+                            if f"confirm_dev_{idx}" in st.session_state:
+                                del st.session_state[f"confirm_dev_{idx}"]
                             if "active_invoice_selected" in st.session_state:
                                 del st.session_state["active_invoice_selected"]
                             st.rerun()
