@@ -38,7 +38,7 @@ def tampilkan_pemantauan_pembayaran():
         except:
             return 0.0
 
-    # --- 1. MODUL 3: MEMBACA DARI FILE TERSIMPAN MODUL 3 SENDIRI ---
+    # --- 1. MODUL 3: MEMBACA DARI FILE TERSIMPAN MODUL 3 ---
     def muat_invoice_tersimpan_modul3():
         spesifik_file = [
             os.path.join(DIR_DATABASE, "database_billing_tax.xlsx"),
@@ -122,7 +122,7 @@ def tampilkan_pemantauan_pembayaran():
                     return str(v)[:10]
         return str(date.today())
 
-    # --- 2. AMBIL TOTAL KONTRAK DARI MODUL 2 (LIHAT MASTER REKAP TRANSAKSI) ---
+    # --- 2. AMBIL TOTAL KONTRAK DARI MODUL 2 DENGAN NORMALISASI PRESISI ---
     def muat_total_kontrak_modul2():
         plafon_files = [
             os.path.join(DIR_DATABASE, "database_plafon_kontrak.xlsx"),
@@ -139,12 +139,14 @@ def tampilkan_pemantauan_pembayaran():
                             c_num = ""
                             c_val = 0.0
                             for col in df.columns:
-                                col_l = str(col).lower()
-                                if "kontrak" in col_l and "no" in col_l:
-                                    c_num = str(row[col]).strip()
-                                elif any(k in col_l for k in ["plafon", "nilai kontrak", "total kontrak", "pagu"]):
+                                col_l = str(col).lower().replace(" ", "").replace(".", "")
+                                if "kontrak" in col_l or "nomorkontrak" in col_l or "kontrakno" in col_l:
+                                    val_c = str(row[col]).strip()
+                                    if val_c and val_c != '-' and val_c.lower() != 'nan':
+                                        c_num = val_c
+                                elif any(k in col_l for k in ["plafon", "nilaikontrak", "totalkontrak", "pagu", "totalnilaikontrak"]):
                                     c_val = parse_harga_presisi(row[col])
-                            if c_num and c_num != '-' and c_val > 0:
+                            if c_num and c_val > 0:
                                 kontrak_master_map[c_num] = c_val
                 except:
                     pass
@@ -169,7 +171,7 @@ def tampilkan_pemantauan_pembayaran():
         filtered_invoice_list = invoice_list
         filtered_payment_records = payment_records
 
-    # --- 3. REKAPITULASI KEUANGAN DENGAN 4 KOTAK STATISTIK & PRESISI DESIMAL ---
+    # --- 3. REKAPITULASI KEUANGAN DENGAN 4 KOTAK STATISTIK ---
     if invoice_list or payment_records:
         hari_ini = date.today()
         
@@ -240,7 +242,6 @@ def tampilkan_pemantauan_pembayaran():
         st.markdown("---")
         st.markdown(f"##### 💰 Rekapitulasi Saldo Keuangan & Tagihan ({filter_kontrak_pilih})")
         
-        # 4 KOTAK REKAPITULASI SEJAJAR
         c_fin0, c_fin1, c_fin2, c_fin3 = st.columns(4)
         with c_fin0:
             st.markdown(f"""
@@ -275,7 +276,7 @@ def tampilkan_pemantauan_pembayaran():
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- TABEL RINCIAN AKUMULASI PER NOMOR KONTRAK ---
+        # --- TABEL RINCIAN AKUMULASI PER NOMOR KONTRAK (LEBAR KOLOM DILEBARKAN & FONT DISESUAIKAN) ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak")
         
@@ -301,11 +302,12 @@ def tampilkan_pemantauan_pembayaran():
             elif st_byr == "Sebagian (DP / Termin)":
                 summary_contract_map[c_no]["terbayar"] += (gt * 0.5)
 
-        rh_cols = st.columns([1.5, 0.9, 1.8, 1.8, 1.8, 1.8, 1.1, 0.9])
+        # Proporsi kolom diperlebar agar tidak saling menimpa
+        rh_cols = st.columns([1.5, 0.8, 2.0, 2.0, 2.0, 2.0, 1.0, 0.9])
         r_headers = ["Nomor Kontrak", "Jml Dok", "Total Nilai Kontrak", "Total Tagihan", "Sudah Dibayar", "Sisa Piutang", "Realisasi", "Status"]
         for rh, rht in zip(rh_cols, r_headers):
             with rh:
-                st.markdown(f"<span style='font-size: 11px; font-weight: bold; color: #0f172a;'>{rht}</span>", unsafe_allow_html=True)
+                st.markdown(f"<span style='font-size: 10px; font-weight: bold; color: #0f172a;'>{rht}</span>", unsafe_allow_html=True)
         st.markdown("<hr style='margin: 4px 0; border-top: 2px solid #cbd5e1;'>", unsafe_allow_html=True)
 
         tot_sum_tagihan = 0.0
@@ -316,13 +318,20 @@ def tampilkan_pemantauan_pembayaran():
 
         def fmt_small_rp(val):
             formatted_num = f"Rp {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            return f'<small style="white-space: nowrap; display: inline-block;">{formatted_num}</small>'
+            return f'<small style="white-space: nowrap; display: inline-block; font-size: 10px;">{formatted_num}</small>'
 
         for c_key, c_val in summary_contract_map.items():
             t_tag = c_val["tagihan"]
             t_byr = c_val["terbayar"]
             t_piu = t_tag - t_byr
-            t_plafon = master_kontrak_plafon.get(c_key, 0.0)
+            
+            # Pencarian plafon kontrak dengan normalisasi string
+            t_plafon = 0.0
+            for k_plf, v_plf in master_kontrak_plafon.items():
+                if str(k_plf).strip() == str(c_key).strip():
+                    t_plafon = v_plf
+                    break
+
             pct_real = (t_byr / t_tag * 100) if t_tag > 0 else 0.0
             
             tot_sum_tagihan += t_tag
@@ -333,11 +342,11 @@ def tampilkan_pemantauan_pembayaran():
 
             st_teks = "🟢 Lengkap" if c_val["lunas"] == c_val["jml_inv"] else f"🟡 {c_val['lunas']}/{c_val['jml_inv']} Lunas"
 
-            rc_cols = st.columns([1.5, 0.9, 1.8, 1.8, 1.8, 1.8, 1.1, 0.9])
+            rc_cols = st.columns([1.5, 0.8, 2.0, 2.0, 2.0, 2.0, 1.0, 0.9])
             with rc_cols[0]:
-                st.markdown(f"**{c_key}**", unsafe_allow_html=True)
+                st.markdown(f"<small style='font-size: 10px;'><b>{c_key}</b></small>", unsafe_allow_html=True)
             with rc_cols[1]:
-                st.markdown(f"<small>{c_val['jml_inv']} Dok</small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='font-size: 10px;'>{c_val['jml_inv']} Dok</small>", unsafe_allow_html=True)
             with rc_cols[2]:
                 st.markdown(fmt_small_rp(t_plafon), unsafe_allow_html=True)
             with rc_cols[3]:
@@ -347,32 +356,32 @@ def tampilkan_pemantauan_pembayaran():
             with rc_cols[5]:
                 st.markdown(fmt_small_rp(t_piu), unsafe_allow_html=True)
             with rc_cols[6]:
-                st.markdown(f"<small><b>{pct_real:.2f}%</b></small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='font-size: 10px;'><b>{pct_real:.2f}%</b></small>", unsafe_allow_html=True)
             with rc_cols[7]:
-                st.markdown(f"<small>{st_teks}</small>", unsafe_allow_html=True)
+                st.markdown(f"<small style='font-size: 10px;'>{st_teks}</small>", unsafe_allow_html=True)
             st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
 
         tot_pct_overall = (tot_sum_terbayar / tot_sum_tagihan * 100) if tot_sum_tagihan > 0 else 0.0
-        tot_cols = st.columns([1.5, 0.9, 1.8, 1.8, 1.8, 1.8, 1.1, 0.9])
+        tot_cols = st.columns([1.5, 0.8, 2.0, 2.0, 2.0, 2.0, 1.0, 0.9])
         with tot_cols[0]:
-            st.markdown("**TOTAL KESELURUHAN**", unsafe_allow_html=True)
+            st.markdown("<small style='font-size: 10px;'><b>TOTAL KESELURUHAN</b></small>", unsafe_allow_html=True)
         with tot_cols[1]:
-            st.markdown(f"**{tot_jml_dok} Dok**", unsafe_allow_html=True)
+            st.markdown(f"<small style='font-size: 10px;'><b>{tot_jml_dok} Dok</b></small>", unsafe_allow_html=True)
         with tot_cols[2]:
-            st.markdown(f"**<span style='white-space: nowrap;'>Rp {tot_sum_plafon:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
+            st.markdown(f"**<span style='white-space: nowrap; font-size: 10px;'>Rp {tot_sum_plafon:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
         with tot_cols[3]:
-            st.markdown(f"**<span style='white-space: nowrap;'>Rp {tot_sum_tagihan:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
+            st.markdown(f"**<span style='white-space: nowrap; font-size: 10px;'>Rp {tot_sum_tagihan:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
         with tot_cols[4]:
-            st.markdown(f"**<span style='white-space: nowrap;'>Rp {tot_sum_terbayar:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
+            st.markdown(f"**<span style='white-space: nowrap; font-size: 10px;'>Rp {tot_sum_terbayar:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
         with tot_cols[5]:
-            st.markdown(f"**<span style='white-space: nowrap;'>Rp {tot_sum_piutang:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
+            st.markdown(f"**<span style='white-space: nowrap; font-size: 10px;'>Rp {tot_sum_piutang:,.2f}</span>**".replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
         with tot_cols[6]:
-            st.markdown(f"**{tot_pct_overall:.2f}%**", unsafe_allow_html=True)
+            st.markdown(f"<small style='font-size: 10px;'><b>{tot_pct_overall:.2f}%</b></small>", unsafe_allow_html=True)
         with tot_cols[7]:
-            st.markdown("**100%**", unsafe_allow_html=True)
+            st.markdown("<small style='font-size: 10px;'><b>100%</b></small>", unsafe_allow_html=True)
         st.markdown("<hr style='margin: 4px 0; border-top: 2px solid #0f172a;'>", unsafe_allow_html=True)
 
-        # --- DIAGRAM / GRAFIK KOMPARASI KEUANGAN & PERSENTASE ---
+        # --- DIAGRAM / GRAFIK KOMPARASI KEUANGAN ---
         st.markdown("---")
         st.markdown("##### 📈 Grafik Visualisasi Komparasi Keuangan & Kinerja Pembayaran")
         
@@ -437,7 +446,7 @@ def tampilkan_pemantauan_pembayaran():
                 </div>
             """, unsafe_allow_html=True)
 
-    # --- 4. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN (HANYA AMBIL DARI MODUL 3) ---
+    # --- 4. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN ---
     st.markdown("---")
     st.markdown("##### 📝 Form Input & Pembaruan Status Pembayaran (Berdasarkan Kontrak)")
 
