@@ -349,8 +349,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             input_add_cost = 0.0
             input_mgmt_fee = 0.0
             if gunakan_prof_sum:
-                def_ac = add_cost_default if add_cost_default > 0 else (gross_subtotal_m2 / 1.15)
-                def_mf = mgmt_fee_default if mgmt_fee_default > 0 else (gross_subtotal_m2 - def_ac)
+                # REVISI PROFESSIONAL SUM: Nilai Add Cost Murni (tanpa membagi 1.15)
+                def_ac = add_cost_default if add_cost_default > 0 else gross_subtotal_m2
+                def_mf = mgmt_fee_default if mgmt_fee_default > 0 else (def_ac * 0.15)
 
                 col_ps1, col_ps2 = st.columns(2)
                 with col_ps1:
@@ -361,7 +362,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 gross_tagihan_akhir = input_add_cost + input_mgmt_fee
                 diskon_nominal_akhir = 0.0
                 dpp_invoice_akhir = gross_tagihan_akhir
+                st.info(f"💡 **PROFESSIONAL SUM Breakdown:** Add Cost Murni (Rp {input_add_cost:,.2f}) + Fee 15% (Rp {input_mgmt_fee:,.2f}) = **DPP Invoice / Total Due (Rp {dpp_invoice_akhir:,.2f})**".replace(",", "X").replace(".", ",").replace("X", "."))
             elif gunakan_estimasi_sum:
+                # ESTIMATED SUM: Tetap menggunakan skema diskon 10% (TIDAK DIUBAH)
                 gross_tagihan_akhir = gross_subtotal_m2
                 diskon_nominal_akhir = gross_tagihan_akhir * 0.10
                 dpp_invoice_akhir = gross_tagihan_akhir - diskon_nominal_akhir
@@ -559,6 +562,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     gross_subtotal = 0.0
                     has_estimated_sum_category = is_est_sum_akt
 
+                    # REVISI PRATINJAU DOKUMEN CETAK UNTUK PROFESSIONAL SUM
                     if is_prof_sum_akt:
                         tabel_item_html = f"""
                         <tr>
@@ -576,7 +580,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {val_mgmt_fee:,.2f}</td>
                         </tr>
                         """
-                        gross_subtotal = val_add_cost + val_mgmt_fee
+                        # Untuk Professional Sum, Total Amount Due adalah gabungan Add Cost + Fee 15%
+                        total_amount_due = val_add_cost + val_mgmt_fee
+                        discount_10_nominal = 0.0
                     elif matched_items_m2:
                         tabel_item_html = ""
                         for idx_m2, row_m2 in enumerate(matched_items_m2, 1):
@@ -608,6 +614,14 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                 <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {amount_murni_row:,.2f}</td>
                             </tr>
                             """
+                        
+                        # LOGIKA MEMOTONG DISKON 10% ESTIMATED SUM (TIDAK DIUBAH)
+                        discount_10_nominal = 0.0
+                        if has_estimated_sum_category and not is_prof_sum_akt:
+                            discount_10_nominal = gross_subtotal * 0.10
+                            total_amount_due = gross_subtotal - discount_10_nominal
+                        else:
+                            total_amount_due = val_inv
                     else:
                         gross_subtotal = val_inv
                         tabel_item_html = f"""
@@ -619,14 +633,8 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: right; vertical-align: top;">Rp {val_inv:,.2f}</td>
                         </tr>
                         """
-
-                    # LOGIKA MEMOTONG DISKON 10% ESTIMATED SUM
-                    discount_10_nominal = 0.0
-                    if has_estimated_sum_category and not is_prof_sum_akt:
-                        discount_10_nominal = gross_subtotal * 0.10
-                        total_amount_due = gross_subtotal - discount_10_nominal
-                    else:
                         total_amount_due = val_inv
+                        discount_10_nominal = 0.0
 
                     dpp_nilai_lain = total_amount_due * (11 / 12) if val_ppn > 0 else total_amount_due
 
@@ -643,7 +651,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     if val_pph > 0:
                         summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 6px; color: #b91c1c;">Potongan PPh</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right; color: #b91c1c;">(Rp {val_pph:,.2f})</td></tr>'
                     
-                    summary_rows_html += f'<tr style="background-color: #f1f5f9; font-weight: bold;"><td style="padding: 8px; border-top: 2px solid #000;">T O T A L</td><td style="padding: 8px; border-top: 2px solid #000; text-align: right;">Rp {val_netto:,.2f}</td></tr>'
+                    # TOTAL INVOICE (DAPAT TERMASUK DENGAN ATAU TANPA PPH SESUAI SETTING)
+                    total_akhir_cetak = total_amount_due + val_ppn - val_pph
+                    summary_rows_html += f'<tr style="background-color: #f1f5f9; font-weight: bold;"><td style="padding: 8px; border-top: 2px solid #000;">T O T A L</td><td style="padding: 8px; border-top: 2px solid #000; text-align: right;">Rp {total_akhir_cetak:,.2f}</td></tr>'
 
                     html_invoice = f"""
                     <!DOCTYPE html>
@@ -873,7 +883,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         if billing_records:
             df_bill = pd.DataFrame(billing_records)
             
-            # MEMASTIKAN KOLOM BRUTO & DISKON DITAMPILKAN DI DATAFRAME TERSIMPAN
             kolom_prioritas = [
                 "Nomor Invoice Resmi", "Customer", "Kontrak No.", "Nomor PO", "Nomor SA / WAN",
                 "Nilai Gross (Bruto)", "Diskon Nominal (10%)", "Nilai Invoice", 
@@ -881,7 +890,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 "PPN Nominal", "PPh Nominal", "Total Netto", "Update Terakhir"
             ]
             
-            # Urutkan kolom jika ada
             kolom_ada = [c for c in kolom_prioritas if c in df_bill.columns]
             kolom_sisa = [c for c in df_bill.columns if c not in kolom_prioritas]
             df_display = df_bill[kolom_ada + kolom_sisa]
