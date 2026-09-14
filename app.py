@@ -444,30 +444,42 @@ if form_login_sistem():
     EXCEL_MASTER_REF = os.path.join(DIR_DATABASE, "database_master_referensi.xlsx")
     EXCEL_BANK = os.path.join(DIR_DATABASE, "database_master_bank.xlsx")
 
-    # --- PENYIMPANAN & PEMBACAAN DENGAN SISTEM CACHED DRIVE SYNC (CEPAT & SANGAT RINGAN) ---
+    # --- PENYIMPANAN & PEMBACAAN DENGAN SISTEM CACHED DRIVE SYNC (AMAN & TIDAK HILANG) ---
     def muat_data_invoice():
         df = load_excel_fast("database_proforma_invoice.xlsx")
         if df is not None and not df.empty:
             try:
                 df = df.dropna(how='all')
-                for col in df.columns:
-                    df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
                 data_records = df.to_dict(orient="records")
-                st.session_state["db_tersimpan"] = data_records
-                return data_records
+                normalized_records = []
+                for rec in data_records:
+                    new_rec = {}
+                    for k, v in rec.items():
+                        val_c = bersih_angka(v) if pd.notnull(v) else ""
+                        try:
+                            new_rec[int(k)] = val_c
+                        except ValueError:
+                            new_rec[k] = val_c
+                    normalized_records.append(new_rec)
+                st.session_state["db_tersimpan"] = normalized_records
+                return normalized_records
             except Exception:
                 pass
         return st.session_state.get("db_tersimpan", [])
 
     def simpan_data_invoice(data_list):
         waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
+        processed_data = []
         for item in data_list:
             if isinstance(item, dict):
-                item["Update Terakhir"] = waktu_sekarang
-                for k, v in item.items():
-                    if pd.isnull(v) or str(v).strip().lower() == "nan":
-                        item[k] = ""
-        df_baru = pd.DataFrame(data_list)
+                item_copy = item.copy()
+                item_copy["Update Terakhir"] = waktu_sekarang
+                formatted_item = {str(k): (bersih_angka(v) if pd.notnull(v) else "") for k, v in item_copy.items()}
+                processed_data.append(formatted_item)
+        
+        df_baru = pd.DataFrame(processed_data)
+        os.makedirs(DIR_DATABASE, exist_ok=True)
+        df_baru.to_excel(EXCEL_INVOICE, index=False)
         save_and_push_fast(df_baru, "database_proforma_invoice.xlsx")
         st.session_state["db_tersimpan"] = data_list
 
@@ -488,14 +500,20 @@ if form_login_sistem():
 
     def simpan_data_transaksi(data_list):
         waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
+        processed_tx = []
         for item in data_list:
             if isinstance(item, dict):
-                item["Update Terakhir"] = waktu_sekarang
-                for k, v in item.items():
+                item_copy = item.copy()
+                item_copy["Update Terakhir"] = waktu_sekarang
+                for k, v in item_copy.items():
                     if pd.isnull(v) or str(v).strip().lower() == "nan":
                         if k not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']:
-                            item[k] = ""
-        df_baru = pd.DataFrame(data_list)
+                            item_copy[k] = ""
+                processed_tx.append(item_copy)
+        
+        df_baru = pd.DataFrame(processed_tx)
+        os.makedirs(DIR_DATABASE, exist_ok=True)
+        df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
         save_and_push_fast(df_baru, "database_transaksi_rincian.xlsx")
         st.session_state["db_transaksi"] = data_list
 
@@ -523,6 +541,8 @@ if form_login_sistem():
                         if k != 'Harga Satuan':
                             item[k] = ""
         df_baru = pd.DataFrame(data_list)
+        os.makedirs(DIR_DATABASE, exist_ok=True)
+        df_baru.to_excel(EXCEL_MASTER_REF, index=False)
         save_and_push_fast(df_baru, "database_master_referensi.xlsx")
         st.session_state["db_master_ref"] = data_list
 
@@ -555,10 +575,12 @@ if form_login_sistem():
                     if pd.isnull(v) or str(v).strip().lower() == "nan":
                         item[k] = ""
         df_baru = pd.DataFrame(data_list)
+        os.makedirs(DIR_DATABASE, exist_ok=True)
+        df_baru.to_excel(EXCEL_BANK, index=False)
         save_and_push_fast(df_baru, "database_master_bank.xlsx")
         st.session_state["db_master_bank"] = data_list
 
-    # --- SINKRONISASI TINGKAT SISTEM: MUAT DATA DARI RAM CACHE SERVER AMAN 100% ---
+    # --- SINKRONISASI TINGKAT SISTEM ---
     st.session_state["db_tersimpan"] = muat_data_invoice()
     st.session_state["db_transaksi"] = muat_data_transaksi()
     st.session_state["db_master_ref"] = muat_master_referensi()
@@ -1006,10 +1028,7 @@ if form_login_sistem():
                     def_data = st.session_state["db_tersimpan"][st.session_state["edit_index"]]
                 
                 def get_val(idx_key, text_key):
-                    if idx_key in def_data:
-                        val = def_data[idx_key]
-                    else:
-                        val = def_data.get(text_key, "")
+                    val = def_data.get(idx_key, def_data.get(text_key, def_data.get(str(idx_key), "")))
                     cleaned = bersih_angka(val)
                     return cleaned if cleaned else ""
 
@@ -1452,7 +1471,6 @@ if form_login_sistem():
                     df_ref["Nomor Kontrak Clean"] = df_ref["Nomor Kontrak"].astype(str).str.strip()
                     df_ref["Kategori Clean"] = df_ref["Kategori"].astype(str).str.strip().str.upper()
                     
-                    # Normalisasi fallback kunci deskripsi / uraian pekerjaan dari master
                     if "Uraian Pekerjaan" in df_ref.columns:
                         df_ref["Uraian Clean"] = df_ref["Uraian Pekerjaan"].astype(str).str.strip()
                     elif "Deskripsi Pekerjaan" in df_ref.columns:
@@ -1987,7 +2005,6 @@ if form_login_sistem():
                             with col_dl5:
                                 excel_sel_bulan_selesai = st.selectbox("🗓️ Bulan Selesai:", ["-- Pilih --"] + bulan_names, key="excel_bulan_selesai")
 
-                            # --- PENYARINGAN PARALEL: DATAFRAME FILTER UNTUK TAMPILAN & EXPORT EXCEL ---
                             df_excel_target = df_filtered.copy()
 
                             if excel_sel_kontrak != "-- Semua Kontrak --":
@@ -1995,7 +2012,6 @@ if form_login_sistem():
 
                             if excel_sel_pi != "-- Semua Invoice (All Invoice) --":
                                 df_excel_target = df_excel_target[df_excel_target["PI No."].astype(str) == excel_sel_pi]
-                                # Mengaktifkan penyaringan pada tabel yang dirender di layar
                                 df_filtered = df_filtered[df_filtered["PI No."].astype(str) == excel_sel_pi]
 
                             if excel_sel_tahun != "-- Semua Tahun (All Years) --" and "Tahun_PI" in df_excel_target.columns:
@@ -2060,7 +2076,6 @@ if form_login_sistem():
                                     </div>
                                 """, unsafe_allow_html=True)
 
-                                # --- HEADER TABEL PERBAIKAN DENGAN PEMBACAAN AMAN ---
                                 headers_tx_html = """
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor Kontrak</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor PI</th>
@@ -2088,8 +2103,6 @@ if form_login_sistem():
                                         val_wan_sa = "-"
 
                                     val_kat = bersih_angka(row_data.get("Kategori", "-"))
-                                    
-                                    # FALLBACK KUNCI DESKRIPSI / URAIAN PEKERJAAN AMAN
                                     val_desc = bersih_angka(row_data.get("Deskripsi Pekerjaan", row_data.get("Uraian Pekerjaan", row_data.get("Deskripsi", "-"))))
                                     if not val_desc:
                                         val_desc = "-"
