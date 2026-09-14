@@ -1970,6 +1970,7 @@ if form_login_sistem():
                             with col_dl5:
                                 excel_sel_bulan_selesai = st.selectbox("🗓️ Bulan Selesai:", ["-- Pilih --"] + bulan_names, key="excel_bulan_selesai")
 
+                            # --- PENYARINGAN PARALEL: DATAFRAME FILTER UNTUK TAMPILAN & EXPORT EXCEL ---
                             df_excel_target = df_filtered.copy()
 
                             if excel_sel_kontrak != "-- Semua Kontrak --":
@@ -1977,6 +1978,8 @@ if form_login_sistem():
 
                             if excel_sel_pi != "-- Semua Invoice (All Invoice) --":
                                 df_excel_target = df_excel_target[df_excel_target["PI No."].astype(str) == excel_sel_pi]
+                                # Mengaktifkan penyaringan pada tabel yang dirender di layar
+                                df_filtered = df_filtered[df_filtered["PI No."].astype(str) == excel_sel_pi]
 
                             if excel_sel_tahun != "-- Semua Tahun (All Years) --" and "Tahun_PI" in df_excel_target.columns:
                                 df_excel_target = df_excel_target[df_excel_target["Tahun_PI"] == excel_sel_tahun]
@@ -2040,7 +2043,7 @@ if form_login_sistem():
                                     </div>
                                 """, unsafe_allow_html=True)
 
-                                # --- HEADER TABEL: DIGANTI KOLOM NOMOR WO MENJADI NOMOR WAN / NOMOR SA ---
+                                # --- HEADER TABEL PERBAIKAN DENGAN PEMBACAAN AMAN ---
                                 headers_tx_html = """
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor Kontrak</th>
                                     <th style='border: 1px solid #e2e8f0; padding: 6px 8px; background-color: #1e293b; color: white; font-size: 11.5px; text-align: left;'>Nomor PI</th>
@@ -2063,30 +2066,35 @@ if form_login_sistem():
                                     val_pi = bersih_angka(row_data.get("PI No.", "-"))
                                     val_po = bersih_angka(row_data.get("Nomor PO", "-"))
                                     
-                                    # MENGAMBIL DATA NOMOR WAN / SA DENGAN FALLBACK AMAN
                                     val_wan_sa = bersih_angka(row_data.get("Nomor WAN / SA", row_data.get("WAN Nomor", row_data.get("WAN", row_data.get("SA Nomor", "-")))))
                                     if not val_wan_sa:
                                         val_wan_sa = "-"
 
                                     val_kat = bersih_angka(row_data.get("Kategori", "-"))
-                                    val_desc = bersih_angka(row_data.get("Deskripsi Pekerjaan", "-"))
                                     
+                                    # FALLBACK KUNCI DESKRIPSI / URAIAN PEKERJAAN AMAN
+                                    val_desc = bersih_angka(row_data.get("Deskripsi Pekerjaan", row_data.get("Uraian Pekerjaan", row_data.get("Deskripsi", "-"))))
+                                    if not val_desc:
+                                        val_desc = "-"
+
                                     try:
                                         val_qty = f"{float(row_data.get('Qty', 0) or 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                                     except:
-                                        val_qty = str(row_data.get('Qty', ''))
+                                        val_qty = str(row_data.get('Qty', '-'))
                                         
-                                    val_unit = bersih_angka(row_data.get("Unit", "-"))
-                                    
+                                    val_unit = bersih_angka(row_data.get("Unit", row_data.get("Satuan", "-")))
+                                    if not val_unit:
+                                        val_unit = "-"
+                                        
                                     try:
                                         val_hs = f"{float(row_data.get('Harga Satuan', 0) or 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                                     except:
-                                        val_hs = str(row_data.get('Harga Satuan', ''))
+                                        val_hs = str(row_data.get('Harga Satuan', '-'))
                                         
                                     try:
                                         val_tot = f"{float(row_data.get('Total Harga', 0) or 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                                     except:
-                                        val_tot = str(row_data.get('Total Harga', ''))
+                                        val_tot = str(row_data.get('Total Harga', '-'))
 
                                     rows_tx_html += f"""
                                     <tr style="background-color: {bg_color};">
@@ -2095,7 +2103,7 @@ if form_login_sistem():
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_po}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_wan_sa}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left;">{val_kat}</td>
-                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left; max-width: 220px; white-space: normal;">{val_desc}</td>
+                                        <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: left; max-width: 250px; white-space: normal; word-break: break-word;">{val_desc}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: center;">{val_qty}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: center;">{val_unit}</td>
                                         <td style="border: 1px solid #e2e8f0; padding: 5px 8px; font-size: 11px; color: #0f172a; text-align: right; white-space: nowrap;">{val_hs}</td>
@@ -2108,6 +2116,7 @@ if form_login_sistem():
                                     </tr>
                                     """
 
+                                calc_height = len(df_pi_group) * 42 + 60
                                 full_table_html = f"""
                                 <div style="overflow-x: auto; margin-bottom: 15px; border-radius: 6px; border: 1px solid #cbd5e1;">
                                     <table style="width: 100%; border-collapse: collapse; background-color: #ffffff;">
@@ -2120,7 +2129,7 @@ if form_login_sistem():
                                     </table>
                                 </div>
                                 """
-                                st.components.v1.html(full_table_html, height=len(df_pi_group) * 38 + 55, scrolling=False)
+                                st.components.v1.html(full_table_html, height=calc_height, scrolling=True)
 
             elif menu == "Lihat Master Rekap Transaksi":
                 transaksi_list = muat_data_transaksi()
