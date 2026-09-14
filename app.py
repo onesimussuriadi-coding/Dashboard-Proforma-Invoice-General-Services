@@ -408,22 +408,16 @@ if form_login_sistem():
         else: tampilkan_billing_tax(tx, menu)
 
     elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
-        if menu == "Input Database & Invoice (31 Kolom)":
-            # DIPANGGIL DARI MODUL TERPISAH (modul_1_database.py)
-            tampilkan_modul_1_database(
-                saved_db_list=muat_data_invoice(),
-                bersih_angka_func=bersih_angka,
-                parse_date_func=parse_date_safely,
-                sort_pi_key_func=sort_pi_key,
-                simpan_data_invoice_func=simpan_data_invoice,
-                muat_data_invoice_func=muat_data_invoice
-            )
-        elif menu == "Lihat Database Tersimpan":
-            st.markdown("<div class='dashboard-card'><h3>📂 Database Tersimpan</h3></div>", unsafe_allow_html=True)
-            saved_records = muat_data_invoice()
-            if saved_records:
-                for idx, rec in enumerate(saved_records):
-                    st.write(f"**#{idx+1} | Kontrak:** {rec.get(1, rec.get('Nomor Kontrak'))} | **PI:** {rec.get(0, rec.get('Proforma Invoice No.'))}")
+        # DIPANGGIL DARI MODUL TERPISAH (modul_1_database.py)
+        tampilkan_modul_1_database(
+            menu=menu,
+            saved_db_list=muat_data_invoice(),
+            bersih_angka_func=bersih_angka,
+            parse_date_func=parse_date_safely,
+            sort_pi_key_func=sort_pi_key,
+            simpan_data_invoice_func=simpan_data_invoice,
+            muat_data_invoice_func=muat_data_invoice
+        )
 
     elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
         if menu == "Input & Proses Rincian Pekerjaan":
