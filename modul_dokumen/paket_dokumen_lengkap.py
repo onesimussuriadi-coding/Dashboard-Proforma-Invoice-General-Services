@@ -92,7 +92,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             unique_pi_list.append(pi_key)
 
     if not unique_pi_list:
-            unique_pi_list = ["DEFAULT-PI"]
+        unique_pi_list = ["DEFAULT-PI"]
 
     selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI) untuk Paket Dokumen:", unique_pi_list, key="bundle_pi_select")
     current_pi_no = str(selected_pi).strip()
@@ -316,6 +316,20 @@ def tampilkan_paket_lengkap(transaksi_list):
         no_po = raw_po
 
     tgl_po = get_induk(9, 'Tanggal Purchase Order', t_data_utama.get('Tanggal PO', '-'))
+
+    # --- PENARIKAN PRESISI TANGGAL PO KHUSUS UNTUK TKDN HEADER ---
+    raw_po_date = tgl_po
+    if raw_po_date and str(raw_po_date).strip() not in ["-", "", "nan", "None"]:
+        try:
+            if isinstance(raw_po_date, (datetime, date)):
+                tkdn_po_date_str = f"{raw_po_date.day:02d} {bulan_indo[raw_po_date.month]} {raw_po_date.year}"
+            else:
+                parsed_dt = pd.to_datetime(str(raw_po_date).strip())
+                tkdn_po_date_str = f"{parsed_dt.day:02d} {bulan_indo[parsed_dt.month]} {parsed_dt.year}"
+        except:
+            tkdn_po_date_str = str(raw_po_date).strip()
+    else:
+        tkdn_po_date_str = tkdn_date_str
 
     p1_nama = get_induk(10, 'Pihak Pertama', 'JOB Pertamina - Medco E&P Tomori Sulawesi')
     p1_alamat = get_induk(11, 'Alamat Pihak Pertama', 'Bidakara Office Tower I 4Th Floor, Jl. Gatot Subroto Kav. 71 - 73, Jakarta 12870, Indonesia')
@@ -1204,7 +1218,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     """
 
     # ==========================================
-    # 8. HALAMAN TKDN
+    # 8. HALAMAN TKDN (TANGGAL HEADER MENGGUNAKAN TANGGAL PO)
     # ==========================================
     total_jasa = grand_total * (95.0 / 100.0)
     non_cost = grand_total * 0.05
@@ -1228,7 +1242,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
             <tr>
                 <td style="font-weight: bold;">Mata Uang</td><td>:</td><td>IDR</td>
-                <td style="font-weight: bold;">Tanggal</td><td>:</td><td>{tkdn_date_str}</td>
+                <td style="font-weight: bold;">Tanggal</td><td>:</td><td>{tkdn_po_date_str}</td>
             </tr>
         </table>
 
