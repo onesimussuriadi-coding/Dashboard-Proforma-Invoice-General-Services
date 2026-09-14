@@ -2,7 +2,30 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
+import re
 from datetime import datetime, date
+
+def bersihkan_karakter_aneh(text):
+    if not text or pd.isnull(text):
+        return ""
+    text_str = str(text)
+    # Memperbaiki mojibake encoding UTF-8 / karakter terdistorsi dari Excel/Word
+    replacements = {
+        "â€“": "-",
+        "â€”": "-",
+        "â  ": " s/d ",
+        "â": "-",
+        "Â": "",
+        "\xa0": " "
+    }
+    for old, new in replacements.items():
+        text_str = text_str.replace(old, new)
+    
+    # Menghapus karakter non-ASCII yang merusak tampilan
+    text_str = re.sub(r'[^\x00-\x7F]+', ' ', text_str)
+    # Merapikan spasi ganda
+    text_str = re.sub(r'\s+', ' ', text_str).strip()
+    return text_str
 
 def terbilang(n):
     n = float(n)
@@ -303,7 +326,11 @@ def tampilkan_paket_lengkap(transaksi_list):
     nama_kontrak = get_induk(7, 'Nama Kontrak', t_data_utama.get('Nama Kontrak', '-'))
     nomor_tender = get_induk(2, 'Nomor Tender', '-')
     tgl_kontrak = get_induk(4, 'Tanggal Kontrak', '-')
-    jangka_waktu = get_induk(5, 'Jangka Waktu Kontrak', '2 tahun')
+    
+    # --- PROSES SANITASI DAN PEMBERSIHAN KARAKTER ANEH KHUSUS JANGKA WAKTU KONTRAK ---
+    raw_jangka_waktu = get_induk(5, 'Jangka Waktu Kontrak', '2 tahun')
+    jangka_waktu = bersihkan_karakter_aneh(raw_jangka_waktu)
+    
     tgl_pi = get_induk(6, 'Tanggal Performa Invoice', format_tgl_indo(datetime.now()))
     lingkup_pekerjaan = get_induk(3, 'Lingkup Pekerjaan', t_data_utama.get('Deskripsi PO', t_data_utama.get('Kategori', '-')))
     
