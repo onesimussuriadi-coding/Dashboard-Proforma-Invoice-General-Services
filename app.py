@@ -7,12 +7,28 @@ import sys
 import io
 from datetime import datetime, timedelta, date
 
-# --- IMPORT FUNGSI SINKRONISASI GOOGLE DRIVE 2 TB ---
+# --- IMPORT FUNGSI SINKRONISASI GOOGLE DRIVE 2 TB (OPTIMIZED FAST MODE) ---
 try:
-    from drive_sync import sync_download_from_drive, sync_upload_to_drive
+    from drive_sync import (
+        sync_download_from_drive, 
+        sync_upload_to_drive, 
+        load_excel_fast, 
+        save_and_push_fast
+    )
 except ImportError:
+    # Fallback aman jika modul drive_sync belum termuat sempurna
     def sync_download_from_drive(filename, local_path): return False
     def sync_upload_to_drive(local_path, filename): return False
+    def load_excel_fast(filename_excel):
+        local_path = os.path.join("database_penyimpanan_aman", filename_excel)
+        if os.path.exists(local_path):
+            return pd.read_excel(local_path)
+        return pd.DataFrame()
+    def save_and_push_fast(df, filename_excel):
+        local_path = os.path.join("database_penyimpanan_aman", filename_excel)
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        df.to_excel(local_path, index=False)
+        return sync_upload_to_drive(local_path, filename_excel)
 
 # Menambahkan path untuk pemanggilan folder modul_dokumen
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -428,20 +444,18 @@ if form_login_sistem():
     EXCEL_MASTER_REF = os.path.join(DIR_DATABASE, "database_master_referensi.xlsx")
     EXCEL_BANK = os.path.join(DIR_DATABASE, "database_master_bank.xlsx")
 
-    # --- PENYIMPANAN LOKAL EXCEL PERMANEN & OTOMATIS SINKRONISASI GOOGLE DRIVE 2 TB ---
+    # --- PENYIMPANAN & PEMBACAAN DENGAN SISTEM CACHED DRIVE SYNC (CEPAT & SANGAT RINGAN) ---
     def muat_data_invoice():
-        sync_download_from_drive("database_proforma_invoice.xlsx", EXCEL_INVOICE)
-        if os.path.exists(EXCEL_INVOICE):
+        df = load_excel_fast("database_proforma_invoice.xlsx")
+        if df is not None and not df.empty:
             try:
-                df = pd.read_excel(EXCEL_INVOICE)
-                if df is not None and not df.empty:
-                    df = df.dropna(how='all')
-                    for col in df.columns:
-                        df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
-                    data_records = df.to_dict(orient="records")
-                    st.session_state["db_tersimpan"] = data_records
-                    return data_records
-            except Exception as e:
+                df = df.dropna(how='all')
+                for col in df.columns:
+                    df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
+                data_records = df.to_dict(orient="records")
+                st.session_state["db_tersimpan"] = data_records
+                return data_records
+            except Exception:
                 pass
         return st.session_state.get("db_tersimpan", [])
 
@@ -454,24 +468,21 @@ if form_login_sistem():
                     if pd.isnull(v) or str(v).strip().lower() == "nan":
                         item[k] = ""
         df_baru = pd.DataFrame(data_list)
-        df_baru.to_excel(EXCEL_INVOICE, index=False)
-        sync_upload_to_drive(EXCEL_INVOICE, "database_proforma_invoice.xlsx")
+        save_and_push_fast(df_baru, "database_proforma_invoice.xlsx")
         st.session_state["db_tersimpan"] = data_list
 
     def muat_data_transaksi():
-        sync_download_from_drive("database_transaksi_rincian.xlsx", EXCEL_TRANSAKSI)
-        if os.path.exists(EXCEL_TRANSAKSI):
+        df = load_excel_fast("database_transaksi_rincian.xlsx")
+        if df is not None and not df.empty:
             try:
-                df = pd.read_excel(EXCEL_TRANSAKSI)
-                if df is not None and not df.empty:
-                    df = df.dropna(how='all')
-                    for col in df.columns:
-                        if col not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']:
-                            df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
-                    data_records = df.to_dict(orient="records")
-                    st.session_state["db_transaksi"] = data_records
-                    return data_records
-            except Exception as e:
+                df = df.dropna(how='all')
+                for col in df.columns:
+                    if col not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']:
+                        df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
+                data_records = df.to_dict(orient="records")
+                st.session_state["db_transaksi"] = data_records
+                return data_records
+            except Exception:
                 pass
         return st.session_state.get("db_transaksi", [])
 
@@ -485,23 +496,20 @@ if form_login_sistem():
                         if k not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']:
                             item[k] = ""
         df_baru = pd.DataFrame(data_list)
-        df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
-        sync_upload_to_drive(EXCEL_TRANSAKSI, "database_transaksi_rincian.xlsx")
+        save_and_push_fast(df_baru, "database_transaksi_rincian.xlsx")
         st.session_state["db_transaksi"] = data_list
 
     def muat_master_referensi():
-        sync_download_from_drive("database_master_referensi.xlsx", EXCEL_MASTER_REF)
-        if os.path.exists(EXCEL_MASTER_REF):
+        df = load_excel_fast("database_master_referensi.xlsx")
+        if df is not None and not df.empty:
             try:
-                df = pd.read_excel(EXCEL_MASTER_REF)
-                if df is not None and not df.empty:
-                    for col in df.columns:
-                        if col not in ['Harga Satuan']:
-                            df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
-                    data_records = df.to_dict(orient="records")
-                    st.session_state["db_master_ref"] = data_records
-                    return data_records
-            except Exception as e:
+                for col in df.columns:
+                    if col not in ['Harga Satuan']:
+                        df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
+                data_records = df.to_dict(orient="records")
+                st.session_state["db_master_ref"] = data_records
+                return data_records
+            except Exception:
                 pass
         return st.session_state.get("db_master_ref", [])
 
@@ -515,12 +523,11 @@ if form_login_sistem():
                         if k != 'Harga Satuan':
                             item[k] = ""
         df_baru = pd.DataFrame(data_list)
-        df_baru.to_excel(EXCEL_MASTER_REF, index=False)
-        sync_upload_to_drive(EXCEL_MASTER_REF, "database_master_referensi.xlsx")
+        save_and_push_fast(df_baru, "database_master_referensi.xlsx")
         st.session_state["db_master_ref"] = data_list
 
     def muat_master_bank():
-        sync_download_from_drive("database_master_bank.xlsx", EXCEL_BANK)
+        df = load_excel_fast("database_master_bank.xlsx")
         default_banks = [
             {
                 "Bank Name": "BANK RAKYAT INDONESIA (PERSERO) Tbk.",
@@ -530,16 +537,14 @@ if form_login_sistem():
                 "Attn": "Accounts Payable - Finance Department"
             }
         ]
-        if os.path.exists(EXCEL_BANK):
+        if df is not None and not df.empty:
             try:
-                df = pd.read_excel(EXCEL_BANK)
-                if df is not None and not df.empty:
-                    for col in df.columns:
-                        df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
-                    data_records = df.to_dict(orient="records")
-                    st.session_state["db_master_bank"] = data_records
-                    return data_records
-            except Exception as e:
+                for col in df.columns:
+                    df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
+                data_records = df.to_dict(orient="records")
+                st.session_state["db_master_bank"] = data_records
+                return data_records
+            except Exception:
                 pass
         return st.session_state.get("db_master_bank", default_banks)
 
@@ -550,11 +555,10 @@ if form_login_sistem():
                     if pd.isnull(v) or str(v).strip().lower() == "nan":
                         item[k] = ""
         df_baru = pd.DataFrame(data_list)
-        df_baru.to_excel(EXCEL_BANK, index=False)
-        sync_upload_to_drive(EXCEL_BANK, "database_master_bank.xlsx")
+        save_and_push_fast(df_baru, "database_master_bank.xlsx")
         st.session_state["db_master_bank"] = data_list
 
-    # --- SINKRONISASI TINGKAT SISTEM: SELALU MUAT ULANG DATA DARI DISK EXCEL AGAR PERPINDAHAN SHEET SELALU UTUH 100% ---
+    # --- SINKRONISASI TINGKAT SISTEM: MUAT DATA DARI RAM CACHE SERVER AMAN 100% ---
     st.session_state["db_tersimpan"] = muat_data_invoice()
     st.session_state["db_transaksi"] = muat_data_transaksi()
     st.session_state["db_master_ref"] = muat_master_referensi()
@@ -637,14 +641,19 @@ if form_login_sistem():
         ])
 
     st.sidebar.markdown("---")
-    st.sidebar.success("☁️ **Status Sistem:** Auto-Sync Google Drive 2 TB Aktif")
+    st.sidebar.success("☁️ **Status Sistem:** Auto-Sync Google Drive 2 TB Aktif (Fast Mode)")
 
     if st.sidebar.button("🔄 Sinkronisasi Sistem Sekarang"):
+        st.cache_data.clear()
+        sync_download_from_drive("database_proforma_invoice.xlsx", EXCEL_INVOICE)
+        sync_download_from_drive("database_transaksi_rincian.xlsx", EXCEL_TRANSAKSI)
+        sync_download_from_drive("database_master_referensi.xlsx", EXCEL_MASTER_REF)
+        sync_download_from_drive("database_master_bank.xlsx", EXCEL_BANK)
         st.session_state["db_tersimpan"] = muat_data_invoice()
         st.session_state["db_transaksi"] = muat_data_transaksi()
         st.session_state["db_master_ref"] = muat_master_referensi()
         st.session_state["db_master_bank"] = muat_master_bank()
-        st.sidebar.info("ℹ️ Mode penyimpanan disinkronkan langsung dengan Google Drive 2 TB.")
+        st.sidebar.info("ℹ️ Data disinkronkan langsung dari Google Drive 2 TB.")
 
     if st.sidebar.button("🔒 Keluar / Logout Sistem"):
         st.session_state.logged_in = False
