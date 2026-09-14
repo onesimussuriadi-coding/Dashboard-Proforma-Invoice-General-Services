@@ -7,29 +7,6 @@ import sys
 import io
 from datetime import datetime, timedelta, date
 
-# --- IMPORT FUNGSI SINKRONISASI GOOGLE DRIVE 2 TB (OPTIMIZED FAST MODE) ---
-try:
-    from drive_sync import (
-        sync_download_from_drive, 
-        sync_upload_to_drive, 
-        load_excel_fast, 
-        save_and_push_fast
-    )
-except ImportError:
-    # Fallback aman jika modul drive_sync belum termuat sempurna
-    def sync_download_from_drive(filename, local_path): return False
-    def sync_upload_to_drive(local_path, filename): return False
-    def load_excel_fast(filename_excel):
-        local_path = os.path.join("database_penyimpanan_aman", filename_excel)
-        if os.path.exists(local_path):
-            return pd.read_excel(local_path)
-        return pd.DataFrame()
-    def save_and_push_fast(df, filename_excel):
-        local_path = os.path.join("database_penyimpanan_aman", filename_excel)
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
-        df.to_excel(local_path, index=False)
-        return sync_upload_to_drive(local_path, filename_excel)
-
 # Menambahkan path untuk pemanggilan folder modul_dokumen
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
@@ -125,7 +102,7 @@ except ImportError as e:
 # Konfigurasi Halaman
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
 
-# --- FUNGSI BYPASS cPANEL (PENYIMPANAN LOKAL SUPER CEPAT 100% AMAN) ---
+# --- FUNGSI BYPASS cPANEL ---
 def get_mysql_connection():
     return None
 
@@ -143,7 +120,7 @@ def bersih_angka(val):
         return ""
     return s
 
-# --- FUNGSI PENGURUTAN NOMOR PI SECARA CERDAS (KRONOLOGIS / NOMOR URUT) ---
+# --- FUNGSI PENGURUTAN NOMOR PI SECARA CERDAS ---
 def sort_pi_key(pi_str):
     try:
         parts = str(pi_str).split('/')
@@ -160,7 +137,7 @@ if form_login_sistem():
     render_panel_manajemen_akun()
     user_role = st.session_state.get('current_role', 'Staff')
 
-    # --- CSS STYLING PROFESIONAL & PENGATURAN LEBAR DROPDOWN ---
+    # --- CSS STYLING PROFESIONAL ---
     st.markdown("""
         <style>
         .stApp { background-color: #f8fafc; color: #0f172a; }
@@ -444,12 +421,11 @@ if form_login_sistem():
     EXCEL_MASTER_REF = os.path.join(DIR_DATABASE, "database_master_referensi.xlsx")
     EXCEL_BANK = os.path.join(DIR_DATABASE, "database_master_bank.xlsx")
 
-    # --- PENYIMPANAN & PEMBACAAN DENGAN SISTEM CACHED DRIVE SYNC (AMAN & TIDAK HILANG) ---
+    # --- FUNGSI PEMBACAAN & PENYIMPANAN MURNI LOKAL (MODE OFFLINE - 100% STABIL & CEPAT) ---
     def muat_data_invoice():
-        df = load_excel_fast("database_proforma_invoice.xlsx")
-        if df is not None and not df.empty:
+        if os.path.exists(EXCEL_INVOICE):
             try:
-                df = df.dropna(how='all')
+                df = pd.read_excel(EXCEL_INVOICE).dropna(how='all')
                 data_records = df.to_dict(orient="records")
                 normalized_records = []
                 for rec in data_records:
@@ -480,14 +456,12 @@ if form_login_sistem():
         df_baru = pd.DataFrame(processed_data)
         os.makedirs(DIR_DATABASE, exist_ok=True)
         df_baru.to_excel(EXCEL_INVOICE, index=False)
-        save_and_push_fast(df_baru, "database_proforma_invoice.xlsx")
         st.session_state["db_tersimpan"] = data_list
 
     def muat_data_transaksi():
-        df = load_excel_fast("database_transaksi_rincian.xlsx")
-        if df is not None and not df.empty:
+        if os.path.exists(EXCEL_TRANSAKSI):
             try:
-                df = df.dropna(how='all')
+                df = pd.read_excel(EXCEL_TRANSAKSI).dropna(how='all')
                 for col in df.columns:
                     if col not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']:
                         df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
@@ -514,13 +488,12 @@ if form_login_sistem():
         df_baru = pd.DataFrame(processed_tx)
         os.makedirs(DIR_DATABASE, exist_ok=True)
         df_baru.to_excel(EXCEL_TRANSAKSI, index=False)
-        save_and_push_fast(df_baru, "database_transaksi_rincian.xlsx")
         st.session_state["db_transaksi"] = data_list
 
     def muat_master_referensi():
-        df = load_excel_fast("database_master_referensi.xlsx")
-        if df is not None and not df.empty:
+        if os.path.exists(EXCEL_MASTER_REF):
             try:
+                df = pd.read_excel(EXCEL_MASTER_REF).dropna(how='all')
                 for col in df.columns:
                     if col not in ['Harga Satuan']:
                         df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
@@ -543,11 +516,9 @@ if form_login_sistem():
         df_baru = pd.DataFrame(data_list)
         os.makedirs(DIR_DATABASE, exist_ok=True)
         df_baru.to_excel(EXCEL_MASTER_REF, index=False)
-        save_and_push_fast(df_baru, "database_master_referensi.xlsx")
         st.session_state["db_master_ref"] = data_list
 
     def muat_master_bank():
-        df = load_excel_fast("database_master_bank.xlsx")
         default_banks = [
             {
                 "Bank Name": "BANK RAKYAT INDONESIA (PERSERO) Tbk.",
@@ -557,8 +528,9 @@ if form_login_sistem():
                 "Attn": "Accounts Payable - Finance Department"
             }
         ]
-        if df is not None and not df.empty:
+        if os.path.exists(EXCEL_BANK):
             try:
+                df = pd.read_excel(EXCEL_BANK).dropna(how='all')
                 for col in df.columns:
                     df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
                 data_records = df.to_dict(orient="records")
@@ -577,10 +549,9 @@ if form_login_sistem():
         df_baru = pd.DataFrame(data_list)
         os.makedirs(DIR_DATABASE, exist_ok=True)
         df_baru.to_excel(EXCEL_BANK, index=False)
-        save_and_push_fast(df_baru, "database_master_bank.xlsx")
         st.session_state["db_master_bank"] = data_list
 
-    # --- SINKRONISASI TINGKAT SISTEM ---
+    # --- INITIAL LOAD DARI FILE LOKAL ---
     st.session_state["db_tersimpan"] = muat_data_invoice()
     st.session_state["db_transaksi"] = muat_data_transaksi()
     st.session_state["db_master_ref"] = muat_master_referensi()
@@ -663,19 +634,15 @@ if form_login_sistem():
         ])
 
     st.sidebar.markdown("---")
-    st.sidebar.success("☁️ **Status Sistem:** Auto-Sync Google Drive 2 TB Aktif (Fast Mode)")
+    st.sidebar.info("💻 **Status Sistem:** Mode Offline / Penyimpanan Lokal Aktif 100%")
 
-    if st.sidebar.button("🔄 Sinkronisasi Sistem Sekarang"):
+    if st.sidebar.button("🔄 Reload / Refresh Data Lokal"):
         st.cache_data.clear()
-        sync_download_from_drive("database_proforma_invoice.xlsx", EXCEL_INVOICE)
-        sync_download_from_drive("database_transaksi_rincian.xlsx", EXCEL_TRANSAKSI)
-        sync_download_from_drive("database_master_referensi.xlsx", EXCEL_MASTER_REF)
-        sync_download_from_drive("database_master_bank.xlsx", EXCEL_BANK)
         st.session_state["db_tersimpan"] = muat_data_invoice()
         st.session_state["db_transaksi"] = muat_data_transaksi()
         st.session_state["db_master_ref"] = muat_master_referensi()
         st.session_state["db_master_bank"] = muat_master_bank()
-        st.sidebar.info("ℹ️ Data disinkronkan langsung dari Google Drive 2 TB.")
+        st.sidebar.success("✅ Data lokal berhasil diperbarui.")
 
     if st.sidebar.button("🔒 Keluar / Logout Sistem"):
         st.session_state.logged_in = False
@@ -844,7 +811,7 @@ if form_login_sistem():
                                 st.success("✨ Data Master Referensi berhasil di-update!")
                             else:
                                 master_data.append(item_baru)
-                                st.success("🎉 Data Master Referensi baru berhasil disimpan!")
+                                st.success("🎉 Data Master Referensi baru berhasil disimpan ke file lokal!")
                             
                             simpan_master_referensi(master_data)
                             st.session_state["edit_master_index"] = None
@@ -1181,11 +1148,11 @@ if form_login_sistem():
                             if st.session_state["edit_index"] is not None and st.session_state["edit_index"] < len(current_data):
                                 current_data[st.session_state["edit_index"]] = data_terinput
                                 simpan_data_invoice(current_data)
-                                st.success("✨ Data berhasil diperbarui secara permanen ke Google Drive 2 TB!")
+                                st.success("✨ Data berhasil diperbarui secara permanen ke file lokal!")
                         elif submit_save_as or submit_baru:
                             current_data.append(data_terinput)
                             simpan_data_invoice(current_data)
-                            st.success("🎉 Data berhasil disimpan secara permanen ke Google Drive 2 TB!")
+                            st.success("🎉 Data berhasil disimpan secara permanen ke file lokal!")
                             st.session_state["edit_index"] = None
                         st.rerun()
 
@@ -1739,7 +1706,7 @@ if form_login_sistem():
                                 existing_tx.append(data_transaksi)
 
                             simpan_data_transaksi(existing_tx)
-                            st.success(f"💾 Berhasil menyimpan data sementara secara permanen ke Google Drive 2 TB untuk PI [{pi_target_simpan}]!")
+                            st.success(f"💾 Berhasil menyimpan data sementara secara permanen ke file lokal untuk PI [{pi_target_simpan}]!")
                             st.rerun()
 
                         if submit_proses_distribusi:
@@ -1801,7 +1768,7 @@ if form_login_sistem():
 
                             simpan_data_transaksi(existing_tx)
                             st.session_state.num_rows = 1
-                            st.success(f"🎉 Berhasil mendistribusikan data secara permanen ke Google Drive 2 TB untuk Proforma Invoice [{pi_baru}]!")
+                            st.success(f"🎉 Berhasil mendistribusikan data secara permanen ke file lokal untuk Proforma Invoice [{pi_baru}]!")
                             st.rerun()
 
             elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
