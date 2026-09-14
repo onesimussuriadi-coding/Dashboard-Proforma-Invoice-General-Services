@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import base64
-from datetime import datetime
+from datetime import datetime, date
 
 def terbilang(n):
     n = float(n)
@@ -352,7 +352,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     wcc_header_title = wcc_saved.get('header_title', nama_kontrak)
     wcc_header_contract = wcc_saved.get('header_contract', f"Contract No. {nomor_kontrak}")
     
-    # --- PENARIKAN PRESISI NOMOR WCC, WO, DAN CTR LANGSUNG DARI DATABASE / WCC SAVED / FALLBACK CERDAS ---
     db_wcc_saved_map = st.session_state.get("wcc_saved_data", {})
     curr_wcc_dict = db_wcc_saved_map.get(current_pi_no, {})
     if not curr_wcc_dict and db_wcc_saved_map:
@@ -500,10 +499,36 @@ def tampilkan_paket_lengkap(transaksi_list):
     mutasi_jasa = mutasi_terpilih
     
     # ==========================================
-    # PENARIKAN PRESISI DATA BAMP MANDIRI (KHUSUS HALAMAN BAMP)
+    # PENARIKAN PRESISI DATA BAMP MANDIRI (MULTI-KEY & SMART FALLBACK)
     # ==========================================
-    bamp_saved_container = st.session_state.get("bamp_saved_data", {}).get(pi_storage_key, {})
-    saved_bamp_items_map = bamp_saved_container.get('items', {})
+    all_bamp_store = st.session_state.get("bamp_saved_data", {})
+    
+    bamp_saved_container = {}
+    possible_keys = [
+        current_pi_no,
+        str(current_pi_no).strip(),
+        no_po,
+        nomor_kontrak,
+        f"{current_pi_no}_{no_po}",
+        f"{no_po}_{current_pi_no}"
+    ]
+    
+    for pk in possible_keys:
+        if pk in all_bamp_store and all_bamp_store[pk]:
+            bamp_saved_container = all_bamp_store[pk]
+            break
+            
+    if not bamp_saved_container and all_bamp_store:
+        for k_store, v_store in all_bamp_store.items():
+            if current_pi_no.lower() in str(k_store).lower() or (no_po and no_po.lower() in str(k_store).lower()):
+                bamp_saved_container = v_store
+                break
+
+    saved_bamp_items_map = {}
+    if isinstance(bamp_saved_container, dict):
+        saved_bamp_items_map = bamp_saved_container.get('items', bamp_saved_container.get('rincian_items', {}))
+    elif isinstance(bamp_saved_container, list):
+        saved_bamp_items_map = {idx + 1: item for idx, item in enumerate(bamp_saved_container)}
 
     bamp_rows_html = ""
     target_bamp_items = mutasi_jasa
@@ -512,18 +537,31 @@ def tampilkan_paket_lengkap(transaksi_list):
         saved_bamp_row = {}
         if isinstance(saved_bamp_items_map, dict):
             saved_bamp_row = saved_bamp_items_map.get(idx, saved_bamp_items_map.get(str(idx), {}))
+        elif isinstance(saved_bamp_items_map, list) and (idx - 1) < len(saved_bamp_items_map):
+            saved_bamp_row = saved_bamp_items_map[idx - 1]
 
-        row_qty_bamp = float(saved_bamp_row.get('qty', m.get('Qty', 1.0)))
-        row_uom_bamp = str(saved_bamp_row.get('uom', m.get('Unit', 'Day'))).strip()
-        
+        # Baca Qty & Satuan murni BAMP Mandiri
+        if 'qty' in saved_bamp_row and saved_bamp_row['qty'] is not None:
+            row_qty_bamp = float(saved_bamp_row['qty'])
+        elif 'jumlah' in saved_bamp_row and saved_bamp_row['jumlah'] is not None:
+            row_qty_bamp = float(saved_bamp_row['jumlah'])
+        else:
+            row_qty_bamp = float(m.get('Qty BAMP', m.get('Qty_BAMP', 1.0)))
+
+        row_uom_bamp = str(saved_bamp_row.get('uom', saved_bamp_row.get('satuan', m.get('Unit', 'Day')))).strip()
+
+        # Baca Catatan murni BAMP Mandiri
         kat_bamp = str(m.get('Kategori', '')).strip()
         desc_bamp = str(m.get('Deskripsi Pekerjaan', '')).strip()
-        ket_mentah_bamp = str(m.get('Keterangan', '')).strip()
         
-        default_cat_bamp = ket_mentah_bamp if ket_mentah_bamp else f"Mulai Berlaku Tanggal {bamp_date_str}"
-        row_catatan_bamp = str(saved_bamp_row.get('catatan', default_cat_bamp)).strip()
+        row_catatan_bamp = str(saved_bamp_row.get('catatan', saved_bamp_row.get('keterangan', ''))).strip()
+        
         if not row_catatan_bamp:
-            row_catatan_bamp = f"Mulai Berlaku Tanggal {bamp_date_str}"
+            ket_mentah_bamp = str(m.get('Catatan BAMP', m.get('Keterangan BAMP', ''))).strip()
+            if ket_mentah_bamp:
+                row_catatan_bamp = f"Mulai Berlaku Tanggal {bamp_date_str}<br>{ket_mentah_bamp}"
+            else:
+                row_catatan_bamp = f"Mulai Berlaku Tanggal {bamp_date_str}"
 
         desc_full_bamp = f"<b>{kat_bamp}</b><br>{desc_bamp}" if kat_bamp else desc_bamp
 
