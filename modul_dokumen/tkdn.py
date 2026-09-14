@@ -24,7 +24,7 @@ def tampilkan_tkdn(transaksi_list):
     # Saring transaksi berdasarkan PI No. yang unik agar grand total per PI akurat
     pi_dict_map = {}
     for t in transaksi_list:
-        pi_key = str(t.get('PI No.', '')).strip()
+        pi_key = str(t.get('PI No.', t.get('Proforma Invoice No.', ''))).strip()
         if pi_key:
             if pi_key not in pi_dict_map:
                 pi_dict_map[pi_key] = {
@@ -69,13 +69,11 @@ def tampilkan_tkdn(transaksi_list):
     if 'tkdn_saved_data' not in st.session_state:
         st.session_state.tkdn_saved_data = {}
 
-    # Jika file json permanen ada di disk, muat ke session_state jika belum ada
     if selected_pi_key not in st.session_state.tkdn_saved_data:
         if os.path.exists(tkdn_file_path):
             try:
                 with open(tkdn_file_path, "r", encoding="utf-8") as f:
                     loaded_json = json.load(f)
-                    # Konversi string tanggal kembali ke date object jika ada
                     if 'tanggal_dokumen' in loaded_json:
                         try:
                             loaded_json['tanggal_dokumen'] = datetime.strptime(loaded_json['tanggal_dokumen'], "%Y-%m-%d").date()
@@ -85,7 +83,6 @@ def tampilkan_tkdn(transaksi_list):
             except:
                 pass
 
-    # Jika masih belum ada juga, gunakan default awal
     if selected_pi_key not in st.session_state.tkdn_saved_data:
         st.session_state.tkdn_saved_data[selected_pi_key] = {
             'lokasi_office': "Luwuk",
@@ -110,7 +107,7 @@ def tampilkan_tkdn(transaksi_list):
     if default_rujukan_tagihan <= 3200000.0:
         default_rujukan_tagihan = aktual_total_tagihan
 
-    # Form khusus untuk menyimpan dan mengunci parameter
+    # Form parameter & rujukan
     with st.form(key=f"form_tkdn_save_{selected_pi_key}"):
         st.markdown("#### ⚙️ Pengaturan Parameter & Rujukan Perhitungan TKDN")
         
@@ -128,7 +125,6 @@ def tampilkan_tkdn(transaksi_list):
         st.markdown("#### 🧮 Rincian Komponen Biaya & Non-Biaya (Berbasis Persentase)")
         st.info("💡 Masukkan persentase (%) untuk setiap komponen. Nilai nominal dihitung otomatis dari Rujukan Total Tagihan.")
 
-        # --- I. BIAYA BAHAN ---
         st.markdown("**I. Biaya Bahan (Material)**")
         c_b1, c_b2 = st.columns(2)
         with c_b1:
@@ -141,8 +137,6 @@ def tampilkan_tkdn(transaksi_list):
             st.caption(f"-> Nilai KLN: Rp {temp_kln_1:,.2f}")
 
         st.markdown("---")
-
-        # --- II. BIAYA TENAGA KERJA ---
         st.markdown("**II. Biaya Tenaga Kerja & Konsultan**")
         c_t1, c_t2 = st.columns(2)
         with c_t1:
@@ -155,8 +149,6 @@ def tampilkan_tkdn(transaksi_list):
             st.caption(f"-> Nilai KLN: Rp {temp_kln_2:,.2f}")
 
         st.markdown("---")
-
-        # --- III. BIAYA ALAT KERJA ---
         st.markdown("**III. Biaya Alat Kerja / Fasilitas Kerja**")
         c_a1, c_a2 = st.columns(2)
         with c_a1:
@@ -169,8 +161,6 @@ def tampilkan_tkdn(transaksi_list):
             st.caption(f"-> Nilai KLN: Rp {temp_kln_3:,.2f}")
 
         st.markdown("---")
-
-        # --- IV. BIAYA JASA UMUM & BUKAN BIAYA ---
         c_j1, c_j2 = st.columns(2)
         with c_j1:
             st.markdown("**IV. Biaya Jasa Umum**")
@@ -188,7 +178,6 @@ def tampilkan_tkdn(transaksi_list):
             temp_non_cost = (p_non_cost / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai Bukan Biaya: Rp {temp_non_cost:,.2f}")
 
-        # --- TOTAL AKUMULASI PERSENTASE ---
         total_persen_akumulasi = p_kdn_1 + p_kln_1 + p_kdn_2 + p_kln_2 + p_kdn_3 + p_kln_3 + p_kdn_4 + p_kln_4 + p_non_cost
         st.markdown(f"**📊 Total Akumulasi Persentase Terdistribusi:** `{total_persen_akumulasi:.2f}%`")
         if abs(total_persen_akumulasi - 100.0) > 0.01:
@@ -198,7 +187,6 @@ def tampilkan_tkdn(transaksi_list):
 
         submit_save_tkdn = st.form_submit_button("💾 Simpan & Kunci Dokumen TKDN Ini", type="primary")
         if submit_save_tkdn:
-            # Perbarui session state
             st.session_state.tkdn_saved_data[selected_pi_key].update({
                 'lokasi_office': lokasi_office,
                 'tanggal_dokumen': selected_date_tkdn,
@@ -211,12 +199,9 @@ def tampilkan_tkdn(transaksi_list):
                 'p_non_cost': p_non_cost
             })
             
-            # SIMPAN PERMANEN KE HARDDISK (JSON)
             try:
                 data_to_export = st.session_state.tkdn_saved_data[selected_pi_key].copy()
-                # Ubah date object menjadi string agar bisa diserialisasi ke JSON
                 data_to_export['tanggal_dokumen'] = str(selected_date_tkdn)
-                # Hapus binary TTD jika ada dari dictionary json agar tidak error (atau simpan terpisah jika diperlukan)
                 data_to_export.pop('ttd_direktur', None)
                 
                 with open(tkdn_file_path, "w", encoding="utf-8") as f_json:
@@ -226,7 +211,7 @@ def tampilkan_tkdn(transaksi_list):
             except Exception as e:
                 st.error(f"Gagal menyimpan permanen ke disk: {e}")
 
-    # --- PENGATURAN TANDA TANGAN ---
+    # Tanda tangan digital
     st.markdown("---")
     st.markdown("#### ✍️ Pengaturan Tanda Tangan Digital Direktur TKDN")
     uploaded_ttd_tkdn = st.file_uploader("Upload Tanda Tangan Direktur", type=["png", "jpg", "jpeg"], key=f"ttd_tkdn_uploader_{selected_pi_key}")
@@ -287,7 +272,6 @@ def tampilkan_tkdn(transaksi_list):
     ttd_bytes = saved_tkdn.get('ttd_direktur')
     ttd_html = f'<div style="margin: 4px auto; height: 90px; display: flex; align-items: center; justify-content: center;"><img src="data:image/png;base64,{base64.b64encode(ttd_bytes).decode()}" style="max-height: 85px; max-width: 220px; object-fit: contain;"></div>' if ttd_bytes is not None else '<div style="height: 80px;"></div>'
 
-    # --- HTML RENDER DOKUMEN RESMI ---
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -366,7 +350,6 @@ def tampilkan_tkdn(transaksi_list):
                 <th class="th-header" style="width: 10%;">% Nilai TKDN<br>(d = a/c)</th>
                 <th class="th-header" style="width: 10%;">Nilai TKDN<br>(e = c x d)</th>
             </tr>
-            <!-- I. BIAYA BAHAN -->
             <tr>
                 <td rowspan="2"><b>I. Biaya Bahan (Material) Terpakai</b><br><span style="font-size:7px; color:#555;">(material used cost)</span></td>
                 <td style="text-align: center;"><b>Rp</b></td>
@@ -384,8 +367,6 @@ def tampilkan_tkdn(transaksi_list):
                 <td style="text-align: center;">0.00%</td>
                 <td style="text-align: right;">0.00</td>
             </tr>
-
-            <!-- II. BIAYA TENAGA KERJA -->
             <tr>
                 <td rowspan="2"><b>II. Biaya Tenaga Kerja & Konsultan</b><br><span style="font-size:7px; color:#555;">(personnel & consultant cost)</span></td>
                 <td style="text-align: center;"><b>Rp</b></td>
@@ -403,8 +384,6 @@ def tampilkan_tkdn(transaksi_list):
                 <td style="text-align: center;">0.00%</td>
                 <td style="text-align: right;">0.00</td>
             </tr>
-
-            <!-- III. BIAYA ALAT KERJA -->
             <tr>
                 <td rowspan="2"><b>III. Biaya Alat Kerja / Fasilitas Kerja</b><br><span style="font-size:7px; color:#555;">(equipment & work facility cost)</span></td>
                 <td style="text-align: center;"><b>Rp</b></td>
@@ -422,8 +401,6 @@ def tampilkan_tkdn(transaksi_list):
                 <td style="text-align: center;">0.00%</td>
                 <td style="text-align: right;">0.00</td>
             </tr>
-
-            <!-- IV. BIAYA JASA UMUM -->
             <tr>
                 <td rowspan="2"><b>IV. Biaya Jasa Umum</b><br><span style="font-size:7px; color:#555;">(other services cost)</span></td>
                 <td style="text-align: center;"><b>Rp</b></td>
@@ -441,8 +418,6 @@ def tampilkan_tkdn(transaksi_list):
                 <td style="text-align: center;">0.00%</td>
                 <td style="text-align: right;">0.00</td>
             </tr>
-
-            <!-- V. JUMLAH BIAYA -->
             <tr style="background-color: #f8fafc; font-weight: bold;">
                 <td rowspan="2">V. JUMLAH BIAYA (Σ I s/d IV)<br><span style="font-size:7px; color:#555;">(Total Cost)</span></td>
                 <td style="text-align: center;"><b>Rp</b></td>
@@ -460,8 +435,6 @@ def tampilkan_tkdn(transaksi_list):
                 <td style="text-align: center;">0.00%</td>
                 <td style="text-align: right;">0.00</td>
             </tr>
-
-            <!-- B. KOMPONEN BUKAN BIAYA -->
             <tr>
                 <td rowspan="2"><b>B. KOMPONEN BUKAN BIAYA</b><br><span style="font-size:7px; color:#555;">(Non-cost Component)</span></td>
                 <td style="text-align: center;"><b>Rp</b></td>
@@ -475,8 +448,6 @@ def tampilkan_tkdn(transaksi_list):
                 <td class="col-yellow" style="text-align: right;">0.00</td>
                 <td colspan="2"></td>
             </tr>
-
-            <!-- C. JUMLAH NILAI TOTAL -->
             <tr style="background-color: #f1f5f9; font-weight: bold; font-size: 10px;">
                 <td rowspan="2">C. JUMLAH NILAI TOTAL (A + B)</td>
                 <td style="text-align: center;"><b>Rp</b></td>
@@ -488,7 +459,6 @@ def tampilkan_tkdn(transaksi_list):
                 <td colspan="3" style="text-align: right;">0.00</td>
                 <td colspan="2"></td>
             </tr>
-
             <tr style="background-color: #e2e8f0; font-weight: bold; font-size: 11px; color: #065f46;">
                 <td colspan="5">CAPAIAN PERSENTASE TKDN AKHIR (%)</td>
                 <td colspan="2" style="text-align: right; font-size: 12px;">{persen_tkdn_akhir:.2f} %</td>
