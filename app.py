@@ -715,7 +715,7 @@ if form_login_sistem():
                 """, unsafe_allow_html=True)
 
                 master_data_live = muat_master_referensi()
-                opsi_panggil_uraian = ["-- Buat Data Referensi Baru --"] + [f"{str(m.get('Uraian Pekerjaan', ''))[:60]}... (Kontrak: {str(m.get('Nomor Kontrak',''))})" for m in master_data_live]
+                opsi_panggil_uraian = ["-- Buat Data Referensi Baru --"] + [f"{str(m.get('Uraian Pekerjaan', m.get('Deskripsi Pekerjaan', '')))[:60]}... (Kontrak: {str(m.get('Nomor Kontrak',''))})" for m in master_data_live]
                 
                 col_p_ref, col_b_ref = st.columns([3, 1])
                 with col_p_ref:
@@ -726,7 +726,7 @@ if form_login_sistem():
                             st.session_state["edit_master_index"] = None
                         else:
                             for idx, m in enumerate(master_data_live):
-                                prefix_Str = f"{str(m.get('Uraian Pekerjaan', ''))[:60]}... (Kontrak: {str(m.get('Nomor Kontrak',''))})"
+                                prefix_Str = f"{str(m.get('Uraian Pekerjaan', m.get('Deskripsi Pekerjaan', '')))[:60]}... (Kontrak: {str(m.get('Nomor Kontrak',''))})"
                                 if prefix_Str == pilihan_panggil_uraian:
                                     st.session_state["edit_master_index"] = idx
                                     break
@@ -744,7 +744,7 @@ if form_login_sistem():
                 combined_kontrak_list = sorted(list(set(kontrak_from_invoice + kontrak_from_master))) + ["-- Ketik Nomor Kontrak Baru --"]
 
                 default_kat_list = ["MONTHLY BASIS", "ON-CALL BASIS", "JASA MOBILISASI", "PROFESSIONAL SUM", "PROVISIONAL SUM", "ESTIMATED SUM", "LAINNYA"]
-                existing_kat_from_db = list(set([str(m.get("Kategori")) for m in master_data_live if m.get("Kategori")]))
+                existing_kat_from_db = list(set([str(m.get("Kategori")).strip().upper() for m in master_data_live if m.get("Kategori")]))
                 combined_kat_list = sorted(list(set(default_kat_list + existing_kat_from_db))) + ["-- Ketik Kategori Baru --"]
 
                 default_unit_list = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU"]
@@ -760,7 +760,7 @@ if form_login_sistem():
                         
                         kontrak_manual = st.text_input("✍️ Ketik Nomor Kontrak Baru (Jika memilih opsi 'Kontrak Baru' di atas):")
                         
-                        def_kat_val = str(def_ref.get("Kategori", combined_kat_list[0]))
+                        def_kat_val = str(def_ref.get("Kategori", combined_kat_list[0])).strip().upper()
                         idx_kat_ref = combined_kat_list.index(def_kat_val) if def_kat_val in combined_kat_list else 0
                         kategori_pilih = st.selectbox("Kategori Pekerjaan", combined_kat_list, index=idx_kat_ref)
                         
@@ -773,7 +773,8 @@ if form_login_sistem():
                         unit_manual = st.text_input("✍️ Ketik Nama Satuan Baru (Jika memilih 'Satuan Baru' di atas, misal: m3, EA, AU):")
 
                     with col2:
-                        uraian_ref = st.text_area("Uraian Pekerjaan / Spesifikasi Alat", value=str(def_ref.get("Uraian Pekerjaan", "")), height=105)
+                        val_uraian_def = str(def_ref.get("Uraian Pekerjaan", def_ref.get("Deskripsi Pekerjaan", "")))
+                        uraian_ref = st.text_area("Uraian Pekerjaan / Spesifikasi Alat", value=val_uraian_def, height=105)
                         try:
                             val_hs_num = float(def_ref.get("Harga Satuan", 0.0) or 0.0)
                         except:
@@ -1449,8 +1450,15 @@ if form_login_sistem():
                     st.markdown("---")
                     df_ref = pd.DataFrame(master_ref_data)
                     df_ref["Nomor Kontrak Clean"] = df_ref["Nomor Kontrak"].astype(str).str.strip()
-                    df_ref["Kategori Clean"] = df_ref["Kategori"].astype(str).str.strip()
-                    df_ref["Uraian Clean"] = df_ref["Uraian Pekerjaan"].astype(str).str.strip()
+                    df_ref["Kategori Clean"] = df_ref["Kategori"].astype(str).str.strip().str.upper()
+                    
+                    # Normalisasi fallback kunci deskripsi / uraian pekerjaan dari master
+                    if "Uraian Pekerjaan" in df_ref.columns:
+                        df_ref["Uraian Clean"] = df_ref["Uraian Pekerjaan"].astype(str).str.strip()
+                    elif "Deskripsi Pekerjaan" in df_ref.columns:
+                        df_ref["Uraian Clean"] = df_ref["Deskripsi Pekerjaan"].astype(str).str.strip()
+                    else:
+                        df_ref["Uraian Clean"] = ""
 
                     df_ref_kontrak = df_ref[df_ref["Nomor Kontrak Clean"] == str(selected_kontrak).strip()]
                     if df_ref_kontrak.empty:
@@ -1473,7 +1481,7 @@ if form_login_sistem():
                             
                             c_k1, c_k2 = st.columns(2)
                             with c_k1:
-                                def_kat_item = str(default_item_data.get("Kategori", list_kat[0] if list_kat else "-"))
+                                def_kat_item = str(default_item_data.get("Kategori", list_kat[0] if list_kat else "-")).strip().upper()
                                 idx_kat = list_kat.index(def_kat_item) if def_kat_item in list_kat else 0
                                 
                                 kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}")
@@ -1483,7 +1491,7 @@ if form_login_sistem():
 
                             with c_k2:
                                 if is_provisional:
-                                    current_desc_val = str(default_item_data.get("Deskripsi Pekerjaan", ""))
+                                    current_desc_val = str(default_item_data.get("Deskripsi Pekerjaan", default_item_data.get("Uraian Pekerjaan", "")))
                                     if not current_desc_val or "fogging" in current_desc_val.lower() or "provisional sum (" in current_desc_val.lower():
                                         default_desc_final = "Add Cost + Fee 15%"
                                     else:
@@ -1491,9 +1499,9 @@ if form_login_sistem():
 
                                     spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_desc_final, key=f"spek_manual_{i}")
                                 else:
-                                    df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
+                                    df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip().upper()]
                                     if df_f_kat.empty:
-                                        df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
+                                        df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip().upper()]
                                         
                                     raw_list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
                                     
@@ -1508,11 +1516,11 @@ if form_login_sistem():
                                         else:
                                             display_text = orig_text
                                         
-                                            spek_display_map[display_text] = orig_text
-                                            spek_options_formatted.append(display_text)
+                                        spek_display_map[display_text] = orig_text
+                                        spek_options_formatted.append(display_text)
 
-                                    def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", ""))
-                                    default_display_val = spek_options_formatted[0]
+                                    def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", default_item_data.get("Uraian Pekerjaan", "")))
+                                    default_display_val = spek_options_formatted[0] if spek_options_formatted else "- (Tidak ada data uraian)"
                                     for disp, orig in spek_display_map.items():
                                         if orig == def_spek_item:
                                             default_display_val = disp
@@ -1520,15 +1528,15 @@ if form_login_sistem():
 
                                     idx_spek = spek_options_formatted.index(default_display_val) if default_display_val in spek_options_formatted else 0
                                     
-                                    selected_display_spek = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", spek_options_formatted, index=idx_spek, key=f"spek_{i}")
+                                    selected_display_spek = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", spek_options_formatted if spek_options_formatted else ["-"], index=idx_spek, key=f"spek_{i}")
                                     spek_pilih = spek_display_map.get(selected_display_spek, selected_display_spek)
 
                             hs_otomatis = 0.0
                             unit_otomatis = "Month"
                             if not is_provisional:
-                                df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip()]
+                                df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip().upper()]
                                 if df_f_kat.empty:
-                                    df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip()]
+                                    df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip().upper()]
 
                                 if not df_f_kat.empty and spek_pilih != "- (Tidak ada data uraian)":
                                     m_row = df_f_kat[df_f_kat["Uraian Clean"] == str(spek_pilih).strip()]
