@@ -12,6 +12,11 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 # --- IMPORT MODUL INPUT TERPISAH (MODULAR) ---
 try:
+    from modul_input.modul_0_referensi import tampilkan_modul_0_referensi
+except ImportError as e:
+    st.error(f"Gagal memuat modul_0_referensi: {e}")
+
+try:
     from modul_input.modul_1_database import tampilkan_modul_1_database
 except ImportError as e:
     st.error(f"Gagal memuat modul_1_database: {e}")
@@ -382,6 +387,16 @@ if form_login_sistem():
     # --- ROUTER MODUL ULTIMATE ---
     if user_role == "Staff Timesheet":
         tampilkan_timesheet(muat_data_transaksi())
+
+    elif modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
+        # DIPANGGIL DARI MODUL TERPISAH (modul_0_referensi.py)
+        tampilkan_modul_0_referensi(
+            menu=menu,
+            muat_master_referensi_func=muat_master_referensi,
+            simpan_master_referensi_func=simpan_master_referensi,
+            muat_data_invoice_func=muat_data_invoice,
+            bersih_angka_func=bersih_angka
+        )
 
     elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung":
         tampilkan_arsip_pendukung()
