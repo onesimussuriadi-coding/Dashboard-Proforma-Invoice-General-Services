@@ -198,7 +198,7 @@ def tampilkan_pemantauan_pembayaran():
         filtered_invoice_list = invoice_list
         filtered_payment_records = payment_records
 
-    # --- 3. REKAPITULASI KEUANGAN KOTAK STATISTIK (DENGAN DEKOMPOSISI INC. PPN) ---
+    # --- 3. REKAPITULASI KEUANGAN & PEMANTAUAN AGING INVOICE ---
     if invoice_list or payment_records or master_kontrak_plafon_dpp:
         hari_ini = date.today()
         
@@ -215,6 +215,12 @@ def tampilkan_pemantauan_pembayaran():
         total_seluruh_tagihan_inc_ppn = 0.0
         total_pembayaran_netto_bank = 0.0
         total_potongan_pajak_all = 0.0
+
+        # Kategori Aging
+        jml_aman = 0; val_aman = 0.0
+        jml_warning = 0; val_warning = 0.0
+        jml_overdue = 0; val_overdue = 0.0
+        jml_lunas = 0; val_lunas = 0.0
 
         target_eval_list = filtered_invoice_list if filtered_invoice_list else filtered_payment_records
 
@@ -239,6 +245,32 @@ def tampilkan_pemantauan_pembayaran():
             total_pembayaran_netto_bank += bayar_aktual
             total_potongan_pajak_all += (pot_pph + pot_ppn_wapu)
 
+            # Evaluasi Kategori Aging Invoice
+            if status_byr == "Lunas" or (bayar_aktual + pot_pph + pot_ppn_wapu) >= (g_total_inc_ppn - 100):
+                jml_lunas += 1
+                val_lunas += g_total_inc_ppn
+                continue
+
+            try:
+                dt_jt_source = matching_pay.get("Tanggal Jatuh Tempo", "")
+                if not dt_jt_source:
+                    dt_jt_source = inv_item.get("Tanggal Jatuh Tempo", str(date.today()))
+                dt_jt = datetime.strptime(str(dt_jt_source)[:10], "%Y-%m-%d").date()
+                selisih_hari = (hari_ini - dt_jt).days
+                
+                if selisih_hari > 0:
+                    jml_overdue += 1
+                    val_overdue += (g_total_inc_ppn - bayar_aktual)
+                elif selisih_hari >= -7:
+                    jml_warning += 1
+                    val_warning += (g_total_inc_ppn - bayar_aktual)
+                else:
+                    jml_aman += 1
+                    val_aman += (g_total_inc_ppn - bayar_aktual)
+            except:
+                jml_aman += 1
+                val_aman += (g_total_inc_ppn - bayar_aktual)
+
         total_pengakuan_efektif = total_pembayaran_netto_bank + total_potongan_pajak_all
         sisa_piutang_usaha_inc_ppn = total_seluruh_tagihan_inc_ppn - total_pengakuan_efektif
         
@@ -252,10 +284,9 @@ def tampilkan_pemantauan_pembayaran():
         with c_fin0:
             st.markdown(f"""
                 <div style="background-color: #1e293b; color: white; padding: 16px; border-radius: 8px; text-align: center; border-left: 5px solid #6366f1;">
-                    <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">TOTAL KONTRAK (PLAFON)</p>
-                    <h3 style="margin: 4px 0 0 0; font-size: 15px; color: #ffffff;">DPP: {fmt_rp_satu_baris(plafon_dpp_aktif)}</h3>
-                    <h4 style="margin: 2px 0 0 0; font-size: 14px; color: #a5b4fc;">Inc. PPN: {fmt_rp_satu_baris(plafon_inc_ppn_aktif)}</h4>
-                    <p style="margin: 4px 0 0 0; font-size: 10px; color: #818cf8;">Master Plafon Rujukan</p>
+                    <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">TOTAL KONTRAK (PLAFON INC. PPN)</p>
+                    <h3 style="margin: 4px 0 0 0; font-size: 15px; color: #ffffff;">{fmt_rp_satu_baris(plafon_inc_ppn_aktif)}</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 10px; color: #818cf8;">DPP: {fmt_rp(plafon_dpp_aktif)}</p>
                 </div>
             """, unsafe_allow_html=True)
         with c_fin1:
@@ -263,29 +294,87 @@ def tampilkan_pemantauan_pembayaran():
                 <div style="background-color: #1e293b; color: white; padding: 16px; border-radius: 8px; text-align: center; border-left: 5px solid #38bdf8;">
                     <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">TOTAL TAGIHAN (INC. PPN)</p>
                     <h3 style="margin: 6px 0 0 0; font-size: 16px; color: #ffffff;">{fmt_rp_satu_baris(total_seluruh_tagihan_inc_ppn)}</h3>
-                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #38bdf8;">Pengakuan Piutang Usaha (DPP+PPN)</p>
+                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #38bdf8;">100.00% dari Tagihan</p>
                 </div>
             """, unsafe_allow_html=True)
         with c_fin2:
             st.markdown(f"""
                 <div style="background-color: #1e293b; color: white; padding: 16px; border-radius: 8px; text-align: center; border-left: 5px solid #10b981;">
-                    <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">DITERIMA BANK / KAS (NETTO)</p>
+                    <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">TOTAL SUDAH DIBAYARKAN</p>
                     <h3 style="margin: 6px 0 0 0; font-size: 16px; color: #34d399;">{fmt_rp_satu_baris(total_pembayaran_netto_bank)}</h3>
-                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #34d399;">{persen_pembayaran_realisasi:.2f}% Realisasi Masuk Bank</p>
+                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #34d399;">{persen_pembayaran_realisasi:.2f}% (Realisasi)</p>
                 </div>
             """, unsafe_allow_html=True)
         with c_fin3:
             st.markdown(f"""
                 <div style="background-color: #1e293b; color: white; padding: 16px; border-radius: 8px; text-align: center; border-left: 5px solid #f59e0b;">
-                    <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">SISA PIUTANG USAN (INC. PPN)</p>
+                    <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">SISA BELUM TERBAYAR</p>
                     <h3 style="margin: 6px 0 0 0; font-size: 16px; color: #fbbf24;">{fmt_rp_satu_baris(sisa_piutang_usaha_inc_ppn)}</h3>
-                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #fbbf24;">{persen_sisa_piutang:.2f}% Belum Tertagih</p>
+                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #fbbf24;">{persen_sisa_piutang:.2f}% (Piutang Usaha)</p>
                 </div>
             """, unsafe_allow_html=True)
 
+        # --- MODUL MONITORING AGING & GRAFIK VISUALISASI ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("##### ⏱️ Status Pemantauan Aging Invoice & Tanggal Jatuh Tempo")
+        
+        c_ag1, c_ag2, c_ag3, c_ag4 = st.columns(4)
+        with c_ag1:
+            st.markdown(f"""
+                <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 12px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 12px; color: #475569; font-weight: bold;">🟢 Peredaran Aman</span>
+                    <h4 style="margin: 4px 0 0 0; color: #0f172a;">{jml_aman} Invoice</h4>
+                    <p style="margin: 2px 0 0 0; font-size: 11px; color: #64748b;">{fmt_rp(val_aman)}</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with c_ag2:
+            st.markdown(f"""
+                <div style="background-color: #fffbeb; border: 1px solid #fde68a; padding: 12px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 12px; color: #b45309; font-weight: bold;">🟡 Warning (≤7 Hari)</span>
+                    <h4 style="margin: 4px 0 0 0; color: #92400e;">{jml_warning} Invoice</h4>
+                    <p style="margin: 2px 0 0 0; font-size: 11px; color: #b45309;">{fmt_rp(val_warning)}</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with c_ag3:
+            st.markdown(f"""
+                <div style="background-color: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 12px; color: #dc2626; font-weight: bold;">🔴 Overdue (Jatuh Tempo)</span>
+                    <h4 style="margin: 4px 0 0 0; color: #991b1b;">{jml_overdue} Invoice</h4>
+                    <p style="margin: 2px 0 0 0; font-size: 11px; color: #dc2626;">{fmt_rp(val_overdue)}</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with c_ag4:
+            st.markdown(f"""
+                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 6px; text-align: center;">
+                    <span style="font-size: 12px; color: #15803d; font-weight: bold;">✅ Lunas Terbayar</span>
+                    <h4 style="margin: 4px 0 0 0; color: #166534;">{jml_lunas} Invoice</h4>
+                    <p style="margin: 2px 0 0 0; font-size: 11px; color: #15803d;">{fmt_rp(val_lunas)}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # Visualisasi Grafik Batang & Lingkaran
+        st.markdown("<br>", unsafe_allow_html=True)
+        col_g1, col_g2 = st.columns(2)
+        
+        with col_g1:
+            st.markdown("<h6>📊 Grafik Nominal Piutang per Status Aging</h6>", unsafe_allow_html=True)
+            df_chart_bar = pd.DataFrame({
+                "Status Aging": ["Aman", "Warning (7d)", "Overdue", "Lunas"],
+                "Nominal (Rp)": [val_aman, val_warning, val_overdue, val_lunas]
+            })
+            st.bar_chart(df_chart_bar.set_index("Status Aging"))
+
+        with col_g2:
+            st.markdown("<h6>🍩 Proporsi Jumlah Dokumen Invoice</h6>", unsafe_allow_html=True)
+            df_chart_pie = pd.DataFrame({
+                "Kategori": ["Aman", "Warning", "Overdue", "Lunas"],
+                "Jumlah Dokumen": [jml_aman, jml_warning, jml_overdue, jml_lunas]
+            })
+            st.dataframe(df_chart_pie, use_container_width=True, hide_index=True)
+
         # --- 4. TABEL RINCIAN AKUMULASI PER KONTRAK (SINKRON INCLUDE PPN) ---
         st.markdown("---")
-        st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak (De komposisi DPP & Inc. PPN)")
+        st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak (Dekomposisi DPP & Inc. PPN)")
         
         summary_contract_map = {}
         for k_m in all_contracts:
@@ -381,7 +470,7 @@ def tampilkan_pemantauan_pembayaran():
         df_rincian_view = pd.DataFrame(table_data_list)
         st.dataframe(df_rincian_view, use_container_width=True, hide_index=True)
 
-    # --- 5. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN (DENGAN KALKULASI SELISIH & TOMBOL HITUNG BANK) ---
+    # --- 5. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN ---
     st.markdown("---")
     st.markdown("##### 📝 Form Input & Pembaruan Status Pembayaran (Berdasarkan Kontrak)")
 
@@ -510,9 +599,7 @@ def tampilkan_pemantauan_pembayaran():
         default_pot_wapu = float(existing_pay.get("Potongan PPN WAPU", 0.0))
         potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Dipotong Klien WAPU):", min_value=0.0, value=default_pot_wapu, step=1000.0, key="input_pot_wapu")
 
-    # Kalkulasi Estimasi Kas/Bank Seharusnya
     nominal_bank_seharusnya = max(0.0, total_tagihan_inc_ppn - potongan_pph - potongan_ppn_wapu)
-    
     st.markdown(f"💡 **Nilai Bersih Seharusnya Diterima Bank:** `{fmt_rp(nominal_bank_seharusnya)}` *(Total Tagihan - PPh - PPN WAPU)*")
     
     col_b1, col_b2 = st.columns([3, 1])
@@ -525,7 +612,6 @@ def tampilkan_pemantauan_pembayaran():
             st.session_state["input_bayar_aktual"] = nominal_bank_seharusnya
             st.rerun()
 
-    # Kalkulasi Selisih Pembayaran & Justifikasi
     selisih_pembayaran = nominal_pembayaran_aktual - nominal_bank_seharusnya
     
     if abs(selisih_pembayaran) < 1.0:
@@ -536,7 +622,7 @@ def tampilkan_pemantauan_pembayaran():
         st.info(f"ℹ️ **TERDAPAT KELEBIHAN:** Diterima Bank lebih {fmt_rp(selisih_pembayaran)} dari perhitungan seharusnya.")
 
     default_catatan = str(existing_pay.get("Catatan", ""))
-    catatan_bayar = st.text_area("Justifikasi Selisih / Catatan Pembayaran (Wajib Diisi Jika Ada Selisih/Admin Bank):", value=default_catatan, key="input_catatan_bayar")
+    catatan_bayar = st.text_area("Catatan / Keterangan Pembayaran (Justifikasi Admin Bank / Kekurangan Bayar):", value=default_catatan, key="input_catatan_bayar")
 
     if st.button("💾 Simpan Pemantauan Pembayaran", type="primary", use_container_width=True):
         if not selected_inv.strip():
@@ -649,7 +735,6 @@ def tampilkan_pemantauan_pembayaran():
         df_aging_view = pd.DataFrame(aging_data_list)
         st.dataframe(df_aging_view, use_container_width=True, hide_index=True)
 
-        # Aksi Cepat (Edit / Hapus)
         st.markdown("##### ⚙️ Aksi Cepat Data Pemantauan Invoice")
         for idx, row_p in enumerate(current_payment_records):
             inv_num_row = row_p.get('Nomor Invoice', '-')
