@@ -245,7 +245,6 @@ def tampilkan_pemantauan_pembayaran():
             total_pembayaran_netto_bank += bayar_aktual
             total_potongan_pajak_all += (pot_pph + pot_ppn_wapu)
 
-            # Evaluasi Kategori Aging Invoice
             if status_byr == "Lunas" or (bayar_aktual + pot_pph + pot_ppn_wapu) >= (g_total_inc_ppn - 100):
                 jml_lunas += 1
                 val_lunas += g_total_inc_ppn
@@ -314,7 +313,6 @@ def tampilkan_pemantauan_pembayaran():
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- MODUL MONITORING AGING & GRAFIK VISUALISASI ---
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("##### ⏱️ Status Pemantauan Aging Invoice & Tanggal Jatuh Tempo")
         
@@ -352,7 +350,6 @@ def tampilkan_pemantauan_pembayaran():
                 </div>
             """, unsafe_allow_html=True)
 
-        # Visualisasi Grafik Batang & Lingkaran
         st.markdown("<br>", unsafe_allow_html=True)
         col_g1, col_g2 = st.columns(2)
         
@@ -372,7 +369,7 @@ def tampilkan_pemantauan_pembayaran():
             })
             st.dataframe(df_chart_pie, use_container_width=True, hide_index=True)
 
-        # --- 4. TABEL RINCIAN AKUMULASI PER KONTRAK (SINKRON INCLUDE PPN) ---
+        # --- 4. TABEL RINCIAN AKUMULASI PER KONTRAK ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak (Dekomposisi DPP & Inc. PPN)")
         
@@ -602,15 +599,21 @@ def tampilkan_pemantauan_pembayaran():
     nominal_bank_seharusnya = max(0.0, total_tagihan_inc_ppn - potongan_pph - potongan_ppn_wapu)
     st.markdown(f"💡 **Nilai Bersih Seharusnya Diterima Bank:** `{fmt_rp(nominal_bank_seharusnya)}` *(Total Tagihan - PPh - PPN WAPU)*")
     
+    # Penanganan Aman State Widget Sebelum Render
     col_b1, col_b2 = st.columns([3, 1])
-    with col_b1:
-        default_bayar_akt = float(existing_pay.get("Nominal Pembayaran Aktual", nominal_bank_seharusnya))
-        nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Ketik Aktual Perbankan/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0, key="input_bayar_aktual")
     with col_b2:
         st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
         if st.button("⚡ Hitung / Set Otomatis Diterima Bank", use_container_width=True):
-            st.session_state["input_bayar_aktual"] = nominal_bank_seharusnya
+            st.session_state["val_bayar_aktual_set"] = nominal_bank_seharusnya
             st.rerun()
+
+    if "val_bayar_aktual_set" in st.session_state:
+        default_bayar_akt = float(st.session_state.pop("val_bayar_aktual_set"))
+    else:
+        default_bayar_akt = float(existing_pay.get("Nominal Pembayaran Aktual", nominal_bank_seharusnya))
+
+    with col_b1:
+        nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Ketik Aktual Perbankan/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0, key="input_bayar_aktual")
 
     selisih_pembayaran = nominal_pembayaran_aktual - nominal_bank_seharusnya
     
