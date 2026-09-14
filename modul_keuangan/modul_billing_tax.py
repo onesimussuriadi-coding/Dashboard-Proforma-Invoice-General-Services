@@ -111,8 +111,16 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
     """, unsafe_allow_html=True)
 
     DIR_DATABASE = "database_penyimpanan_aman"
+    if not os.path.exists(DIR_DATABASE):
+        os.makedirs(DIR_DATABASE)
+
     EXCEL_BILLING = os.path.join(DIR_DATABASE, "database_billing_tax.xlsx")
     EXCEL_NPWP = os.path.join(DIR_DATABASE, "database_npwp_customer.xlsx")
+
+    # PATH FILE PERMANEN LOGO & TTD
+    PATH_LOGO_BSS = os.path.join(DIR_DATABASE, "persistent_logo_bss.png")
+    PATH_LOGO_ISO = os.path.join(DIR_DATABASE, "persistent_logo_iso.png")
+    PATH_TTD_DIR = os.path.join(DIR_DATABASE, "persistent_ttd_direktur.png")
 
     def muat_data_billing():
         if os.path.exists(EXCEL_BILLING):
@@ -349,7 +357,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             input_add_cost = 0.0
             input_mgmt_fee = 0.0
             if gunakan_prof_sum:
-                # REVISI PROFESSIONAL SUM: Nilai Add Cost Murni (tanpa membagi 1.15)
                 def_ac = add_cost_default if add_cost_default > 0 else gross_subtotal_m2
                 def_mf = mgmt_fee_default if mgmt_fee_default > 0 else (def_ac * 0.15)
 
@@ -364,7 +371,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 dpp_invoice_akhir = gross_tagihan_akhir
                 st.info(f"💡 **PROFESSIONAL SUM Breakdown:** Add Cost Murni (Rp {input_add_cost:,.2f}) + Fee 15% (Rp {input_mgmt_fee:,.2f}) = **DPP Invoice / Total Due (Rp {dpp_invoice_akhir:,.2f})**".replace(",", "X").replace(".", ",").replace("X", "."))
             elif gunakan_estimasi_sum:
-                # ESTIMATED SUM: Tetap menggunakan skema diskon 10% (TIDAK DIUBAH)
                 gross_tagihan_akhir = gross_subtotal_m2
                 diskon_nominal_akhir = gross_tagihan_akhir * 0.10
                 dpp_invoice_akhir = gross_tagihan_akhir - diskon_nominal_akhir
@@ -516,14 +522,51 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     tampilkan_kuitansi(transaksi_list)
 
             else:
-                with st.expander("🖼️ Pengaturan Logo Kop Surat & Tanda Tangan Direktur", expanded=False):
+                # --- SISTEM PERSISTENT (PERMANEN) LOGO & TTD DIREKTUR ---
+                with st.expander("🖼️ Pengaturan Permanen Logo Kop Surat & Tanda Tangan Direktur", expanded=False):
+                    st.info("💡 Logo dan Tanda Tangan yang di-upload di sini akan tersimpan secara permanen dan otomatis dipakai untuk semua invoice berikutnya tanpa perlu upload ulang.")
+                    
                     col_ul1, col_ul2, col_ul3 = st.columns(3)
                     with col_ul1:
-                        uploaded_logo_bss = st.file_uploader("Upload Logo BSS (Kiri)", type=["png", "jpg", "jpeg"], key="logo_bss_upload")
+                        uploaded_logo_bss = st.file_uploader("Upload Logo BSS Baru (Kiri)", type=["png", "jpg", "jpeg"], key="logo_bss_upload")
+                        if uploaded_logo_bss is not None:
+                            with open(PATH_LOGO_BSS, "wb") as f:
+                                f.write(uploaded_logo_bss.getbuffer())
                     with col_ul2:
-                        uploaded_logo_iso = st.file_uploader("Upload Logo ISO (Kanan)", type=["png", "jpg", "jpeg"], key="logo_iso_upload")
+                        uploaded_logo_iso = st.file_uploader("Upload Logo ISO Baru (Kanan)", type=["png", "jpg", "jpeg"], key="logo_iso_upload")
+                        if uploaded_logo_iso is not None:
+                            with open(PATH_LOGO_ISO, "wb") as f:
+                                f.write(uploaded_logo_iso.getbuffer())
                     with col_ul3:
-                        uploaded_ttd_dir = st.file_uploader("Upload TTD Direktur (Ferry Tatimu)", type=["png", "jpg", "jpeg"], key="ttd_direktur_upload")
+                        uploaded_ttd_dir = st.file_uploader("Upload TTD Direktur Baru (Ferry Tatimu)", type=["png", "jpg", "jpeg"], key="ttd_direktur_upload")
+                        if uploaded_ttd_dir is not None:
+                            with open(PATH_TTD_DIR, "wb") as f:
+                                f.write(uploaded_ttd_dir.getbuffer())
+
+                    if os.path.exists(PATH_LOGO_BSS) or os.path.exists(PATH_LOGO_ISO) or os.path.exists(PATH_TTD_DIR):
+                        if st.button("🗑️ Hapus / Reset Semua Logo & TTD Tersimpan"):
+                            for p in [PATH_LOGO_BSS, PATH_LOGO_ISO, PATH_TTD_DIR]:
+                                if os.path.exists(p):
+                                    os.remove(p)
+                            st.success("✅ Berhasil mereset semua gambar tersimpan!")
+                            st.rerun()
+
+                # MEMUAT GAMBAR PERMANEN DARI FOLDER AMAN JIKA ADA
+                def load_persistent_image_base64(path_file):
+                    if os.path.exists(path_file):
+                        try:
+                            with open(path_file, "rb") as image_file:
+                                encoded = base64.b64encode(image_file.read()).decode()
+                                ext = path_file.split(".")[-1].lower()
+                                mime = "image/png" if ext == "png" else "image/jpeg"
+                                return f"data:{mime};base64,{encoded}"
+                        except:
+                            pass
+                    return None
+
+                persistent_logo_bss_b64 = load_persistent_image_base64(PATH_LOGO_BSS)
+                persistent_logo_iso_b64 = load_persistent_image_base64(PATH_LOGO_ISO)
+                persistent_ttd_dir_b64 = load_persistent_image_base64(PATH_TTD_DIR)
 
                 if selected_record:
                     val_inv = float(selected_record.get('Nilai Invoice', 0) or 0)
@@ -545,13 +588,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     kontrak_no_val = format_nomor_bersih(selected_record.get('Kontrak No.', '-'))
                     bank_info_val = selected_record.get('Informasi Bank', '<b>Bank Name :</b> BANK RAKYAT INDONESIA (PERSERO) Tbk.<br><b>Branch :</b> Cabang Luwuk<br><b>Account No :</b> 0167 0167 8888 303<br><b>Account Name :</b> PT. BANGGAI SENTRAL SULAWESI')
 
-                    logo_bss_b64 = get_image_base64(uploaded_logo_bss) if uploaded_logo_bss else None
-                    logo_iso_b64 = get_image_base64(uploaded_logo_iso) if uploaded_logo_iso else None
-                    ttd_dir_b64 = get_image_base64(uploaded_ttd_dir) if uploaded_ttd_dir else None
-
-                    html_logo_kiri = f'<img src="{logo_bss_b64}" style="max-height: 70px; max-width: 130px; object-fit: contain;">' if logo_bss_b64 else ''
-                    html_logo_kanan = f'<img src="{logo_iso_b64}" style="max-height: 75px; max-width: 210px; object-fit: contain;">' if logo_iso_b64 else ''
-                    html_ttd_direktur = f'<img src="{ttd_dir_b64}" style="max-height: 75px; max-width: 160px; object-fit: contain; display: block; margin: 0 auto;">' if ttd_dir_b64 else '<div style="height: 65px;"></div>'
+                    html_logo_kiri = f'<img src="{persistent_logo_bss_b64}" style="max-height: 70px; max-width: 130px; object-fit: contain;">' if persistent_logo_bss_b64 else ''
+                    html_logo_kanan = f'<img src="{persistent_logo_iso_b64}" style="max-height: 75px; max-width: 210px; object-fit: contain;">' if persistent_logo_iso_b64 else ''
+                    html_ttd_direktur = f'<img src="{persistent_ttd_dir_b64}" style="max-height: 75px; max-width: 160px; object-fit: contain; display: block; margin: 0 auto;">' if persistent_ttd_dir_b64 else '<div style="height: 65px;"></div>'
 
                     tanggal_cetak_str = datetime.today().strftime("%m/%d/%Y, %I:%M %p")
                     deskripsi_keterangan_inv = str(selected_record.get('Keterangan Invoice', ''))
@@ -562,7 +601,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     gross_subtotal = 0.0
                     has_estimated_sum_category = is_est_sum_akt
 
-                    # REVISI PRATINJAU DOKUMEN CETAK UNTUK PROFESSIONAL SUM
                     if is_prof_sum_akt:
                         tabel_item_html = f"""
                         <tr>
@@ -580,7 +618,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {val_mgmt_fee:,.2f}</td>
                         </tr>
                         """
-                        # Untuk Professional Sum, Total Amount Due adalah gabungan Add Cost + Fee 15%
                         total_amount_due = val_add_cost + val_mgmt_fee
                         discount_10_nominal = 0.0
                     elif matched_items_m2:
@@ -615,7 +652,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             </tr>
                             """
                         
-                        # LOGIKA MEMOTONG DISKON 10% ESTIMATED SUM (TIDAK DIUBAH)
                         discount_10_nominal = 0.0
                         if has_estimated_sum_category and not is_prof_sum_akt:
                             discount_10_nominal = gross_subtotal * 0.10
@@ -638,7 +674,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
                     dpp_nilai_lain = total_amount_due * (11 / 12) if val_ppn > 0 else total_amount_due
 
-                    # SUSUN HTML TABEL RINGKASAN HARGA (SUMMARY TABLE)
                     summary_rows_html = ""
                     if has_estimated_sum_category and discount_10_nominal > 0:
                         summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 5px; font-weight: bold; color: #334155;">Gross Subtotal</td><td style="border-bottom: 1px solid #000; padding: 5px; text-align: right; color: #334155;">Rp {gross_subtotal:,.2f}</td></tr>'
@@ -651,7 +686,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     if val_pph > 0:
                         summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 6px; color: #b91c1c;">Potongan PPh</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right; color: #b91c1c;">(Rp {val_pph:,.2f})</td></tr>'
                     
-                    # TOTAL INVOICE (DAPAT TERMASUK DENGAN ATAU TANPA PPH SESUAI SETTING)
                     total_akhir_cetak = total_amount_due + val_ppn - val_pph
                     summary_rows_html += f'<tr style="background-color: #f1f5f9; font-weight: bold;"><td style="padding: 8px; border-top: 2px solid #000;">T O T A L</td><td style="padding: 8px; border-top: 2px solid #000; text-align: right;">Rp {total_akhir_cetak:,.2f}</td></tr>'
 

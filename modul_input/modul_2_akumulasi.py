@@ -2,10 +2,29 @@
 import streamlit as st
 import pandas as pd
 
-def tampilkan_akumulasi_riwayat_transaksi(tx_data, bersih_angka_func, sort_pi_key_func):
+def tampilkan_akumulasi_riwayat_transaksi(tx_data, bersih_angka_func, sort_pi_key_func, simpan_data_transaksi_func, muat_data_transaksi_func):
+    
+    # Handling Aksi Hapus PI via Query Params / URL Action
+    query_params = st.query_params
+    if "delete_tx_pi" in query_params:
+        try:
+            del_pi_target = str(query_params["delete_tx_pi"]).strip()
+            all_tx = muat_data_transaksi_func()
+            
+            # Filter buang data PI yang dihapus
+            updated_tx = [t for t in all_tx if bersih_angka_func(t.get("PI No.")) != del_pi_target]
+            
+            if simpan_data_transaksi_func(updated_tx):
+                st.success(f"🗑️ Berhasil menghapus seluruh riwayat transaksi untuk PI [{del_pi_target}] secara permanen!")
+            st.query_params.clear()
+            st.rerun()
+        except Exception as e:
+            st.error(f"Gagal menghapus transaksi: {e}")
+
     st.markdown("""
-        <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Akumulasi Riwayat Transaksi & Nilai Tagihan Invoice</h3>
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 18px 22px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.06); margin-bottom: 20px; border-left: 5px solid #10b981;">
+            <h3 style="margin:0; color:#ffffff; font-size:18px; font-weight:700;">📊 Akumulasi Riwayat Transaksi & Breakdown Nilai Tagihan</h3>
+            <p style="margin:4px 0 0 0; color:#94a3b8; font-size:13px;">Daftar terkelompok per Proforma Invoice lengkap dengan rincian breakdown item pekerjaan.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -15,7 +34,7 @@ def tampilkan_akumulasi_riwayat_transaksi(tx_data, bersih_angka_func, sort_pi_ke
 
     df_tx = pd.DataFrame(tx_data)
 
-    # Memastikan kolom angka dan string bersih
+    # Membersihkan kolom kunci
     df_tx["Nomor Kontrak Clean"] = df_tx["Nomor Kontrak"].apply(lambda x: bersih_angka_func(x))
     df_tx["PI No Clean"] = df_tx["PI No."].apply(lambda x: bersih_angka_func(x))
     df_tx["Nomor PO Clean"] = df_tx["Nomor PO"].apply(lambda x: bersih_angka_func(x) if bersih_angka_func(x) else "-")
@@ -35,11 +54,11 @@ def tampilkan_akumulasi_riwayat_transaksi(tx_data, bersih_angka_func, sort_pi_ke
         Jumlah_Item=("Kategori", "count")
     ).reset_index()
 
-    # Sort berdasarkan PI secara profesional
+    # Sort berdasarkan PI secara profesional (Descending)
     grouped["sort_key"] = grouped["PI No Clean"].apply(sort_pi_key_func)
     grouped = grouped.sort_values(by=["Nomor Kontrak Clean", "sort_key"], ascending=[True, False]).drop(columns=["sort_key"])
 
-    # --- METRICS RINGKASAN ---
+    # --- METRICS RINGKASAN EKSEKUTIF ---
     total_kumulatif = grouped["Total_Tagihan"].sum()
     total_kontrak_unik = grouped["Nomor Kontrak Clean"].nunique()
     total_pi_unik = grouped["PI No Clean"].nunique()
@@ -48,7 +67,7 @@ def tampilkan_akumulasi_riwayat_transaksi(tx_data, bersih_angka_func, sort_pi_ke
 
     c_m1, c_m2, c_m3 = st.columns(3)
     with c_m1:
-        st.metric("💰 Total akumulasi Tagihan", formatted_grand_total)
+        st.metric("💰 Total Akumulasi Tagihan", formatted_grand_total)
     with c_m2:
         st.metric("📜 Jumlah Kontrak Terdaftar", f"{total_kontrak_unik} Kontrak")
     with c_m3:
@@ -73,58 +92,82 @@ def tampilkan_akumulasi_riwayat_transaksi(tx_data, bersih_angka_func, sort_pi_ke
     if sel_pi != "-- Semua Nomor PI --":
         df_filtered_grp = df_filtered_grp[df_filtered_grp["PI No Clean"] == sel_pi]
 
-    st.markdown(f"**Menampilkan {len(df_filtered_grp)} data paket Proforma Invoice:**")
-    st.markdown("---")
+    st.markdown(f"**Menampilkan `{len(df_filtered_grp)}` paket Proforma Invoice (Klik panel di bawah untuk melihat breakdown rincian pekerjaan):**")
+    st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
 
-    # --- TABEL EKSEKUTIF RAPI (HTML COMPONENT) ---
-    table_rows = ""
+    # --- DAFTAR DENGAN BREAKDOWN EXPANDER PER PI ---
     for idx, row in df_filtered_grp.reset_index(drop=True).iterrows():
-        val_total = row['Total_Tagihan']
+        pi_target = row["PI No Clean"]
+        kontrak_target = row["Nomor Kontrak Clean"]
+        val_total = row["Total_Tagihan"]
         fmt_total = f"Rp {val_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
-        table_rows += f"""
-        <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 10px; text-align: center; font-weight: bold; color: #475569; font-size: 13px;">#{idx+1}</td>
-            <td style="padding: 10px; font-weight: bold; color: #0f172a; font-size: 13px;">{row['Nomor Kontrak Clean']}</td>
-            <td style="padding: 10px; color: #0284c7; font-weight: 700; font-size: 13px;">{row['PI No Clean']}<br><span style="font-size: 11px; color: #64748b; font-weight: normal;">({row['Tanggal_PI']})</span></td>
-            <td style="padding: 10px; color: #334155; font-size: 13px;">{row['Nomor_PO']}</td>
-            <td style="padding: 10px; color: #334155; font-size: 13px;">{row['Nomor_WAN']}</td>
-            <td style="padding: 10px; text-align: center; color: #475569; font-size: 13px;">{row['Jumlah_Item']} Item</td>
-            <td style="padding: 10px; text-align: right; color: #059669; font-weight: 700; font-size: 14px;">{fmt_total}</td>
-        </tr>
-        """
+        # Zebra pastel row background
+        card_bg = "#ffffff" if idx % 2 == 0 else "#f8fafc"
 
-    table_html = f"""
-    <div style="overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 8px; background-color: #ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.03);">
-        <table style="width: 100%; border-collapse: collapse; text-align: left; font-family: sans-serif;">
-            <thead>
-                <tr style="background-color: #1e293b; color: #ffffff; font-size: 13px;">
-                    <th style="padding: 11px; text-align: center; width: 45px;">No</th>
-                    <th style="padding: 11px;">Nomor Kontrak</th>
-                    <th style="padding: 11px;">Nomor PI & Tanggal</th>
-                    <th style="padding: 11px;">Nomor PO</th>
-                    <th style="padding: 11px;">Nomor WAN / SA</th>
-                    <th style="padding: 11px; text-align: center;">Rincian</th>
-                    <th style="padding: 11px; text-align: right;">Total Nilai Invoice</th>
+        # Judul Expander Berisi Ringkasan Padat
+        header_title = f"#{idx+1} | PI: {pi_target} ({row['Tanggal_PI']}) | Kontrak: {kontrak_target} | PO: {row['Nomor_PO']} | WAN: {row['Nomor_WAN']} | [{row['Jumlah_Item']} Item] ➔ Total Tagihan: {fmt_total}"
+
+        with st.expander(header_title):
+            # Ambil item detail khusus PI ini
+            df_pi_detail = df_tx[(df_tx["Nomor Kontrak Clean"] == kontrak_target) & (df_tx["PI No Clean"] == pi_target)].copy()
+            
+            col_info_left, col_info_right = st.columns([3, 1])
+            with col_info_left:
+                st.markdown(f"📋 **Detail Breakdown Rincian Pekerjaan PI No:** `{pi_target}`")
+            with col_info_right:
+                st.markdown(f"""
+                    <div style="text-align: right;">
+                        <a href="?delete_tx_pi={pi_target}" target="_self" style="text-decoration: none;" onclick="return confirm('Apakah Anda yakin ingin menghapus seluruh riwayat transaksi PI {pi_target} ini?');">
+                            <button style="background-color: #ef4444; color: white; border: none; padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: bold; cursor: pointer;">🗑️ Hapus PI Ini</button>
+                        </a>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            # Tabel Breakdown Item Pekerjaan ala Data Grid Zebra
+            table_breakdown_rows = ""
+            for i_idx, item in df_pi_detail.reset_index(drop=True).iterrows():
+                try:
+                    q_val = float(item.get("Qty", 1.0) or 1.0)
+                    hs_val = float(item.get("Harga Satuan", 0.0) or 0.0)
+                    tot_val = float(item.get("Total Harga", 0.0) or 0.0)
+                except:
+                    q_val, hs_val, tot_val = 1.0, 0.0, 0.0
+
+                fmt_hs = f"Rp {hs_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                fmt_tot = f"Rp {tot_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                sub_bg = "#ffffff" if i_idx % 2 == 0 else "#f8fafc"
+
+                table_breakdown_rows += f"""
+                <tr style="background-color: {sub_bg}; border-bottom: 1px solid #e2e8f0;">
+                    <td style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: center; font-size: 12px; font-weight: bold;">{i_idx+1}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 12px; font-weight: 600; color: #0f172a;">{item.get('Kategori', '-')}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 12px; color: #334155;">{item.get('Deskripsi Pekerjaan', '-')}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: center; font-size: 12px;">{q_val}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: center; font-size: 12px;">{item.get('Unit', '-')}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: right; font-size: 12px;">{fmt_hs}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: right; font-size: 12px; font-weight: bold; color: #059669;">{fmt_tot}</td>
                 </tr>
-            </thead>
-            <tbody>
-                {table_rows}
-            </tbody>
-        </table>
-    </div>
-    """
-    st.components.v1.html(table_html, height=420, scrolling=True)
+                """
 
-    # --- RINCIAN PEKERJAAN DETAIL (EXPANDER) ---
-    st.markdown("<br>", unsafe_allow_html=True)
-    with st.expander("🔍 Klik di sini untuk melihat Rincian Pekerjaan Item Per Item (Detail Raw Data)"):
-        df_raw_filtered = df_tx.copy()
-        if sel_kontrak != "-- Semua Nomor Kontrak --":
-            df_raw_filtered = df_raw_filtered[df_raw_filtered["Nomor Kontrak Clean"] == sel_kontrak]
-        if sel_pi != "-- Semua Nomor PI --":
-            df_raw_filtered = df_raw_filtered[df_raw_filtered["PI No Clean"] == sel_pi]
-
-        cols_to_show = ["Nomor Kontrak", "PI No.", "Nomor PO", "Kategori", "Deskripsi Pekerjaan", "Qty", "Unit", "Harga Satuan", "Total Harga"]
-        existing_cols = [c for c in cols_to_show if c in df_raw_filtered.columns]
-        st.dataframe(df_raw_filtered[existing_cols], use_container_width=True)
+            html_breakdown = f"""
+            <div style="overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 6px; margin-top: 8px;">
+                <table style="width: 100%; border-collapse: collapse; font-family: sans-serif;">
+                    <thead>
+                        <tr style="background-color: #1e293b; color: #ffffff; font-size: 12px;">
+                            <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; width: 35px;">No</th>
+                            <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left; width: 140px;">Kategori</th>
+                            <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left;">Uraian Pekerjaan / Spesifikasi</th>
+                            <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; width: 50px;">Qty</th>
+                            <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; width: 60px;">Unit</th>
+                            <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; width: 110px;">Harga Satuan</th>
+                            <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: right; width: 120px;">Subtotal Nilai</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {table_breakdown_rows}
+                    </tbody>
+                </table>
+            </div>
+            """
+            st.components.v1.html(html_breakdown, height=max(120, len(df_pi_detail) * 38 + 50), scrolling=True)

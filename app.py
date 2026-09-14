@@ -460,7 +460,9 @@ if form_login_sistem():
             tampilkan_akumulasi_riwayat_transaksi(
                 tx_data=muat_data_transaksi(),
                 bersih_angka_func=bersih_angka,
-                sort_pi_key_func=sort_pi_key
+                sort_pi_key_func=sort_pi_key,
+                simpan_data_transaksi_func=simpan_data_transaksi,
+                muat_data_transaksi_func=muat_data_transaksi
             )
         elif menu == "Lihat Master Rekap Transaksi":
             tampilkan_rekap_transaksi(muat_data_transaksi())

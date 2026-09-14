@@ -100,6 +100,7 @@ def tampilkan_modul_2_rincian(
     tanggal_po_default_m1 = bersih_angka_func(matched_record.get(9, matched_record.get("Tanggal Purchase Order", "")))
     desc_po_default_m1 = bersih_angka_func(matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))
 
+    # --- KOLOM KANAN: MENGISI DATA PO, WO, WAN, TANGGAL & MATA UANG TERLEBIH DAHULU ---
     with col2:
         raw_po_num = nomor_po_default_m1 if (nomor_po_default_m1 and nomor_po_default_m1 != "-") else (loaded_tx_items[0].get("Nomor PO", "") if loaded_tx_items else "")
         def_po_num = bersih_angka_func(raw_po_num)
@@ -110,8 +111,6 @@ def tampilkan_modul_2_rincian(
         raw_po_date = tanggal_po_default_m1 if tanggal_po_default_m1 else (loaded_tx_items[0].get("Tanggal PO", "") if loaded_tx_items else "")
         def_po_date = bersih_angka_func(raw_po_date)
 
-        def_desc_po = desc_po_default_m1 if desc_po_default_m1 else (bersih_angka_func(loaded_tx_items[0].get("Deskripsi PO", "")) if loaded_tx_items else "")
-
         nomor_po = st.text_input("Nomor PO", def_po_num if def_po_num else "-")
         
         raw_wo_num = nomor_wo_default_m1 if (nomor_wo_default_m1 and nomor_wo_default_m1 != "-") else (loaded_tx_items[0].get("Nomor WO", "") if loaded_tx_items else "")
@@ -120,6 +119,10 @@ def tampilkan_modul_2_rincian(
         nomor_wan_sa = st.text_input("Nomor WAN / SA (Work Authorization Notice / Service Agreement)", def_wan_num if def_wan_num else "-")
         tanggal_po = st.text_input("Tanggal PO", def_po_date if def_po_date else "-")
         mata_uang = st.text_input("Mata Uang", "IDR")
+
+    # --- KOLOM KIRI: LINGKUP PEKERJAAN DIPINDAHKAN KE BAWAH PI AGAR TIDAK ADA RUANG KOSONG ---
+    with col1:
+        def_desc_po = desc_po_default_m1 if desc_po_default_m1 else (bersih_angka_func(loaded_tx_items[0].get("Deskripsi PO", "")) if loaded_tx_items else "")
         desc_po = st.text_area("Lingkup Pekerjaan", def_desc_po, height=130)
 
     st.markdown("---")
