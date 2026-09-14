@@ -1812,7 +1812,7 @@ if form_login_sistem():
                                 "Rincian Pekerjaan",
                                 "Proforma Invoice",
                                 "Berita Acara Serah Terima Pekerjaan (BASTP)", 
-                                "Formulir tkdn",
+                                "Formulir TKDN",
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
                             ]
@@ -1823,7 +1823,7 @@ if form_login_sistem():
                                 "Berita Acara Mulai Pekerjaan (BAMP)",
                                 "Berita Acara Selesai Pekerjaan (BASP)",
                                 "Work Completion Certificate (WCC)",
-                                "Formulir tkdn",
+                                "Formulir TKDN",
                                 "Timesheet Peralatan",
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
@@ -1836,7 +1836,7 @@ if form_login_sistem():
                                 "Berita Acara Selesai Pekerjaan (BASP)",
                                 "Work Completion Certificate (WCC)",
                                 "Berita Acara Serah Terima Pekerjaan (BASTP)", 
-                                "Formulir tkdn",
+                                "Formulir TKDN",
                                 "Timesheet Peralatan",
                                 "Berita Acara Opname pekerjaan",
                                 "📦 Master Paket Dokumen Lengkap (1-Click Batch)"
@@ -1858,7 +1858,7 @@ if form_login_sistem():
                         elif doc_type == "Work Completion Certificate (WCC)":
                             tampilkan_wcc(filtered_transaksi_target)
                         elif doc_type.lower() == "formulir tkdn":
-                            tkdn.tampilkan_tkdn(filtered_transaksi_target)
+                            tampilkan_tkdn(filtered_transaksi_target)
                         elif doc_type == "Berita Acara Opname pekerjaan":
                             tampilkan_opname(filtered_transaksi_target)
                         elif doc_type.lower() == "timesheet peralatan" or doc_type.lower() == "timesheet":
