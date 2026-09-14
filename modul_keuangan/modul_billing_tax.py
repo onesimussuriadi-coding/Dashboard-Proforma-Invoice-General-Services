@@ -432,10 +432,10 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     waktu_aksi = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
                     item_billing_baru = {
                         "Nomor Invoice Resmi": nomor_invoice_resmi,
+                        "PI No.": selected_pi_m3,
                         "Kontrak No.": selected_kontrak_m3,
                         "Nomor PO": selected_po_m3,
                         "Nomor SA / WAN": format_nomor_bersih(selected_sawanan_m3),
-                        "PI No.": selected_pi_m3,
                         "Customer": customer_name,
                         "Alamat Customer": alamat_customer,
                         "NPWP Customer": nomor_npwp,
@@ -917,8 +917,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         if billing_records:
             df_bill = pd.DataFrame(billing_records)
             
+            # Kolom prioritas dengan "PI No." tepat di sebelah kanan "Nomor Invoice Resmi"
             kolom_prioritas = [
-                "Nomor Invoice Resmi", "Customer", "Kontrak No.", "Nomor PO", "Nomor SA / WAN",
+                "Nomor Invoice Resmi", "PI No.", "Customer", "Kontrak No.", "Nomor PO", "Nomor SA / WAN",
                 "Nilai Gross (Bruto)", "Diskon Nominal (10%)", "Nilai Invoice", 
                 "Gunakan Professional Sum", "Add Cost", "Management Fee", 
                 "PPN Nominal", "PPh Nominal", "Total Netto", "Update Terakhir"
@@ -932,7 +933,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             
             st.markdown("---")
             st.markdown("#### 🗑️ Hapus Data Invoice Tersimpan")
-            pilihan_hapus_inv = [f"{item.get('Nomor Invoice Resmi')} (Customer: {item.get('Customer')})" for item in billing_records]
+            pilihan_hapus_inv = [f"{item.get('Nomor Invoice Resmi')} (PI: {item.get('PI No.')} | Customer: {item.get('Customer')})" for item in billing_records]
             
             col_dh1, col_dh2 = st.columns([2, 1])
             with col_dh1:

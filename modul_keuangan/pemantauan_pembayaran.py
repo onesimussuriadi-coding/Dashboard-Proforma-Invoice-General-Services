@@ -46,47 +46,53 @@ def tampilkan_pemantauan_pembayaran():
         formatted_num = fmt_rp(val)
         return f'<span style="white-space: nowrap; display: inline-block;">{formatted_num}</span>'
 
-    # --- 1. MEMBACA DATA INVOICE TERSIMPAN (MODUL 3) ---
+    # --- 1. MEMBACA DATA INVOICE DARI MODUL 3 ---
     def muat_invoice_tersimpan_modul3():
-        spesifik_file = [
-            os.path.join(DIR_DATABASE, "database_billing_tax.xlsx"),
-            os.path.join(DIR_DATABASE, "database_invoice_resmi.xlsx"),
-            os.path.join(DIR_DATABASE, "database_invoice.xlsx")
-        ]
-        for file_path in spesifik_file:
-            if os.path.exists(file_path):
-                try:
-                    df = pd.read_excel(file_path)
-                    if df is not None and not df.empty:
-                        return df.to_dict(orient="records")
-                except:
-                    pass
-        return []
+        semua_data = []
+        if os.path.exists(DIR_DATABASE):
+            for f_name in os.listdir(DIR_DATABASE):
+                if f_name.endswith(".xlsx"):
+                    f_path = os.path.join(DIR_DATABASE, f_name)
+                    try:
+                        df = pd.read_excel(f_path)
+                        if df is not None and not df.empty:
+                            cols_lower = [str(c).lower() for c in df.columns]
+                            if any("invoice" in c or "kontrak" in c or "pi" in c for c in cols_lower):
+                                records = df.to_dict(orient="records")
+                                semua_data.extend(records)
+                    except:
+                        pass
+        return semua_data
 
     invoice_list = muat_invoice_tersimpan_modul3()
 
-    def cari_nama_kolom_invoice(sample_obj):
+    def cari_nama_kolom(sample_obj, kata_kunci_list):
         if not sample_obj:
-            return "Nomor Invoice"
+            return ""
         for k in sample_obj.keys():
-            k_low = str(k).lower()
-            if "resmi" in k_low or ("invoice" in k_low and "tanggal" not in k_low and "tgl" not in k_low):
-                return k
-        return list(sample_obj.keys())[0]
+            k_low = str(k).strip().lower()
+            for kk in kata_kunci_list:
+                if kk in k_low:
+                    return k
+        return ""
 
     sample_inv = invoice_list[0] if invoice_list else {}
-    inv_key = cari_nama_kolom_invoice(sample_inv)
+    col_key_inv = cari_nama_kolom(sample_inv, ["nomor invoice resmi", "invoice resmi", "nomor invoice", "invoice"])
+    if not col_key_inv and sample_inv:
+        col_key_inv = list(sample_inv.keys())[0]
+
+    col_key_kontrak = cari_nama_kolom(sample_inv, ["kontrak no", "nomor kontrak", "kontrak"])
+    col_key_pi = cari_nama_kolom(sample_inv, ["pi no", "nomor pi", "pi"])
 
     def ambil_detail_invoice_master(inv_no):
-        """Mengekstrak DPP, PPN, dan Total Tagihan (DPP+PPN) dari database Modul 3."""
+        target_inv_clean = str(inv_no).strip().lower()
         for inv in invoice_list:
-            found_no = str(inv.get(inv_key, inv.get("Nomor Invoice Resmi", inv.get("Nomor Invoice", "")))).strip()
-            if found_no == str(inv_no).strip():
+            found_no = str(inv.get(col_key_inv, inv.get("Nomor Invoice Resmi", ""))).strip().lower()
+            if found_no == target_inv_clean:
                 dpp_val = 0.0
                 ppn_val = 0.0
                 total_val = 0.0
                 
-                # Cek kolom DPP
                 for k, v in inv.items():
                     k_low = str(k).lower()
                     if any(kata in k_low for kata in ["dpp", "gross", "bruto", "nilai invoice"]):
@@ -94,7 +100,6 @@ def tampilkan_pemantauan_pembayaran():
                         if val_p > dpp_val:
                             dpp_val = val_p
                             
-                # Cek kolom PPN
                 for k, v in inv.items():
                     k_low = str(k).lower()
                     if "ppn" in k_low and "wapu" not in k_low:
@@ -102,7 +107,6 @@ def tampilkan_pemantauan_pembayaran():
                         if val_p > ppn_val:
                             ppn_val = val_p
 
-                # Cek kolom Grand Total / Netto / Total Tagihan
                 for k, v in inv.items():
                     k_low = str(k).lower()
                     if any(kata in k_low for kata in ["netto", "grand", "total netto", "total tagihan", "total amount"]):
@@ -158,10 +162,6 @@ def tampilkan_pemantauan_pembayaran():
 
     payment_records = st.session_state["db_payment"]
 
-    if not invoice_list and not payment_records:
-        st.warning("⚠️ Belum ada Data Invoice Tersimpan di Modul 3.")
-        return
-
     def ambil_tanggal_invoice(inv_data_obj):
         for k, v in inv_data_obj.items():
             if any(kata in str(k).lower() for kata in ["tgl", "tanggal", "date"]) and not any(kata in str(k).lower() for kata in ["penyerahan", "tempo", "lunas"]):
@@ -169,36 +169,50 @@ def tampilkan_pemantauan_pembayaran():
                     return str(v)[:10]
         return str(date.today())
 
-    # --- 2. MASTER PLAFON KONTRAK PRESISI (DPP & INCLUDE PPN 11%) ---
+    # --- 2. MASTER PLAFON KONTRAK ---
     master_kontrak_plafon_dpp = {
         "7201250141": 42997282428.98,
         "7207250142": 38711901661.00,
         "7203250036": 1971459000.00
     }
-    
-    # Plafon Include PPN 11% (DPP * 1.11)
     master_kontrak_plafon_inc_ppn = {
         k: v * 1.11 for k, v in master_kontrak_plafon_dpp.items()
     }
 
-    kontrak_from_invoice = [str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() for inv in invoice_list if inv.get("Kontrak No.") or inv.get("Nomor Kontrak")]
-    kontrak_from_payment = [str(p.get("Nomor Kontrak", "-")).strip() for p in payment_records if p.get("Nomor Kontrak")]
+    kontrak_from_invoice = []
+    for inv in invoice_list:
+        val_k = str(inv.get(col_key_kontrak, inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-")))).strip()
+        if val_k and val_k != '-' and val_k.lower() != 'nan':
+            clean_k = val_k.replace(".0", "")
+            kontrak_from_invoice.append(clean_k)
+
+    kontrak_from_payment = [str(p.get("Nomor Kontrak", "-")).strip().replace(".0", "") for p in payment_records if p.get("Nomor Kontrak")]
     
     all_contracts = sorted(list(dict.fromkeys([k for k in (kontrak_from_invoice + kontrak_from_payment + list(master_kontrak_plafon_dpp.keys())) if k and k != '-' and k.lower() != 'nan'])))
 
+    # --- 3. FILTER DASHBOARD UTAMA DENGAN OPSI ALL CONTRACT ---
     st.markdown("---")
     st.markdown("##### 🔍 Filter Tampilan & Rekapitulasi Berdasarkan Kontrak")
-    opsi_filter_kontrak = ["-- Semua Nomor Kontrak (ALL) --"] + all_contracts
+    placeholder_kontrak_filter = "... Pilih Nomor Kontrak ..."
+    opsi_filter_kontrak = [placeholder_kontrak_filter, "-- Semua Nomor Kontrak (ALL) --"] + all_contracts
     filter_kontrak_pilih = st.selectbox("Pilih Nomor Kontrak untuk Filter Dashboard:", opsi_filter_kontrak, key="filter_kontrak_dashboard")
 
+    if filter_kontrak_pilih == placeholder_kontrak_filter:
+        st.info("ℹ️ Silakan pilih **Nomor Kontrak** atau opsi **-- Semua Nomor Kontrak (ALL) --** di atas untuk melihat rekapitulasi dan form pemantauan pembayaran.")
+        return
+
     if filter_kontrak_pilih != "-- Semua Nomor Kontrak (ALL) --":
-        filtered_invoice_list = [inv for inv in invoice_list if str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() == str(filter_kontrak_pilih).strip()]
-        filtered_payment_records = [p for p in payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(filter_kontrak_pilih).strip()]
+        filtered_invoice_list = []
+        for inv in invoice_list:
+            c_val = str(inv.get(col_key_kontrak, inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-")))).strip().replace(".0", "")
+            if c_val == str(filter_kontrak_pilih).strip() or str(filter_kontrak_pilih).strip() in c_val:
+                filtered_invoice_list.append(inv)
+        filtered_payment_records = [p for p in payment_records if str(p.get("Nomor Kontrak", "")).strip().replace(".0", "") == str(filter_kontrak_pilih).strip()]
     else:
         filtered_invoice_list = invoice_list
         filtered_payment_records = payment_records
 
-    # --- 3. REKAPITULASI KEUANGAN & PEMANTAUAN AGING INVOICE ---
+    # --- 4. REKAPITULASI KEUANGAN & PEMANTAUAN AGING ---
     if invoice_list or payment_records or master_kontrak_plafon_dpp:
         hari_ini = date.today()
         
@@ -216,7 +230,6 @@ def tampilkan_pemantauan_pembayaran():
         total_pembayaran_netto_bank = 0.0
         total_potongan_pajak_all = 0.0
 
-        # Kategori Aging
         jml_aman = 0; val_aman = 0.0
         jml_warning = 0; val_warning = 0.0
         jml_overdue = 0; val_overdue = 0.0
@@ -225,7 +238,7 @@ def tampilkan_pemantauan_pembayaran():
         target_eval_list = filtered_invoice_list if filtered_invoice_list else filtered_payment_records
 
         for inv_item in target_eval_list:
-            inv_no_val = str(inv_item.get(inv_key, inv_item.get("Nomor Invoice Resmi", inv_item.get("Nomor Invoice", "")))).strip()
+            inv_no_val = str(inv_item.get(col_key_inv, inv_item.get("Nomor Invoice Resmi", ""))).strip()
             dtl = ambil_detail_invoice_master(inv_no_val)
             g_total_inc_ppn = dtl["total_tagihan"]
             
@@ -238,14 +251,14 @@ def tampilkan_pemantauan_pembayaran():
             matching_pay = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == inv_no_val), {})
             status_byr = matching_pay.get("Status Pembayaran", "Belum Dibayar")
             
-            bayar_aktual = float(matching_pay.get("Nominal Pembayaran Aktual", g_total_inc_ppn if status_byr == "Lunas" else 0.0))
+            bayar_aktual = float(matching_pay.get("Nominal Pembayaran Aktual", g_total_inc_ppn if status_byr == "Dibayar" else 0.0))
             pot_pph = float(matching_pay.get("Potongan PPh", 0.0))
             pot_ppn_wapu = float(matching_pay.get("Potongan PPN WAPU", 0.0))
             
             total_pembayaran_netto_bank += bayar_aktual
             total_potongan_pajak_all += (pot_pph + pot_ppn_wapu)
 
-            if status_byr == "Lunas" or (bayar_aktual + pot_pph + pot_ppn_wapu) >= (g_total_inc_ppn - 100):
+            if status_byr == "Dibayar" or (bayar_aktual + pot_pph + pot_ppn_wapu) >= (g_total_inc_ppn - 100):
                 jml_lunas += 1
                 val_lunas += g_total_inc_ppn
                 continue
@@ -344,7 +357,7 @@ def tampilkan_pemantauan_pembayaran():
         with c_ag4:
             st.markdown(f"""
                 <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 6px; text-align: center;">
-                    <span style="font-size: 12px; color: #15803d; font-weight: bold;">✅ Lunas Terbayar</span>
+                    <span style="font-size: 12px; color: #15803d; font-weight: bold;">✅ Dibayar</span>
                     <h4 style="margin: 4px 0 0 0; color: #166534;">{jml_lunas} Invoice</h4>
                     <p style="margin: 2px 0 0 0; font-size: 11px; color: #15803d;">{fmt_rp(val_lunas)}</p>
                 </div>
@@ -356,7 +369,7 @@ def tampilkan_pemantauan_pembayaran():
         with col_g1:
             st.markdown("<h6>📊 Grafik Nominal Piutang per Status Aging</h6>", unsafe_allow_html=True)
             df_chart_bar = pd.DataFrame({
-                "Status Aging": ["Aman", "Warning (7d)", "Overdue", "Lunas"],
+                "Status Aging": ["Aman", "Warning (7d)", "Overdue", "Dibayar"],
                 "Nominal (Rp)": [val_aman, val_warning, val_overdue, val_lunas]
             })
             st.bar_chart(df_chart_bar.set_index("Status Aging"))
@@ -364,12 +377,12 @@ def tampilkan_pemantauan_pembayaran():
         with col_g2:
             st.markdown("<h6>🍩 Proporsi Jumlah Dokumen Invoice</h6>", unsafe_allow_html=True)
             df_chart_pie = pd.DataFrame({
-                "Kategori": ["Aman", "Warning", "Overdue", "Lunas"],
+                "Kategori": ["Aman", "Warning", "Overdue", "Dibayar"],
                 "Jumlah Dokumen": [jml_aman, jml_warning, jml_overdue, jml_lunas]
             })
             st.dataframe(df_chart_pie, use_container_width=True, hide_index=True)
 
-        # --- 4. TABEL RINCIAN AKUMULASI PER KONTRAK ---
+        # --- 5. TABEL RINCIAN AKUMULASI PER KONTRAK ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak (Dekomposisi DPP & Inc. PPN)")
         
@@ -378,8 +391,8 @@ def tampilkan_pemantauan_pembayaran():
             summary_contract_map[k_m] = {"dpp": 0.0, "ppn": 0.0, "tagihan_inc_ppn": 0.0, "terbayar_bank": 0.0, "potongan_pajak": 0.0, "jml_inv": 0, "lunas": 0}
 
         for item_rc in invoice_list:
-            c_no = str(item_rc.get("Kontrak No.", item_rc.get("Nomor Kontrak", "-"))).strip()
-            inv_no_rc = str(item_rc.get(inv_key, item_rc.get("Nomor Invoice Resmi", item_rc.get("Nomor Invoice", "")))).strip()
+            c_no = str(item_rc.get(col_key_kontrak, item_rc.get("Kontrak No.", item_rc.get("Nomor Kontrak", "-")))).strip().replace(".0", "")
+            inv_no_rc = str(item_rc.get(col_key_inv, item_rc.get("Nomor Invoice Resmi", ""))).strip()
             
             dtl_rc = ambil_detail_invoice_master(inv_no_rc)
             t_dpp = dtl_rc["dpp"]
@@ -388,7 +401,7 @@ def tampilkan_pemantauan_pembayaran():
 
             matching_pay_rc = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == inv_no_rc), {})
             st_byr = matching_pay_rc.get("Status Pembayaran", "Belum Dibayar")
-            b_akt = float(matching_pay_rc.get("Nominal Pembayaran Aktual", t_inc if st_byr == "Lunas" else 0.0))
+            b_akt = float(matching_pay_rc.get("Nominal Pembayaran Aktual", t_inc if st_byr == "Dibayar" else 0.0))
             p_pph = float(matching_pay_rc.get("Potongan PPh", 0.0))
             p_wapu = float(matching_pay_rc.get("Potongan PPN WAPU", 0.0))
             
@@ -402,7 +415,7 @@ def tampilkan_pemantauan_pembayaran():
             summary_contract_map[c_no]["terbayar_bank"] += b_akt
             summary_contract_map[c_no]["potongan_pajak"] += (p_pph + p_wapu)
 
-            if st_byr == "Lunas" or (b_akt + p_pph + p_wapu) >= (t_inc - 100):
+            if st_byr == "Dibayar" or (b_akt + p_pph + p_wapu) >= (t_inc - 100):
                 summary_contract_map[c_no]["lunas"] += 1
 
         table_data_list = []
@@ -435,7 +448,7 @@ def tampilkan_pemantauan_pembayaran():
             tot_sum_piu_inc += sisa_piutang_k
             tot_dok += c_val["jml_inv"]
 
-            st_teks = "🟢 Lengkap" if (c_val["jml_inv"] > 0 and c_val["lunas"] == c_val["jml_inv"]) else (f"🟡 {c_val['lunas']}/{c_val['jml_inv']} Lunas" if c_val["jml_inv"] > 0 else "⚪ Belum Ada Transaksi")
+            st_teks = "🟢 Selesai" if (c_val["jml_inv"] > 0 and c_val["lunas"] == c_val["jml_inv"]) else (f"🟡 {c_val['lunas']}/{c_val['jml_inv']} Dibayar" if c_val["jml_inv"] > 0 else "⚪ Belum Ada Transaksi")
 
             table_data_list.append({
                 "Nomor Kontrak": c_key,
@@ -467,36 +480,39 @@ def tampilkan_pemantauan_pembayaran():
         df_rincian_view = pd.DataFrame(table_data_list)
         st.dataframe(df_rincian_view, use_container_width=True, hide_index=True)
 
-    # --- 5. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN ---
+    # --- 6. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN ---
     st.markdown("---")
     st.markdown("##### 📝 Form Input & Pembaruan Status Pembayaran (Berdasarkan Kontrak)")
 
     col_fc1, col_fc2 = st.columns([1.5, 2.5])
     with col_fc1:
-        form_kontrak_pilih = st.selectbox("1️⃣ Pilih Nomor Kontrak:", all_contracts if all_contracts else ["-"], key="form_input_kontrak_sel")
-    
-    inv_list_filtered_contract = [inv for inv in invoice_list if str(inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-"))).strip() == str(form_kontrak_pilih).strip()]
-    
+        placeholder_form_kontrak = "... Pilih Nomor Kontrak ..."
+        opsi_form_kontrak = [placeholder_form_kontrak] + all_contracts
+        form_kontrak_pilih = st.selectbox("1️⃣ Pilih Nomor Kontrak:", opsi_form_kontrak, key="form_input_kontrak_sel")
+
+    if form_kontrak_pilih == placeholder_form_kontrak:
+        st.info("ℹ️ Silakan pilih **Nomor Kontrak** pada pilihan nomor 1 di atas untuk memunculkan daftar nomor invoice resmi dari Modul 3.")
+        return
+
+    # Ambil nomor invoice dari Modul 3 murni tanpa tercampur nomor kontrak
+    inv_list_filtered_contract = []
+    for inv in invoice_list:
+        c_val_inv = str(inv.get(col_key_kontrak, inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-")))).strip().replace(".0", "")
+        if c_val_inv == str(form_kontrak_pilih).strip() or str(form_kontrak_pilih).strip() in c_val_inv:
+            inv_list_filtered_contract.append(inv)
+
     all_inv_no_contract = []
     for inv in inv_list_filtered_contract:
-        val_inv = str(inv.get(inv_key, "")).strip()
-        if val_inv and not val_inv.startswith("2026-") and len(val_inv) > 3:
+        val_inv = str(inv.get(col_key_inv, inv.get("Nomor Invoice Resmi", ""))).strip()
+        # PASTIKAN HANYA NOMOR INVOICE MURNI (TIDAK BOLEH SAMA DENGAN NOMOR KONTRAK)
+        if val_inv and val_inv != 'nan' and len(val_inv) > 1 and val_inv != str(form_kontrak_pilih).strip():
             all_inv_no_contract.append(val_inv)
-            
-    if not all_inv_no_contract:
-        all_inv_no_contract = [str(inv.get(inv_key, "")).strip() for inv in inv_list_filtered_contract if inv.get(inv_key)]
 
-    if not all_inv_no_contract and payment_records:
-        all_inv_no_contract = sorted(list(dict.fromkeys([str(p.get("Nomor Invoice", "")).strip() for p in payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(form_kontrak_pilih).strip() and p.get("Nomor Invoice")])))
+    all_inv_no_contract = list(dict.fromkeys(all_inv_no_contract))
 
-    saved_invoice_set = {str(p.get("Nomor Invoice", "")).strip() for p in payment_records if p.get("Nomor Invoice")}
+    saved_invoice_set = {str(p.get("Nomor Invoice", "")).strip() for p in payment_records if str(p.get("Nomor Kontrak", "")).strip().replace(".0", "") == str(form_kontrak_pilih).strip() and p.get("Nomor Invoice")}
 
-    active_edit_inv = str(st.session_state.get("active_invoice_selected", "")).strip()
-    list_inv_aktif = [inv_no for inv_no in all_inv_no_contract if inv_no not in saved_invoice_set or inv_no == active_edit_inv]
-    if not list_inv_aktif and all_inv_no_contract:
-        list_inv_aktif = all_inv_no_contract
-
-    list_saved_payment_no = sorted(list({str(p.get("Nomor Invoice")) for p in payment_records if str(p.get("Nomor Kontrak")) == str(form_kontrak_pilih)}), reverse=True)
+    list_saved_payment_no = sorted(list({str(p.get("Nomor Invoice")) for p in payment_records if str(p.get("Nomor Kontrak", "")).strip().replace(".0", "") == str(form_kontrak_pilih).strip()}), reverse=True)
     opsi_panggil_bayar = ["-- Pilih Data Tersimpan untuk Diedit / Panggil Ulang --"] + list_saved_payment_no
 
     with col_fc2:
@@ -507,135 +523,154 @@ def tampilkan_pemantauan_pembayaran():
                 st.success(f"📋 Memuat data pemantauan Invoice `{pilihan_panggil_bayar}`")
                 st.rerun()
 
-    default_select_idx = 0
-    if active_edit_inv in list_inv_aktif:
-        default_select_idx = list_inv_aktif.index(active_edit_inv)
+    active_edit_inv = str(st.session_state.get("active_invoice_selected", "")).strip()
 
-    if not list_inv_aktif:
-        selected_inv = st.text_input("3️⃣ Ketik Nomor Invoice Aktif:", value=active_edit_inv)
-    else:
-        selected_inv = st.selectbox("3️⃣ Pilih Nomor Invoice Aktif:", list_inv_aktif, index=default_select_idx if default_select_idx < len(list_inv_aktif) else 0, key="dropdown_master_invoice_aktif")
+    list_inv_aktif = [inv_no for inv_no in all_inv_no_contract if inv_no not in saved_invoice_set or inv_no == active_edit_inv]
+    if not list_inv_aktif and active_edit_inv:
+        list_inv_aktif = [active_edit_inv]
 
-    inv_data = next((inv for inv in invoice_list if str(inv.get(inv_key, "")).strip() == str(selected_inv)), {})
-    existing_pay = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == str(selected_inv)), {})
+    placeholder_pilih_inv = "... Pilih Nomor Invoice Resmi ..."
+    opsi_dropdown_invoice = [placeholder_pilih_inv] + list_inv_aktif
 
-    tgl_invoice_bawaan = ambil_tanggal_invoice(inv_data) if inv_data else str(existing_pay.get("Tanggal Invoice", date.today()))[:10]
-    
-    dtl_inv_selected = ambil_detail_invoice_master(selected_inv)
-    dpp_otomatis = dtl_inv_selected["dpp"]
-    ppn_otomatis = dtl_inv_selected["ppn"]
-    total_tagihan_inc_ppn = dtl_inv_selected["total_tagihan"]
-    
-    if total_tagihan_inc_ppn == 0.0 and existing_pay:
-        total_tagihan_inc_ppn = float(existing_pay.get("Grand Total", 0.0))
-        dpp_otomatis = float(existing_pay.get("Nilai DPP", total_tagihan_inc_ppn / 1.11))
-        ppn_otomatis = float(existing_pay.get("Nilai PPN", total_tagihan_inc_ppn - dpp_otomatis))
+    col_inv_drop, col_inv_info = st.columns([2, 2])
+    with col_inv_drop:
+        default_idx = 0
+        if active_edit_inv in opsi_dropdown_invoice:
+            default_idx = opsi_dropdown_invoice.index(active_edit_inv)
+            
+        selected_inv = st.selectbox("3️⃣ Pilih Nomor Invoice Resmi Aktif:", opsi_dropdown_invoice, index=default_idx, key="dropdown_master_invoice_aktif")
 
-    st.markdown(f"""
-        <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-            <h5 style="margin: 0 0 8px 0; color: #0f172a;">📄 Pengakuan Piutang Usaha Resmi (Invoice Inc. PPN):</h5>
-            <div style="display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px;">
-                <span>📌 <b>Nomor Kontrak:</b> <code>{form_kontrak_pilih}</code></span>
-                <span>📑 <b>Nomor Invoice:</b> <code>{selected_inv}</code></span>
-                <span>📅 <b>Tanggal Invoice:</b> <code>{tgl_invoice_bawaan}</code></span>
+    if selected_inv and selected_inv != placeholder_pilih_inv and "- (" not in selected_inv:
+        inv_data = next((inv for inv in invoice_list if str(inv.get(col_key_inv, inv.get("Nomor Invoice Resmi", ""))).strip() == str(selected_inv)), {})
+        existing_pay = next((p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() == str(selected_inv)), {})
+
+        tgl_invoice_bawaan = ambil_tanggal_invoice(inv_data) if inv_data else str(existing_pay.get("Tanggal Invoice", date.today()))[:10]
+        
+        dtl_inv_selected = ambil_detail_invoice_master(selected_inv)
+        dpp_otomatis = dtl_inv_selected["dpp"]
+        ppn_otomatis = dtl_inv_selected["ppn"]
+        total_tagihan_inc_ppn = dtl_inv_selected["total_tagihan"]
+        
+        if total_tagihan_inc_ppn == 0.0 and existing_pay:
+            total_tagihan_inc_ppn = float(existing_pay.get("Grand Total", 0.0))
+            dpp_otomatis = float(existing_pay.get("Nilai DPP", total_tagihan_inc_ppn / 1.11))
+            ppn_otomatis = float(existing_pay.get("Nilai PPN", total_tagihan_inc_ppn - dpp_otomatis))
+
+        nomor_pi_val = str(inv_data.get(col_key_pi, inv_data.get("PI No.", inv_data.get("Nomor PI", "-")))).strip() if inv_data else "-"
+
+        with col_inv_info:
+            st.markdown(f"""
+                <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; font-size: 12px; margin-top: 22px;">
+                    <b>📈 Rincian Performa Invoice Terpilih:</b><br>
+                    • DPP: <code>{fmt_rp(dpp_otomatis)}</code><br>
+                    • PPN (11%): <code>{fmt_rp(ppn_otomatis)}</code><br>
+                    • <b>Total Tagihan (Inc. PPN):</b> <span style="color: #0284c7; font-weight: bold;">{fmt_rp(total_tagihan_inc_ppn)}</span>
+                </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown(f"""
+            <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px; margin-top: 15px; margin-bottom: 15px;">
+                <h5 style="margin: 0 0 8px 0; color: #0f172a;">📄 Pengakuan Piutang Usaha Resmi (Invoice Inc. PPN):</h5>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px;">
+                    <span>📌 <b>Nomor Kontrak:</b> <code>{form_kontrak_pilih}</code></span>
+                    <span>📑 <b>Nomor Invoice Resmi:</b> <code>{selected_inv}</code></span>
+                    <span>📋 <b>Nomor PI:</b> <code>{nomor_pi_val}</code></span>
+                    <span>📅 <b>Tanggal Invoice:</b> <code>{tgl_invoice_bawaan}</code></span>
+                </div>
             </div>
-            <div style="margin-top: 10px; font-size: 14px; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
-                <span>💰 <b>Nilai DPP:</b> {fmt_rp(dpp_otomatis)}</span> &nbsp;|&nbsp; 
-                <span>🏛️ <b>PPN (11%):</b> {fmt_rp(ppn_otomatis)}</span> &nbsp;|&nbsp; 
-                <span style="color: #0369a1; font-weight: bold; font-size: 15px;">📊 TOTAL TAGIHAN (PIUTANG INC. PPN): {fmt_rp(total_tagihan_inc_ppn)}</span>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    status_opsi = ["Belum Dibayar", "Sebagian (DP / Termin)", "Lunas"]
-    def_status = existing_pay.get("Status Pembayaran", "Belum Dibayar")
-    idx_st = status_opsi.index(def_status) if def_status in status_opsi else 0
-    status_pembayaran = st.selectbox("Status Pembayaran:", status_opsi, index=idx_st, key="select_status_pembayaran_live")
+        status_opsi = ["Belum Dibayar", "Dibayar"]
+        def_status = existing_pay.get("Status Pembayaran", "Belum Dibayar")
+        if def_status not in status_opsi:
+            def_status = "Dibayar" if "Lunas" in def_status or "Dibayar" in def_status else "Belum Dibayar"
+        idx_st = status_opsi.index(def_status) if def_status in status_opsi else 0
+        status_pembayaran = st.selectbox("Status Pembayaran:", status_opsi, index=idx_st, key="select_status_pembayaran_live")
 
-    default_faktur = existing_pay.get("Nomor Faktur Pajak", "")
-    nomor_faktur_pajak = st.text_input("Nomor Faktur Pajak (Diterbitkan setelah Invoice):", value=str(default_faktur), key="input_faktur_pajak")
+        default_faktur = existing_pay.get("Nomor Faktur Pajak", "")
+        nomor_faktur_pajak = st.text_input("Nomor Faktur Pajak (Diterbitkan setelah Invoice):", value=str(default_faktur), key="input_faktur_pajak")
 
-    col_p1, col_p2 = st.columns(2)
-    with col_p1:
-        default_tgl_serah = datetime.today().date()
-        if existing_pay.get("Tanggal Penyerahan"):
-            try:
-                default_tgl_serah = datetime.strptime(str(existing_pay.get("Tanggal Penyerahan"))[:10], "%Y-%m-%d").date()
-            except:
-                pass
-        tgl_penyerahan = st.date_input("Tanggal Invoice Diserahkan ke Klien:", value=default_tgl_serah, key="input_tgl_serah")
-
-        default_top = int(existing_pay.get("TOP Hari", 30))
-        top_hari = st.number_input("Term of Payment (TOP dalam Hari):", min_value=0, value=default_top, step=5, key="input_top_hari")
-
-    with col_p2:
-        raw_tgl_lunas_exist = str(existing_pay.get("Tanggal Pelunasan", "-"))
-        ada_tgl_lunas_exist = (raw_tgl_lunas_exist != "-" and raw_tgl_lunas_exist.strip() != "")
-
-        if status_pembayaran in ["Sebagian (DP / Termin)", "Lunas"]:
-            default_tgl_lunas = datetime.today().date()
-            if ada_tgl_lunas_exist:
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            default_tgl_serah = datetime.today().date()
+            if existing_pay.get("Tanggal Penyerahan"):
                 try:
-                    default_tgl_lunas = datetime.strptime(raw_tgl_lunas_exist[:10], "%Y-%m-%d").date()
+                    default_tgl_serah = datetime.strptime(str(existing_pay.get("Tanggal Penyerahan"))[:10], "%Y-%m-%d").date()
                 except:
                     pass
-            tgl_pelunasan = st.date_input("Tanggal Pelunasan Aktual:", value=default_tgl_lunas, key="input_tgl_lunas")
+            tgl_penyerahan = st.date_input("Tanggal Invoice Diserahkan ke Klien:", value=default_tgl_serah, key="input_tgl_serah")
+
+            default_top = int(existing_pay.get("TOP Hari", 30))
+            top_hari = st.number_input("Term of Payment (TOP dalam Hari):", min_value=0, value=default_top, step=5, key="input_top_hari")
+
+        with col_p2:
+            raw_tgl_lunas_exist = str(existing_pay.get("Tanggal Pelunasan", "-"))
+            ada_tgl_lunas_exist = (raw_tgl_lunas_exist != "-" and raw_tgl_lunas_exist.strip() != "")
+
+            if status_pembayaran == "Dibayar":
+                default_tgl_lunas = datetime.today().date()
+                if ada_tgl_lunas_exist:
+                    try:
+                        default_tgl_lunas = datetime.strptime(raw_tgl_lunas_exist[:10], "%Y-%m-%d").date()
+                    except:
+                        pass
+                tgl_pelunasan = st.date_input("Tanggal Pelunasan / Pembayaran Aktual:", value=default_tgl_lunas, key="input_tgl_lunas")
+            else:
+                st.markdown("📅 Tanggal Pelunasan Aktual: **... (Belum Ada Pembayaran / Kosong)**")
+                tgl_pelunasan = None
+
+        st.markdown("---")
+        st.markdown("##### 💵 Rincian Potongan Pajak & Penerimaan Kas/Bank")
+
+        col_pp1, col_pp2 = st.columns(2)
+        with col_pp1:
+            default_pot_pph = float(existing_pay.get("Potongan PPh", 0.0))
+            potongan_pph = st.number_input("Potongan PPh (Pasal 23 / 22):", min_value=0.0, value=default_pot_pph, step=1000.0, key="input_pot_pph")
+
+        with col_pp2:
+            default_pot_wapu = float(existing_pay.get("Potongan PPN WAPU", 0.0))
+            potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Dipotong Klien WAPU):", min_value=0.0, value=default_pot_wapu, step=1000.0, key="input_pot_wapu")
+
+        nominal_bank_seharusnya = max(0.0, total_tagihan_inc_ppn - potongan_pph - potongan_ppn_wapu)
+        st.markdown(f"💡 **Nilai Bersih Seharusnya Diterima Bank:** `{fmt_rp(nominal_bank_seharusnya)}` *(Total Tagihan - PPh - PPN WAPU)*")
+        
+        col_b1, col_b2 = st.columns([3, 1])
+        with col_b2:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("⚡ Hitung / Set Otomatis Diterima Bank", use_container_width=True):
+                st.session_state["val_bayar_aktual_set"] = nominal_bank_seharusnya
+                st.rerun()
+
+        if "val_bayar_aktual_set" in st.session_state:
+            default_bayar_akt = float(st.session_state.pop("val_bayar_aktual_set"))
         else:
-            st.markdown("📅 Tanggal Pelunasan Aktual: **... (Belum Ada Pembayaran / Kosong)**")
-            tgl_pelunasan = None
+            default_bayar_akt = float(existing_pay.get("Nominal Pembayaran Aktual", nominal_bank_seharusnya))
 
-    st.markdown("---")
-    st.markdown("##### 💵 Rincian Potongan Pajak & Penerimaan Kas/Bank")
+        with col_b1:
+            nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Ketik Aktual Perbankan/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0, key="input_bayar_aktual")
 
-    col_pp1, col_pp2 = st.columns(2)
-    with col_pp1:
-        default_pot_pph = float(existing_pay.get("Potongan PPh", 0.0))
-        potongan_pph = st.number_input("Potongan PPh (Pasal 23 / 22):", min_value=0.0, value=default_pot_pph, step=1000.0, key="input_pot_pph")
-
-    with col_pp2:
-        default_pot_wapu = float(existing_pay.get("Potongan PPN WAPU", 0.0))
-        potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Dipotong Klien WAPU):", min_value=0.0, value=default_pot_wapu, step=1000.0, key="input_pot_wapu")
-
-    nominal_bank_seharusnya = max(0.0, total_tagihan_inc_ppn - potongan_pph - potongan_ppn_wapu)
-    st.markdown(f"💡 **Nilai Bersih Seharusnya Diterima Bank:** `{fmt_rp(nominal_bank_seharusnya)}` *(Total Tagihan - PPh - PPN WAPU)*")
-    
-    # Penanganan Aman State Widget Sebelum Render
-    col_b1, col_b2 = st.columns([3, 1])
-    with col_b2:
-        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-        if st.button("⚡ Hitung / Set Otomatis Diterima Bank", use_container_width=True):
-            st.session_state["val_bayar_aktual_set"] = nominal_bank_seharusnya
-            st.rerun()
-
-    if "val_bayar_aktual_set" in st.session_state:
-        default_bayar_akt = float(st.session_state.pop("val_bayar_aktual_set"))
-    else:
-        default_bayar_akt = float(existing_pay.get("Nominal Pembayaran Aktual", nominal_bank_seharusnya))
-
-    with col_b1:
-        nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Ketik Aktual Perbankan/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0, key="input_bayar_aktual")
-
-    selisih_pembayaran = nominal_pembayaran_aktual - nominal_bank_seharusnya
-    
-    if abs(selisih_pembayaran) < 1.0:
-        st.success(f"✅ **LUNAS KANONIS:** Pembayaran diterima di Bank pas {fmt_rp(nominal_pembayaran_aktual)} (Tidak ada selisih).")
-    elif selisih_pembayaran < 0:
-        st.warning(f"⚠️ **TERDAPAT SELISIH KEKURANGAN:** Diterima Bank kurang {fmt_rp(abs(selisih_pembayaran))} dari perhitungan seharusnya.")
-    else:
-        st.info(f"ℹ️ **TERDAPAT KELEBIHAN:** Diterima Bank lebih {fmt_rp(selisih_pembayaran)} dari perhitungan seharusnya.")
-
-    default_catatan = str(existing_pay.get("Catatan", ""))
-    catatan_bayar = st.text_area("Catatan / Keterangan Pembayaran (Justifikasi Admin Bank / Kekurangan Bayar):", value=default_catatan, key="input_catatan_bayar")
-
-    if st.button("💾 Simpan Pemantauan Pembayaran", type="primary", use_container_width=True):
-        if not selected_inv.strip():
-            st.error("❌ Nomor Invoice tidak boleh kosong!")
+        selisih_pembayaran = nominal_pembayaran_aktual - nominal_bank_seharusnya
+        
+        if abs(selisih_pembayaran) < 1.0:
+            st.success(f"✅ Pembayaran diterima di Bank pas `{fmt_rp(nominal_pembayaran_aktual)}` (Tidak ada selisih).")
         else:
+            st.markdown(f"""
+                <div style="background-color: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 6px; margin-top: 8px; margin-bottom: 8px;">
+                    <span style="font-size: 13px; color: #dc2626; font-weight: bold;">⚠️ KOLOM INFORMASI SELISIH PEMBAYARAN:</span><br>
+                    <span style="font-size: 15px; color: #991b1b; font-weight: bold;">Selisih Nominal: {fmt_rp(selisih_pembayaran)}</span> 
+                    <i style="color: #64748b; font-size: 12px;">(Terjadi {'Kelebihan' if selisih_pembayaran > 0 else 'Kekurangan'} dari nilai seharusnya)</i>
+                </div>
+            """, unsafe_allow_html=True)
+
+        default_catatan = str(existing_pay.get("Catatan", "Lengkap"))
+        catatan_bayar = st.text_area("Catatan / Keterangan Pembayaran (Justifikasi Admin Bank / Selisih / Kekurangan / Lengkap):", value=default_catatan, key="input_catatan_bayar")
+
+        if st.button("💾 Simpan Pemantauan Pembayaran", type="primary", use_container_width=True):
             tgl_jatuh_tempo = tgl_penyerahan + timedelta(days=int(top_hari))
 
             durasi_riil_hari = 0
             str_tgl_pelunasan_final = "-"
-            if status_pembayaran in ["Sebagian (DP / Termin)", "Lunas"] and tgl_pelunasan:
+            if status_pembayaran == "Dibayar" and tgl_pelunasan:
                 str_tgl_pelunasan_final = tgl_pelunasan.strftime("%Y-%m-%d")
                 durasi_riil_hari = (tgl_pelunasan - tgl_penyerahan).days
 
@@ -665,38 +700,43 @@ def tampilkan_pemantauan_pembayaran():
             clean_records = [p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() != str(selected_inv).strip()]
             clean_records.append(data_update)
             simpan_status_pembayaran(clean_records)
-            st.success(f"🎉 Berhasil menyimpan data pemantauan untuk Invoice [{selected_inv}]! Total Piutang: {fmt_rp(total_tagihan_inc_ppn)} | Netto Bank: {fmt_rp(nominal_pembayaran_aktual)}")
+            st.success(f"🎉 Berhasil menyimpan data pemantauan untuk Invoice Resmi [{selected_inv}]! Total Piutang: {fmt_rp(total_tagihan_inc_ppn)} | Netto Bank: {fmt_rp(nominal_pembayaran_aktual)}")
             if "active_invoice_selected" in st.session_state:
                 del st.session_state["active_invoice_selected"]
             st.rerun()
+    else:
+        st.info("ℹ️ Silakan pilih **Nomor Invoice Resmi Aktif** terlebih dahulu pada dropdown di atas untuk menampilkan form pengisian dan rincian performa invoice.")
 
-    # --- 6. TABEL RINGKASAN & LAPORAN AGING INVOICE ---
+    # --- 7. TABEL RINGKASAN & LAPORAN AGING INVOICE ---
     st.markdown("---")
     st.markdown(f"#### 📋 Ringkasan & Laporan Aging Invoice ({filter_kontrak_pilih})")
 
     current_payment_records = muat_status_pembayaran()
     if filter_kontrak_pilih != "-- Semua Nomor Kontrak (ALL) --":
-        current_payment_records = [p for p in current_payment_records if str(p.get("Nomor Kontrak", "")).strip() == str(filter_kontrak_pilih).strip()]
+        current_payment_records = [p for p in current_payment_records if str(p.get("Nomor Kontrak", "")).strip().replace(".0", "") == str(filter_kontrak_pilih).strip()]
 
     if current_payment_records:
         aging_data_list = []
         for row_p in current_payment_records:
             inv_num_row = row_p.get('Nomor Invoice', '-')
-            faktur_pajak_row = row_p.get('Nomor Faktur Pajak', '-')
             cust_row = row_p.get('Customer', '-')
             no_kontrak_row = row_p.get('Nomor Kontrak', '-')
             
             tgl_penyerahan_str = str(row_p.get('Tanggal Penyerahan', ''))[:10]
             tgl_pelunasan_raw = str(row_p.get('Tanggal Pelunasan', '-'))
-            tgl_pelunasan_str = tgl_pelunasan_raw[:10] if tgl_pelunasan_raw and tgl_pelunasan_raw != "-" else "..."
+            tgl_pelunasan_str = tgl_pelunasan_raw[:10] if tgl_pelunasan_raw and tgl_pelunasan_raw != "-" else "-"
 
-            durasi_info = f"{row_p.get('TOP Hari', 0)}d"
+            top_hari_val = int(row_p.get('TOP Hari', 30))
+            realisasi_hari_val = "-"
+            deviasi_val = "-"
+            
             if tgl_pelunasan_raw and tgl_pelunasan_raw != "-":
                 try:
                     dt_serah = datetime.strptime(tgl_penyerahan_str, "%Y-%m-%d").date()
                     dt_lunas = datetime.strptime(tgl_pelunasan_raw[:10], "%Y-%m-%d").date()
-                    selisih_riil = (dt_lunas - dt_serah).days
-                    durasi_info = f"{row_p.get('TOP Hari', 0)}d (R: {selisih_riil}d)"
+                    r_hari = (dt_lunas - dt_serah).days
+                    realisasi_hari_val = f"{r_hari} Hari"
+                    deviasi_val = f"{r_hari - top_hari_val} Hari"
                 except:
                     pass
 
@@ -704,35 +744,25 @@ def tampilkan_pemantauan_pembayaran():
             b_akt = float(row_p.get('Nominal Pembayaran Aktual', gt_val))
             p_pph = float(row_p.get('Potongan PPh', 0.0))
             p_wapu = float(row_p.get('Potongan PPN WAPU', 0.0))
-            s_lain = float(row_p.get('Selisih Lainnya', 0.0))
-            
-            gt_str = fmt_rp(gt_val)
-            b_akt_str = fmt_rp(b_akt)
-            
-            rincian_ket = f"Tagihan: {gt_str} | Masuk Bank: <b>{b_akt_str}</b>"
-            pot_info_list = []
-            if p_pph > 0:
-                pot_info_list.append(f"PPh: {fmt_rp(p_pph)}")
-            if p_wapu > 0:
-                pot_info_list.append(f"WAPU: {fmt_rp(p_wapu)}")
-            if abs(s_lain) > 0:
-                pot_info_list.append(f"Selisih: {fmt_rp(s_lain)}")
-            
-            if pot_info_list:
-                rincian_ket += f" ({', '.join(pot_info_list)})"
+            catatan_ket = str(row_p.get('Catatan', 'Lengkap'))
 
             aging_data_list.append({
                 "No. Kontrak": no_kontrak_row,
-                "No. Invoice": inv_num_row,
-                "No. Faktur Pajak": faktur_pajak_row if faktur_pajak_row else '-',
+                "No. Invoice Resmi": inv_num_row,
                 "Customer": cust_row,
                 "Tgl Inv": str(row_p.get('Tanggal Invoice', ''))[:10],
                 "Tgl Serah": tgl_penyerahan_str,
-                "TOP": durasi_info,
+                "TOP": f"{top_hari_val} Hari",
+                "Realisasi": realisasi_hari_val,
+                "Deviasi": deviasi_val,
                 "Tgl JT": str(row_p.get('Tanggal Jatuh Tempo', ''))[:10],
                 "Tgl Lunas": tgl_pelunasan_str,
-                "Total Tagihan & Rincian Pembayaran": rincian_ket,
-                "Status": row_p.get('Status Pembayaran', '-')
+                "Total Tagihan": fmt_rp(gt_val),
+                "Potongan PPN": fmt_rp(p_wapu),
+                "Potongan PPh": fmt_rp(p_pph),
+                "Netto Diterima": fmt_rp(b_akt),
+                "Status": row_p.get('Status Pembayaran', '-'),
+                "Catatan Keterangan": catatan_ket
             })
 
         df_aging_view = pd.DataFrame(aging_data_list)
@@ -743,7 +773,7 @@ def tampilkan_pemantauan_pembayaran():
             inv_num_row = row_p.get('Nomor Invoice', '-')
             c_ak1, c_ak2 = st.columns([3, 1])
             with c_ak1:
-                st.markdown(f"<small>Invoice: <b>{inv_num_row}</b> (Kontrak: {row_p.get('Nomor Kontrak', '-')})</small>", unsafe_allow_html=True)
+                st.markdown(f"<small>Invoice Resmi: <b>{inv_num_row}</b> (Kontrak: {row_p.get('Nomor Kontrak', '-')})</small>", unsafe_allow_html=True)
             with c_ak2:
                 aksi_pilih = st.selectbox("Aksi", ["-- Pilih --", "✏️ Edit", "🗑️ Hapus"], key=f"aksi_{idx}_{inv_num_row}", label_visibility="collapsed")
                 if aksi_pilih == "✏️ Edit":
