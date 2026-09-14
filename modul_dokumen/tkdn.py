@@ -241,6 +241,20 @@ def tampilkan_tkdn(transaksi_list):
     }
     tgl_dokumen = f"{active_date.day:02d} {bulan_indo[active_date.month]} {active_date.year}"
 
+    # --- PENANGANAN TANGGAL PO UNTUK HEADER TKDN ---
+    raw_po_date = t_data.get('Tanggal PO', t_data.get('PO Date', matched_db_row.get(9, matched_db_row.get('Tanggal Purchase Order', ''))))
+    if raw_po_date and str(raw_po_date).strip() not in ["-", "", "nan", "None"]:
+        try:
+            if isinstance(raw_po_date, (datetime, date)):
+                tgl_po_dokumen = f"{raw_po_date.day:02d} {bulan_indo[raw_po_date.month]} {raw_po_date.year}"
+            else:
+                parsed_dt = pd.to_datetime(str(raw_po_date).strip())
+                tgl_po_dokumen = f"{parsed_dt.day:02d} {bulan_indo[parsed_dt.month]} {parsed_dt.year}"
+        except:
+            tgl_po_dokumen = str(raw_po_date).strip()
+    else:
+        tgl_po_dokumen = tgl_dokumen  # Fallback jika Tanggal PO belum diisi
+
     kdn_1 = (saved_tkdn.get('p_kdn_1', 15.09) / 100.0) * active_tagihan
     kln_1 = (saved_tkdn.get('p_kln_1', 1.51) / 100.0) * active_tagihan
     kdn_2 = (saved_tkdn.get('p_kdn_2', 28.26) / 100.0) * active_tagihan
@@ -336,7 +350,7 @@ def tampilkan_tkdn(transaksi_list):
                 <td>{mata_uang}</td>
                 <td style="font-weight: bold;">Tanggal</td>
                 <td>:</td>
-                <td>{tgl_dokumen}</td>
+                <td>{tgl_po_dokumen}</td>
             </tr>
         </table>
 
