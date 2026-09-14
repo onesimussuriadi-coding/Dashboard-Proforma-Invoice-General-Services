@@ -5,7 +5,7 @@ from datetime import datetime, date
 
 def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_date_func, sort_pi_key_func, simpan_data_invoice_func, muat_data_invoice_func):
     
-    # Handling Aksi Hapus / Edit via Query Params / URL Action
+    # Handling Aksi Hapus via Query Params / URL Action
     query_params = st.query_params
     if "delete_db_idx" in query_params:
         try:
@@ -21,26 +21,13 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
         except Exception as e:
             st.error(f"Gagal menghapus data: {e}")
 
-    if "edit_db_idx" in query_params:
-        try:
-            ed_idx = int(query_params["edit_db_idx"])
-            all_db = muat_data_invoice_func()
-            if 0 <= ed_idx < len(all_db):
-                st.session_state["edit_index"] = ed_idx
-                st.query_params.clear()
-                # Auto switch menu ke Input
-                st.rerun()
-        except:
-            pass
-
     # ==========================================
     # MENU 1: INPUT DATABASE & INVOICE (31 KOLOM)
     # ==========================================
     if menu == "Input Database & Invoice (31 Kolom)":
         st.markdown("""
-            <div style="background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%); border: 1px solid #cbd5e1; padding: 18px 22px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px;">
-                <h4 style="margin:0; color:#0f172a; font-size:16px; font-weight:700;">🔍 Panggil Ulang Berdasarkan Nomor Kontrak & Nomor PI</h4>
-                <p style="margin:4px 0 0 0; color:#64748b; font-size:13px;">Pilih data rujukan di bawah untuk melakukan edit, pembaruan, atau pembuatan data baru.</p>
+            <div style="background-color: #ffffff; border: 1px solid #cbd5e1; padding: 15px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 20px;">
+                <h4 style="margin:0; color:#0f172a; font-size:15px; font-weight:700;">🔍 Panggil Ulang Berdasarkan Nomor Kontrak & Nomor PI</h4>
             </div>
         """, unsafe_allow_html=True)
 
@@ -55,7 +42,7 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
             if selected_kontrak_input == "-- Buat Data Baru (Formulir Kosong) --":
                 with col_pk2:
                     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                    st.info("💡 Formulir bersih disiapkan untuk input data baru.")
+                    st.info("💡 Formulir siap untuk input data baru.")
                 with col_pk_btn:
                     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
                     if st.button("🔄 Panggil", use_container_width=True):
@@ -72,7 +59,7 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                 index_mapping = {}
                 for orig_idx, data in matched_pi_records_sorted:
                     pi_num = bersih_angka_func(data.get(0, data.get('Proforma Invoice No.', '-')))
-                    label_pi = f"PI: {pi_num if pi_num else '-'} (Baris Data #{orig_idx+1})"
+                    label_pi = f"PI: {pi_num if pi_num else '-'} (Data #{orig_idx+1})"
                     opsi_pi_filtered.append(label_pi)
                     index_mapping[label_pi] = orig_idx
 
@@ -93,7 +80,7 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
         def_data = {}
         if st.session_state.get("edit_index") is not None and st.session_state["edit_index"] < len(st.session_state.get("db_tersimpan", [])):
             def_data = st.session_state["db_tersimpan"][st.session_state["edit_index"]]
-            st.warning(f"📝 **Mode Edit Aktif:** Mengedit Data Baris #{st.session_state['edit_index']+1} — PI No: `{bersih_angka_func(def_data.get(0, def_data.get('Proforma Invoice No.', '-')))}`")
+            st.warning(f"📝 **Mode Edit Dipanggil:** Mengedit Data Baris #{st.session_state['edit_index']+1} — PI No: `{bersih_angka_func(def_data.get(0, def_data.get('Proforma Invoice No.', '-')))}`")
         
         def get_val(idx_key, text_key):
             val = def_data.get(idx_key, def_data.get(text_key, def_data.get(str(idx_key), "")))
@@ -103,7 +90,7 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
         with st.form("form_input_database"):
             col_no, col_item, col_input = st.columns([0.8, 3.5, 7])
             with col_no: st.markdown("**No**")
-            with col_item: st.markdown("**Nama Item Parameter**")
+            with col_item: st.markdown("**Item Parameter**")
             with col_input: st.markdown("**Kolom Input Data (Bersih & Standar)**")
             st.markdown("---")
 
@@ -236,13 +223,13 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                 st.rerun()
 
     # ==========================================
-    # MENU 2: LIHAT DATABASE TERSIMPAN (SANGAT CANTIK & ELEGAN)
+    # MENU 2: LIHAT DATABASE TERSIMPAN (PHP-MYADMIN STYLE)
     # ==========================================
     elif menu == "Lihat Database Tersimpan":
         st.markdown("""
-            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 20px 24px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; border-left: 5px solid #10b981;">
-                <h3 style="margin:0; color:#ffffff; font-size:18px; font-weight:700;">📂 Ringkasan Database Kontrak & Proforma Invoice</h3>
-                <p style="margin:4px 0 0 0; color:#94a3b8; font-size:13px;">Daftar lengkap 31 parameter data kontrak tersimpan dengan fitur filter & tombol aksi cepat.</p>
+            <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 12px 18px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #0284c7;">
+                <h4 style="margin:0; color:#0f172a; font-size:15px; font-weight:700;">📂 Database Grid — Kontrak & Proforma Invoice</h4>
+                <p style="margin:2px 0 0 0; color:#64748b; font-size:12px;">Tampilan data padat terstruktur dengan kisi-kisi tabel presisi.</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -275,7 +262,7 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
 
         df_sum = pd.DataFrame(summary_list)
 
-        # Dropdown Filter Kontrak & PI
+        # Filter Kontrak & PI
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             list_kontrak_opt = ["-- Semua Nomor Kontrak --"] + sorted(list(df_sum["Nomor Kontrak"].unique()))
@@ -292,49 +279,45 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
         if sel_pi != "-- Semua Nomor PI --":
             df_filtered = df_filtered[df_filtered["Nomor PI"] == sel_pi]
 
-        st.markdown(f"**Menampilkan `{len(df_filtered)}` dari total `{len(df_sum)}` data tersimpan:**")
-        st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+        st.markdown(f"<span style='font-size: 13px; color: #475569;'>Menampilkan <b>{len(df_filtered)}</b> dari total <b>{len(df_sum)}</b> baris data tersimpan:</span>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 
-        # HTML Table Dengan Zebra Pastel + Button Actions
+        # HTML Data Grid ala phpMyAdmin (Zebra Soft + Full Borders + Compact Height)
         table_rows = ""
         for idx, row in df_filtered.iterrows():
             orig_i = row["Index"]
-            # Soft Pastel Zebra Row Color
             bg_color = "#ffffff" if idx % 2 == 0 else "#f8fafc"
             
             table_rows += f"""
-            <tr style="background-color: {bg_color}; border-bottom: 1px solid #e2e8f0; transition: background 0.2s;" onmouseover="this.style.backgroundColor='#f1f5f9';" onmouseout="this.style.backgroundColor='{bg_color}';">
-                <td style="padding: 10px 12px; text-align: center; font-weight: bold; color: #64748b; font-size: 13px;">#{orig_i+1}</td>
-                <td style="padding: 10px 12px; font-weight: 700; color: #0f172a; font-size: 13px;">{row['Nomor Kontrak']}</td>
-                <td style="padding: 10px 12px; color: #0284c7; font-weight: 700; font-size: 13px;">{row['Nomor PI']}</td>
-                <td style="padding: 10px 12px; color: #334155; font-size: 13px;">{row['Nomor PO']}</td>
-                <td style="padding: 10px 12px; color: #334155; font-size: 13px;">{row['Nomor WO']}</td>
-                <td style="padding: 10px 12px; color: #334155; font-size: 13px;">{row['Nomor CTR']}</td>
-                <td style="padding: 10px 12px; text-align: center; color: #475569; font-size: 12px; font-weight: 500;">{row['Tanggal PI']}</td>
-                <td style="padding: 8px 12px; text-align: center; white-space: nowrap;">
-                    <a href="?edit_db_idx={orig_i}" target="_self" style="text-decoration: none;">
-                        <button style="background-color: #0284c7; color: white; border: none; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; margin-right: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">🔄 Edit / Panggil</button>
-                    </a>
+            <tr style="background-color: {bg_color}; transition: background 0.15s;" onmouseover="this.style.backgroundColor='#f1f5f9';" onmouseout="this.style.backgroundColor='{bg_color}';">
+                <td style="border: 1px solid #cbd5e1; padding: 6px 10px; text-align: center; font-weight: bold; color: #475569; font-size: 12px;">{orig_i+1}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px 10px; font-weight: 600; color: #0f172a; font-size: 12px; font-family: monospace;">{row['Nomor Kontrak']}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px 10px; color: #0284c7; font-weight: 700; font-size: 12px; font-family: monospace;">{row['Nomor PI']}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px 10px; color: #334155; font-size: 12px; font-family: monospace;">{row['Nomor PO']}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px 10px; color: #334155; font-size: 12px; font-family: monospace;">{row['Nomor WO']}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px 10px; color: #334155; font-size: 12px; font-family: monospace;">{row['Nomor CTR']}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px 10px; text-align: center; color: #475569; font-size: 12px;">{row['Tanggal PI']}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center; white-space: nowrap;">
                     <a href="?delete_db_idx={orig_i}" target="_self" style="text-decoration: none;" onclick="return confirm('Apakah Anda yakin ingin menghapus PI {row['Nomor PI']} ini secara permanen?');">
-                        <button style="background-color: #ef4444; color: white; border: none; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">🗑️ Hapus</button>
+                        <button style="background-color: #ef4444; color: white; border: none; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">🗑️ Hapus</button>
                     </a>
                 </td>
             </tr>
             """
 
         table_html = f"""
-        <div style="overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 10px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
-            <table style="width: 100%; border-collapse: collapse; text-align: left; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+        <div style="overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 4px; background-color: #ffffff;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
                 <thead>
-                    <tr style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #ffffff; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">
-                        <th style="padding: 12px; text-align: center; width: 45px; border-bottom: 2px solid #10b981;">No</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #10b981;">Nomor Kontrak</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #10b981;">Nomor PI</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #10b981;">Nomor PO</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #10b981;">Nomor WO</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #10b981;">Nomor CTR</th>
-                        <th style="padding: 12px; text-align: center; border-bottom: 2px solid #10b981;">Tanggal PI</th>
-                        <th style="padding: 12px; text-align: center; width: 170px; border-bottom: 2px solid #10b981;">Aksi Pengelolaan</th>
+                    <tr style="background-color: #e2e8f0; color: #1e293b; font-size: 12px; font-weight: bold;">
+                        <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: center; width: 45px;">No</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 8px 10px;">Nomor Kontrak</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 8px 10px;">Nomor PI</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 8px 10px;">Nomor PO</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 8px 10px;">Nomor WO</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 8px 10px;">Nomor CTR</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: center;">Tanggal PI</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: center; width: 80px;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
