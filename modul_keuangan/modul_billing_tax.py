@@ -589,7 +589,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             uraian = row_m2.get('Uraian Pekerjaan', '')
                             kategori = row_m2.get('Kategori', '')
                             qty_val = parse_harga_presisi(row_m2.get('Qty', 0))
-                            satuan_val = row_m2.get('Satuan', 'Ea')
+                            satuan_val = row_m2.get('Unit') or row_m2.get('Satuan') or ''
                             harga_satuan_val = parse_harga_presisi(row_m2.get('Harga Satuan', 0))
                             
                             if "estimated" in str(kategori).lower() or "estimasi" in str(kategori).lower():
