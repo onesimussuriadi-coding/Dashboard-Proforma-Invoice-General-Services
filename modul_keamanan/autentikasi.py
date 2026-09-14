@@ -20,6 +20,13 @@ def muat_data_pengguna():
                 return df.to_dict(orient="records")
         except Exception:
             pass
+    else:
+        # OTOMATIS BUAT FILE EXCEL PERTAMA KALI
+        try:
+            simpan_data_pengguna(default_users)
+        except Exception:
+            pass
+            
     return default_users
 
 def simpan_data_pengguna(data_list):
