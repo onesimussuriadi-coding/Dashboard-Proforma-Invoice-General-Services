@@ -26,6 +26,11 @@ try:
 except ImportError as e:
     st.error(f"Gagal memuat modul_2_rincian: {e}")
 
+try:
+    from modul_input.modul_2_akumulasi import tampilkan_akumulasi_riwayat_transaksi
+except ImportError as e:
+    st.error(f"Gagal memuat modul_2_akumulasi: {e}")
+
 # --- IMPORT MODUL DOKUMEN & KEUANGAN ---
 try:
     from modul_dokumen.rincian_pekerjaan import tampilkan_rincian_pekerjaan
@@ -451,6 +456,11 @@ if form_login_sistem():
                 elif doc_type == "Opname": tampilkan_opname(target_tx)
                 elif doc_type == "Master Paket Batch": tampilkan_paket_lengkap(target_tx)
         elif menu == "Lihat Akumulasi Riwayat Transaksi":
-            st.dataframe(pd.DataFrame(muat_data_transaksi()))
+            # DIPANGGIL DARI MODUL TERPISAH (modul_2_akumulasi.py)
+            tampilkan_akumulasi_riwayat_transaksi(
+                tx_data=muat_data_transaksi(),
+                bersih_angka_func=bersih_angka,
+                sort_pi_key_func=sort_pi_key
+            )
         elif menu == "Lihat Master Rekap Transaksi":
             tampilkan_rekap_transaksi(muat_data_transaksi())
