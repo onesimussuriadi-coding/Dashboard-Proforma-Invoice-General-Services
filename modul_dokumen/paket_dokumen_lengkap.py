@@ -356,12 +356,10 @@ def tampilkan_paket_lengkap(transaksi_list):
     db_wcc_saved_map = st.session_state.get("wcc_saved_data", {})
     curr_wcc_dict = db_wcc_saved_map.get(current_pi_no, {})
     if not curr_wcc_dict and db_wcc_saved_map:
-        # Ambil WCC saved pertama yang tersedia jika key tidak persis sama
         curr_wcc_dict = list(db_wcc_saved_map.values())[0]
 
     wcc_cert_no = curr_wcc_dict.get('wcc_no', f"{nomor_kontrak}-BSS-WCC-{datetime.now().year}-006C")
     
-    # Deteksi presisi Nomor WO & CTR khusus kontrak 7207250142 atau sesuai input WCC
     if str(nomor_kontrak).strip() == "7207250142":
         default_wo = "S25051FLD-TOMORI-WO-006"
         default_ctr = "006-TOMORI-FLD-BSS- CTR-2025"
@@ -436,7 +434,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         tgl_mulai_item = str(m.get('Tanggal Mulai', tgl_pi))
         tgl_selesai_item = str(m.get('Tanggal Selesai', tgl_pi))
 
-        # --- PENYESUAIAN KATEGORI & DISKON UNTUK RINCIAN PEKERJAAN ---
         kat_lower = kat.lower()
         if "estimated" in kat_lower or "estimasi" in kat_lower:
             harga_diskon_val = price * 0.9
@@ -459,7 +456,6 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
-        # --- PENYESUAIAN DESKRIPSI UNTUK PROFORMA INVOICE ---
         if "estimated" in kat_lower or "estimasi" in kat_lower:
             harga_diskon_val = price * 0.9
             desc_full_pi = f"<b>{kat}</b><br><span style='font-size: 8.5px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 2px;'>(Diskon 10% dari harga penawaran Rp {price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span><br>{desc}"
@@ -502,28 +498,52 @@ def tampilkan_paket_lengkap(transaksi_list):
         """
 
     mutasi_jasa = mutasi_terpilih
-    bamp_rows_html = ""
-    basp_rows_html = ""
+    
+    # ==========================================
+    # PENARIKAN PRESISI DATA BAMP MANDIRI (KHUSUS HALAMAN BAMP)
+    # ==========================================
+    bamp_saved_container = st.session_state.get("bamp_saved_data", {}).get(pi_storage_key, {})
+    saved_bamp_items_map = bamp_saved_container.get('items', {})
 
+    bamp_rows_html = ""
+    target_bamp_items = mutasi_jasa
+
+    for idx, m in enumerate(target_bamp_items, start=1):
+        saved_bamp_row = {}
+        if isinstance(saved_bamp_items_map, dict):
+            saved_bamp_row = saved_bamp_items_map.get(idx, saved_bamp_items_map.get(str(idx), {}))
+
+        row_qty_bamp = float(saved_bamp_row.get('qty', m.get('Qty', 1.0)))
+        row_uom_bamp = str(saved_bamp_row.get('uom', m.get('Unit', 'Day'))).strip()
+        
+        kat_bamp = str(m.get('Kategori', '')).strip()
+        desc_bamp = str(m.get('Deskripsi Pekerjaan', '')).strip()
+        ket_mentah_bamp = str(m.get('Keterangan', '')).strip()
+        
+        default_cat_bamp = ket_mentah_bamp if ket_mentah_bamp else f"Mulai Berlaku Tanggal {bamp_date_str}"
+        row_catatan_bamp = str(saved_bamp_row.get('catatan', default_cat_bamp)).strip()
+        if not row_catatan_bamp:
+            row_catatan_bamp = f"Mulai Berlaku Tanggal {bamp_date_str}"
+
+        desc_full_bamp = f"<b>{kat_bamp}</b><br>{desc_bamp}" if kat_bamp else desc_bamp
+
+        bamp_rows_html += f"""
+            <tr>
+                <td style="text-align: center; width: 6%;">{idx}</td>
+                <td style="text-align: left; padding-left: 6px; width: 42%;">{desc_full_bamp}</td>
+                <td style="text-align: center; width: 8%;">{row_qty_bamp:.2f}</td>
+                <td style="text-align: center; width: 10%;">{row_uom_bamp}</td>
+                <td style="text-align: left; padding-left: 6px; width: 34%;">{row_catatan_bamp}</td>
+            </tr>
+        """
+
+    basp_rows_html = ""
     for idx, m in enumerate(mutasi_jasa, start=1):
         kat = str(m.get('Kategori', '')).strip()
         desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
         ket = str(m.get('Keterangan', '')).strip()
         qty = float(m.get('Qty', 1.0))
         unit = str(m.get('Unit', 'AU'))
-
-        catatan_bamp = f"Mulai Berlaku Tanggal {bamp_date_str}"
-        if ket:
-            catatan_bamp = f"{catatan_bamp}<br>{ket}"
-        bamp_rows_html += f"""
-            <tr>
-                <td style="text-align: center; width: 6%;">{idx}</td>
-                <td style="text-align: left; padding-left: 5px; width: 42%;"><b>{kat}</b><br>{desc}</td>
-                <td style="text-align: center; width: 8%;">{qty:.2f}</td>
-                <td style="text-align: center; width: 10%;">{unit}</td>
-                <td style="text-align: left; padding-left: 5px; width: 34%;">{catatan_bamp}</td>
-            </tr>
-        """
 
         catatan_basp = f"Selesai Pelaksanaan Pekerjaan Tanggal {basp_date_str}"
         if ket:
@@ -579,9 +599,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     ttd_onesimus_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_onesimus}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Onesimus"></div>' if custom_ttd_onesimus else '<div style="height: 55px;"></div>'
     ttd_ferry_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_ferry}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Ferry"></div>' if custom_ttd_ferry else '<div style="height: 55px;"></div>'
 
-    # ==========================================
-    # STRUKTUR KOP SURAT INTERNAL (BSS)
-    # ==========================================
     kop_bss_html = f"""
         <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
             <tr>
@@ -600,9 +617,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
     """
 
-    # ==========================================
-    # 1. HALAMAN RINCIAN PEKERJAAN
-    # ==========================================
     rincian_html = f"""
     <div class="page-break">
         {kop_bss_html}
@@ -679,9 +693,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # ==========================================
-    # 2. HALAMAN PROFORMA INVOICE
-    # ==========================================
     pi_html = f"""
     <div class="page-break">
         {kop_bss_html}
@@ -756,9 +767,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # ==========================================
-    # 3. HALAMAN BAMP
-    # ==========================================
     bamp_html = f"""
     <div class="page-break" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
         <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
@@ -840,9 +848,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # ==========================================
-    # 4. HALAMAN BASP
-    # ==========================================
     basp_html = f"""
     <div class="page-break" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
         <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
@@ -924,9 +929,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # ==========================================
-    # 5. HALAMAN BASTB
-    # ==========================================
     bastb_html = f"""
     <div class="page-break" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
         <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
@@ -1009,9 +1011,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # ==========================================
-    # 6. HALAMAN WCC (WO & CTR PRESISI TERSINKRONISASI)
-    # ==========================================
     num_signers_wcc = len(wcc_signers_list)
     col_width_pct_wcc = round(100.0 / num_signers_wcc, 2) if num_signers_wcc > 0 else 50.0
     
@@ -1116,9 +1115,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # ==========================================
-    # 7. HALAMAN OPNAME PEKERJAAN
-    # ==========================================
     if str(nomor_kontrak).strip() == "7207250142":
         opname_sig_table_html = f"""
         <table style="width: 100%; table-layout: fixed; margin-top: 20px; border-collapse: collapse; page-break-inside: avoid;">
@@ -1217,9 +1213,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # ==========================================
-    # 8. HALAMAN TKDN (TANGGAL HEADER MENGGUNAKAN TANGGAL PO)
-    # ==========================================
     total_jasa = grand_total * (95.0 / 100.0)
     non_cost = grand_total * 0.05
 
