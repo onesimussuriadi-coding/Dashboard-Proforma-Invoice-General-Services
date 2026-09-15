@@ -80,6 +80,8 @@ def form_login_sistem():
         st.session_state["current_user"] = ""
     if "current_role" not in st.session_state:
         st.session_state["current_role"] = ""
+    if "nama_lengkap" not in st.session_state:
+        st.session_state["nama_lengkap"] = ""
 
     # Halaman Login Sistem jika belum login
     if not st.session_state["logged_in"]:
@@ -107,9 +109,9 @@ def form_login_sistem():
                     
                     if matched_user:
                         st.session_state["logged_in"] = True
-                        st.session_state["current_user"] = matched_user.get("Username")
-                        st.session_state["current_role"] = str(matched_user.get("Role")).strip()
-                        st.session_state["nama_lengkap"] = matched_user.get("Nama Lengkap")
+                        st.session_state["current_user"] = str(matched_user.get("Username"))
+                        st.session_state["current_role"] = str(matched_user.get("Role", "Super Admin"))
+                        st.session_state["nama_lengkap"] = str(matched_user.get("Nama Lengkap", ""))
                         st.success(f"🎉 Selamat datang, {matched_user.get('Nama Lengkap')}! Memuat sistem...")
                         st.rerun()
                     else:
@@ -121,9 +123,18 @@ def form_login_sistem():
 def tampilkan_panel_sidebar_akun():
     with st.sidebar:
         st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
-        username_aktif = st.session_state.get("current_user", "admin")
-        role_aktif = str(st.session_state.get("current_role", "Super Admin")).strip()
-        nama_aktif = st.session_state.get("nama_lengkap", "Administrator Utama")
+        
+        # Fallback nilai jika session sempat kosong
+        if not st.session_state.get("current_user"):
+            st.session_state["current_user"] = "admin"
+        if not st.session_state.get("current_role"):
+            st.session_state["current_role"] = "Super Admin"
+        if not st.session_state.get("nama_lengkap"):
+            st.session_state["nama_lengkap"] = "Administrator Utama"
+
+        username_aktif = st.session_state["current_user"]
+        role_aktif = st.session_state["current_role"]
+        nama_aktif = st.session_state["nama_lengkap"]
 
         with st.expander("⚙️ Manajemen Akun & Hak Akses", expanded=True):
             st.markdown(f"""
@@ -136,14 +147,16 @@ def tampilkan_panel_sidebar_akun():
 
             st.markdown("<hr style='margin: 6px 0;'>", unsafe_allow_html=True)
 
+            # Tombol Logout Aktif
             if st.button("🔒 Keluar / Logout Sistem", use_container_width=True, type="secondary"):
                 st.session_state["logged_in"] = False
                 st.session_state["current_user"] = ""
                 st.session_state["current_role"] = ""
-                st.success("👋 Anda telah keluar.")
+                st.session_state["nama_lengkap"] = ""
+                st.success("👋 Anda telah keluar dari sistem.")
                 st.rerun()
 
-        # Panel Kontrol Pembuatan Akun & Kewenangan (Ditampilkan jika Admin / Super Admin)
+        # Panel Kontrol Pembuatan Akun & Kewenangan (Ditampilkan otomatis untuk Super Admin / Admin)
         if role_aktif.lower() in ["super admin", "admin"]:
             with st.expander("👥 Pembuatan Akun & Kewenangan", expanded=True):
                 with st.form("form_tambah_user_baru_sidebar"):
@@ -156,7 +169,6 @@ def tampilkan_panel_sidebar_akun():
                     if btn_simpan_user:
                         if new_user and new_pass:
                             current_db = st.session_state["db_users"]
-                            # Cek duplikat username
                             if any(str(u.get("Username")).strip().lower() == new_user.strip().lower() for u in current_db):
                                 st.error(f"⚠️ Username `{new_user}` sudah terdaftar!")
                             else:
@@ -173,19 +185,11 @@ def tampilkan_panel_sidebar_akun():
                         else:
                             st.error("⚠️ Username & Password wajib diisi!")
 
-# Alias agar sinkron dengan render_panel_manajemen_akun() di app.py
+# Alias agar sinkron dengan pemanggilan di app.py
 def render_panel_manajemen_akun():
     return tampilkan_panel_sidebar_akun()
 
 def cek_izin_akses_modul(nomor_modul):
-    """
-    Aturan Hak Akses:
-    - Super Admin: Akses Semua Modul (0, 1, 2, 3)
-    - Finance: Hanya Modul 3
-    - Project Manager: Modul 0, 1, 2
-    - Project Support (Operasi Marketing): Modul 1, 2
-    - Management (Viewer): Modul 1, 2, 3 (Read Only)
-    """
     role = str(st.session_state.get("current_role", "Super Admin")).strip()
     
     if role.lower() in ["super admin", "admin"]:
