@@ -269,7 +269,7 @@ if form_login_sistem():
     render_panel_manajemen_akun()
     user_role = str(st.session_state.get('current_role', 'Staff')).strip().lower()
     
-    # Penanda khusus untuk hak akses Management / Direksi (Read-Only)
+    # Penanda khusus untuk hak akses Management / Direksi (Read-Only Mutlak)
     is_management = user_role in ["management", "direksi"]
 
     # Styling CSS UI Rapi & Tegas
@@ -348,16 +348,21 @@ if form_login_sistem():
         st.query_params.clear()
         st.rerun()
 
-    # --- ROUTER MODUL UTAMA DENGAN PENGAMANAN DIREKSI ---
+    # --- ROUTER MODUL UTAMA DENGAN PENGAMANAN MUTLAK DIREKSI ---
     if is_management:
-        st.info("👁️ **Mode Direksi / Management Aktif (Read-Only):** Anda dapat memantau pembayaran, melihat rekap transaksi, mengunduh PDF dokumen, dan menelusuri arsip tanpa hak akses ubah/hapus data.")
+        st.markdown("""
+            <div style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="margin:0; color: #b45309; font-size: 15px;">🔒 Mode Direksi / Management (Read-Only Aktif)</h4>
+                <p style="margin:4px 0 0 0; font-size: 13px; color: #78350f;">Anda memiliki akses penuh untuk memantau data, menelusuri arsip, dan mengunduh dokumen/laporan. Seluruh fitur input, edit, dan hapus dikunci demi keamanan data perusahaan.</p>
+            </div>
+        """, unsafe_allow_html=True)
 
     if user_role == "admin support" and modul_pilihan == "Timesheet Peralatan":
         tampilkan_timesheet(muat_data_transaksi())
 
     elif modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
         if is_management:
-            st.warning("⚠️ Akses Terbatas: Modul Referensi Harga khusus dikelola oleh Admin/Project Support.")
+            st.warning("⚠️ Akses Terbatas: Modul Referensi Harga khusus dikelola oleh Admin & Project Support.")
         else:
             tampilkan_modul_0_referensi(
                 menu=menu,
