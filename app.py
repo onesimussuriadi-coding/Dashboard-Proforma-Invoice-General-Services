@@ -231,8 +231,8 @@ def muat_data_transaksi():
 
 def simpan_data_transaksi(data_list):
     """
-    KOREKSI PENYIMPANAN: Menyimpan seluruh rincian item pekerjaan secara utuh 
-    (multi-item) ke MySQL cPanel tanpa memotong atau menimpa baris transaksi lain.
+    PENYIMPANAN AMAN MULTI-ITEM: Memastikan seluruh baris rincian pekerjaan 
+    dikirim dan disimpan secara utuh ke database MySQL cPanel.
     """
     waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
     processed_tx = []
