@@ -434,7 +434,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             keterangan_invoice_resmi = st.text_area("📝 Deskripsi Keterangan Invoice Utama:", value=deskripsi_default, height=90)
 
             st.markdown("---")
-            st.markdown("#### 🧮 Kalkulasi Otomatis Pajak (PPN 11% & PPh)")
+            st.markdown("#### 🧮 Kalkulasi Otomatis Pajak (PPN 11% & PPh Dibulatkan)")
 
             def_kena_ppn = bool(data_edit_aktif.get("Kena PPN", True)) if is_mode_edit else True
             def_kena_pph = bool(data_edit_aktif.get("Kena PPh", True)) if is_mode_edit else True
@@ -448,19 +448,20 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             with col_p3:
                 persen_pph = st.number_input("Tarif PPh (%)", min_value=0.0, max_value=10.0, value=def_tarif_pph, step=0.5)
 
-            ppn_nominal = dpp_invoice_akhir * 0.11 if kena_ppn else 0.0
+            # PEMBULATAN STANDAR BISNIS & MATEMATIKA (ROUNDED TO NEAREST INTEGER)
+            ppn_nominal = round(dpp_invoice_akhir * 0.11) if kena_ppn else 0.0
             base_pph = input_mgmt_fee if gunakan_prof_sum else dpp_invoice_akhir
-            pph_nominal = base_pph * (persen_pph / 100.0) if kena_pph else 0.0
+            pph_nominal = round(base_pph * (persen_pph / 100.0)) if kena_pph else 0.0
 
-            total_pembayaran_netto = dpp_invoice_akhir + ppn_nominal - pph_nominal
+            total_pembayaran_netto = round(dpp_invoice_akhir + ppn_nominal - pph_nominal)
 
             st.markdown(f"""
                 * **Tagihan Kotor (Gross Subtotal):** Rp {gross_tagihan_akhir:,.2f}
                 * **Potongan Diskon (10%):** ( Rp {diskon_nominal_akhir:,.2f} )
                 * **Dasar Pengenaan Pajak (DPP):** **Rp {dpp_invoice_akhir:,.2f}**
-                * **Nilai PPN (11%):** Rp {ppn_nominal:,.2f}
-                * **Potongan PPh ({persen_pph}%):** ( Rp {pph_nominal:,.2f} )
-                * **Total Netto Diterima:** **Rp {total_pembayaran_netto:,.2f}**
+                * **Nilai PPN (11% Dibulatkan):** Rp {ppn_nominal:,.0f}
+                * **Potongan PPh ({persen_pph}% Dibulatkan):** ( Rp {pph_nominal:,.0f} )
+                * **Total Netto Diterima (Dibulatkan):** **Rp {total_pembayaran_netto:,.0f}**
             """.replace(",", "X").replace(".", ",").replace("X", "."))
 
             st.markdown("---")
@@ -556,7 +557,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     elif not matched_tx_kuitansi:
                         matched_tx_kuitansi = [{}]
 
-                    netto_resmi = float(selected_record.get("Total Netto", 0.0) or 0.0)
+                    netto_resmi = round(float(selected_record.get("Total Netto", 0.0) or 0.0))
                     for item_kui in matched_tx_kuitansi:
                         item_kui["Total Harga"] = netto_resmi
                         item_kui["TOTAL"] = netto_resmi
@@ -617,10 +618,11 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 persistent_ttd_dir_b64 = load_persistent_image_base64(PATH_TTD_DIR)
 
                 if selected_record:
-                    val_inv = float(selected_record.get('Nilai Invoice', 0) or 0)
-                    val_ppn = float(selected_record.get('PPN Nominal', 0) or 0)
-                    val_pph = float(selected_record.get('PPh Nominal', 0) or 0)
-                    val_netto = float(selected_record.get('Total Netto', 0) or 0)
+                    # MENGGUNAKAN ROUND AGAR BEBAS DARI KOMA/DECIMAL
+                    val_inv = round(float(selected_record.get('Nilai Invoice', 0) or 0))
+                    val_ppn = round(float(selected_record.get('PPN Nominal', 0) or 0))
+                    val_pph = round(float(selected_record.get('PPh Nominal', 0) or 0))
+                    val_netto = round(float(selected_record.get('Total Netto', 0) or 0))
 
                     raw_prof_sum = selected_record.get('Gunakan Professional Sum', False)
                     is_prof_sum_akt = str(raw_prof_sum).lower() in ['true', '1', 'yes', '1.0']
@@ -628,8 +630,8 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     raw_est_sum = selected_record.get('Gunakan Estimasi Sum', False)
                     is_est_sum_akt = str(raw_est_sum).lower() in ['true', '1', 'yes', '1.0']
 
-                    val_add_cost = float(selected_record.get('Add Cost', 0) or 0)
-                    val_mgmt_fee = float(selected_record.get('Management Fee', 0) or 0)
+                    val_add_cost = round(float(selected_record.get('Add Cost', 0) or 0))
+                    val_mgmt_fee = round(float(selected_record.get('Management Fee', 0) or 0))
 
                     nomor_sa_wan_val = format_nomor_bersih(selected_record.get('Nomor SA / WAN', ''))
                     nomor_po_val = format_nomor_bersih(selected_record.get('Nomor PO', selected_record.get('Nomor PO Rujukan', '-')))
@@ -659,7 +661,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             </td>
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
-                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {val_add_cost:,.2f}</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {val_add_cost:,.0f}</td>
                         </tr>
                         <tr>
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; font-weight: bold; background-color: #fafafa;">2</td>
@@ -669,7 +671,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             </td>
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
-                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {val_mgmt_fee:,.2f}</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {val_mgmt_fee:,.0f}</td>
                         </tr>
                         """
                         total_amount_due = val_add_cost + val_mgmt_fee
@@ -697,7 +699,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             if keterangan_row:
                                 desc_html += f'<div style="font-size: 10.5px; color: #334155; line-height: 1.35;">{keterangan_row}</div>'
 
-                            # PENAMBAHAN WHITE-SPACE: NOWRAP AGAR SATUAN TIDAK PERNAH TURUN KE BAWAH
                             tabel_item_html += f"""
                             <tr>
                                 <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; font-weight: bold; background-color: #fafafa;">{idx_m2}</td>
@@ -710,8 +711,8 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         
                         discount_10_nominal = 0.0
                         if has_estimated_sum_category and not is_prof_sum_akt:
-                            discount_10_nominal = gross_subtotal * 0.10
-                            total_amount_due = gross_subtotal - discount_10_nominal
+                            discount_10_nominal = round(gross_subtotal * 0.10)
+                            total_amount_due = round(gross_subtotal - discount_10_nominal)
                         else:
                             total_amount_due = val_inv
                     else:
@@ -722,28 +723,28 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; vertical-align: top !important; word-break: break-word;"><div style="font-size: 11.5px; font-weight: bold; color: #0f172a;">{deskripsi_keterangan_inv}</div></td>
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
-                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {val_inv:,.2f}</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {val_inv:,.0f}</td>
                         </tr>
                         """
                         total_amount_due = val_inv
                         discount_10_nominal = 0.0
 
-                    dpp_nilai_lain = total_amount_due * (11 / 12) if val_ppn > 0 else total_amount_due
+                    dpp_nilai_lain = round(total_amount_due * (11 / 12)) if val_ppn > 0 else total_amount_due
 
                     summary_rows_html = ""
                     if has_estimated_sum_category and discount_10_nominal > 0:
                         summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; font-weight: bold; color: #334155; font-size: 11px;">Gross Subtotal</td><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; text-align: right; color: #334155; font-size: 11px;">Rp {gross_subtotal:,.2f}</td></tr>'
-                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; font-weight: bold; color: #c2410c; font-size: 11px;">Discount (10%)</td><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; text-align: right; color: #c2410c; font-size: 11px;">(Rp {discount_10_nominal:,.2f})</td></tr>'
+                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; font-weight: bold; color: #c2410c; font-size: 11px;">Discount (10%)</td><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; text-align: right; color: #c2410c; font-size: 11px;">(Rp {discount_10_nominal:,.0f})</td></tr>'
                     
-                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; font-weight: bold; font-size: 11.5px;">Total Amount Due</td><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; text-align: right; font-weight: bold; font-size: 11.5px;">Rp {total_amount_due:,.2f}</td></tr>'
-                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; font-size: 10.5px; color: #475569;">DPP Nilai Lain (11/12)</td><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; text-align: right; font-size: 10.5px; color: #475569;">Rp {dpp_nilai_lain:,.2f}</td></tr>'
-                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; font-size: 11px;">VAT (PPN 11%)</td><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; text-align: right; font-size: 11px;">Rp {val_ppn:,.2f}</td></tr>'
+                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; font-weight: bold; font-size: 11.5px;">Total Amount Due</td><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; text-align: right; font-weight: bold; font-size: 11.5px;">Rp {total_amount_due:,.0f}</td></tr>'
+                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; font-size: 10.5px; color: #475569;">DPP Nilai Lain (11/12)</td><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; text-align: right; font-size: 10.5px; color: #475569;">Rp {dpp_nilai_lain:,.0f}</td></tr>'
+                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; font-size: 11px;">VAT (PPN 11%)</td><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; text-align: right; font-size: 11px;">Rp {val_ppn:,.0f}</td></tr>'
                     
                     if val_pph > 0:
-                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; font-size: 11px; color: #b91c1c;">Potongan PPh</td><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; text-align: right; font-size: 11px; color: #b91c1c;">(Rp {val_pph:,.2f})</td></tr>'
+                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; font-size: 11px; color: #b91c1c;">Potongan PPh</td><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; text-align: right; font-size: 11px; color: #b91c1c;">(Rp {val_pph:,.0f})</td></tr>'
                     
-                    total_akhir_cetak = total_amount_due + val_ppn - val_pph
-                    summary_rows_html += f'<tr style="background-color: #f1f5f9; font-weight: bold;"><td style="padding: 9px 10px; border-top: 2px solid #0f172a; font-size: 12px;">T O T A L</td><td style="padding: 9px 10px; border-top: 2px solid #0f172a; text-align: right; font-size: 12px; color: #0f172a;">Rp {total_akhir_cetak:,.2f}</td></tr>'
+                    total_akhir_cetak = round(total_amount_due + val_ppn - val_pph)
+                    summary_rows_html += f'<tr style="background-color: #f1f5f9; font-weight: bold;"><td style="padding: 9px 10px; border-top: 2px solid #0f172a; font-size: 12px;">T O T A L</td><td style="padding: 9px 10px; border-top: 2px solid #0f172a; text-align: right; font-size: 12px; color: #0f172a;">Rp {total_akhir_cetak:,.0f}</td></tr>'
 
                     html_invoice = f"""
                     <!DOCTYPE html>
