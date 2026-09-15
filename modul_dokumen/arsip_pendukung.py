@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as str_lit
 import os
 import pandas as pd
 import glob
@@ -13,10 +13,15 @@ def tampilkan_arsip_pendukung():
         </div>
     """, unsafe_allow_html=True)
 
+    # Identifikasi role user yang sedang aktif untuk pengamanan dokumen privat keuangan
+    current_role_user = str(st.session_state.get("current_role", "")).strip().lower()
+    is_finance_or_admin = current_role_user in ["finance", "super admin", "admin"]
+
     DIR_ARJEP = os.path.join("database_penyimpanan_aman", "arsip_dokumen_customer")
     if not os.path.exists(DIR_ARJEP):
         os.makedirs(DIR_ARJEP)
 
+    # Kamar dokumen dasar untuk operasional & customer
     kamar_dokumen = {
         "PO (Purchase Order) Customer": "01_Purchase_Order",
         "Proforma Invoice (PI)": "02_Proforma_Invoice",
@@ -29,19 +34,21 @@ def tampilkan_arsip_pendukung():
         "Korespondensi / Lainnya": "09_Korespondensi"
     }
 
+    # PENGAMANAN PRIVASI: Tambahkan kamar khusus dokumen pajak & finansial rahasia jika role adalah Finance / Super Admin
+    if is_finance_or_admin:
+        kamar_dokumen["🔒 [PRIVAT] Faktur Pajak & Dokumen Finansial"] = "10_Privat_Faktur_Pajak_Finance"
+
     for nama_kamar, folder_name in kamar_dokumen.items():
         kamar_path = os.path.join(DIR_ARJEP, folder_name)
         if not os.path.exists(kamar_path):
             os.makedirs(kamar_path)
 
     meta_file_path = os.path.join(DIR_ARJEP, "metadata_arsip.xlsx")
-    # Memperbarui kolom metadata untuk memisahkan Nomor PI dan Nomor PO/Ref secara tegas
     columns_meta = ["ID", "Tanggal Upload", "Nomor Kontrak", "Nomor PI", "Nomor PO / Ref", "Kategori Dokumen", "Nama File Asli", "Path File", "Keterangan"]
     
     if os.path.exists(meta_file_path):
         try:
             df_arsip = pd.read_excel(meta_file_path)
-            # Migrasi kompatibilitas jika file metadata lama menggunakan kolom tunggal
             if "Nomor PI / PO / Ref" in df_arsip.columns and "Nomor PI" not in df_arsip.columns:
                 df_arsip["Nomor PI"] = df_arsip["Nomor PI / PO / Ref"]
                 df_arsip["Nomor PO / Ref"] = df_arsip["Nomor PI / PO / Ref"]
@@ -54,7 +61,6 @@ def tampilkan_arsip_pendukung():
     else:
         df_arsip = pd.DataFrame(columns=columns_meta)
 
-    # Bersihkan metadata dari data kosong
     if not df_arsip.empty:
         df_arsip = df_arsip[
             (df_arsip['Nomor Kontrak'].astype(str).str.strip().str.lower() != 'nan') &
@@ -74,6 +80,11 @@ def tampilkan_arsip_pendukung():
 
     with tab_upload:
         st.markdown("#### 📥 Form Upload Dokumen dengan Identifikasi Ganda (Nomor PI & Nomor PO/Ref)")
+        
+        # Peringatan privasi jika bukan finance
+        if not is_finance_or_admin:
+            st.info("ℹ️ Catatan: Kategori kamar dokumen privat finansial (Faktur Pajak) disembunyikan dan hanya dapat diakses oleh bagian Finance & Super Admin.")
+
         with st.form("form_upload_arsip_kamar", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
@@ -91,54 +102,58 @@ def tampilkan_arsip_pendukung():
             submit_upload = st.form_submit_button("💾 Simpan & Masukkan ke Kamar", use_container_width=True)
 
             if submit_upload:
-                if pilihan_kontrak_cb == "➕ [Ketik Nomor Kontrak Manual Baru...]":
-                    final_nomor_kontrak = input_kontrak_manual.strip()
-                elif pilihan_kontrak_cb != "-- Pilih atau Ketik Nomor Kontrak Baru --":
-                    final_nomor_kontrak = pilihan_kontrak_cb
+                # Validasi tambahan keamanan: Mencegah user non-finance mengupload ke kamar privat
+                if "PRIVAT" in kategori_dok and not is_finance_or_admin:
+                    st.error("❌ Akses Ditolak! Anda tidak memiliki kewenangan untuk mengunggah dokumen ke kamar privat keuangan.")
                 else:
-                    final_nomor_kontrak = ""
+                    if pilihan_kontrak_cb == "➕ [Ketik Nomor Kontrak Manual Baru...]":
+                        final_nomor_kontrak = input_kontrak_manual.strip()
+                    elif pilihan_kontrak_cb != "-- Pilih atau Ketik Nomor Kontrak Baru --":
+                        final_nomor_kontrak = pilihan_kontrak_cb
+                    else:
+                        final_nomor_kontrak = ""
 
-                if uploaded_file is not None and final_nomor_kontrak and nomor_pi_input.strip() and nomor_po_ref_input.strip():
-                    try:
-                        target_folder_name = kamar_dokumen[kategori_dok]
-                        target_dir = os.path.join(DIR_ARJEP, target_folder_name)
-                        
-                        original_filename = uploaded_file.name.replace(' ', '_')
-                        target_path = os.path.join(target_dir, original_filename)
-                        
-                        counter = 1
-                        base_name, ext = os.path.splitext(original_filename)
-                        while os.path.exists(target_path):
-                            target_path = os.path.join(target_dir, f"{base_name}_{counter}{ext}")
-                            counter += 1
+                    if uploaded_file is not None and final_nomor_kontrak and nomor_pi_input.strip() and nomor_po_ref_input.strip():
+                        try:
+                            target_folder_name = kamar_dokumen[kategori_dok]
+                            target_dir = os.path.join(DIR_ARJEP, target_folder_name)
+                            
+                            original_filename = uploaded_file.name.replace(' ', '_')
+                            target_path = os.path.join(target_dir, original_filename)
+                            
+                            counter = 1
+                            base_name, ext = os.path.splitext(original_filename)
+                            while os.path.exists(target_path):
+                                target_path = os.path.join(target_dir, f"{base_name}_{counter}{ext}")
+                                counter += 1
 
-                        with open(target_path, "wb") as f:
-                            f.write(uploaded_file.getbuffer())
+                            with open(target_path, "wb") as f:
+                                f.write(uploaded_file.getbuffer())
 
-                        final_saved_filename = os.path.basename(target_path)
+                            final_saved_filename = os.path.basename(target_path)
 
-                        new_id = len(df_arsip) + 1 if not df_arsip.empty else 1
-                        new_row = {
-                            "ID": new_id,
-                            "Tanggal Upload": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            "Nomor Kontrak": final_nomor_kontrak,
-                            "Nomor PI": nomor_pi_input.strip(),
-                            "Nomor PO / Ref": nomor_po_ref_input.strip(),
-                            "Kategori Dokumen": kategori_dok,
-                            "Nama File Asli": final_saved_filename,
-                            "Path File": target_path,
-                            "Keterangan": keterangan_dok if keterangan_dok else "-"
-                        }
+                            new_id = len(df_arsip) + 1 if not df_arsip.empty else 1
+                            new_row = {
+                                "ID": new_id,
+                                "Tanggal Upload": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                                "Nomor Kontrak": final_nomor_kontrak,
+                                "Nomor PI": nomor_pi_input.strip(),
+                                "Nomor PO / Ref": nomor_po_ref_input.strip(),
+                                "Kategori Dokumen": kategori_dok,
+                                "Nama File Asli": final_saved_filename,
+                                "Path File": target_path,
+                                "Keterangan": keterangan_dok if keterangan_dok else "-"
+                            }
 
-                        df_arsip = pd.concat([df_arsip, pd.DataFrame([new_row])], ignore_index=True)
-                        df_arsip.to_excel(meta_file_path, index=False)
+                            df_arsip = pd.concat([df_arsip, pd.DataFrame([new_row])], ignore_index=True)
+                            df_arsip.to_excel(meta_file_path, index=False)
 
-                        st.success(f"✅ Berkas [{final_saved_filename}] berhasil diunggah ke kamar **[{kategori_dok}]** dengan PO [{nomor_po_ref_input}] & PI [{nomor_pi_input}]!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Gagal mengunggah file: {e}")
-                else:
-                    st.warning("⚠️ Pastikan Nomor Kontrak, Nomor PI, Nomor PO/Ref, dan Berkas File telah diisi lengkap!")
+                            st.success(f"✅ Berkas [{final_saved_filename}] berhasil diunggah ke kamar **[{kategori_dok}]** dengan PO [{nomor_po_ref_input}] & PI [{nomor_pi_input}]!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Gagal mengunggah file: {e}")
+                    else:
+                        st.warning("⚠️ Pastikan Nomor Kontrak, Nomor PI, Nomor PO/Ref, dan Berkas File telah diisi lengkap!")
 
     with tab_list:
         st.markdown("#### 🔍 Penelusuran Berdasarkan Kamar Dokumen & Kontrak")
@@ -190,7 +205,6 @@ def tampilkan_arsip_pendukung():
                         ada_data_ditampilkan = True
                         
                         clean_ket = f" — {ket_val}" if ket_val and ket_val != "-" else ""
-                        # URUTAN TAMPILAN LABEL UTAMA: PO/Ref di depan, diikuti Nomor PI, Kontrak, dan Keterangan
                         display_label = f"📄 PO/Ref [{po_ref_val}] — PI [{pi_val}] — Kontrak [{kontrak_val}]{clean_ket}"
                         
                         with st.expander(display_label):
@@ -218,18 +232,22 @@ def tampilkan_arsip_pendukung():
                                     )
 
                                     if st.button("🗑️ Hapus", key=f"del_kamar_{folder_name}_{file_name}", use_container_width=True):
-                                        try:
-                                            os.remove(file_path)
-                                        except:
-                                            pass
-                                        
-                                        if not df_arsip.empty and 'Path File' in df_arsip.columns:
-                                            df_arsip = df_arsip[~df_arsip['Path File'].astype(str).str.endswith(file_name)]
-                                            df_arsip.to_excel(meta_file_path, index=False)
-                                        
-                                        st.warning(f"Arsip {file_name} berhasil dihapus.")
-                                        st.rerun()
-                        st.markdown("<div style='margin: -15px 0;'></div>", unsafe_allow_html=True)
+                                        # Validasi keamanan hak hapus untuk dokumen privat
+                                        if "PRIVAT" in nama_kamar and not is_finance_or_admin:
+                                            st.error("❌ Anda tidak berhak menghapus dokumen keuangan privat ini!")
+                                        else:
+                                            try:
+                                                os.remove(file_path)
+                                            except:
+                                                pass
+                                            
+                                            if not df_arsip.empty and 'Path File' in df_arsip.columns:
+                                                df_arsip = df_arsip[~df_arsip['Path File'].astype(str).str.endswith(file_name)]
+                                                df_arsip.to_excel(meta_file_path, index=False)
+                                            
+                                            st.warning(f"Arsip {file_name} berhasil dihapus.")
+                                            st.rerun()
+                            st.markdown("<div style='margin: -15px 0;'></div>", unsafe_allow_html=True)
                     
                     if not ada_data_ditampilkan:
                         st.info(f"ℹ️ Tidak ada dokumen valid untuk Nomor Kontrak **[{selected_global_kontrak}]** di kamar {nama_kamar}.")
