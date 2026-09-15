@@ -40,7 +40,6 @@ def muat_database_users_dinamis():
         }
     ]
     
-    # Simpan default ke file excel agar langsung terbentuk
     try:
         df_init = pd.DataFrame(default_users)
         df_init.to_excel(EXCEL_USERS, index=False)
@@ -54,39 +53,57 @@ def render_autentikasi():
         st.session_state["logged_in"] = False
 
     if not st.session_state["logged_in"]:
-        st.markdown("""
-            <div style="max-width: 400px; margin: 50px auto; padding: 25px; background: #1e293b; border-radius: 10px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                <h3 style="text-align: center; margin-bottom: 20px;">🔐 Login Sistem PT BSS</h3>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        with st.form("form_login"):
-            username_input = st.text_input("Username / Email")
-            password_input = st.text_input("Password", type="password")
-            submit_login = st.form_submit_button("Masuk Sistem", use_container_width=True)
+        # Layout tengah layar yang proporsional
+        col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
+        with col_l2:
+            st.markdown("""
+                <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 24px 20px; border-radius: 12px 12px 0 0; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                    <div style="font-size: 28px; margin-bottom: 6px;">🔐</div>
+                    <h3 style="margin: 0; font-size: 19px; font-weight: 700; letter-spacing: 0.3px;">PT Banggai Sentral Sulawesi</h3>
+                    <p style="margin: 4px 0 0 0; font-size: 11.5px; color: #94a3b8; font-weight: 400;">Sistem Pengelolaan Proforma Invoice & Keuangan</p>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            # Kartu kontainer form dengan latar belakang putih bersih & border elegan
+            with st.form("form_login_modern"):
+                st.markdown("""
+                    <div style="padding-top: 5px;"></div>
+                """, unsafe_allow_html=True)
+                
+                username_input = st.text_input("Username / Email", placeholder="Masukkan email atau username...")
+                password_input = st.text_input("Password", type="password", placeholder="Masukkan kata sandi...")
+                
+                st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
+                submit_login = st.form_submit_button("Masuk Sistem", use_container_width=True, type="primary")
 
-            if submit_login:
-                users = muat_database_users_dinamis()
-                hashed_pw = hash_password(password_input)
-                
-                user_match = next((u for u in users if str(u.get("Username", "")).strip().lower() == username_input.strip().lower() and str(u.get("Password", "")) == hashed_pw), None)
-                
-                if user_match:
-                    st.session_state["logged_in"] = True
-                    st.session_state["current_user"] = user_match.get("Username")
-                    st.session_state["current_role"] = user_match.get("Role")
-                    st.session_state["nama_lengkap"] = user_match.get("Nama Lengkap")
-                    st.success("✅ Login berhasil! Memuat sistem...")
-                    st.rerun()
-                else:
-                    st.error("❌ Username atau Password salah!")
+                if submit_login:
+                    users = muat_database_users_dinamis()
+                    hashed_pw = hash_password(password_input)
+                    
+                    user_match = next((u for u in users if str(u.get("Username", "")).strip().lower() == username_input.strip().lower() and str(u.get("Password", "")) == hashed_pw), None)
+                    
+                    if user_match:
+                        st.session_state["logged_in"] = True
+                        st.session_state["current_user"] = user_match.get("Username")
+                        st.session_state["current_role"] = user_match.get("Role")
+                        st.session_state["nama_lengkap"] = user_match.get("Nama Lengkap")
+                        st.success("✅ Login berhasil! Memuat sistem...")
+                        st.rerun()
+                    else:
+                        st.error("❌ Username atau Password salah!")
+            
+            st.markdown("""
+                <div style="text-align: center; margin-top: 15px; font-size: 10.5px; color: #64748b;">
+                    Protected System • PT BSS Internal Access Only
+                </div>
+            """, unsafe_allow_html=True)
         return False
     
     return True
 
 def render_panel_manajemen_akun():
     st.markdown("#### 👥 Panel Manajemen Akun & Kredensial Pengguna")
-    st.info("💡 Menu ini digunakan oleh Super Admin untuk menambah, melihat, atau menghapus akun pengguna secara dinamis.")
+    st.info("💡 Menu ini dikelola sepenuhnya oleh Super Admin untuk menambah, melihat, atau menghapus akun kredensial akses sistem.")
 
     if not os.path.exists(DIR_DATABASE):
         os.makedirs(DIR_DATABASE)
@@ -97,7 +114,7 @@ def render_panel_manajemen_akun():
     if not df_users.empty:
         df_display = df_users.copy()
         if "Password" in df_display.columns:
-            df_display["Password"] = "******** (Protected)"
+            df_display["Password"] = "******** (Enkripsi Aman)"
         st.markdown("##### 📋 Daftar Akun Aktif dalam Sistem")
         st.dataframe(df_display, use_container_width=True, hide_index=True)
 
@@ -114,7 +131,7 @@ def render_panel_manajemen_akun():
             new_role = st.selectbox("Hak Akses (Role)", ["Project Support", "Admin Support", "Management", "Super Admin"])
             new_dept = st.text_input("Departemen / Unit Kerja")
 
-        submit_tambah = st.form_submit_button("💾 Simpan Akun Baru", use_container_width=True)
+        submit_tambah = st.form_submit_button("💾 Simpan Akun Baru", use_container_width=True, type="primary")
 
         if submit_tambah:
             if not new_username or not new_password or not new_nama:
