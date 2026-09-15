@@ -13,7 +13,7 @@ def tampilkan_arsip_pendukung():
         </div>
     """, unsafe_allow_html=True)
 
-    # Identifikasi role user yang sedang aktif untuk pengamanan dokumen privat keuangan
+    # Identifikasi role user yang aktif untuk pengamanan dokumen privat keuangan
     current_role_user = str(st.session_state.get("current_role", "")).strip().lower()
     is_finance_or_admin = current_role_user in ["finance", "super admin", "admin"]
 
@@ -34,9 +34,12 @@ def tampilkan_arsip_pendukung():
         "Korespondensi / Lainnya": "09_Korespondensi"
     }
 
-    # PENGAMANAN PRIVASI: Tambahkan kamar khusus dokumen pajak & finansial rahasia jika role adalah Finance / Super Admin
+    # PENGAMANAN PRIVASI: Tambahkan 4 pilihan kamar khusus dokumen finansial & pajak jika role adalah Finance / Super Admin
     if is_finance_or_admin:
-        kamar_dokumen["🔒 [PRIVAT] Faktur Pajak & Dokumen Finansial"] = "10_Privat_Faktur_Pajak_Finance"
+        kamar_dokumen["🔒 [PRIVAT] 1. Dokumen Invoice Resmi"] = "10_Privat_Invoice_Resmi"
+        kamar_dokumen["🔒 [PRIVAT] 2. Dokumen Faktur Pajak"] = "11_Privat_Faktur_Pajak"
+        kamar_dokumen["🔒 [PRIVAT] 3. Dokumen SSP PPN"] = "12_Privat_SSP_PPN"
+        kamar_dokumen["🔒 [PRIVAT] 4. Dokumen Bukti Potong PPh"] = "13_Privat_Bukti_Potong_PPh"
 
     for nama_kamar, folder_name in kamar_dokumen.items():
         kamar_path = os.path.join(DIR_ARJEP, folder_name)
@@ -82,7 +85,7 @@ def tampilkan_arsip_pendukung():
         st.markdown("#### 📥 Form Upload Dokumen dengan Identifikasi Ganda (Nomor PI & Nomor PO/Ref)")
         
         if not is_finance_or_admin:
-            st.info("ℹ️ Catatan: Kategori kamar dokumen privat finansial (Faktur Pajak) disembunyikan dan hanya dapat diakses oleh bagian Finance & Super Admin.")
+            st.info("ℹ️ Catatan: Kategori kamar dokumen privat finansial (Invoice, Faktur Pajak, SSP PPN, Bukti Potong PPh) disembunyikan dan hanya dapat diakses oleh bagian Finance & Super Admin.")
 
         with st.form("form_upload_arsip_kamar", clear_on_submit=True):
             col1, col2 = st.columns(2)
