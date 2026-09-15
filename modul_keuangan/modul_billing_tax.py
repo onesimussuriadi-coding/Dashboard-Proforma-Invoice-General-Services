@@ -697,12 +697,12 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             if keterangan_row:
                                 desc_html += f'<div style="font-size: 10.5px; color: #334155; line-height: 1.35;">{keterangan_row}</div>'
 
-                            # SATUAN DIGABUNG DI SEBELAH KANAN ANGKA (SEBARIS)
+                            # PENAMBAHAN WHITE-SPACE: NOWRAP AGAR SATUAN TIDAK PERNAH TURUN KE BAWAH
                             tabel_item_html += f"""
                             <tr>
                                 <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; font-weight: bold; background-color: #fafafa;">{idx_m2}</td>
                                 <td style="border: 1px solid #94a3b8; padding: 12px 10px; vertical-align: top !important; word-break: break-word;">{desc_html}</td>
-                                <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; font-weight: 500; white-space: nowrap;">{qty_val:,.2f} {satuan_val}</td>
+                                <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; font-weight: 500; white-space: nowrap !important;">{qty_val:,.2f} {satuan_val}</td>
                                 <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px;">Rp {harga_satuan_val:,.2f}</td>
                                 <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {amount_murni_row:,.2f}</td>
                             </tr>
