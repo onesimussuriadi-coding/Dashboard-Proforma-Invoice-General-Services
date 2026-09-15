@@ -525,7 +525,11 @@ def tampilkan_pemantauan_pembayaran():
     all_inv_no_contract = []
     for inv in inv_list_filtered_contract:
         val_inv = str(inv.get(col_key_inv, inv.get("Nomor Invoice Resmi", ""))).strip()
-        if val_inv and val_inv != 'nan' and len(val_inv) > 1 and val_inv != str(form_kontrak_pilih).strip():
+        # Validasi ketat untuk menghindari data kosong, nan, atau stempel waktu (timestamp)
+        if (val_inv and val_inv != 'nan' and len(val_inv) > 1 and 
+            val_inv != str(form_kontrak_pilih).strip() and 
+            not re.match(r'^\d{4}-\d{2}-\d{2}', val_inv)):
+            
             all_inv_no_contract.append(val_inv)
 
     all_inv_no_contract = list(dict.fromkeys(all_inv_no_contract))
@@ -649,11 +653,9 @@ def tampilkan_pemantauan_pembayaran():
         st.markdown("---")
         st.markdown("##### 💵 Rincian Potongan Pajak & Penerimaan Kas/Bank (Deteksi Otomatis Management Fee)")
 
-        # --- FITUR PPH OTOMATIS BERBASIS BASIS PPH (MANAGEMENT FEE / DPP) ---
         col_opt1, col_opt2 = st.columns(2)
         with col_opt1:
             opsi_tarif_pph = ["Tanpa PPh / 0%", "1%", "1.5%", "1.75%", "2%", "2.5%", "3%", "4%", "Custom (Manual)"]
-            # Default index: 4 adalah 2% (sesuai standar PPh jasa / management fee)
             selected_tarif_pph = st.selectbox("Pilih Tarif PPh (Otomatis membaca Management Fee / DPP):", opsi_tarif_pph, index=4, key="select_tarif_pph_auto")
         
         calculated_auto_pph = 0.0
@@ -698,7 +700,6 @@ def tampilkan_pemantauan_pembayaran():
         with col_pp2:
             potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Otomatis dari PPN Tagihan):", min_value=0.0, value=default_pot_wapu, step=1000.0, key="input_pot_wapu")
 
-        # Nominal penerimaan bersih bank otomatis: Total Tagihan - PPh - PPN WAPU
         nominal_bank_seharusnya = max(0.0, total_tagihan_inc_ppn - potongan_pph - potongan_ppn_wapu)
         st.markdown(f"💡 **Nilai Bersih Seharusnya Diterima Bank (Otomatis):** `{fmt_rp(nominal_bank_seharusnya)}` *(Total Tagihan - PPh - PPN WAPU)*")
         
