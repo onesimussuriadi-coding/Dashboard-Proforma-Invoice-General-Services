@@ -139,32 +139,59 @@ MAPPING_HEADER_INVOICE = {
 }
 REVERSE_MAPPING_HEADER = {v: k for k, v in MAPPING_HEADER_INVOICE.items()}
 
-# --- FORMATTING EXCEL OTOMATIS (SAFE WRITE & AUTO FIT) ---
+# --- FORMATTING EXCEL PROFESIONAL (HIJAU MUDA + TEKS HITAM + ZEBRA + BORDER TEGAS + AUTO-FIT) ---
 def terapkan_format_excel_profesional(worksheet, df):
     if df.empty: return
-    header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
-    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    
+    # 1. Header: Hijau Muda Menyala dengan Teks Hitam Tebal
+    header_fill = PatternFill(start_color="A7F3D0", end_color="A7F3D0", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="000000")
     header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    thin_border = Border(left=Side(style='thin', color='CBD5E1'), right=Side(style='thin', color='CBD5E1'),
-                         top=Side(style='thin', color='CBD5E1'), bottom=Side(style='thin', color='CBD5E1'))
+    
+    # 2. Zebra striping (Baris selang-seling warna putih dan abu-abu sangat muda)
+    zebra_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+    white_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+    
+    # 3. Garis Tepi (Borders) tipis yang jelas untuk setiap sel
+    thin_border = Border(
+        left=Side(style='thin', color='CBD5E1'), 
+        right=Side(style='thin', color='CBD5E1'),
+        top=Side(style='thin', color='CBD5E1'), 
+        bottom=Side(style='thin', color='CBD5E1')
+    )
 
     max_col_letter = worksheet.cell(row=1, column=len(df.columns)).column_letter
     worksheet.auto_filter.ref = f"A1:{max_col_letter}{len(df) + 1}"
 
+    # Terapkan Format ke Header Kolom
     for col_idx in range(1, len(df.columns) + 1):
         cell = worksheet.cell(row=1, column=col_idx)
-        cell.fill = header_fill; cell.font = header_font; cell.alignment = header_align; cell.border = thin_border
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_align
+        cell.border = thin_border
+        worksheet.row_dimensions[1].height = 25
 
+    # Terapkan Format ke Baris Data (Zebra Striping, Border, Teks Hitam, Alignment)
+    for row_idx in range(2, len(df) + 2):
+        row_fill = zebra_fill if row_idx % 2 == 0 else white_fill
+        worksheet.row_dimensions[row_idx].height = 20
+        for col_idx in range(1, len(df.columns) + 1):
+            cell = worksheet.cell(row=row_idx, column=col_idx)
+            cell.fill = row_fill
+            cell.border = thin_border
+            cell.font = Font(name="Calibri", size=10, color="000000")
+            cell.alignment = Alignment(vertical="center", horizontal="left")
+
+    # 4. Otomatis Sesuaikan Lebar Kolom (Auto-fit) agar tidak terpotong
     for col in worksheet.columns:
         max_len = 0
         col_letter = col[0].column_letter
         for cell in col:
             val_str = str(cell.value or '')
-            cell.border = thin_border
-            cell.font = Font(name="Calibri", size=10)
-            if cell.row > 1: cell.alignment = Alignment(vertical="center")
-            if len(val_str) > max_len: max_len = len(val_str)
-        worksheet.column_dimensions[col_letter].width = min(max(max_len + 4, 14), 60)
+            if len(val_str) > max_len: 
+                max_len = len(val_str)
+        worksheet.column_dimensions[col_letter].width = min(max(max_len + 5, 16), 55)
 
 # --- PENYIMPANAN FOLDER & LOKAL DATABASE ---
 DIR_DATABASE = "database_penyimpanan_aman"
@@ -394,7 +421,6 @@ if form_login_sistem():
         tampilkan_timesheet(muat_data_transaksi())
 
     elif modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
-        # DIPANGGIL DARI MODUL TERPISAH (modul_0_referensi.py)
         tampilkan_modul_0_referensi(
             menu=menu,
             muat_master_referensi_func=muat_master_referensi,
@@ -413,7 +439,6 @@ if form_login_sistem():
         else: tampilkan_billing_tax(tx, menu)
 
     elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
-        # DIPANGGIL DARI MODUL TERPISAH (modul_1_database.py)
         tampilkan_modul_1_database(
             menu=menu,
             saved_db_list=muat_data_invoice(),
@@ -426,7 +451,6 @@ if form_login_sistem():
 
     elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
         if menu == "Input & Proses Rincian Pekerjaan":
-            # DIPANGGIL DARI MODUL TERPISAH (modul_2_rincian.py)
             tampilkan_modul_2_rincian(
                 saved_db=muat_data_invoice(),
                 master_ref_data=muat_master_referensi(),
@@ -456,7 +480,6 @@ if form_login_sistem():
                 elif doc_type == "Opname": tampilkan_opname(target_tx)
                 elif doc_type == "Master Paket Batch": tampilkan_paket_lengkap(target_tx)
         elif menu == "Lihat Akumulasi Riwayat Transaksi":
-            # DIPANGGIL DARI MODUL TERPISAH (modul_2_akumulasi.py)
             tampilkan_akumulasi_riwayat_transaksi(
                 tx_data=muat_data_transaksi(),
                 bersih_angka_func=bersih_angka,

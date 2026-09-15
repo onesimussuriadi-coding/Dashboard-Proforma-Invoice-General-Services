@@ -92,7 +92,22 @@ def tampilkan_pemantauan_pembayaran():
                 dpp_val = 0.0
                 ppn_val = 0.0
                 total_val = 0.0
+                management_fee_val = 0.0
+                add_cost_val = 0.0
                 
+                for k, v in inv.items():
+                    k_low = str(k).lower()
+                    v_str = str(v).lower()
+                    # Deteksi khusus Management Fee / Handling Fee
+                    if any(term in k_low or term in v_str for term in ["management fee", "handling fee", "fee ("]):
+                        val_fee = parse_harga_presisi(v)
+                        if val_fee > 0:
+                            management_fee_val = val_fee
+                    if any(term in k_low or term in v_str for term in ["add cost", "add-cost", "pengiriman"]):
+                        val_ac = parse_harga_presisi(v)
+                        if val_ac > 0:
+                            add_cost_val = val_ac
+
                 for k, v in inv.items():
                     k_low = str(k).lower()
                     if any(kata in k_low for kata in ["dpp", "gross", "bruto", "nilai invoice"]):
@@ -121,12 +136,19 @@ def tampilkan_pemantauan_pembayaran():
                     if ppn_val == 0.0:
                         ppn_val = total_val - dpp_val
 
+                # Jika ada management fee terdeteksi, jadikan basis khusus PPh
+                basis_pph_dpp = management_fee_val if management_fee_val > 0 else dpp_val
+
                 return {
                     "dpp": dpp_val,
                     "ppn": ppn_val,
-                    "total_tagihan": total_val
+                    "total_tagihan": total_val,
+                    "management_fee": management_fee_val,
+                    "add_cost": add_cost_val,
+                    "basis_pph": basis_pph_dpp,
+                    "is_management_fee": management_fee_val > 0
                 }
-        return {"dpp": 0.0, "ppn": 0.0, "total_tagihan": 0.0}
+        return {"dpp": 0.0, "ppn": 0.0, "total_tagihan": 0.0, "management_fee": 0.0, "add_cost": 0.0, "basis_pph": 0.0, "is_management_fee": False}
 
     EXCEL_PAYMENT_STATUS = os.path.join(DIR_DATABASE, "database_status_pembayaran.xlsx")
 
@@ -494,7 +516,6 @@ def tampilkan_pemantauan_pembayaran():
         st.info("ℹ️ Silakan pilih **Nomor Kontrak** pada pilihan nomor 1 di atas untuk memunculkan daftar nomor invoice resmi dari Modul 3.")
         return
 
-    # Ambil nomor invoice dari Modul 3 murni tanpa tercampur nomor kontrak
     inv_list_filtered_contract = []
     for inv in invoice_list:
         c_val_inv = str(inv.get(col_key_kontrak, inv.get("Kontrak No.", inv.get("Nomor Kontrak", "-")))).strip().replace(".0", "")
@@ -549,6 +570,10 @@ def tampilkan_pemantauan_pembayaran():
         dpp_otomatis = dtl_inv_selected["dpp"]
         ppn_otomatis = dtl_inv_selected["ppn"]
         total_tagihan_inc_ppn = dtl_inv_selected["total_tagihan"]
+        management_fee_val = dtl_inv_selected["management_fee"]
+        add_cost_val = dtl_inv_selected["add_cost"]
+        basis_pph_val = dtl_inv_selected["basis_pph"]
+        is_mgmt_fee = dtl_inv_selected["is_management_fee"]
         
         if total_tagihan_inc_ppn == 0.0 and existing_pay:
             total_tagihan_inc_ppn = float(existing_pay.get("Grand Total", 0.0))
@@ -558,10 +583,13 @@ def tampilkan_pemantauan_pembayaran():
         nomor_pi_val = str(inv_data.get(col_key_pi, inv_data.get("PI No.", inv_data.get("Nomor PI", "-")))).strip() if inv_data else "-"
 
         with col_inv_info:
+            info_kategori_teks = f"• <b>Kategori:</b> Management Fee / Add Cost (Fee: {fmt_rp(management_fee_val)})<br>" if is_mgmt_fee else "• <b>Kategori:</b> Standar / Penawaran Biasa<br>"
             st.markdown(f"""
                 <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; font-size: 12px; margin-top: 22px;">
                     <b>📈 Rincian Performa Invoice Terpilih:</b><br>
-                    • DPP (Basis Fee / Management Fee): <code>{fmt_rp(dpp_otomatis)}</code><br>
+                    {info_kategori_teks}
+                    • DPP Utama: <code>{fmt_rp(dpp_otomatis)}</code><br>
+                    • Basis PPh: <code>{fmt_rp(basis_pph_val)}</code><br>
                     • PPN (11%): <code>{fmt_rp(ppn_otomatis)}</code><br>
                     • <b>Total Tagihan (Inc. PPN):</b> <span style="color: #0284c7; font-weight: bold;">{fmt_rp(total_tagihan_inc_ppn)}</span>
                 </div>
@@ -619,38 +647,38 @@ def tampilkan_pemantauan_pembayaran():
                 tgl_pelunasan = None
 
         st.markdown("---")
-        st.markdown("##### 💵 Rincian Potongan Pajak & Penerimaan Kas/Bank (Otomatis & Opsional)")
+        st.markdown("##### 💵 Rincian Potongan Pajak & Penerimaan Kas/Bank (Deteksi Otomatis Management Fee)")
 
-        # --- FITUR TARIF PPH OTOMATIS & OPSIONAL ---
+        # --- FITUR PPH OTOMATIS BERBASIS BASIS PPH (MANAGEMENT FEE / DPP) ---
         col_opt1, col_opt2 = st.columns(2)
         with col_opt1:
             opsi_tarif_pph = ["Tanpa PPh / 0%", "1%", "1.5%", "1.75%", "2%", "2.5%", "3%", "4%", "Custom (Manual)"]
-            default_tarif_choice = "2%" # Default umum PPh 23 jasa
-            selected_tarif_pph = st.selectbox("Pilih Tarif PPh (Otomatis dari DPP / Management Fee):", opsi_tarif_pph, index=4, key="select_tarif_pph_auto")
+            # Default index: 4 adalah 2% (sesuai standar PPh jasa / management fee)
+            selected_tarif_pph = st.selectbox("Pilih Tarif PPh (Otomatis membaca Management Fee / DPP):", opsi_tarif_pph, index=4, key="select_tarif_pph_auto")
         
-        # Hitung PPh otomatis berdasarkan pilihan tarif terhadap DPP (Professional Sum / Management Fee)
         calculated_auto_pph = 0.0
         if selected_tarif_pph == "1%":
-            calculated_auto_pph = dpp_otomatis * 0.01
+            calculated_auto_pph = basis_pph_val * 0.01
         elif selected_tarif_pph == "1.5%":
-            calculated_auto_pph = dpp_otomatis * 0.015
+            calculated_auto_pph = basis_pph_val * 0.015
         elif selected_tarif_pph == "1.75%":
-            calculated_auto_pph = dpp_otomatis * 0.0175
+            calculated_auto_pph = basis_pph_val * 0.0175
         elif selected_tarif_pph == "2%":
-            calculated_auto_pph = dpp_otomatis * 0.02
+            calculated_auto_pph = basis_pph_val * 0.02
         elif selected_tarif_pph == "2.5%":
-            calculated_auto_pph = dpp_otomatis * 0.025
+            calculated_auto_pph = basis_pph_val * 0.025
         elif selected_tarif_pph == "3%":
-            calculated_auto_pph = dpp_otomatis * 0.03
+            calculated_auto_pph = basis_pph_val * 0.03
         elif selected_tarif_pph == "4%":
-            calculated_auto_pph = dpp_otomatis * 0.04
+            calculated_auto_pph = basis_pph_val * 0.04
         else:
             calculated_auto_pph = float(existing_pay.get("Potongan PPh", 0.0))
 
         with col_opt2:
             st.markdown(f"<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("⚡ Terapkan PPh Otomatis", use_container_width=True):
+            if st.button("⚡ Terapkan PPh & PPN WAPU Otomatis", use_container_width=True):
                 st.session_state["val_pph_auto_set"] = calculated_auto_pph
+                st.session_state["val_wapu_auto_set"] = ppn_otomatis
                 st.rerun()
 
         if "val_pph_auto_set" in st.session_state:
@@ -658,13 +686,16 @@ def tampilkan_pemantauan_pembayaran():
         else:
             default_pot_pph = float(existing_pay.get("Potongan PPh", calculated_auto_pph if selected_tarif_pph != "Custom (Manual)" else 0.0))
 
+        if "val_wapu_auto_set" in st.session_state:
+            default_pot_wapu = float(st.session_state.pop("val_wapu_auto_set"))
+        else:
+            default_pot_wapu = float(existing_pay.get("Potongan PPN WAPU", ppn_otomatis))
+
         col_pp1, col_pp2 = st.columns(2)
         with col_pp1:
-            potongan_pph = st.number_input("Potongan PPh (Pasal 23 / 22 - Opsional/Dapat Diedit):", min_value=0.0, value=default_pot_pph, step=1000.0, key="input_pot_pph")
+            potongan_pph = st.number_input("Potongan PPh (Pasal 23 / 22 - Otomatis dari Fee/DPP atau Manual):", min_value=0.0, value=default_pot_pph, step=1000.0, key="input_pot_pph")
 
         with col_pp2:
-            # PPN WAPU membaca otomatis dari total PPN (11%) pada tagihan
-            default_pot_wapu = float(existing_pay.get("Potongan PPN WAPU", ppn_otomatis))
             potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Otomatis dari PPN Tagihan):", min_value=0.0, value=default_pot_wapu, step=1000.0, key="input_pot_wapu")
 
         # Nominal penerimaan bersih bank otomatis: Total Tagihan - PPh - PPN WAPU

@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timedelta, date
 import streamlit.components.v1 as components
 import base64
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 # Import modul kuitansi
 try:
@@ -14,6 +15,63 @@ except ImportError:
     except ImportError as e:
         def tampilkan_kuitansi(transaksi_list):
             st.error(f"Gagal memuat modul kuitansi: {e}")
+
+# --- FORMATTING EXCEL PROFESIONAL (HIJAU MUDA + BORDER + ZEBRA + AUTO-FIT TANPA TERPOTONG) ---
+def terapkan_format_excel_profesional(worksheet, df):
+    if df.empty: return
+    
+    # 1. Header: Hijau Muda Menyala dengan Teks Hitam Tebal
+    header_fill = PatternFill(start_color="A7F3D0", end_color="A7F3D0", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="000000")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    
+    # 2. Zebra striping (Baris selang-seling warna putih dan abu-abu sangat muda)
+    zebra_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+    white_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+    
+    # 3. Garis Tepi (Borders) tipis yang jelas untuk setiap sel
+    thin_border = Border(
+        left=Side(style='thin', color='CBD5E1'), 
+        right=Side(style='thin', color='CBD5E1'),
+        top=Side(style='thin', color='CBD5E1'), 
+        bottom=Side(style='thin', color='CBD5E1')
+    )
+
+    max_col_letter = worksheet.cell(row=1, column=len(df.columns)).column_letter
+    worksheet.auto_filter.ref = f"A1:{max_col_letter}{len(df) + 1}"
+
+    # Terapkan Format ke Header Kolom
+    for col_idx in range(1, len(df.columns) + 1):
+        cell = worksheet.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_align
+        cell.border = thin_border
+        worksheet.row_dimensions[1].height = 30
+
+    # Terapkan Format ke Baris Data (Zebra Striping, Border, Teks Hitam, Alignment, Wrap Text)
+    for row_idx in range(2, len(df) + 2):
+        row_fill = zebra_fill if row_idx % 2 == 0 else white_fill
+        worksheet.row_dimensions[row_idx].height = 24
+        for col_idx in range(1, len(df.columns) + 1):
+            cell = worksheet.cell(row=row_idx, column=col_idx)
+            cell.fill = row_fill
+            cell.border = thin_border
+            cell.font = Font(name="Calibri", size=10, color="000000")
+            # Paksa format teks/general agar nomor panjang tidak jadi 1E+09 atau ########
+            cell.number_format = '@'
+            cell.alignment = Alignment(vertical="center", horizontal="left", wrap_text=False)
+
+    # 4. Otomatis Sesuaikan Lebar Kolom (Auto-fit) dengan ruang ekstra aman agar tidak ada ####
+    for col in worksheet.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            val_str = str(cell.value or '')
+            if len(val_str) > max_len: 
+                max_len = len(val_str)
+        # Berikan lebar minimal 22 agar tanggal, nomor kontrak, dan nominal tampil 100% utuh
+        worksheet.column_dimensions[col_letter].width = min(max(max_len + 6, 22), 65)
 
 def sort_pi_key(pi_str):
     try:
@@ -125,7 +183,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
     def muat_data_billing():
         if os.path.exists(EXCEL_BILLING):
             try:
-                df = pd.read_excel(EXCEL_BILLING)
+                df = pd.read_excel(EXCEL_BILLING, engine='openpyxl')
                 if df is not None and not df.empty:
                     df = df.dropna(how='all')
                     return df.to_dict(orient="records")
@@ -135,13 +193,19 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
     def simpan_data_billing(data_list):
         df_baru = pd.DataFrame(data_list)
-        df_baru.to_excel(EXCEL_BILLING, index=False)
+        try:
+            with pd.ExcelWriter(EXCEL_BILLING, engine='openpyxl') as writer:
+                # index=False MUTLAK AGAR TIDAK ADA KOLOM ANGKA 0, 1, 2...
+                df_baru.to_excel(writer, index=False, sheet_name="Database_Billing")
+                terapkan_format_excel_profesional(writer.sheets["Database_Billing"], df_baru)
+        except Exception as e:
+            st.error(f"⚠️ Error saat menyimpan Excel: {e}")
         st.session_state["db_billing"] = data_list
 
     def muat_database_npwp():
         if os.path.exists(EXCEL_NPWP):
             try:
-                df = pd.read_excel(EXCEL_NPWP)
+                df = pd.read_excel(EXCEL_NPWP, engine='openpyxl')
                 if df is not None and not df.empty:
                     return df.to_dict(orient="records")
             except:

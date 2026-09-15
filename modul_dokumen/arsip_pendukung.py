@@ -17,7 +17,6 @@ def tampilkan_arsip_pendukung():
     if not os.path.exists(DIR_ARJEP):
         os.makedirs(DIR_ARJEP)
 
-    # Kamar dokumen (Kamar Arsip Lama / Unsorted dihapus agar file lama tidak menumpuk/mengganggu)
     kamar_dokumen = {
         "PO (Purchase Order) Customer": "01_Purchase_Order",
         "Proforma Invoice (PI)": "02_Proforma_Invoice",
@@ -36,11 +35,17 @@ def tampilkan_arsip_pendukung():
             os.makedirs(kamar_path)
 
     meta_file_path = os.path.join(DIR_ARJEP, "metadata_arsip.xlsx")
-    columns_meta = ["ID", "Tanggal Upload", "Nomor Kontrak", "Nomor PI / PO / Ref", "Kategori Dokumen", "Nama File Asli", "Path File", "Keterangan"]
+    # Memperbarui kolom metadata untuk memisahkan Nomor PI dan Nomor PO/Ref secara tegas
+    columns_meta = ["ID", "Tanggal Upload", "Nomor Kontrak", "Nomor PI", "Nomor PO / Ref", "Kategori Dokumen", "Nama File Asli", "Path File", "Keterangan"]
     
     if os.path.exists(meta_file_path):
         try:
             df_arsip = pd.read_excel(meta_file_path)
+            # Migrasi kompatibilitas jika file metadata lama menggunakan kolom tunggal
+            if "Nomor PI / PO / Ref" in df_arsip.columns and "Nomor PI" not in df_arsip.columns:
+                df_arsip["Nomor PI"] = df_arsip["Nomor PI / PO / Ref"]
+                df_arsip["Nomor PO / Ref"] = df_arsip["Nomor PI / PO / Ref"]
+            
             for col in columns_meta:
                 if col not in df_arsip.columns:
                     df_arsip[col] = "-"
@@ -49,15 +54,12 @@ def tampilkan_arsip_pendukung():
     else:
         df_arsip = pd.DataFrame(columns=columns_meta)
 
-    # Bersihkan metadata dari data yang tidak memiliki nomor kontrak atau referensi yang valid (nan / -)
+    # Bersihkan metadata dari data kosong
     if not df_arsip.empty:
         df_arsip = df_arsip[
             (df_arsip['Nomor Kontrak'].astype(str).str.strip().str.lower() != 'nan') &
             (df_arsip['Nomor Kontrak'].astype(str).str.strip() != '-') &
-            (df_arsip['Nomor Kontrak'].astype(str).str.strip() != '') &
-            (df_arsip['Nomor PI / PO / Ref'].astype(str).str.strip().str.lower() != 'nan') &
-            (df_arsip['Nomor PI / PO / Ref'].astype(str).str.strip() != '-') &
-            (df_arsip['Nomor PI / PO / Ref'].astype(str).str.strip() != '')
+            (df_arsip['Nomor Kontrak'].astype(str).str.strip() != '')
         ]
         df_arsip.to_excel(meta_file_path, index=False)
 
@@ -71,18 +73,19 @@ def tampilkan_arsip_pendukung():
     tab_upload, tab_list = st.tabs(["📤 Upload Dokumen Baru ke Kamar", "🗂️ Daftar & Telusuri Berdasarkan Kamar"])
 
     with tab_upload:
-        st.markdown("#### Form Upload Dokumen dengan Identifikasi Kontrak")
+        st.markdown("#### 📥 Form Upload Dokumen dengan Identifikasi Ganda (Nomor PI & Nomor PO/Ref)")
         with st.form("form_upload_arsip_kamar", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
                 pilihan_kontrak_cb = st.selectbox("Pilih Nomor Kontrak Rujukan *", opsi_dropdown_kontrak)
-                input_kontrak_manual = st.text_input("✍️ Masukkan Nomor Kontrak Baru (Jika memilih opsi '[Ketik Manual]' di atas):", placeholder="Contoh: 7201250141")
+                input_kontrak_manual = st.text_input("✍️ Masukkan Nomor Kontrak Baru:", placeholder="Contoh: 7201250141")
                 
-                pi_po_ref = st.text_input("Nomor Referensi (PI / PO / CTR / WO) *", placeholder="Contoh: PI-010, PO-4500011581, CTR-05")
+                nomor_pi_input = st.text_input("Nomor Proforma Invoice (PI) *", placeholder="Contoh: 005/BSS-JOB/WS/V/2026")
+                nomor_po_ref_input = st.text_input("Nomor PO / Referensi (WO/CTR) *", placeholder="Contoh: 4500011683")
                 
                 kategori_dok = st.selectbox("Pilih Kamar / Kategori Dokumen", list(kamar_dokumen.keys()))
             with col2:
-                keterangan_dok = st.text_area("Keterangan Tambahan / Detail Dokumen", placeholder="Catatan singkat mengenai dokumen ini...")
+                keterangan_dok = st.text_area("Scope of Work / Keterangan Tambahan *", placeholder="Contoh: Transport pengangkut electric cable pendukung wellservice camp...")
                 uploaded_file = st.file_uploader("Pilih Berkas (PDF, Gambar, Word, Excel, ZIP)", type=["pdf", "png", "jpg", "jpeg", "docx", "xlsx", "zip"])
 
             submit_upload = st.form_submit_button("💾 Simpan & Masukkan ke Kamar", use_container_width=True)
@@ -95,7 +98,7 @@ def tampilkan_arsip_pendukung():
                 else:
                     final_nomor_kontrak = ""
 
-                if uploaded_file is not None and final_nomor_kontrak and pi_po_ref.strip():
+                if uploaded_file is not None and final_nomor_kontrak and nomor_pi_input.strip() and nomor_po_ref_input.strip():
                     try:
                         target_folder_name = kamar_dokumen[kategori_dok]
                         target_dir = os.path.join(DIR_ARJEP, target_folder_name)
@@ -119,7 +122,8 @@ def tampilkan_arsip_pendukung():
                             "ID": new_id,
                             "Tanggal Upload": datetime.now().strftime("%Y-%m-%d %H:%M"),
                             "Nomor Kontrak": final_nomor_kontrak,
-                            "Nomor PI / PO / Ref": pi_po_ref.strip(),
+                            "Nomor PI": nomor_pi_input.strip(),
+                            "Nomor PO / Ref": nomor_po_ref_input.strip(),
                             "Kategori Dokumen": kategori_dok,
                             "Nama File Asli": final_saved_filename,
                             "Path File": target_path,
@@ -129,15 +133,15 @@ def tampilkan_arsip_pendukung():
                         df_arsip = pd.concat([df_arsip, pd.DataFrame([new_row])], ignore_index=True)
                         df_arsip.to_excel(meta_file_path, index=False)
 
-                        st.success(f"✅ Berkas [{final_saved_filename}] berhasil diunggah ke kamar **[{kategori_dok}]** dengan Kontrak **[{final_nomor_kontrak}]**!")
+                        st.success(f"✅ Berkas [{final_saved_filename}] berhasil diunggah ke kamar **[{kategori_dok}]** dengan PO [{nomor_po_ref_input}] & PI [{nomor_pi_input}]!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Gagal mengunggah file: {e}")
                 else:
-                    st.warning("⚠️ Pastikan Nomor Kontrak, Nomor Referensi, dan Berkas File telah diisi dengan benar!")
+                    st.warning("⚠️ Pastikan Nomor Kontrak, Nomor PI, Nomor PO/Ref, dan Berkas File telah diisi lengkap!")
 
     with tab_list:
-        st.markdown("#### Penelusuran Berdasarkan Kamar Dokumen & Kontrak")
+        st.markdown("#### 🔍 Penelusuran Berdasarkan Kamar Dokumen & Kontrak")
         
         if list_kontrak_unik:
             selected_global_kontrak = st.selectbox(
@@ -168,16 +172,16 @@ def tampilkan_arsip_pendukung():
                         
                         matched_meta = df_arsip[df_arsip['Path File'].astype(str).str.endswith(file_name)] if not df_arsip.empty else pd.DataFrame()
                         
-                        # HANYA TAMPILKAN JIKA DATA METADATA LENGKAP (ADA NOMOR KONTRAK & REFERENSI VALID)
                         if matched_meta.empty:
                             continue
                         
                         row_meta = matched_meta.iloc[0]
                         kontrak_val = str(row_meta.get('Nomor Kontrak', '-'))
-                        pi_po_val = str(row_meta.get('Nomor PI / PO / Ref', '-'))
+                        pi_val = str(row_meta.get('Nomor PI', row_meta.get('Nomor PI / PO / Ref', '-')))
+                        po_ref_val = str(row_meta.get('Nomor PO / Ref', '-'))
                         ket_val = str(row_meta.get('Keterangan', '-'))
 
-                        if not kontrak_val or kontrak_val in ["-", "nan", "NaN"] or not pi_po_val or pi_po_val in ["-", "nan", "NaN"]:
+                        if not kontrak_val or kontrak_val in ["-", "nan", "NaN"]:
                             continue
 
                         if selected_global_kontrak != "-- Semua Nomor Kontrak --" and kontrak_val != selected_global_kontrak:
@@ -186,16 +190,18 @@ def tampilkan_arsip_pendukung():
                         ada_data_ditampilkan = True
                         
                         clean_ket = f" — {ket_val}" if ket_val and ket_val != "-" else ""
-                        display_label = f"📄 Kontrak [{kontrak_val}] — Ref [{pi_po_val}]{clean_ket}"
+                        # URUTAN TAMPILAN LABEL UTAMA: PO/Ref di depan, diikuti Nomor PI, Kontrak, dan Keterangan
+                        display_label = f"📄 PO/Ref [{po_ref_val}] — PI [{pi_val}] — Kontrak [{kontrak_val}]{clean_ket}"
                         
                         with st.expander(display_label):
                             col_info, col_act = st.columns([3, 1])
                             with col_info:
                                 st.markdown(f"""
 <div style="line-height: 1.6; font-size: 13px; margin-bottom: -10px;">
+• <b>Nomor PO / Referensi Utama:</b> {po_ref_val}<br>
+• <b>Nomor Proforma Invoice (PI):</b> {pi_val}<br>
 • <b>Nomor Kontrak:</b> {kontrak_val}<br>
-• <b>Nomor Referensi (PI / PO / CTR / WO):</b> {pi_po_val}<br>
-• <b>Keterangan:</b> {ket_val}
+• <b>Scope of Work / Keterangan:</b> {ket_val}
 </div>
 """, unsafe_allow_html=True)
                             with col_act:
