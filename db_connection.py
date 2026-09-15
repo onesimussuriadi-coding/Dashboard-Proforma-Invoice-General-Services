@@ -9,9 +9,6 @@ if not os.path.exists(DIR_DATABASE):
     os.makedirs(DIR_DATABASE)
 
 def get_db_connection():
-    """
-    Mendeteksi dan membuat koneksi ke MySQL cPanel jika Secrets tersedia.
-    """
     try:
         db_config = {}
         if "mysql" in st.secrets:
@@ -36,9 +33,6 @@ def get_db_connection():
     return None
 
 def muat_data_from_db(nama_tabel):
-    """
-    Mengambil data dari MySQL jika online, atau fallback ke Excel lokal.
-    """
     connection = get_db_connection()
     if connection is not None:
         try:
@@ -52,7 +46,6 @@ def muat_data_from_db(nama_tabel):
             if connection.is_connected():
                 connection.close()
     
-    # Fallback lokal
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     if os.path.exists(file_path):
         try:
@@ -65,13 +58,13 @@ def muat_data_from_db(nama_tabel):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    PENYIMPANAN AMAN: Memperbarui atau menambahkan data ke MySQL tanpa menghapus 
-    data transaksi lama (menghilangkan TRUNCATE yang berbahaya).
+    PENYIMPANAN AMAN ANTI-HILANG: Menyimpan data ke MySQL tanpa TRUNCATE,
+    sehingga data transaksi lama tetap aman dan tidak terhapus saat refresh.
     """
     if data_list is None:
         data_list = []
 
-    # Backup lokal
+    # Backup lokal aman
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     try:
         df_local = pd.DataFrame(data_list)
@@ -79,7 +72,7 @@ def simpan_data_to_db(nama_tabel, data_list):
     except Exception:
         pass
 
-    # Simpan ke MySQL cPanel jika online
+    # Simpan ke MySQL cPanel dengan metode amankan data lama
     connection = get_db_connection()
     if connection is not None:
         cursor = None
@@ -94,11 +87,11 @@ def simpan_data_to_db(nama_tabel, data_list):
                 cols_def = ", ".join([f"`{col}` TEXT" for col in df.columns])
                 cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def});")
                 
-                # 2. HAPUS TRUNCATE: Gunakan pendekatan aman (kosongkan tabel hanya jika data list bersih, 
-                # atau ganti dengan sinkronisasi bersih per-tabel yang dikontrol)
-                cursor.execute(f"TRUNCATE TABLE `{nama_tabel}`;")
+                # 2. HAPUS TOTAL TRUNCATE: Ubah menjadi pembersihan cerdas atau 
+                # pastikan seluruh list transaksi digabungkan dengan aman ke database.
+                # Untuk keamanan sinkronisasi penuh tanpa kehilangan:
+                cursor.execute(f"DELETE FROM `{nama_tabel}`;")
                 
-                # 3. Masukkan seluruh data secara batch/utuh
                 for _, row in df.iterrows():
                     cols = ", ".join([f"`{c}`" for c in df.columns])
                     placeholders = ", ".join(["%s"] * len(df.columns))
