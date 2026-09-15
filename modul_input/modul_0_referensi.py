@@ -3,13 +3,10 @@ import pandas as pd
 from datetime import datetime
 
 def tampilkan_modul_0_referensi(menu, muat_master_referensi_func, simpan_master_referensi_func, muat_data_invoice_func, bersih_angka_func):
-    # Identifikasi role user aktif untuk pengamanan Read-Only Mutlak Direksi
     current_role_user = str(st.session_state.get("current_role", "")).strip().lower()
     is_management = current_role_user in ["management", "direksi"]
 
     query_params = st.query_params
-    
-    # Cegah aksi hapus jika user adalah management
     if "delete_master_idx" in query_params:
         if is_management:
             st.error("❌ Akses Ditolak! Akun Direksi berada dalam mode Read-Only dan tidak diizinkan menghapus data.")
@@ -28,7 +25,6 @@ def tampilkan_modul_0_referensi(menu, muat_master_referensi_func, simpan_master_
             except:
                 pass
 
-    # Cegah aksi edit jika user adalah management
     if "edit_master_idx" in query_params:
         if is_management:
             st.warning("⚠️ Akun Direksi berada dalam mode Read-Only (Hanya Lihat).")
@@ -52,19 +48,17 @@ def tampilkan_modul_0_referensi(menu, muat_master_referensi_func, simpan_master_
             </div>
         """, unsafe_allow_html=True)
 
-        # PENGAMANAN MUTLAK DIREKSI: Jika Management, blokir form input & edit total
         if is_management:
-            st.info("🔒 **Mode Direksi (Read-Only):** Formulir input dan pengelolaan master referensi dikunci. Anda dapat melihat daftar referensi pada menu penelusuran.")
-            return
+            st.info("🔒 **Mode Direksi (Read-Only):** Formulir master referensi ditampilkan dalam mode baca saja (Read-Only). Seluruh tombol input dan perubahan data dinonaktifkan.")
 
         master_data_live = muat_master_referensi_func()
         opsi_panggil_uraian = ["-- Buat Data Referensi Baru --"] + [f"{str(m.get('Uraian Pekerjaan', m.get('Deskripsi Pekerjaan', '')))[:60]}... (Kontrak: {str(m.get('Nomor Kontrak',''))})" for m in master_data_live]
         
         col_p_ref, col_b_ref = st.columns([3, 1])
         with col_p_ref:
-            pilihan_panggil_uraian = st.selectbox("Panggil Ulang Berdasarkan Uraian Pekerjaan:", opsi_panggil_uraian)
+            pilihan_panggil_uraian = st.selectbox("Panggil Ulang Berdasarkan Uraian Pekerjaan:", opsi_panggil_uraian, disabled=is_management)
         with col_b_ref:
-            if st.button("🔄 Panggil Data Ini"):
+            if st.button("🔄 Panggil Data Ini", disabled=is_management):
                 if pilihan_panggil_uraian == "-- Buat Data Referensi Baru --":
                     st.session_state["edit_master_index"] = None
                 else:
@@ -78,7 +72,7 @@ def tampilkan_modul_0_referensi(menu, muat_master_referensi_func, simpan_master_
         def_ref = {}
         if st.session_state.get("edit_master_index") is not None and st.session_state["edit_master_index"] < len(master_data_live):
             def_ref = master_data_live[st.session_state["edit_master_index"]]
-            st.info("📋 **Mode Edit Aktif:** Anda sedang mengubah data referensi yang dipanggil.")
+            st.info("📋 **Mode Edit Aktif:** Anda sedang melihat data referensi yang dipanggil.")
 
         saved_db = muat_data_invoice_func()
         
@@ -99,37 +93,41 @@ def tampilkan_modul_0_referensi(menu, muat_master_referensi_func, simpan_master_
             with col1:
                 def_kontrak_val = str(def_ref.get("Nomor Kontrak", combined_kontrak_list[0] if combined_kontrak_list else ""))
                 idx_kontrak_ref = combined_kontrak_list.index(def_kontrak_val) if def_kontrak_val in combined_kontrak_list else 0
-                kontrak_pilih = st.selectbox("Nomor Kontrak Rujukan", combined_kontrak_list, index=idx_kontrak_ref)
+                kontrak_pilih = st.selectbox("Nomor Kontrak Rujukan", combined_kontrak_list, index=idx_kontrak_ref, disabled=is_management)
                 
-                kontrak_manual = st.text_input("✍️ Ketik Nomor Kontrak Baru (Jika memilih opsi 'Kontrak Baru' di atas):")
+                kontrak_manual = st.text_input("✍️ Ketik Nomor Kontrak Baru (Jika memilih opsi 'Kontrak Baru' di atas):", disabled=is_management)
                 
                 def_kat_val = str(def_ref.get("Kategori", combined_kat_list[0])).strip().upper()
                 idx_kat_ref = combined_kat_list.index(def_kat_val) if def_kat_val in combined_kat_list else 0
-                kategori_pilih = st.selectbox("Kategori Pekerjaan", combined_kat_list, index=idx_kat_ref)
+                kategori_pilih = st.selectbox("Kategori Pekerjaan", combined_kat_list, index=idx_kat_ref, disabled=is_management)
                 
-                kategori_manual = st.text_input("✍️ Ketik Nama Kategori Baru (Jika memilih 'Kategori Baru' di atas):")
+                kategori_manual = st.text_input("✍️ Ketik Nama Kategori Baru (Jika memilih 'Kategori Baru' di atas):", disabled=is_management)
 
                 def_unit_val = str(def_ref.get("Unit", combined_unit_list[0]))
                 idx_unit_ref = combined_unit_list.index(def_unit_val) if def_unit_val in combined_unit_list else 0
-                unit_pilih = st.selectbox("Satuan Unit", combined_unit_list, index=idx_unit_ref)
+                unit_pilih = st.selectbox("Satuan Unit", combined_unit_list, index=idx_unit_ref, disabled=is_management)
                 
-                unit_manual = st.text_input("✍️ Ketik Nama Satuan Baru (Jika memilih 'Satuan Baru' di atas, misal: m3, EA, AU):")
+                unit_manual = st.text_input("✍️ Ketik Nama Satuan Baru (Jika memilih 'Satuan Baru' di atas, misal: m3, EA, AU):", disabled=is_management)
 
             with col2:
                 val_uraian_def = str(def_ref.get("Uraian Pekerjaan", def_ref.get("Deskripsi Pekerjaan", "")))
-                uraian_ref = st.text_area("Uraian Pekerjaan / Spesifikasi Alat", value=val_uraian_def, height=105)
+                uraian_ref = st.text_area("Uraian Pekerjaan / Spesifikasi Alat", value=val_uraian_def, height=105, disabled=is_management)
                 try:
                     val_hs_num = float(def_ref.get("Harga Satuan", 0.0) or 0.0)
                 except:
                     val_hs_num = 0.0
-                harga_satuan_ref = st.number_input("Harga Satuan Tetap (Rp)", min_value=0.0, value=val_hs_num, step=1000.0, format="%.2f")
+                harga_satuan_ref = st.number_input("Harga Satuan Tetap (Rp)", min_value=0.0, value=val_hs_num, step=1000.0, format="%.2f", disabled=is_management)
 
             st.markdown("---")
-            col_sb1, col_sb2 = st.columns(2)
-            with col_sb1:
-                submit_master_baru = st.form_submit_button("💾 Simpan Master Baru")
-            with col_sb2:
-                submit_master_update = st.form_submit_button("📝 Update Data Dipanggil / Save As")
+            if not is_management:
+                col_sb1, col_sb2 = st.columns(2)
+                with col_sb1:
+                    submit_master_baru = st.form_submit_button("💾 Simpan Master Baru")
+                with col_sb2:
+                    submit_master_update = st.form_submit_button("📝 Update Data Dipanggil / Save As")
+            else:
+                submit_master_baru, submit_master_update = False, False
+                st.info("ℹ️ Tombol aksi simpan dan update dinonaktifkan untuk akun Direksi.")
 
             if submit_master_baru or submit_master_update:
                 if kontrak_pilih == "-- Ketik Nomor Kontrak Baru --":
@@ -229,7 +227,6 @@ def tampilkan_modul_0_referensi(menu, muat_master_referensi_func, simpan_master_
                     w_style = "text-align: left;"
                 headers_html += f"<th style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px; {w_style}'>{col}</th>"
             
-            # Kolom Aksi HANYA MUNCUL JIKA BUKAN MANAGEMENT
             if not is_management:
                 headers_html += "<th class='no-print' style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px; text-align: center; width: 120px;'>Aksi</th>"
 
@@ -264,7 +261,6 @@ def tampilkan_modul_0_referensi(menu, muat_master_referensi_func, simpan_master_
                     
                     html_table_rows += f"<td style='border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; {cell_align}'>{val_str}</td>"
                 
-                # Sembunyikan tombol Edit & Hapus jika user adalah Management/Direksi
                 if not is_management:
                     action_buttons = f"""
                         <td class='no-print' style='border: 1px solid #cbd5e1; padding: 8px; text-align: center; white-space: nowrap;'>

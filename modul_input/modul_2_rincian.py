@@ -12,7 +12,6 @@ def tampilkan_modul_2_rincian(
     muat_master_bank_func, 
     simpan_master_bank_func
 ):
-    # Identifikasi role user aktif untuk pengamanan Read-Only Mutlak Direksi
     current_role_user = str(st.session_state.get("current_role", "")).strip().lower()
     is_management = current_role_user in ["management", "direksi"]
 
@@ -87,7 +86,7 @@ def tampilkan_modul_2_rincian(
     if active_pi_load and active_pi_load == str(selected_pi).strip():
         loaded_tx_items = [t for t in existing_tx_list if bersih_angka_func(t.get("PI No.")) == str(active_pi_load).strip()]
         if loaded_tx_items:
-            st.info(f"📋 **Mode Revisi:** Data PI `{active_pi_load}` terpanggil aktif ({len(loaded_tx_items)} baris item).")
+            st.info(f"📋 **Mode Tinjau Rincian:** Data PI `{active_pi_load}` terpanggil aktif ({len(loaded_tx_items)} baris item).")
 
     matched_record = next((item for item in saved_db if bersih_angka_func(item.get(1, item.get("Nomor Kontrak"))) == str(selected_kontrak) and bersih_angka_func(item.get(0, item.get("Proforma Invoice No."))) == str(selected_pi)), saved_db[0] if saved_db else {})
 
@@ -103,7 +102,6 @@ def tampilkan_modul_2_rincian(
     tanggal_po_default_m1 = bersih_angka_func(matched_record.get(9, matched_record.get("Tanggal Purchase Order", "")))
     desc_po_default_m1 = bersih_angka_func(matched_record.get(3, matched_record.get("Lingkup Pekerjaan", "")))
 
-    # --- KOLOM KANAN: MENGISI DATA PO, WO, WAN, TANGGAL & MATA UANG TERLEBIH DAHULU ---
     with col2:
         raw_po_num = nomor_po_default_m1 if (nomor_po_default_m1 and nomor_po_default_m1 != "-") else (loaded_tx_items[0].get("Nomor PO", "") if loaded_tx_items else "")
         def_po_num = bersih_angka_func(raw_po_num)
@@ -123,7 +121,6 @@ def tampilkan_modul_2_rincian(
         tanggal_po = st.text_input("Tanggal PO", def_po_date if def_po_date else "-", disabled=is_management)
         mata_uang = st.text_input("Mata Uang", "IDR", disabled=is_management)
 
-    # --- KOLOM KIRI: LINGKUP PEKERJAAN DIPINDAHKAN KE BAWAH PI AGAR TIDAK ADA RUANG KOSONG ---
     with col1:
         def_desc_po = desc_po_default_m1 if desc_po_default_m1 else (bersih_angka_func(loaded_tx_items[0].get("Deskripsi PO", "")) if loaded_tx_items else "")
         desc_po = st.text_area("Lingkup Pekerjaan", def_desc_po, height=130, disabled=is_management)
@@ -207,10 +204,8 @@ def tampilkan_modul_2_rincian(
 
     st.markdown("---")
     
-    # PENGAMANAN MUTLAK DIREKSI: Jika Management, berikan informasi Read-Only pada lembar rincian
     if is_management:
-        st.info("🔒 **Mode Direksi (Read-Only):** Formulir input rincian pekerjaan dan perhitungan tagihan dikunci. Anda dapat melihat rekapitulasi akumulasi transaksi melalui menu laporan.")
-        return
+        st.info("🔒 **Mode Direksi (Read-Only):** Rincian item pekerjaan dan kontrol perhitungan ditampilkan dalam mode baca saja (Read-Only).")
 
     df_ref = pd.DataFrame(master_ref_data)
     df_ref["Nomor Kontrak Clean"] = df_ref["Nomor Kontrak"].astype(str).str.strip()
@@ -247,7 +242,7 @@ def tampilkan_modul_2_rincian(
                 def_kat_item = str(default_item_data.get("Kategori", list_kat[0] if list_kat else "-")).strip().upper()
                 idx_kat = list_kat.index(def_kat_item) if def_kat_item in list_kat else 0
                 
-                kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}")
+                kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}", disabled=is_management)
             
             is_provisional = "provisional" in str(kat_pilih).lower() or "professional" in str(kat_pilih).lower()
             is_estimated_sum = "estimated" in str(kat_pilih).lower() or "estimasi" in str(kat_pilih).lower()
@@ -260,7 +255,7 @@ def tampilkan_modul_2_rincian(
                     else:
                         default_desc_final = current_desc_val
 
-                    spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_desc_final, key=f"spek_manual_{i}")
+                    spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_desc_final, key=f"spek_manual_{i}", disabled=is_management)
                 else:
                     df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip().upper()]
                     if df_f_kat.empty:
@@ -291,7 +286,7 @@ def tampilkan_modul_2_rincian(
 
                     idx_spek = spek_options_formatted.index(default_display_val) if default_display_val in spek_options_formatted else 0
                     
-                    selected_display_spek = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", spek_options_formatted if spek_options_formatted else ["-"], index=idx_spek, key=f"spek_{i}")
+                    selected_display_spek = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", spek_options_formatted if spek_options_formatted else ["-"], index=idx_spek, key=f"spek_{i}", disabled=is_management)
                     spek_pilih = spek_display_map.get(selected_display_spek, selected_display_spek)
 
             hs_otomatis = 0.0
@@ -320,35 +315,35 @@ def tampilkan_modul_2_rincian(
                     def_qty = float(default_item_data.get("Qty", 1.0) or 1.0)
                 except:
                     def_qty = 1.0
-                q_val = st.number_input(f"Qty {i+1}", value=def_qty, key=f"qty_{i}")
+                q_val = st.number_input(f"Qty {i+1}", value=def_qty, key=f"qty_{i}", disabled=is_management)
             with c_item2:
                 default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg", "Pallet", "Ltr"]
                 existing_u_from_master = df_ref["Unit"].dropna().astype(str).unique().tolist() if "Unit" in df_ref.columns else []
                 u_opts = sorted(list(set(default_u_opts + existing_u_from_master)))
                 def_unit = str(default_item_data.get("Unit", unit_otomatis))
                 idx_u = u_opts.index(def_unit) if def_unit in u_opts else 0
-                u_val = st.selectbox(f"Unit {i+1}", u_opts, index=idx_u, key=f"unit_{i}")
+                u_val = st.selectbox(f"Unit {i+1}", u_opts, index=idx_u, key=f"unit_{i}", disabled=is_management)
             with c_item3:
                 def_tm_str = str(default_item_data.get("Tanggal Mulai", ""))
                 try:
                     def_tm = datetime.strptime(def_tm_str, "%d %b %Y").date()
                 except:
                     def_tm = date.today()
-                tm_val = st.date_input(f"Tanggal Mulai {i+1}", value=def_tm, key=f"tm_{i}")
+                tm_val = st.date_input(f"Tanggal Mulai {i+1}", value=def_tm, key=f"tm_{i}", disabled=is_management)
             with c_item4:
                 def_ts_str = str(default_item_data.get("Tanggal Selesai", ""))
                 try:
                     def_ts = datetime.strptime(def_ts_str, "%d %b %Y").date()
                 except:
                     def_ts = date.today()
-                ts_val = st.date_input(f"Tanggal Selesai {i+1}", value=def_ts, key=f"ts_{i}")
+                ts_val = st.date_input(f"Tanggal Selesai {i+1}", value=def_ts, key=f"ts_{i}", disabled=is_management)
 
             if is_provisional:
                 try:
                     def_harga_manual = float(default_item_data.get("Harga Satuan", 0.0) or 0.0)
                 except:
                     def_harga_manual = 0.0
-                hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i+1} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}")
+                hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i+1} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}", disabled=is_management)
                 hs_final = hs_manual
             else:
                 hs_final = hs_otomatis
@@ -372,7 +367,7 @@ def tampilkan_modul_2_rincian(
                     st.markdown(f"📊 **Estimasi Total Harga:** `{formatted_total}`")
 
             def_ket = str(default_item_data.get("Keterangan", ""))
-            ket_val = st.text_input(f"Keterangan Tambahan {i+1}", value=def_ket, key=f"ket_{i}")
+            ket_val = st.text_input(f"Keterangan Tambahan {i+1}", value=def_ket, key=f"ket_{i}", disabled=is_management)
             st.markdown("---")
 
             items_data_input.append({
@@ -405,18 +400,22 @@ def tampilkan_modul_2_rincian(
         st.markdown(f"### 🧮 **Grand Total Keseluruhan (Kontrol Input):** `{formatted_grand_total}`")
         st.markdown("---")
 
-        col_m1, col_m2 = st.columns(2)
-        with col_m1:
-            submit_tambah_baris = st.form_submit_button("➕ Tambah Baris Pekerjaan")
-        with col_m2:
-            submit_kurang_baris = st.form_submit_button("➖ Kurangi Baris Terakhir")
+        if not is_management:
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                submit_tambah_baris = st.form_submit_button("➕ Tambah Baris Pekerjaan")
+            with col_m2:
+                submit_kurang_baris = st.form_submit_button("➖ Kurangi Baris Terakhir")
 
-        st.markdown("---")
-        col_btn_save, col_btn_dist = st.columns(2)
-        with col_btn_save:
-            submit_simpan_sementara = st.form_submit_button("💾 Simpan / Update Data Sementara", type="secondary")
-        with col_btn_dist:
-            submit_proses_distribusi = st.form_submit_button("🚀 Proses & Distribusikan Data ke Dokumen Turunan", type="primary")
+            st.markdown("---")
+            col_btn_save, col_btn_dist = st.columns(2)
+            with col_btn_save:
+                submit_simpan_sementara = st.form_submit_button("💾 Simpan / Update Data Sementara", type="secondary")
+            with col_btn_dist:
+                submit_proses_distribusi = st.form_submit_button("🚀 Proses & Distribusikan Data ke Dokumen Turunan", type="primary")
+        else:
+            submit_tambah_baris, submit_kurang_baris, submit_simpan_sementara, submit_proses_distribusi = False, False, False, False
+            st.info("ℹ️ Tombol manajemen baris, penyimpanan, dan distribusi data dinonaktifkan untuk akun Direksi.")
 
         if submit_tambah_baris:
             st.session_state.num_rows += 1

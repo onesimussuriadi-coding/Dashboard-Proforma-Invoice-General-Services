@@ -152,12 +152,19 @@ def get_image_base64(uploaded_file):
     return None
 
 def tampilkan_billing_tax(transaksi_list, menu_pilihan):
+    # Deteksi Hak Akses Role (Manajemen / Direksi)
+    current_role_user = str(st.session_state.get("current_role", "")).strip().lower()
+    is_management = current_role_user in ["management", "direksi"]
+
     st.markdown("""
         <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px;">
             <h3 style="margin:0; font-size: 20px;">💰 Modul 3: Invoice, Tax & Kuitansi Management (Accounting Department)</h3>
             <p style="margin:4px 0 0 0; font-size: 12px; color: #34d399;">Panel khusus pengelolaan tagihan resmi, perhitungan pajak (PPN & PPh berbasis Management Fee / Estimasi Sum), dan pencetakan dokumen keuangan terpusat.</p>
         </div>
     """, unsafe_allow_html=True)
+
+    if is_management:
+        st.info("🔒 **Mode Direksi (Read-Only):** Anda masuk sebagai Direksi/Management. Seluruh data, formulir pratinjau, dan rekapitulasi dapat ditinjau dan dicetak secara transparan, namun aksi simpan, ubah, atau hapus data dikunci.")
 
     DIR_DATABASE = "database_penyimpanan_aman"
     if not os.path.exists(DIR_DATABASE):
@@ -182,6 +189,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         return []
 
     def simpan_data_billing(data_list):
+        if is_management:
+            st.warning("⚠️ Akses ditolak: Akun Direksi berada dalam mode Read-Only.")
+            return
         df_baru = pd.DataFrame(data_list)
         try:
             with pd.ExcelWriter(EXCEL_BILLING, engine='openpyxl') as writer:
@@ -295,7 +305,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         
         col_h1, col_h2 = st.columns(2)
         with col_h1:
-            selected_sawanan_m3 = st.selectbox("1️⃣ Pilih Nomor WAN / SA (Indikator Utama):", list_sawanan_valid if list_sawanan_valid else [target_sawanan_val], index=idx_sawanan_def if list_sawanan_valid else 0, key="m3_sel_sawanan")
+            selected_sawanan_m3 = st.selectbox("1️⃣ Pilih Nomor WAN / SA (Indikator Utama):", list_sawanan_valid if list_sawanan_valid else [target_sawanan_val], index=idx_sawanan_def if list_sawanan_valid else 0, key="m3_sel_sawanan", disabled=is_management)
 
         last_selected_wan = st.session_state.get("m3_last_wan_tracked", "")
         if last_selected_wan != selected_sawanan_m3:
@@ -317,7 +327,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             idx_pi_def = list_pi_m3.index(str(target_pi_val))
 
         with col_h2:
-            selected_pi_m3 = st.selectbox("2️⃣ Pilih Nomor Proforma Invoice (PI):", list_pi_m3 if list_pi_m3 else [target_pi_val], index=idx_pi_def if idx_pi_def < len(list_pi_m3) else 0, key="m3_sel_pi")
+            selected_pi_m3 = st.selectbox("2️⃣ Pilih Nomor Proforma Invoice (PI):", list_pi_m3 if list_pi_m3 else [target_pi_val], index=idx_pi_def if idx_pi_def < len(list_pi_m3) else 0, key="m3_sel_pi", disabled=is_management)
 
         matched_transaksi = [t for t in filtered_by_sawanan if str(t.get("PI No.")) == str(selected_pi_m3)]
         selected_po_m3 = matched_transaksi[0].get("Nomor PO", target_po_val) if matched_transaksi else target_po_val
@@ -370,16 +380,16 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 st.markdown(f"**WAN / SA Terpilih:** `{selected_sawanan_m3}`")
                 st.markdown(f"**PI Rujukan Terpilih:** `{selected_pi_m3}`")
                 st.markdown(f"**Nomor PO Otomatis Terikat:** `{selected_po_m3}`")
-                customer_name = st.text_input("Customer / Klien", value=customer_default)
-                alamat_customer = st.text_area("Alamat Klien", value=alamat_default, height=75)
+                customer_name = st.text_input("Customer / Klien", value=customer_default, disabled=is_management)
+                alamat_customer = st.text_area("Alamat Klien", value=alamat_default, height=75, disabled=is_management)
                 
                 npwp_records = st.session_state["db_npwp"]
                 existing_npwp = next((n.get("NPWP") for n in npwp_records if n.get("Customer") == customer_name), "002.796.802.3-081.000")
                 saved_npwp = str(data_edit_aktif.get("NPWP Customer", existing_npwp)) if is_mode_edit else existing_npwp
-                nomor_npwp = st.text_input("Nomor NPWP Customer", value=saved_npwp)
+                nomor_npwp = st.text_input("Nomor NPWP Customer", value=saved_npwp, disabled=is_management)
 
             with col_b2:
-                nomor_invoice_resmi = st.text_input("Nomor Invoice Resmi (Diberikan Accounting)", value=str(data_edit_aktif.get("Nomor Invoice Resmi", "")) if is_mode_edit else "")
+                nomor_invoice_resmi = st.text_input("Nomor Invoice Resmi (Diberikan Accounting)", value=str(data_edit_aktif.get("Nomor Invoice Resmi", "")) if is_mode_edit else "", disabled=is_management)
                 
                 tgl_inv_val = datetime.today().date()
                 if is_mode_edit and data_edit_aktif.get("Tanggal Invoice"):
@@ -387,7 +397,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         tgl_inv_val = datetime.strptime(str(data_edit_aktif.get("Tanggal Invoice")), "%Y-%m-%d").date()
                     except:
                         pass
-                tanggal_invoice = st.date_input("Tanggal Invoice", value=tgl_inv_val)
+                tanggal_invoice = st.date_input("Tanggal Invoice", value=tgl_inv_val, disabled=is_management)
 
                 due_date_val = datetime.today().date() + timedelta(days=30)
                 if is_mode_edit and data_edit_aktif.get("Jatuh Tempo"):
@@ -395,16 +405,16 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         due_date_val = datetime.strptime(str(data_edit_aktif.get("Jatuh Tempo")), "%Y-%m-%d").date()
                     except:
                         pass
-                tanggal_jatuh_tempo = st.date_input("Tanggal Jatuh Tempo (Due Date)", value=due_date_val)
+                tanggal_jatuh_tempo = st.date_input("Tanggal Jatuh Tempo (Due Date)", value=due_date_val, disabled=is_management)
 
             st.markdown("---")
             st.markdown("#### 💼 Pengaturan Khusus Metode (Professional Sum & Estimasi Sum / Diskon)")
             
             col_met1, col_met2 = st.columns(2)
             with col_met1:
-                gunakan_prof_sum = st.checkbox("Professional Sum (Add Cost & Management Fee 15%)", value=is_prof_sum_default)
+                gunakan_prof_sum = st.checkbox("Professional Sum (Add Cost & Management Fee 15%)", value=is_prof_sum_default, disabled=is_management)
             with col_met2:
-                gunakan_estimasi_sum = st.checkbox("Estimasi Sum (Skema Diskon 10% ESTIMATED SUM)", value=is_estimasi_sum_default)
+                gunakan_estimasi_sum = st.checkbox("Estimasi Sum (Skema Diskon 10% ESTIMATED SUM)", value=is_estimasi_sum_default, disabled=is_management)
             
             input_add_cost = 0.0
             input_mgmt_fee = 0.0
@@ -414,9 +424,9 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
                 col_ps1, col_ps2 = st.columns(2)
                 with col_ps1:
-                    input_add_cost = st.number_input("Nilai Add Cost (Murni, Rp)", min_value=0.0, value=float(def_ac), step=1000.0, format="%.2f")
+                    input_add_cost = st.number_input("Nilai Add Cost (Murni, Rp)", min_value=0.0, value=float(def_ac), step=1000.0, format="%.2f", disabled=is_management)
                 with col_ps2:
-                    input_mgmt_fee = st.number_input("Nilai Management Fee 15% (Rp)", min_value=0.0, value=float(def_mf), step=1000.0, format="%.2f")
+                    input_mgmt_fee = st.number_input("Nilai Management Fee 15% (Rp)", min_value=0.0, value=float(def_mf), step=1000.0, format="%.2f", disabled=is_management)
                 
                 gross_tagihan_akhir = input_add_cost + input_mgmt_fee
                 diskon_nominal_akhir = 0.0
@@ -431,7 +441,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 dpp_invoice_akhir = gross_tagihan_akhir
 
             st.markdown("---")
-            keterangan_invoice_resmi = st.text_area("📝 Deskripsi Keterangan Invoice Utama:", value=deskripsi_default, height=90)
+            keterangan_invoice_resmi = st.text_area("📝 Deskripsi Keterangan Invoice Utama:", value=deskripsi_default, height=90, disabled=is_management)
 
             st.markdown("---")
             st.markdown("#### 🧮 Kalkulasi Otomatis Pajak (PPN 11% & PPh Dibulatkan)")
@@ -442,13 +452,13 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
             col_p1, col_p2, col_p3 = st.columns(3)
             with col_p1:
-                kena_ppn = st.checkbox("Kenakan PPN (11%)", value=def_kena_ppn)
+                kena_ppn = st.checkbox("Kenakan PPN (11%)", value=def_kena_ppn, disabled=is_management)
             with col_p2:
-                kena_pph = st.checkbox("Potong PPh (2% / 1.5% - PPh 23/22)", value=def_kena_pph)
+                kena_pph = st.checkbox("Potong PPh (2% / 1.5% - PPh 23/22)", value=def_kena_pph, disabled=is_management)
             with col_p3:
-                persen_pph = st.number_input("Tarif PPh (%)", min_value=0.0, max_value=10.0, value=def_tarif_pph, step=0.5)
+                persen_pph = st.number_input("Tarif PPh (%)", min_value=0.0, max_value=10.0, value=def_tarif_pph, step=0.5, disabled=is_management)
 
-            # PEMBULATAN STANDAR BISNIS & MATEMATIKA (ROUNDED TO NEAREST INTEGER)
+            # PEMBULATAN STANDAR BISNIS & MATEMATIKA
             ppn_nominal = round(dpp_invoice_akhir * 0.11) if kena_ppn else 0.0
             base_pph = input_mgmt_fee if gunakan_prof_sum else dpp_invoice_akhir
             pph_nominal = round(base_pph * (persen_pph / 100.0)) if kena_pph else 0.0
@@ -466,13 +476,17 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
             st.markdown("---")
             
-            col_bt1, col_bt2, col_bt3 = st.columns(3)
-            with col_bt1:
-                submit_simpan_baru = st.form_submit_button("💾 Simpan Data Baru")
-            with col_bt2:
-                submit_save_as = st.form_submit_button("📥 Save As (Buat Invoice Baru)")
-            with col_bt3:
-                submit_update = st.form_submit_button("📝 Update Data Ini")
+            if not is_management:
+                col_bt1, col_bt2, col_bt3 = st.columns(3)
+                with col_bt1:
+                    submit_simpan_baru = st.form_submit_button("💾 Simpan Data Baru")
+                with col_bt2:
+                    submit_save_as = st.form_submit_button("📥 Save As (Buat Invoice Baru)")
+                with col_bt3:
+                    submit_update = st.form_submit_button("📝 Update Data Ini")
+            else:
+                submit_simpan_baru, submit_save_as, submit_update = False, False, False
+                st.info("ℹ️ Tombol aksi simpan/update dinonaktifkan untuk akun Direksi (Read-Only).")
 
             if submit_simpan_baru or submit_save_as or submit_update:
                 if not nomor_invoice_resmi:
@@ -574,26 +588,29 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
             else:
                 with st.expander("🖼️ Pengaturan Permanen Logo Kop Surat & Tanda Tangan Direktur", expanded=False):
-                    st.info("💡 Logo dan Tanda Tangan yang di-upload di sini akan tersimpan secara permanen dan otomatis dipakai untuk semua invoice berikutnya tanpa perlu upload ulang.")
+                    if is_management:
+                        st.info("ℹ️ Akun Direksi dapat melihat pengaturan logo, namun upload gambar dibatasi.")
+                    else:
+                        st.info("💡 Logo dan Tanda Tangan yang di-upload di sini akan tersimpan secara permanen dan otomatis dipakai untuk semua invoice berikutnya tanpa perlu upload ulang.")
                     
                     col_ul1, col_ul2, col_ul3 = st.columns(3)
                     with col_ul1:
-                        uploaded_logo_bss = st.file_uploader("Upload Logo BSS Baru (Kiri)", type=["png", "jpg", "jpeg"], key="logo_bss_upload")
-                        if uploaded_logo_bss is not None:
+                        uploaded_logo_bss = st.file_uploader("Upload Logo BSS Baru (Kiri)", type=["png", "jpg", "jpeg"], key="logo_bss_upload", disabled=is_management)
+                        if uploaded_logo_bss is not None and not is_management:
                             with open(PATH_LOGO_BSS, "wb") as f:
                                 f.write(uploaded_logo_bss.getbuffer())
                     with col_ul2:
-                        uploaded_logo_iso = st.file_uploader("Upload Logo ISO Baru (Kanan)", type=["png", "jpg", "jpeg"], key="logo_iso_upload")
-                        if uploaded_logo_iso is not None:
+                        uploaded_logo_iso = st.file_uploader("Upload Logo ISO Baru (Kanan)", type=["png", "jpg", "jpeg"], key="logo_iso_upload", disabled=is_management)
+                        if uploaded_logo_iso is not None and not is_management:
                             with open(PATH_LOGO_ISO, "wb") as f:
                                 f.write(uploaded_logo_iso.getbuffer())
                     with col_ul3:
-                        uploaded_ttd_dir = st.file_uploader("Upload TTD Direktur Baru (Ferry Tatimu)", type=["png", "jpg", "jpeg"], key="ttd_direktur_upload")
-                        if uploaded_ttd_dir is not None:
+                        uploaded_ttd_dir = st.file_uploader("Upload TTD Direktur Baru (Ferry Tatimu)", type=["png", "jpg", "jpeg"], key="ttd_direktur_upload", disabled=is_management)
+                        if uploaded_ttd_dir is not None and not is_management:
                             with open(PATH_TTD_DIR, "wb") as f:
                                 f.write(uploaded_ttd_dir.getbuffer())
 
-                    if os.path.exists(PATH_LOGO_BSS) or os.path.exists(PATH_LOGO_ISO) or os.path.exists(PATH_TTD_DIR):
+                    if (os.path.exists(PATH_LOGO_BSS) or os.path.exists(PATH_LOGO_ISO) or os.path.exists(PATH_TTD_DIR)) and not is_management:
                         if st.button("🗑️ Hapus / Reset Semua Logo & TTD Tersimpan"):
                             for p in [PATH_LOGO_BSS, PATH_LOGO_ISO, PATH_TTD_DIR]:
                                 if os.path.exists(p):
@@ -618,7 +635,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 persistent_ttd_dir_b64 = load_persistent_image_base64(PATH_TTD_DIR)
 
                 if selected_record:
-                    # MENGGUNAKAN ROUND AGAR BEBAS DARI KOMA/DECIMAL
                     val_inv = round(float(selected_record.get('Nilai Invoice', 0) or 0))
                     val_ppn = round(float(selected_record.get('PPN Nominal', 0) or 0))
                     val_pph = round(float(selected_record.get('PPh Nominal', 0) or 0))
@@ -930,17 +946,20 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     
                     col_save_pratinjau, col_btn1, col_btn2 = st.columns([1.5, 1, 1])
                     with col_save_pratinjau:
-                        if st.button("💾 Simpan Perubahan Pratinjau (Save)", use_container_width=True, type="primary"):
-                            waktu_aksi = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
-                            selected_record["Update Terakhir"] = waktu_aksi
-                            
-                            current_billing = muat_data_billing()
-                            for i, item in enumerate(current_billing):
-                                if str(item.get("Nomor Invoice Resmi")) == str(selected_record.get("Nomor Invoice Resmi")):
-                                    current_billing[i] = selected_record
-                                    break
-                            simpan_data_billing(current_billing)
-                            st.success(f"✅ Berhasil menyimpan perubahan terakhir untuk Invoice [{selected_record.get('Nomor Invoice Resmi')}]!")
+                        if not is_management:
+                            if st.button("💾 Simpan Perubahan Pratinjau (Save)", use_container_width=True, type="primary"):
+                                waktu_aksi = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
+                                selected_record["Update Terakhir"] = waktu_aksi
+                                
+                                current_billing = muat_data_billing()
+                                for i, item in enumerate(current_billing):
+                                    if str(item.get("Nomor Invoice Resmi")) == str(selected_record.get("Nomor Invoice Resmi")):
+                                        current_billing[i] = selected_record
+                                        break
+                                simpan_data_billing(current_billing)
+                                st.success(f"✅ Berhasil menyimpan perubahan terakhir untuk Invoice [{selected_record.get('Nomor Invoice Resmi')}]!")
+                        else:
+                            st.info("🔒 Tombol Simpan dinonaktifkan (Read-Only).")
 
                     with col_btn1:
                         b64_html = base64.b64encode(html_invoice.encode()).decode()
@@ -982,10 +1001,8 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 df_bill["Nilai Invoice_num"] = pd.to_numeric(df_bill["Nilai Invoice"], errors="coerce").fillna(0.0)
                 df_bill["PPN Nominal_num"] = pd.to_numeric(df_bill.get("PPN Nominal", 0), errors="coerce").fillna(0.0)
                 
-                # Hitung Total Include PPN per baris invoice (DPP + PPN)
                 df_bill["Total Include PPN"] = df_bill["Nilai Invoice_num"] + df_bill["PPN Nominal_num"]
                 
-                # Grouping rekapitulasi per nomor kontrak
                 rekap_kontrak = df_bill.groupby("Kontrak No.").agg(
                     Jumlah_Invoice=("Nomor Invoice Resmi", "count"),
                     Total_Netto_Sebelum_PPN=("Nilai Invoice_num", "sum"),
@@ -995,7 +1012,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 
                 rekap_kontrak.columns = ["Nomor Kontrak", "Jumlah", "Total Netto (Sebelum PPN)", "Total PPN (11%)", "Total Include PPN"]
                 
-                # Hitung Grand Total keseluruhan
                 tot_jml = rekap_kontrak["Jumlah"].sum()
                 tot_netto = rekap_kontrak["Total Netto (Sebelum PPN)"].sum()
                 tot_ppn = rekap_kontrak["Total PPN (11%)"].sum()
@@ -1010,7 +1026,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 }])
                 rekap_kontrak = pd.concat([rekap_kontrak, baris_grand_total], ignore_index=True)
                 
-                # Format Rupiah untuk seluruh kolom nominal
                 for col_rupiah in ["Total Netto (Sebelum PPN)", "Total PPN (11%)", "Total Include PPN"]:
                     rekap_kontrak[col_rupiah] = rekap_kontrak[col_rupiah].apply(lambda x: f"Rp {x:,.0f}".replace(",", "X").replace(".", ",").replace("X", "."))
                 
@@ -1036,20 +1051,23 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             
             st.markdown("---")
             st.markdown("#### 🗑️ Hapus Data Invoice Tersimpan")
-            pilihan_hapus_inv = [f"{item.get('Nomor Invoice Resmi')} (PI: {item.get('PI No.')} | Customer: {item.get('Customer')})" for item in billing_records]
-            
-            col_dh1, col_dh2 = st.columns([2, 1])
-            with col_dh1:
-                target_del_idx = st.selectbox("Pilih Invoice yang Ingin Dihapus:", range(len(pilihan_hapus_inv)), format_func=lambda x: pilihan_hapus_inv[x])
-            with col_dh2:
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("❌ Hapus Invoice Terpilih", use_container_width=True, type="primary"):
-                    try:
-                        billing_records.pop(target_del_idx)
-                        simpan_data_billing(billing_records)
-                        st.success("✅ Berhasil menghapus data invoice resmi!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"⚠️ Gagal menghapus: {e}")
+            if is_management:
+                st.info("🔒 Fitur hapus data dinonaktifkan untuk akun Direksi (Read-Only).")
+            else:
+                pilihan_hapus_inv = [f"{item.get('Nomor Invoice Resmi')} (PI: {item.get('PI No.')} | Customer: {item.get('Customer')})" for item in billing_records]
+                
+                col_dh1, col_dh2 = st.columns([2, 1])
+                with col_dh1:
+                    target_del_idx = st.selectbox("Pilih Invoice yang Ingin Dihapus:", range(len(pilihan_hapus_inv)), format_func=lambda x: pilihan_hapus_inv[x])
+                with col_dh2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if st.button("❌ Hapus Invoice Terpilih", use_container_width=True, type="primary"):
+                        try:
+                            billing_records.pop(target_del_idx)
+                            simpan_data_billing(billing_records)
+                            st.success("✅ Berhasil menghapus data invoice resmi!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"⚠️ Gagal menghapus: {e}")
         else:
             st.info("Belum ada data invoice tersimpan.")

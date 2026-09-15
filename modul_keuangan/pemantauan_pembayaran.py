@@ -5,8 +5,15 @@ import re
 from datetime import datetime, date, timedelta
 
 def tampilkan_pemantauan_pembayaran():
+    # --- DETEKSI HAK AKSES DIREKSI / MANAGEMENT ---
+    current_role_user = str(st.session_state.get("current_role", "")).strip().lower()
+    is_management = current_role_user in ["management", "direksi"]
+
     st.markdown("#### 📊 Modul Analisis Keuangan, Pemantauan Pembayaran & Aging Invoice")
     
+    if is_management:
+        st.info("🔒 **Mode Direksi (Read-Only):** Anda masuk sebagai Direksi/Management. Seluruh metrik keuangan, grafik, dan tabel laporan dapat ditinjau secara transparan, namun formulir pengisian, pembaruan, dan penghapusan data dikunci.")
+
     DIR_DATABASE = "database_penyimpanan_aman"
     
     def parse_harga_presisi(val):
@@ -166,6 +173,9 @@ def tampilkan_pemantauan_pembayaran():
         return []
 
     def simpan_status_pembayaran(data_list):
+        if is_management:
+            st.warning("⚠️ Akses ditolak: Akun Direksi berada dalam mode Read-Only.")
+            return
         df_baru = pd.DataFrame(data_list)
         df_baru.to_excel(EXCEL_PAYMENT_STATUS, index=False)
         st.session_state["db_payment"] = data_list
@@ -376,7 +386,7 @@ def tampilkan_pemantauan_pembayaran():
             })
             st.dataframe(df_chart_pie, use_container_width=True, hide_index=True)
 
-        # --- 5. TABEL RINCIAN AKUMULASI PER KONTRAK (KOLOM JUMLAH DOKUMEN DIHAPUS) ---
+        # --- 5. TABEL RINCIAN AKUMULASI PER KONTRAK ---
         st.markdown("---")
         st.markdown("##### 📑 Rincian Akumulasi Tagihan per Nomor Kontrak (Dekomposisi DPP & Inc. PPN)")
         
@@ -469,15 +479,18 @@ def tampilkan_pemantauan_pembayaran():
         df_rincian_view = pd.DataFrame(table_data_list)
         st.dataframe(df_rincian_view, use_container_width=True, hide_index=True)
 
-    # --- 6. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN ---
+    # --- 6. FORM INPUT & PEMBARUAN STATUS PEMBAYARAN (DIPROTEKSI READ-ONLY) ---
     st.markdown("---")
     st.markdown("##### 📝 Form Input & Pembaruan Status Pembayaran (Berdasarkan Kontrak)")
+
+    if is_management:
+        st.info("🔒 Formulir input dan pembaruan data pemantauan pembayaran dinonaktifkan dalam mode Read-Only untuk akun Direksi.")
 
     col_fc1, col_fc2 = st.columns([1.5, 2.5])
     with col_fc1:
         placeholder_form_kontrak = "... Pilih Nomor Kontrak ..."
         opsi_form_kontrak = [placeholder_form_kontrak] + all_contracts
-        form_kontrak_pilih = st.selectbox("1️⃣ Pilih Nomor Kontrak:", opsi_form_kontrak, key="form_input_kontrak_sel")
+        form_kontrak_pilih = st.selectbox("1️⃣ Pilih Nomor Kontrak:", opsi_form_kontrak, key="form_input_kontrak_sel", disabled=is_management)
 
     if form_kontrak_pilih == placeholder_form_kontrak:
         st.info("ℹ️ Silakan pilih **Nomor Kontrak** pada pilihan nomor 1 di atas untuk memunculkan daftar nomor invoice resmi dari Modul 3.")
@@ -506,12 +519,13 @@ def tampilkan_pemantauan_pembayaran():
     opsi_panggil_bayar = ["-- Pilih Data Tersimpan untuk Diedit / Panggil Ulang --"] + list_saved_payment_no
 
     with col_fc2:
-        pilihan_panggil_bayar = st.selectbox("2️⃣ Panggil Ulang Data Pemantauan Tersimpan (Kontrak Terpilih):", opsi_panggil_bayar, key="select_panggil_bayar")
-        if st.button("📥 Panggil untuk Diedit", use_container_width=True):
-            if pilihan_panggil_bayar != "-- Pilih Data Tersimpan untuk Diedit / Panggil Ulang --":
-                st.session_state["active_invoice_selected"] = str(pilihan_panggil_bayar).strip()
-                st.success(f"📋 Memuat data pemantauan Invoice `{pilihan_panggil_bayar}`")
-                st.rerun()
+        pilihan_panggil_bayar = st.selectbox("2️⃣ Panggil Ulang Data Pemantauan Tersimpan (Kontrak Terpilih):", opsi_panggil_bayar, key="select_panggil_bayar", disabled=is_management)
+        if not is_management:
+            if st.button("📥 Panggil untuk Diedit", use_container_width=True):
+                if pilihan_panggil_bayar != "-- Pilih Data Tersimpan untuk Diedit / Panggil Ulang --":
+                    st.session_state["active_invoice_selected"] = str(pilihan_panggil_bayar).strip()
+                    st.success(f"📋 Memuat data pemantauan Invoice `{pilihan_panggil_bayar}`")
+                    st.rerun()
 
     active_edit_inv = str(st.session_state.get("active_invoice_selected", "")).strip()
 
@@ -528,7 +542,7 @@ def tampilkan_pemantauan_pembayaran():
         if active_edit_inv in opsi_dropdown_invoice:
             default_idx = opsi_dropdown_invoice.index(active_edit_inv)
             
-        selected_inv = st.selectbox("3️⃣ Pilih Nomor Invoice Resmi Aktif:", opsi_dropdown_invoice, index=default_idx, key="dropdown_master_invoice_aktif")
+        selected_inv = st.selectbox("3️⃣ Pilih Nomor Invoice Resmi Aktif:", opsi_dropdown_invoice, index=default_idx, key="dropdown_master_invoice_aktif", disabled=is_management)
 
     if selected_inv and selected_inv != placeholder_pilih_inv and "- (" not in selected_inv:
         inv_data = next((inv for inv in invoice_list if str(inv.get(col_key_inv, inv.get("Nomor Invoice Resmi", ""))).strip() == str(selected_inv)), {})
@@ -582,10 +596,10 @@ def tampilkan_pemantauan_pembayaran():
         if def_status not in status_opsi:
             def_status = "Dibayar" if "Lunas" in def_status or "Dibayar" in def_status else "Belum Dibayar"
         idx_st = status_opsi.index(def_status) if def_status in status_opsi else 0
-        status_pembayaran = st.selectbox("Status Pembayaran:", status_opsi, index=idx_st, key="select_status_pembayaran_live")
+        status_pembayaran = st.selectbox("Status Pembayaran:", status_opsi, index=idx_st, key="select_status_pembayaran_live", disabled=is_management)
 
         default_faktur = existing_pay.get("Nomor Faktur Pajak", "")
-        nomor_faktur_pajak = st.text_input("Nomor Faktur Pajak (Diterbitkan setelah Invoice):", value=str(default_faktur), key="input_faktur_pajak")
+        nomor_faktur_pajak = st.text_input("Nomor Faktur Pajak (Diterbitkan setelah Invoice):", value=str(default_faktur), key="input_faktur_pajak", disabled=is_management)
 
         col_p1, col_p2 = st.columns(2)
         with col_p1:
@@ -595,10 +609,10 @@ def tampilkan_pemantauan_pembayaran():
                     default_tgl_serah = datetime.strptime(str(existing_pay.get("Tanggal Penyerahan"))[:10], "%Y-%m-%d").date()
                 except:
                     pass
-            tgl_penyerahan = st.date_input("Tanggal Invoice Diserahkan ke Klien:", value=default_tgl_serah, key="input_tgl_serah")
+            tgl_penyerahan = st.date_input("Tanggal Invoice Diserahkan ke Klien:", value=default_tgl_serah, key="input_tgl_serah", disabled=is_management)
 
             default_top = int(existing_pay.get("TOP Hari", 30))
-            top_hari = st.number_input("Term of Payment (TOP dalam Hari):", min_value=0, value=default_top, step=5, key="input_top_hari")
+            top_hari = st.number_input("Term of Payment (TOP dalam Hari):", min_value=0, value=default_top, step=5, key="input_top_hari", disabled=is_management)
 
         with col_p2:
             raw_tgl_lunas_exist = str(existing_pay.get("Tanggal Pelunasan", "-"))
@@ -611,7 +625,7 @@ def tampilkan_pemantauan_pembayaran():
                         default_tgl_lunas = datetime.strptime(raw_tgl_lunas_exist[:10], "%Y-%m-%d").date()
                     except:
                         pass
-                tgl_pelunasan = st.date_input("Tanggal Pelunasan / Pembayaran Aktual:", value=default_tgl_lunas, key="input_tgl_lunas")
+                tgl_pelunasan = st.date_input("Tanggal Pelunasan / Pembayaran Aktual:", value=default_tgl_lunas, key="input_tgl_lunas", disabled=is_management)
             else:
                 st.markdown("📅 Tanggal Pelunasan Aktual: **... (Belum Ada Pembayaran / Kosong)**")
                 tgl_pelunasan = None
@@ -622,7 +636,7 @@ def tampilkan_pemantauan_pembayaran():
         col_opt1, col_opt2 = st.columns(2)
         with col_opt1:
             opsi_tarif_pph = ["Tanpa PPh / 0%", "1%", "1.5%", "1.75%", "2%", "2.5%", "3%", "4%", "Custom (Manual)"]
-            selected_tarif_pph = st.selectbox("Pilih Tarif PPh (Otomatis membaca Management Fee / DPP):", opsi_tarif_pph, index=4, key="select_tarif_pph_auto")
+            selected_tarif_pph = st.selectbox("Pilih Tarif PPh (Otomatis membaca Management Fee / DPP):", opsi_tarif_pph, index=4, key="select_tarif_pph_auto", disabled=is_management)
         
         calculated_auto_pph = 0.0
         if selected_tarif_pph == "1%":
@@ -644,10 +658,11 @@ def tampilkan_pemantauan_pembayaran():
 
         with col_opt2:
             st.markdown(f"<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("⚡ Terapkan PPh & PPN WAPU Otomatis", use_container_width=True):
-                st.session_state["val_pph_auto_set"] = calculated_auto_pph
-                st.session_state["val_wapu_auto_set"] = ppn_otomatis
-                st.rerun()
+            if not is_management:
+                if st.button("⚡ Terapkan PPh & PPN WAPU Otomatis", use_container_width=True):
+                    st.session_state["val_pph_auto_set"] = calculated_auto_pph
+                    st.session_state["val_wapu_auto_set"] = ppn_otomatis
+                    st.rerun()
 
         if "val_pph_auto_set" in st.session_state:
             default_pot_pph = float(st.session_state.pop("val_pph_auto_set"))
@@ -661,10 +676,10 @@ def tampilkan_pemantauan_pembayaran():
 
         col_pp1, col_pp2 = st.columns(2)
         with col_pp1:
-            potongan_pph = st.number_input("Potongan PPh (Pasal 23 / 22 - Otomatis dari Fee/DPP atau Manual):", min_value=0.0, value=default_pot_pph, step=1000.0, key="input_pot_pph")
+            potongan_pph = st.number_input("Potongan PPh (Pasal 23 / 22 - Otomatis dari Fee/DPP atau Manual):", min_value=0.0, value=default_pot_pph, step=1000.0, key="input_pot_pph", disabled=is_management)
 
         with col_pp2:
-            potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Otomatis dari PPN Tagihan):", min_value=0.0, value=default_pot_wapu, step=1000.0, key="input_pot_wapu")
+            potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Otomatis dari PPN Tagihan):", min_value=0.0, value=default_pot_wapu, step=1000.0, key="input_pot_wapu", disabled=is_management)
 
         nominal_bank_seharusnya = max(0.0, total_tagihan_inc_ppn - potongan_pph - potongan_ppn_wapu)
         st.markdown(f"💡 **Nilai Bersih Seharusnya Diterima Bank (Otomatis):** `{fmt_rp(nominal_bank_seharusnya)}` *(Total Tagihan - PPh - PPN WAPU)*")
@@ -672,9 +687,10 @@ def tampilkan_pemantauan_pembayaran():
         col_b1, col_b2 = st.columns([3, 1])
         with col_b2:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("⚡ Set Nilai Diterima Bank Otomatis", use_container_width=True):
-                st.session_state["val_bayar_aktual_set"] = nominal_bank_seharusnya
-                st.rerun()
+            if not is_management:
+                if st.button("⚡ Set Nilai Diterima Bank Otomatis", use_container_width=True):
+                    st.session_state["val_bayar_aktual_set"] = nominal_bank_seharusnya
+                    st.rerun()
 
         if "val_bayar_aktual_set" in st.session_state:
             default_bayar_akt = float(st.session_state.pop("val_bayar_aktual_set"))
@@ -682,7 +698,7 @@ def tampilkan_pemantauan_pembayaran():
             default_bayar_akt = float(existing_pay.get("Nominal Pembayaran Aktual", nominal_bank_seharusnya))
 
         with col_b1:
-            nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Input Manual Aktual Perbankan/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0, key="input_bayar_aktual")
+            nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Input Manual Aktual Perbankan/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0, key="input_bayar_aktual", disabled=is_management)
 
         selisih_pembayaran = nominal_pembayaran_aktual - nominal_bank_seharusnya
         
@@ -698,47 +714,50 @@ def tampilkan_pemantauan_pembayaran():
             """, unsafe_allow_html=True)
 
         default_catatan = str(existing_pay.get("Catatan", "Lengkap"))
-        catatan_bayar = st.text_area("Catatan / Keterangan Pembayaran (Justifikasi Admin Bank / Selisih / Kekurangan / Lengkap):", value=default_catatan, key="input_catatan_bayar")
+        catatan_bayar = st.text_area("Catatan / Keterangan Pembayaran (Justifikasi Admin Bank / Selisih / Kekurangan / Lengkap):", value=default_catatan, key="input_catatan_bayar", disabled=is_management)
 
-        if st.button("💾 Simpan Pemantauan Pembayaran", type="primary", use_container_width=True):
-            tgl_jatuh_tempo = tgl_penyerahan + timedelta(days=int(top_hari))
+        if not is_management:
+            if st.button("💾 Simpan Pemantauan Pembayaran", type="primary", use_container_width=True):
+                tgl_jatuh_tempo = tgl_penyerahan + timedelta(days=int(top_hari))
 
-            durasi_riil_hari = 0
-            str_tgl_pelunasan_final = "-"
-            if status_pembayaran == "Dibayar" and tgl_pelunasan:
-                str_tgl_pelunasan_final = tgl_pelunasan.strftime("%Y-%m-%d")
-                durasi_riil_hari = (tgl_pelunasan - tgl_penyerahan).days
+                durasi_riil_hari = 0
+                str_tgl_pelunasan_final = "-"
+                if status_pembayaran == "Dibayar" and tgl_pelunasan:
+                    str_tgl_pelunasan_final = tgl_pelunasan.strftime("%Y-%m-%d")
+                    durasi_riil_hari = (tgl_pelunasan - tgl_penyerahan).days
 
-            data_update = {
-                "Nomor Kontrak": form_kontrak_pilih,
-                "Nomor Invoice": selected_inv,
-                "Nomor Faktur Pajak": nomor_faktur_pajak,
-                "Customer": inv_data.get("Customer", existing_pay.get("Customer", "-")),
-                "Tanggal Invoice": tgl_invoice_bawaan,
-                "Tanggal Penyerahan": tgl_penyerahan.strftime("%Y-%m-%d"),
-                "TOP Hari": top_hari,
-                "Tanggal Jatuh Tempo": tgl_jatuh_tempo.strftime("%Y-%m-%d"),
-                "Tanggal Pelunasan": str_tgl_pelunasan_final,
-                "Durasi Riil Hari": durasi_riil_hari,
-                "Nilai DPP": dpp_otomatis,
-                "Nilai PPN": ppn_otomatis,
-                "Grand Total": total_tagihan_inc_ppn,
-                "Nominal Pembayaran Aktual": nominal_pembayaran_aktual,
-                "Potongan PPh": potongan_pph,
-                "Potongan PPN WAPU": potongan_ppn_wapu,
-                "Selisih Lainnya": selisih_pembayaran,
-                "Status Pembayaran": status_pembayaran,
-                "Catatan": catatan_bayar,
-                "Update Terakhir": datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-            }
+                data_update = {
+                    "Nomor Kontrak": form_kontrak_pilih,
+                    "Nomor Invoice": selected_inv,
+                    "Nomor Faktur Pajak": nomor_faktur_pajak,
+                    "Customer": inv_data.get("Customer", existing_pay.get("Customer", "-")),
+                    "Tanggal Invoice": tgl_invoice_bawaan,
+                    "Tanggal Penyerahan": tgl_penyerahan.strftime("%Y-%m-%d"),
+                    "TOP Hari": top_hari,
+                    "Tanggal Jatuh Tempo": tgl_jatuh_tempo.strftime("%Y-%m-%d"),
+                    "Tanggal Pelunasan": str_tgl_pelunasan_final,
+                    "Durasi Riil Hari": durasi_riil_hari,
+                    "Nilai DPP": dpp_otomatis,
+                    "Nilai PPN": ppn_otomatis,
+                    "Grand Total": total_tagihan_inc_ppn,
+                    "Nominal Pembayaran Aktual": nominal_pembayaran_aktual,
+                    "Potongan PPh": potongan_pph,
+                    "Potongan PPN WAPU": potongan_ppn_wapu,
+                    "Selisih Lainnya": selisih_pembayaran,
+                    "Status Pembayaran": status_pembayaran,
+                    "Catatan": catatan_bayar,
+                    "Update Terakhir": datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+                }
 
-            clean_records = [p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() != str(selected_inv).strip()]
-            clean_records.append(data_update)
-            simpan_status_pembayaran(clean_records)
-            st.success(f"🎉 Berhasil menyimpan data pemantauan untuk Invoice Resmi [{selected_inv}]! Total Piutang: {fmt_rp(total_tagihan_inc_ppn)} | Netto Bank: {fmt_rp(nominal_pembayaran_aktual)}")
-            if "active_invoice_selected" in st.session_state:
-                del st.session_state["active_invoice_selected"]
-            st.rerun()
+                clean_records = [p for p in payment_records if str(p.get("Nomor Invoice", "")).strip() != str(selected_inv).strip()]
+                clean_records.append(data_update)
+                simpan_status_pembayaran(clean_records)
+                st.success(f"🎉 Berhasil menyimpan data pemantauan untuk Invoice Resmi [{selected_inv}]! Total Piutang: {fmt_rp(total_tagihan_inc_ppn)} | Netto Bank: {fmt_rp(nominal_pembayaran_aktual)}")
+                if "active_invoice_selected" in st.session_state:
+                    del st.session_state["active_invoice_selected"]
+                st.rerun()
+        else:
+            st.info("🔒 Tombol Simpan dinonaktifkan untuk akun Direksi (Read-Only).")
     else:
         st.info("ℹ️ Silakan pilih **Nomor Invoice Resmi Aktif** terlebih dahulu pada dropdown di atas untuk menampilkan form pengisian dan rincian performa invoice.")
 
@@ -833,43 +852,44 @@ def tampilkan_pemantauan_pembayaran():
         df_aging_view = pd.DataFrame(aging_data_list)
         st.dataframe(df_aging_view, use_container_width=True, hide_index=True)
 
-        st.markdown("##### ⚙️ Aksi Cepat Data Pemantauan Invoice")
-        for idx, row_p in enumerate(current_payment_records):
-            inv_num_row = row_p.get('Nomor Invoice', '-')
-            c_ak1, c_ak2 = st.columns([3, 1])
-            with c_ak1:
-                st.markdown(f"<small>Invoice Resmi: <b>{inv_num_row}</b> (Kontrak: {row_p.get('Nomor Kontrak', '-')})</small>", unsafe_allow_html=True)
-            with c_ak2:
-                aksi_pilih = st.selectbox("Aksi", ["-- Pilih --", "✏️ Edit", "🗑️ Hapus"], key=f"aksi_{idx}_{inv_num_row}", label_visibility="collapsed")
-                if aksi_pilih == "✏️ Edit":
-                    st.session_state["active_invoice_selected"] = str(inv_num_row).strip()
-                    st.rerun()
-                elif aksi_pilih == "🗑️ Hapus":
-                    st.session_state[f"confirm_del_{idx}"] = True
-                    st.rerun()
+        if not is_management:
+            st.markdown("##### ⚙️ Aksi Cepat Data Pemantauan Invoice")
+            for idx, row_p in enumerate(current_payment_records):
+                inv_num_row = row_p.get('Nomor Invoice', '-')
+                c_ak1, c_ak2 = st.columns([3, 1])
+                with c_ak1:
+                    st.markdown(f"<small>Invoice Resmi: <b>{inv_num_row}</b> (Kontrak: {row_p.get('Nomor Kontrak', '-')})</small>", unsafe_allow_html=True)
+                with c_ak2:
+                    aksi_pilih = st.selectbox("Aksi", ["-- Pilih --", "✏️ Edit", "🗑️ Hapus"], key=f"aksi_{idx}_{inv_num_row}", label_visibility="collapsed")
+                    if aksi_pilih == "✏️ Edit":
+                        st.session_state["active_invoice_selected"] = str(inv_num_row).strip()
+                        st.rerun()
+                    elif aksi_pilih == "🗑️ Hapus":
+                        st.session_state[f"confirm_del_{idx}"] = True
+                        st.rerun()
 
-            if st.session_state.get(f"confirm_del_{idx}", False):
-                st.error(f"⚠️ Konfirmasi Keamanan: Masukkan Password Admin untuk menghapus Invoice [{inv_num_row}]")
-                pass_input = st.text_input(f"Password Verifikasi ({inv_num_row}):", type="password", key=f"pwd_del_{idx}")
-                col_vk1, col_vk2 = st.columns(2)
-                with col_vk1:
-                    if st.button("✔️ Konfirmasi", key=f"btn_yes_del_{idx}"):
-                        if pass_input in ["bss2026", "admin123", "admin"]:
-                            all_master_recs = muat_status_pembayaran()
-                            updated_recs = [p for p in all_master_recs if str(p.get("Nomor Invoice", "")).strip() != str(inv_num_row).strip()]
-                            simpan_status_pembayaran(updated_recs)
-                            st.success(f"🗑️ Data pemantauan Invoice [{inv_num_row}] berhasil dihapus!")
+                if st.session_state.get(f"confirm_del_{idx}", False):
+                    st.error(f"⚠️ Konfirmasi Keamanan: Masukkan Password Admin untuk menghapus Invoice [{inv_num_row}]")
+                    pass_input = st.text_input(f"Password Verifikasi ({inv_num_row}):", type="password", key=f"pwd_del_{idx}")
+                    col_vk1, col_vk2 = st.columns(2)
+                    with col_vk1:
+                        if st.button("✔️ Konfirmasi", key=f"btn_yes_del_{idx}"):
+                            if pass_input in ["bss2026", "admin123", "admin"]:
+                                all_master_recs = muat_status_pembayaran()
+                                updated_recs = [p for p in all_master_recs if str(p.get("Nomor Invoice", "")).strip() != str(inv_num_row).strip()]
+                                simpan_status_pembayaran(updated_recs)
+                                st.success(f"🗑️ Data pemantauan Invoice [{inv_num_row}] berhasil dihapus!")
+                                if f"confirm_del_{idx}" in st.session_state:
+                                    del st.session_state[f"confirm_del_{idx}"]
+                                if "active_invoice_selected" in st.session_state:
+                                    del st.session_state["active_invoice_selected"]
+                                st.rerun()
+                            else:
+                                st.error("❌ Password verifikasi salah!")
+                    with col_vk2:
+                        if st.button("❌ Batal", key=f"btn_no_del_{idx}"):
                             if f"confirm_del_{idx}" in st.session_state:
                                 del st.session_state[f"confirm_del_{idx}"]
-                            if "active_invoice_selected" in st.session_state:
-                                del st.session_state["active_invoice_selected"]
                             st.rerun()
-                        else:
-                            st.error("❌ Password verifikasi salah!")
-                with col_vk2:
-                    if st.button("❌ Batal", key=f"btn_no_del_{idx}"):
-                        if f"confirm_del_{idx}" in st.session_state:
-                            del st.session_state[f"confirm_del_{idx}"]
-                        st.rerun()
     else:
         st.info("ℹ️ Belum ada data pemantauan pembayaran yang tersimpan untuk filter kontrak ini.")

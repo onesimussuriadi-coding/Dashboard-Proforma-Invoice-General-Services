@@ -3,12 +3,9 @@ import pandas as pd
 from datetime import datetime, date
 
 def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_date_func, sort_pi_key_func, simpan_data_invoice_func, muat_data_invoice_func):
-    
-    # Identifikasi role user aktif untuk pengamanan Read-Only Mutlak Direksi
     current_role_user = str(st.session_state.get("current_role", "")).strip().lower()
     is_management = current_role_user in ["management", "direksi"]
 
-    # Handling Aksi Hapus via Query Params / URL Action
     query_params = st.query_params
     if "delete_db_idx" in query_params:
         if is_management:
@@ -29,9 +26,6 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
             except Exception as e:
                 st.error(f"Gagal menghapus data: {e}")
 
-    # ==========================================
-    # MENU 1: INPUT DATABASE & INVOICE (31 KOLOM)
-    # ==========================================
     if menu == "Input Database & Invoice (31 Kolom)":
         st.markdown("""
             <div style="background-color: #ffffff; border: 1px solid #cbd5e1; padding: 15px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 20px;">
@@ -39,10 +33,8 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
             </div>
         """, unsafe_allow_html=True)
 
-        # PENGAMANAN MUTLAK DIREKSI: Jika Management, blokir form input total
         if is_management:
-            st.info("🔒 **Mode Direksi (Read-Only):** Formulir input dan pengelolaan database kontrak dikunci. Anda dapat melihat seluruh rekapitulasi data melalui menu 'Lihat Database Tersimpan'.")
-            return
+            st.info("🔒 **Mode Direksi (Read-Only):** Formulir 31 kolom ditampilkan dalam mode baca saja (Read-Only). Anda dapat meninjau seluruh parameter kontrak dan PI secara lengkap.")
 
         if len(saved_db_list) > 0:
             list_kontrak_db = sorted(list(set(bersih_angka_func(data.get(1, data.get('Nomor Kontrak', '-'))) for data in saved_db_list if isinstance(data, dict) and bersih_angka_func(data.get(1, data.get('Nomor Kontrak', '-'))) != '')))
@@ -55,10 +47,10 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
             if selected_kontrak_input == "-- Buat Data Baru (Formulir Kosong) --":
                 with col_pk2:
                     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                    st.info("💡 Formulir siap untuk input data baru.")
+                    st.info("💡 Formulir siap untuk ditinjau.")
                 with col_pk_btn:
                     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                    if st.button("🔄 Panggil", use_container_width=True):
+                    if st.button("🔄 Panggil"):
                         st.session_state["edit_index"] = None
                         st.rerun()
             else:
@@ -93,7 +85,7 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
         def_data = {}
         if st.session_state.get("edit_index") is not None and st.session_state["edit_index"] < len(st.session_state.get("db_tersimpan", [])):
             def_data = st.session_state["db_tersimpan"][st.session_state["edit_index"]]
-            st.warning(f"📝 **Mode Edit Dipanggil:** Mengedit Data Baris #{st.session_state['edit_index']+1} — PI No: `{bersih_angka_func(def_data.get(0, def_data.get('Proforma Invoice No.', '-')))}`")
+            st.warning(f"📝 **Mode Tinjau Data:** Menampilkan Data Baris #{st.session_state['edit_index']+1} — PI No: `{bersih_angka_func(def_data.get(0, def_data.get('Proforma Invoice No.', '-')))}`")
         
         def get_val(idx_key, text_key):
             val = def_data.get(idx_key, def_data.get(text_key, def_data.get(str(idx_key), "")))
@@ -113,9 +105,9 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                 with c2: c2.write(label)
                 with c3:
                     if is_area:
-                        return st.text_area(f"input_{no}", value=str(default_val), label_visibility="collapsed", height=75)
+                        return st.text_area(f"input_{no}", value=str(default_val), label_visibility="collapsed", height=75, disabled=is_management)
                     else:
-                        return st.text_input(f"input_{no}", value=str(default_val), label_visibility="collapsed")
+                        return st.text_input(f"input_{no}", value=str(default_val), label_visibility="collapsed", disabled=is_management)
 
             def baris_input_tanggal(no, label, default_str=""):
                 c1, c2, c3 = st.columns([0.8, 3.5, 7])
@@ -123,7 +115,7 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                 with c2: c2.write(label)
                 with c3:
                     d_val = parse_date_func(default_str)
-                    dt_res = st.date_input(f"input_{no}", value=d_val, label_visibility="collapsed")
+                    dt_res = st.date_input(f"input_{no}", value=d_val, label_visibility="collapsed", disabled=is_management)
                     return dt_res.strftime("%d %b %Y")
 
             val_1  = baris_input_bersih(1, "Nomor Kontrak", default_val=get_val(1, "Nomor Kontrak"))
@@ -152,7 +144,7 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
             ]
             def_p1 = get_val(12, "Diwakili Oleh")
             idx_p1 = pilihan_p1.index(def_p1) if def_p1 in pilihan_p1 else 0
-            val_13 = c3.selectbox("Diwakili Oleh P1", pilihan_p1, index=idx_p1, label_visibility="collapsed")
+            val_13 = c3.selectbox("Diwakili Oleh P1", pilihan_p1, index=idx_p1, label_visibility="collapsed", disabled=is_management)
 
             val_14 = baris_input_bersih(14, "Selaku", default_val=get_val(13, "Selaku"))
             val_15 = baris_input_bersih(15, "Pihak Kedua", default_val=get_val(14, "Pihak Kedua"))
@@ -183,7 +175,7 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
             ]
             def_app1 = get_val(27, "Approved by 1")
             idx_app1 = pilihan_app1.index(def_app1) if def_app1 in pilihan_app1 else 0
-            val_28 = c3.selectbox("Approved by 1", pilihan_app1, index=idx_app1, label_visibility="collapsed")
+            val_28 = c3.selectbox("Approved by 1", pilihan_app1, index=idx_app1, label_visibility="collapsed", disabled=is_management)
 
             val_29 = baris_input_bersih(29, "Approved by Title 1", default_val=get_val(28, "Approved by Title 1"))
 
@@ -198,19 +190,23 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
             ]
             def_app2 = get_val(29, "Approved by 2")
             idx_app2 = pilihan_app2.index(def_app2) if def_app2 in pilihan_app2 else 0
-            val_30 = c3.selectbox("Approved by 2", pilihan_app2, index=idx_app2, label_visibility="collapsed")
+            val_30 = c3.selectbox("Approved by 2", pilihan_app2, index=idx_app2, label_visibility="collapsed", disabled=is_management)
 
             val_31 = baris_input_bersih(31, "Approved by Title 2", default_val=get_val(30, "Approved by Title 2"))
 
             st.markdown("---")
             
-            col_btn1, col_btn2, col_btn3 = st.columns(3)
-            with col_btn1:
-                submit_baru = st.form_submit_button("💾 Simpan Data Baru")
-            with col_btn2:
-                submit_save_as = st.form_submit_button("📥 Save As (Buat PI Baru)")
-            with col_btn3:
-                submit_update = st.form_submit_button("📝 Update Data Ini")
+            if not is_management:
+                col_btn1, col_btn2, col_btn3 = st.columns(3)
+                with col_btn1:
+                    submit_baru = st.form_submit_button("💾 Simpan Data Baru")
+                with col_btn2:
+                    submit_save_as = st.form_submit_button("📥 Save As (Buat PI Baru)")
+                with col_btn3:
+                    submit_update = st.form_submit_button("📝 Update Data Ini")
+            else:
+                submit_baru, submit_save_as, submit_update = False, False, False
+                st.info("ℹ️ Tombol aksi simpan dan pembaruan data dinonaktifkan untuk akun Direksi.")
             
             if submit_baru or submit_save_as or submit_update:
                 waktu_aksi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -235,9 +231,6 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                         st.session_state["edit_index"] = None
                 st.rerun()
 
-    # ==========================================
-    # MENU 2: LIHAT DATABASE TERSIMPAN (PHP-MYADMIN STYLE)
-    # ==========================================
     elif menu == "Lihat Database Tersimpan":
         st.markdown("""
             <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 12px 18px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #0284c7;">
@@ -275,7 +268,6 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
 
         df_sum = pd.DataFrame(summary_list)
 
-        # Filter Kontrak & PI
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             list_kontrak_opt = ["-- Semua Nomor Kontrak --"] + sorted(list(df_sum["Nomor Kontrak"].unique()))
@@ -295,7 +287,6 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
         st.markdown(f"<span style='font-size: 13px; color: #475569;'>Menampilkan <b>{len(df_filtered)}</b> dari total <b>{len(df_sum)}</b> baris data tersimpan:</span>", unsafe_allow_html=True)
         st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 
-        # HTML Data Grid ala phpMyAdmin (Zebra Soft + Full Borders + Compact Height)
         table_rows = ""
         for idx, row in df_filtered.iterrows():
             orig_i = row["Index"]
@@ -312,7 +303,6 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                 <td style="border: 1px solid #cbd5e1; padding: 6px 10px; text-align: center; color: #475569; font-size: 12px;">{row['Tanggal PI']}</td>
             """
             
-            # Kolom Tombol Hapus HANYA DITAMPILKAN JIKA BUKAN MANAGEMENT
             if not is_management:
                 table_rows += f"""
                 <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center; white-space: nowrap;">
@@ -324,7 +314,6 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
             
             table_rows += "</tr>"
 
-        # Header Kolom Aksi disesuaikan berdasarkan role
         action_header_html = '<th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: center; width: 80px;">Aksi</th>' if not is_management else ''
 
         table_html = f"""
