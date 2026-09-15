@@ -192,31 +192,39 @@ def render_panel_manajemen_akun():
 
 def cek_izin_akses_modul(identifier_modul):
     """
-    Aturan Hak Akses Modul:
-    - Super Admin: Akses Semua Modul
-    - Finance: Hanya Modul 3
-    - Project Manager: Modul 0, 1, 2
-    - Project Support: Modul 1, 2
-    - Admin Support: HANYA Modul Arsip Dokumen Customer & Pendukung (Modul Arsip)
-    - Management: Modul 1, 2, 3 (Read Only)
+    Menentukan apakah role yang sedang login berhak mengakses suatu modul.
+    Mengembalikan (is_allowed: bool, is_read_only: bool)
     """
     role = str(st.session_state.get("current_role", "Super Admin")).strip().lower()
-    
-    # Normalisasi identifier modul (bisa berupa angka 0,1,2,3 atau string nama modul)
     mod_str = str(identifier_modul).strip().lower()
     
+    # 1. Super Admin: Akses Penuh ke semua modul
     if role in ["super admin", "admin"]:
         return True, False
+        
+    # 2. Finance: Hanya Modul 3
     elif role == "finance":
-        return mod_str in ["3", "modul 3", "invoice & tax management"], False
+        allowed = any(k in mod_str for k in ["3", "invoice & tax management"])
+        return allowed, False
+        
+    # 3. Project Manager: Modul 0, 1, 2
     elif role == "project manager":
-        return mod_str in ["0", "1", "2", "modul 0", "modul 1", "modul 2"], False
+        allowed = any(k in mod_str for k in ["0", "1", "2", "master referensi", "master kontrak", "dokumen turunan"])
+        return allowed, False
+        
+    # 4. Project Support: Modul 1, 2
     elif role == "project support":
-        return mod_str in ["1", "2", "modul 1", "modul 2"], False
+        allowed = any(k in mod_str for k in ["1", "2", "master kontrak", "dokumen turunan"])
+        return allowed, False
+        
+    # 5. Admin Support: HANYA Modul Arsip Dokumen Customer & Pendukung
     elif role == "admin support":
-        # Admin Support HANYA DIZINKAN pada Arsip Dokumen
-        return any(term in mod_str for term in ["arsip", "dokumen", "customer", "pendukung"]), False
+        allowed = any(k in mod_str for k in ["arsip", "customer", "pendukung"])
+        return allowed, False
+        
+    # 6. Management: Modul 1, 2, 3 (Read Only)
     elif role == "management":
-        is_allowed = mod_str in ["1", "2", "3", "modul 1", "modul 2", "modul 3"]
-        return is_allowed, True 
+        allowed = any(k in mod_str for k in ["1", "2", "3", "master kontrak", "dokumen turunan", "invoice & tax"])
+        return allowed, True 
+        
     return False, False
