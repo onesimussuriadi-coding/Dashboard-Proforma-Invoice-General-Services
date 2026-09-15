@@ -1011,6 +1011,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         st.success("✅ Berhasil menghapus data invoice resmi!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f>f"⚠️ Gagal menghapus: {e}")
+                        st.error(f"⚠️ Gagal menghapus: {e}")
         else:
             st.info("Belum ada data invoice tersimpan.")
