@@ -98,7 +98,6 @@ def tampilkan_pemantauan_pembayaran():
                 for k, v in inv.items():
                     k_low = str(k).lower()
                     v_str = str(v).lower()
-                    # Deteksi khusus Management Fee / Handling Fee
                     if any(term in k_low or term in v_str for term in ["management fee", "handling fee", "fee ("]):
                         val_fee = parse_harga_presisi(v)
                         if val_fee > 0:
@@ -136,7 +135,6 @@ def tampilkan_pemantauan_pembayaran():
                     if ppn_val == 0.0:
                         ppn_val = total_val - dpp_val
 
-                # Jika ada management fee terdeteksi, jadikan basis khusus PPh
                 basis_pph_dpp = management_fee_val if management_fee_val > 0 else dpp_val
 
                 return {
@@ -525,7 +523,6 @@ def tampilkan_pemantauan_pembayaran():
     all_inv_no_contract = []
     for inv in inv_list_filtered_contract:
         val_inv = str(inv.get(col_key_inv, inv.get("Nomor Invoice Resmi", ""))).strip()
-        # Validasi ketat untuk menghindari data kosong, nan, atau stempel waktu (timestamp)
         if (val_inv and val_inv != 'nan' and len(val_inv) > 1 and 
             val_inv != str(form_kontrak_pilih).strip() and 
             not re.match(r'^\d{4}-\d{2}-\d{2}', val_inv)):
@@ -776,7 +773,7 @@ def tampilkan_pemantauan_pembayaran():
     else:
         st.info("ℹ️ Silakan pilih **Nomor Invoice Resmi Aktif** terlebih dahulu pada dropdown di atas untuk menampilkan form pengisian dan rincian performa invoice.")
 
-    # --- 7. TABEL RINGKASAN & LAPORAN AGING INVOICE ---
+    # --- 7. TABEL RINGKASAN & LAPORAN AGING INVOICE DENGAN GRAND TOTAL DI BAWAH ---
     st.markdown("---")
     st.markdown(f"#### 📋 Ringkasan & Laporan Aging Invoice ({filter_kontrak_pilih})")
 
@@ -786,6 +783,13 @@ def tampilkan_pemantauan_pembayaran():
 
     if current_payment_records:
         aging_data_list = []
+        
+        # Variabel penampung akumulasi total bawah
+        sum_total_tagihan = 0.0
+        sum_potongan_ppn = 0.0
+        sum_potongan_pph = 0.0
+        sum_netto_diterima = 0.0
+
         for row_p in current_payment_records:
             inv_num_row = row_p.get('Nomor Invoice', '-')
             cust_row = row_p.get('Customer', '-')
@@ -815,6 +819,12 @@ def tampilkan_pemantauan_pembayaran():
             p_wapu = float(row_p.get('Potongan PPN WAPU', 0.0))
             catatan_ket = str(row_p.get('Catatan', 'Lengkap'))
 
+            # Akumulasikan nilai untuk Grand Total
+            sum_total_tagihan += gt_val
+            sum_potongan_ppn += p_wapu
+            sum_potongan_pph += p_pph
+            sum_netto_diterima += b_akt
+
             aging_data_list.append({
                 "No. Kontrak": no_kontrak_row,
                 "No. Invoice Resmi": inv_num_row,
@@ -833,6 +843,26 @@ def tampilkan_pemantauan_pembayaran():
                 "Status": row_p.get('Status Pembayaran', '-'),
                 "Catatan Keterangan": catatan_ket
             })
+
+        # Tambahkan Baris Grand Total di bagian bawah tabel aging
+        aging_data_list.append({
+            "No. Kontrak": "TOTAL KESELURUHAN",
+            "No. Invoice Resmi": f"{len(current_payment_records)} Dokumen",
+            "Customer": "-",
+            "Tgl Inv": "-",
+            "Tgl Serah": "-",
+            "TOP": "-",
+            "Realisasi": "-",
+            "Deviasi": "-",
+            "Tgl JT": "-",
+            "Tgl Lunas": "-",
+            "Total Tagihan": fmt_rp(sum_total_tagihan),
+            "Potongan PPN": fmt_rp(sum_potongan_ppn),
+            "Potongan PPh": fmt_rp(sum_potongan_pph),
+            "Netto Diterima": fmt_rp(sum_netto_diterima),
+            "Status": "100%",
+            "Catatan Keterangan": "-"
+        })
 
         df_aging_view = pd.DataFrame(aging_data_list)
         st.dataframe(df_aging_view, use_container_width=True, hide_index=True)
