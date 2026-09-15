@@ -652,18 +652,24 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     if is_prof_sum_akt:
                         tabel_item_html = f"""
                         <tr>
-                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">1</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.35;"><b>Add Cost:</b><br>{deskripsi_keterangan_inv}</div></td>
-                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">-</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">-</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">Rp {val_add_cost:,.2f}</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; font-weight: bold; background-color: #fafafa;">1</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; vertical-align: top !important; word-break: break-word;">
+                                <div style="font-size: 11.5px; font-weight: bold; color: #0f172a; margin-bottom: 4px;">Add Cost</div>
+                                <div style="font-size: 11px; color: #334155; line-height: 1.4;">{deskripsi_keterangan_inv}</div>
+                            </td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {val_add_cost:,.2f}</td>
                         </tr>
                         <tr>
-                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">2</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.35;"><b>Management Fee / Handling Fee (15%):</b><br>Layanan manajemen & pengelolaan operasional terkait</div></td>
-                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">-</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">-</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">Rp {val_mgmt_fee:,.2f}</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; font-weight: bold; background-color: #fafafa;">2</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; vertical-align: top !important; word-break: break-word;">
+                                <div style="font-size: 11.5px; font-weight: bold; color: #0f172a; margin-bottom: 4px;">Management Fee / Handling Fee (15%)</div>
+                                <div style="font-size: 11px; color: #334155; line-height: 1.4;">Layanan manajemen & pengelolaan operasional terkait</div>
+                            </td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {val_mgmt_fee:,.2f}</td>
                         </tr>
                         """
                         total_amount_due = val_add_cost + val_mgmt_fee
@@ -684,20 +690,21 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             gross_subtotal += amount_murni_row
                             
                             keterangan_row = row_m2.get('Keterangan', '')
-                            desc_full = f"<b>{uraian}</b>"
+                            
+                            # RANCANGAN TIPOGRAFI BARU YANG ELEGAN & BERSIH
+                            desc_html = f'<div style="font-size: 11.5px; font-weight: bold; color: #0f172a; margin-bottom: 4px;">{uraian}</div>'
                             if kategori:
-                                desc_full += f"<br><span style='font-size: 10px; color: #334155;'>Kategori: {kategori}</span>"
+                                desc_html += f'<div style="font-size: 10.5px; color: #475569; margin-bottom: 2px;"><b>Kategori:</b> {kategori}</div>'
                             if keterangan_row:
-                                desc_full += f"<br><span style='font-size: 10px; font-style: italic;'>{keterangan_row}</span>"
+                                desc_html += f'<div style="font-size: 10.5px; color: #334155; line-height: 1.35;">{keterangan_row}</div>'
 
-                            # KOREKSI ELEGAN: PADDING YANG LAPANG (10px) DAN LINE-HEIGHT NYAMAN AGAR TERASA MEWAH DAN RAPI
                             tabel_item_html += f"""
                             <tr>
-                                <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">{idx_m2}</td>
-                                <td style="border: 1px solid #000; padding: 10px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.35;">{desc_full}</div></td>
-                                <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">{qty_val:,.2f} {satuan_val}</td>
-                                <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">Rp {harga_satuan_val:,.2f}</td>
-                                <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">Rp {amount_murni_row:,.2f}</td>
+                                <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; font-weight: bold; background-color: #fafafa;">{idx_m2}</td>
+                                <td style="border: 1px solid #94a3b8; padding: 12px 10px; vertical-align: top !important; word-break: break-word;">{desc_html}</td>
+                                <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; font-weight: 500; white-space: nowrap;">{qty_val:,.2f}<br><span style="font-size: 10px; color: #64748b; font-weight: normal;">{satuan_val}</span></td>
+                                <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px;">Rp {harga_satuan_val:,.2f}</td>
+                                <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {amount_murni_row:,.2f}</td>
                             </tr>
                             """
                         
@@ -711,11 +718,11 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         gross_subtotal = val_inv
                         tabel_item_html = f"""
                         <tr>
-                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">1</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.35;"><b>{deskripsi_keterangan_inv}</b></div></td>
-                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">-</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">-</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">Rp {val_inv:,.2f}</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; font-weight: bold; background-color: #fafafa;">1</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; vertical-align: top !important; word-break: break-word;"><div style="font-size: 11.5px; font-weight: bold; color: #0f172a;">{deskripsi_keterangan_inv}</div></td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {val_inv:,.2f}</td>
                         </tr>
                         """
                         total_amount_due = val_inv
@@ -725,18 +732,18 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
                     summary_rows_html = ""
                     if has_estimated_sum_category and discount_10_nominal > 0:
-                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 5px; font-weight: bold; color: #334155;">Gross Subtotal</td><td style="border-bottom: 1px solid #000; padding: 5px; text-align: right; color: #334155;">Rp {gross_subtotal:,.2f}</td></tr>'
-                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 5px; font-weight: bold; color: #c2410c;">Discount (10%)</td><td style="border-bottom: 1px solid #000; padding: 5px; text-align: right; color: #c2410c;">(Rp {discount_10_nominal:,.2f})</td></tr>'
+                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; font-weight: bold; color: #334155; font-size: 11px;">Gross Subtotal</td><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; text-align: right; color: #334155; font-size: 11px;">Rp {gross_subtotal:,.2f}</td></tr>'
+                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; font-weight: bold; color: #c2410c; font-size: 11px;">Discount (10%)</td><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; text-align: right; color: #c2410c; font-size: 11px;">(Rp {discount_10_nominal:,.2f})</td></tr>'
                     
-                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 6px; font-weight: bold;">Total Amount Due</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right; font-weight: bold;">Rp {total_amount_due:,.2f}</td></tr>'
-                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 6px; font-size: 10px; color: #475569;">DPP Nilai Lain (11/12)</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right; font-size: 10px; color: #475569;">Rp {dpp_nilai_lain:,.2f}</td></tr>'
-                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 6px;">VAT (PPN 11%)</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right;">Rp {val_ppn:,.2f}</td></tr>'
+                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; font-weight: bold; font-size: 11.5px;">Total Amount Due</td><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; text-align: right; font-weight: bold; font-size: 11.5px;">Rp {total_amount_due:,.2f}</td></tr>'
+                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; font-size: 10.5px; color: #475569;">DPP Nilai Lain (11/12)</td><td style="border-bottom: 1px solid #cbd5e1; padding: 6px 10px; text-align: right; font-size: 10.5px; color: #475569;">Rp {dpp_nilai_lain:,.2f}</td></tr>'
+                    summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; font-size: 11px;">VAT (PPN 11%)</td><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; text-align: right; font-size: 11px;">Rp {val_ppn:,.2f}</td></tr>'
                     
                     if val_pph > 0:
-                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #000; padding: 6px; color: #b91c1c;">Potongan PPh</td><td style="border-bottom: 1px solid #000; padding: 6px; text-align: right; color: #b91c1c;">(Rp {val_pph:,.2f})</td></tr>'
+                        summary_rows_html += f'<tr><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; font-size: 11px; color: #b91c1c;">Potongan PPh</td><td style="border-bottom: 1px solid #cbd5e1; padding: 7px 10px; text-align: right; font-size: 11px; color: #b91c1c;">(Rp {val_pph:,.2f})</td></tr>'
                     
                     total_akhir_cetak = total_amount_due + val_ppn - val_pph
-                    summary_rows_html += f'<tr style="background-color: #f1f5f9; font-weight: bold;"><td style="padding: 8px; border-top: 2px solid #000;">T O T A L</td><td style="padding: 8px; border-top: 2px solid #000; text-align: right;">Rp {total_akhir_cetak:,.2f}</td></tr>'
+                    summary_rows_html += f'<tr style="background-color: #f1f5f9; font-weight: bold;"><td style="padding: 9px 10px; border-top: 2px solid #0f172a; font-size: 12px;">T O T A L</td><td style="padding: 9px 10px; border-top: 2px solid #0f172a; text-align: right; font-size: 12px; color: #0f172a;">Rp {total_akhir_cetak:,.2f}</td></tr>'
 
                     html_invoice = f"""
                     <!DOCTYPE html>
@@ -775,7 +782,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                 background-color: white; 
                                 color: #111; 
                                 padding: 10px; 
-                                border: 2px solid #000; 
+                                border: 2px solid #0f172a; 
                                 border-radius: 4px; 
                                 max-width: 820px; 
                                 margin: auto; 
@@ -789,7 +796,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             }}
                             .footer-wrapper {{
                                 margin-top: auto;
-                                border-top: 1px solid #000;
+                                border-top: 1px solid #cbd5e1;
                                 padding-top: 6mm;
                             }}
                             .footer-container {{
@@ -797,7 +804,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                 justify-content: space-between;
                                 align-items: center;
                                 font-size: 10.5px;
-                                color: #000;
+                                color: #0f172a;
                                 font-weight: bold;
                             }}
                             .company-footer {{
@@ -812,7 +819,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     <body>
                         <div class="invoice-container">
                             <div class="invoice-content-body">
-                                <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px;">
+                                <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
                                     <tr>
                                         <td style="width: 20%; vertical-align: middle; text-align: center; padding: 5px;">{html_logo_kiri}</td>
                                         <td style="width: 52%; vertical-align: middle; text-align: center; padding: 5px;">
@@ -826,30 +833,30 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
                                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 0;">
                                     <tr>
-                                        <td style="border: 1px solid #000; border-bottom: none; padding: 8px 12px; font-weight: bold; width: 50%; background: #ffffff; color: #000;">Original</td>
-                                        <td style="border: 1px solid #000; border-bottom: none; border-left: none; padding: 8px 12px; text-align: right; font-weight: bold; font-size: 20px; background: #ffffff; color: #000; width: 50%; letter-spacing: 1px;">INVOICE</td>
+                                        <td style="border: 1px solid #94a3b8; border-bottom: none; padding: 8px 12px; font-weight: bold; width: 50%; background: #ffffff; color: #0f172a;">Original</td>
+                                        <td style="border: 1px solid #94a3b8; border-bottom: none; border-left: none; padding: 8px 12px; text-align: right; font-weight: bold; font-size: 20px; background: #ffffff; color: #0f172a; width: 50%; letter-spacing: 1px;">INVOICE</td>
                                     </tr>
                                 </table>
 
                                 <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 15px;">
                                     <tr>
-                                        <td style="width: 50%; border: 1px solid #000; vertical-align: top; padding: 10px;">
-                                            <div style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 6px;">Customer</div>
+                                        <td style="width: 50%; border: 1px solid #94a3b8; vertical-align: top; padding: 10px;">
+                                            <div style="font-weight: bold; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 6px; color: #0f172a;">Customer</div>
                                             <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
-                                                <tr><td style="width: 65px; vertical-align: top; padding: 2px 0;">Name</td><td style="width: 15px; vertical-align: top; padding: 2px 0;">:</td><td style="vertical-align: top; padding: 2px 0; font-weight: bold;">{selected_record.get('Customer')}</td></tr>
-                                                <tr><td style="vertical-align: top; padding: 2px 0;">Address</td><td style="vertical-align: top; padding: 2px 0;">:</td><td style="vertical-align: top; padding: 2px 0;">{selected_record.get('Alamat Customer')}</td></tr>
-                                                <tr><td style="vertical-align: top; padding: 2px 0;">NPWP</td><td style="vertical-align: top; padding: 2px 0;">:</td><td style="vertical-align: top; padding: 2px 0;">{selected_record.get('NPWP Customer')}</td></tr>
+                                                <tr><td style="width: 65px; vertical-align: top; padding: 2px 0; color: #475569;">Name</td><td style="width: 15px; vertical-align: top; padding: 2px 0;">:</td><td style="vertical-align: top; padding: 2px 0; font-weight: bold; color: #0f172a;">{selected_record.get('Customer')}</td></tr>
+                                                <tr><td style="vertical-align: top; padding: 2px 0; color: #475569;">Address</td><td style="vertical-align: top; padding: 2px 0;">:</td><td style="vertical-align: top; padding: 2px 0; color: #1e293b;">{selected_record.get('Alamat Customer')}</td></tr>
+                                                <tr><td style="vertical-align: top; padding: 2px 0; color: #475569;">NPWP</td><td style="vertical-align: top; padding: 2px 0;">:</td><td style="vertical-align: top; padding: 2px 0; color: #1e293b;">{selected_record.get('NPWP Customer')}</td></tr>
                                             </table>
                                         </td>
-                                        <td style="width: 50%; border: 1px solid #000; vertical-align: top; padding: 10px; border-left: none;">
-                                            <div style="font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 6px;">Misc</div>
+                                        <td style="width: 50%; border: 1px solid #94a3b8; vertical-align: top; padding: 10px; border-left: none;">
+                                            <div style="font-weight: bold; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 6px; color: #0f172a;">Misc</div>
                                             <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
-                                                <tr><td style="width: 130px; padding: 2px 0;">Invoice No.</td><td style="padding: 2px 0;">: <b>{selected_record.get('Nomor Invoice Resmi')}</b></td></tr>
-                                                <tr><td style="padding: 2px 0;">Invoice Date</td><td style="padding: 2px 0;">: {selected_record.get('Tanggal Invoice')}</td></tr>
-                                                <tr><td style="padding: 2px 0;">Contract Number</td><td style="padding: 2px 0;">: {kontrak_no_val}</td></tr>
-                                                <tr><td style="padding: 2px 0;">PO Nomor</td><td style="padding: 2px 0;">: {nomor_po_val}</td></tr>
-                                                {f"<tr><td style='padding: 2px 0;'>WAN / SA Nomor</td><td style='padding: 2px 0;'>: {nomor_sa_wan_val}</td></tr>" if nomor_sa_wan_val and nomor_sa_wan_val != "-" else ""}
-                                                <tr><td style="padding: 2px 0;">Due Date</td><td style="padding: 2px 0;">: {selected_record.get('Jatuh Tempo')}</td></tr>
+                                                <tr><td style="width: 130px; padding: 2px 0; color: #475569;">Invoice No.</td><td style="padding: 2px 0; color: #0f172a;">: <b>{selected_record.get('Nomor Invoice Resmi')}</b></td></tr>
+                                                <tr><td style="padding: 2px 0; color: #475569;">Invoice Date</td><td style="padding: 2px 0; color: #1e293b;">: {selected_record.get('Tanggal Invoice')}</td></tr>
+                                                <tr><td style="padding: 2px 0; color: #475569;">Contract Number</td><td style="padding: 2px 0; color: #1e293b;">: {kontrak_no_val}</td></tr>
+                                                <tr><td style="padding: 2px 0; color: #475569;">PO Nomor</td><td style="padding: 2px 0; color: #1e293b;">: {nomor_po_val}</td></tr>
+                                                {f"<tr><td style='padding: 2px 0; color: #475569;'>WAN / SA Nomor</td><td style='padding: 2px 0; color: #1e293b;'>: {nomor_sa_wan_val}</td></tr>" if nomor_sa_wan_val and nomor_sa_wan_val != "-" else ""}
+                                                <tr><td style="padding: 2px 0; color: #475569;">Due Date</td><td style="padding: 2px 0; color: #1e293b;">: {selected_record.get('Jatuh Tempo')}</td></tr>
                                             </table>
                                         </td>
                                     </tr>
@@ -858,23 +865,23 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                 <!-- TABEL UTAMA -->
                                 <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px;">
                                     <thead>
-                                        <tr style="background-color: #f1f5f9; border: 1px solid #000;">
-                                            <th style="border: 1px solid #000; padding: 8px 6px; width: 45px; text-align: center;">No.</th>
-                                            <th style="border: 1px solid #000; padding: 8px 6px; text-align: left;">DESCRIPTION</th>
-                                            <th style="border: 1px solid #000; padding: 8px 6px; width: 95px; text-align: center;">UNIT</th>
-                                            <th style="border: 1px solid #000; padding: 8px 6px; width: 110px; text-align: right;">UNIT PRICE (Rp.)</th>
-                                            <th style="border: 1px solid #000; padding: 8px 6px; width: 130px; text-align: right;">AMOUNT (Rp.)</th>
+                                        <tr style="background-color: #f1f5f9; color: #0f172a; border: 1px solid #94a3b8;">
+                                            <th style="border: 1px solid #94a3b8; padding: 10px 8px; width: 45px; text-align: center; font-weight: bold;">No.</th>
+                                            <th style="border: 1px solid #94a3b8; padding: 10px 8px; text-align: left; font-weight: bold;">DESCRIPTION</th>
+                                            <th style="border: 1px solid #94a3b8; padding: 10px 8px; width: 95px; text-align: center; font-weight: bold;">UNIT</th>
+                                            <th style="border: 1px solid #94a3b8; padding: 10px 8px; width: 110px; text-align: right; font-weight: bold;">UNIT PRICE (Rp.)</th>
+                                            <th style="border: 1px solid #94a3b8; padding: 10px 8px; width: 130px; text-align: right; font-weight: bold;">AMOUNT (Rp.)</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {tabel_item_html}
                                         <tr>
-                                            <td colspan="3" style="border: 1px solid #000; padding: 12px; vertical-align: top;">
-                                                <div style="font-size: 11px; font-weight: bold; margin-bottom: 3px; text-transform: uppercase;">PAYMENT INSTRUCTION</div>
-                                                <div style="font-size: 10.5px; margin-bottom: 5px; color: #334155;">Please remit to our bank:</div>
-                                                <div style="border: 1px solid #000; padding: 8px; background: #fafafa; font-size: 11px; line-height: 1.3; display: inline-block; width: 94%;">{bank_info_val}</div>
+                                            <td colspan="3" style="border: 1px solid #94a3b8; padding: 12px; vertical-align: top; background-color: #fff;">
+                                                <div style="font-size: 11px; font-weight: bold; margin-bottom: 3px; text-transform: uppercase; color: #0f172a;">PAYMENT INSTRUCTION</div>
+                                                <div style="font-size: 10.5px; margin-bottom: 6px; color: #475569;">Please remit to our bank:</div>
+                                                <div style="border: 1px solid #cbd5e1; padding: 10px; background: #f8fafc; font-size: 11px; line-height: 1.4; display: inline-block; width: 95%; border-radius: 4px;">{bank_info_val}</div>
                                             </td>
-                                            <td colspan="2" style="border: 1px solid #000; padding: 0; vertical-align: top;">
+                                            <td colspan="2" style="border: 1px solid #94a3b8; padding: 0; vertical-align: top;">
                                                 <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
                                                     {summary_rows_html}
                                                 </table>
@@ -884,16 +891,16 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                 </table>
 
                                 <!-- TANDA TANGAN -->
-                                <table style="width: 100%; margin-top: 50px; border-collapse: collapse;">
+                                <table style="width: 100%; margin-top: 45px; border-collapse: collapse;">
                                     <tr>
                                         <td style="width: 63%;"></td>
                                         <td style="width: 37%; text-align: left; padding-left: 35px;">
-                                            <p style="margin: 0 0 5px 0;">Best Regards,</p>
+                                            <p style="margin: 0 0 5px 0; color: #334155;">Best Regards,</p>
                                             <div style="text-align: center; width: 160px; margin: 8px 0;">
                                                 {html_ttd_direktur}
                                             </div>
-                                            <p style="margin: 5px 0 0 0; font-weight: bold; text-decoration: underline; font-size: 13px;">Ferry Tatimu</p>
-                                            <p style="margin: 2px 0 0 0; font-size: 12px;">Direktur</p>
+                                            <p style="margin: 5px 0 0 0; font-weight: bold; text-decoration: underline; font-size: 13px; color: #0f172a;">Ferry Tatimu</p>
+                                            <p style="margin: 2px 0 0 0; font-size: 12px; color: #475569;">Direktur</p>
                                         </td>
                                     </tr>
                                 </table>
