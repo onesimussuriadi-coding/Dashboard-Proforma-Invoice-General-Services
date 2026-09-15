@@ -105,6 +105,12 @@ except ImportError: pass
 # --- KONFIGURASI HALAMAN STREAMLIT ---
 st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
 
+# --- PERSISTENT SESSION STATE (MENCEGAH TERLEMPAR KE LOGIN SAAT REFRESH) ---
+query_params = st.query_params
+if query_params.get("session") == "active_bss_corporate" and query_params.get("user"):
+    st.session_state["logged_in"] = True
+    st.session_state["current_user"] = query_params.get("user")
+
 # --- UTILS & HELPER FUNCTIONS ---
 def bersih_angka(val):
     if val is None: return ""
@@ -268,7 +274,7 @@ def simpan_master_referensi(data_list):
                 if pd.isnull(v) or str(v).strip().lower() == "nan":
                     if k != 'Harga Satuan': item[k] = ""
     
-    success = simpan_data_to_db(TABEL_DB_MASTER_REF, data_list)
+    success = simpan_data_from_db(TABEL_DB_MASTER_REF, data_list)
     if success:
         st.session_state["db_master_ref"] = data_list
         return True
@@ -295,8 +301,13 @@ st.session_state["db_transaksi"] = muat_data_transaksi()
 st.session_state["db_master_ref"] = muat_master_referensi()
 st.session_state["db_master_bank"] = muat_master_bank()
 
-# --- AUTENTIKASI LOGIN SISTEM ---
+# --- AUTENTIKASI LOGIN SISTEM DENGAN PERSISTEN URL ---
 if form_login_sistem():
+    # Jika login sukses dari form, simpan parameter ke URL agar aman dari refresh
+    if st.session_state.get("logged_in", False) and st.session_state.get("current_user"):
+        st.query_params["session"] = "active_bss_corporate"
+        st.query_params["user"] = st.session_state.get("current_user")
+
     render_panel_manajemen_akun()
     user_role = st.session_state.get('current_role', 'Staff')
 
@@ -359,6 +370,7 @@ if form_login_sistem():
 
     if st.sidebar.button("🔒 Keluar / Logout Sistem"):
         st.session_state.logged_in = False
+        st.query_params.clear()
         st.rerun()
 
     # --- ROUTER MODUL ULTIMATE ---
