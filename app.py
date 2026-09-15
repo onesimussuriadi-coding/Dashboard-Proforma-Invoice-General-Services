@@ -10,6 +10,12 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 # Menambahkan path folder root dan modul
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
+# --- IMPORT KONEKSI DATABASE MYSQL ---
+try:
+    from db_connection import muat_data_from_db, simpan_data_to_db
+except ImportError as e:
+    st.error(f"Gagal memuat db_connection: {e}")
+
 # --- IMPORT MODUL INPUT TERPISAH (MODULAR) ---
 try:
     from modul_input.modul_0_referensi import tampilkan_modul_0_referensi
@@ -139,87 +145,62 @@ MAPPING_HEADER_INVOICE = {
 }
 REVERSE_MAPPING_HEADER = {v: k for k, v in MAPPING_HEADER_INVOICE.items()}
 
-# --- FORMATTING EXCEL PROFESIONAL (HIJAU MUDA + TEKS HITAM + ZEBRA + BORDER TEGAS + AUTO-FIT) ---
+# --- FORMATTING EXCEL PROFESIONAL ---
 def terapkan_format_excel_profesional(worksheet, df):
     if df.empty: return
-    
-    # 1. Header: Hijau Muda Menyala dengan Teks Hitam Tebal
     header_fill = PatternFill(start_color="A7F3D0", end_color="A7F3D0", fill_type="solid")
     header_font = Font(name="Calibri", size=11, bold=True, color="000000")
     header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    
-    # 2. Zebra striping (Baris selang-seling warna putih dan abu-abu sangat muda)
     zebra_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
     white_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
-    
-    # 3. Garis Tepi (Borders) tipis yang jelas untuk setiap sel
-    thin_border = Border(
-        left=Side(style='thin', color='CBD5E1'), 
-        right=Side(style='thin', color='CBD5E1'),
-        top=Side(style='thin', color='CBD5E1'), 
-        bottom=Side(style='thin', color='CBD5E1')
-    )
+    thin_border = Border(left=Side(style='thin', color='CBD5E1'), right=Side(style='thin', color='CBD5E1'), top=Side(style='thin', color='CBD5E1'), bottom=Side(style='thin', color='CBD5E1'))
 
     max_col_letter = worksheet.cell(row=1, column=len(df.columns)).column_letter
     worksheet.auto_filter.ref = f"A1:{max_col_letter}{len(df) + 1}"
 
-    # Terapkan Format ke Header Kolom
     for col_idx in range(1, len(df.columns) + 1):
         cell = worksheet.cell(row=1, column=col_idx)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = header_align
-        cell.border = thin_border
+        cell.fill = header_fill; cell.font = header_font; cell.alignment = header_align; cell.border = thin_border
         worksheet.row_dimensions[1].height = 25
 
-    # Terapkan Format ke Baris Data (Zebra Striping, Border, Teks Hitam, Alignment)
     for row_idx in range(2, len(df) + 2):
         row_fill = zebra_fill if row_idx % 2 == 0 else white_fill
         worksheet.row_dimensions[row_idx].height = 20
         for col_idx in range(1, len(df.columns) + 1):
             cell = worksheet.cell(row=row_idx, column=col_idx)
-            cell.fill = row_fill
-            cell.border = thin_border
-            cell.font = Font(name="Calibri", size=10, color="000000")
+            cell.fill = row_fill; cell.border = thin_border; cell.font = Font(name="Calibri", size=10, color="000000")
             cell.alignment = Alignment(vertical="center", horizontal="left")
 
-    # 4. Otomatis Sesuaikan Lebar Kolom (Auto-fit) agar tidak terpotong
     for col in worksheet.columns:
         max_len = 0
         col_letter = col[0].column_letter
         for cell in col:
             val_str = str(cell.value or '')
-            if len(val_str) > max_len: 
-                max_len = len(val_str)
+            if len(val_str) > max_len: max_len = len(val_str)
         worksheet.column_dimensions[col_letter].width = min(max(max_len + 5, 16), 55)
 
-# --- PENYIMPANAN FOLDER & LOKAL DATABASE ---
-DIR_DATABASE = "database_penyimpanan_aman"
-if not os.path.exists(DIR_DATABASE): os.makedirs(DIR_DATABASE)
-
-EXCEL_INVOICE = os.path.join(DIR_DATABASE, "database_proforma_invoice.xlsx")
-EXCEL_TRANSAKSI = os.path.join(DIR_DATABASE, "database_transaksi_rincian.xlsx")
-EXCEL_MASTER_REF = os.path.join(DIR_DATABASE, "database_master_referensi.xlsx")
-EXCEL_BANK = os.path.join(DIR_DATABASE, "database_master_bank.xlsx")
+# --- FUNGSI DATABASE MYSQL & FALLBACK LOKAL ---
+TABEL_DB_INVOICE = "database_proforma_invoice"
+TABEL_DB_TRANSAKSI = "database_transaksi_rincian"
+TABEL_DB_MASTER_REF = "database_master_referensi"
+TABEL_DB_BANK = "database_master_bank"
 
 def muat_data_invoice():
-    if os.path.exists(EXCEL_INVOICE):
-        try:
-            df = pd.read_excel(EXCEL_INVOICE, engine='openpyxl').dropna(how='all')
-            data_records = df.to_dict(orient="records")
-            normalized_records = []
-            for rec in data_records:
-                new_rec = {}
-                for k, v in rec.items():
-                    val_c = bersih_angka(v) if pd.notnull(v) else ""
-                    key_str = str(k).strip()
-                    idx_key = REVERSE_MAPPING_HEADER.get(key_str, key_str)
-                    try: new_rec[int(idx_key)] = val_c
-                    except ValueError: new_rec[idx_key] = val_c
-                normalized_records.append(new_rec)
-            st.session_state["db_tersimpan"] = normalized_records
-            return normalized_records
-        except: pass
+    # Coba ambil dari MySQL Database
+    db_data = muat_data_from_db(TABEL_DB_INVOICE)
+    if db_data:
+        normalized_records = []
+        for rec in db_data:
+            new_rec = {}
+            for k, v in rec.items():
+                val_c = bersih_angka(v) if pd.notnull(v) else ""
+                key_str = str(k).strip()
+                idx_key = REVERSE_MAPPING_HEADER.get(key_str, key_str)
+                try: new_rec[int(idx_key)] = val_c
+                except ValueError: new_rec[idx_key] = val_c
+            normalized_records.append(new_rec)
+        st.session_state["db_tersimpan"] = normalized_records
+        return normalized_records
     return st.session_state.get("db_tersimpan", [])
 
 def simpan_data_invoice(data_list):
@@ -235,30 +216,19 @@ def simpan_data_invoice(data_list):
                 header_name = MAPPING_HEADER_INVOICE.get(key_str, key_str)
                 formatted_item[header_name] = bersih_angka(v) if pd.notnull(v) else ""
             processed_data.append(formatted_item)
-    df_baru = pd.DataFrame(processed_data)
-    try:
-        with pd.ExcelWriter(EXCEL_INVOICE, engine='openpyxl') as writer:
-            df_baru.to_excel(writer, index=False, sheet_name="Database_Invoice")
-            terapkan_format_excel_profesional(writer.sheets["Database_Invoice"], df_baru)
+    
+    # Simpan ke MySQL Database
+    success = simpan_data_to_db(TABEL_DB_INVOICE, processed_data)
+    if success:
         st.session_state["db_tersimpan"] = data_list
         return True
-    except PermissionError:
-        st.error("⚠️ **Gagal Menyimpan:** File `database_proforma_invoice.xlsx` sedang terbuka di Excel. Harap tutup file tersebut lalu simpan kembali!")
-        return False
-    except Exception as e:
-        st.error(f"⚠️ Error: {e}"); return False
+    return False
 
 def muat_data_transaksi():
-    if os.path.exists(EXCEL_TRANSAKSI):
-        try:
-            df = pd.read_excel(EXCEL_TRANSAKSI, engine='openpyxl').dropna(how='all')
-            for col in df.columns:
-                if col not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']:
-                    df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
-            records = df.to_dict(orient="records")
-            st.session_state["db_transaksi"] = records
-            return records
-        except: pass
+    db_data = muat_data_from_db(TABEL_DB_TRANSAKSI)
+    if db_data:
+        st.session_state["db_transaksi"] = db_data
+        return db_data
     return st.session_state.get("db_transaksi", [])
 
 def simpan_data_transaksi(data_list):
@@ -272,29 +242,18 @@ def simpan_data_transaksi(data_list):
                 if pd.isnull(v) or str(v).strip().lower() == "nan":
                     if k not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']: item_copy[k] = ""
             processed_tx.append(item_copy)
-    df_baru = pd.DataFrame(processed_tx)
-    try:
-        with pd.ExcelWriter(EXCEL_TRANSAKSI, engine='openpyxl') as writer:
-            df_baru.to_excel(writer, index=False, sheet_name="Riwayat_Transaksi")
-            terapkan_format_excel_profesional(writer.sheets["Riwayat_Transaksi"], df_baru)
+    
+    success = simpan_data_to_db(TABEL_DB_TRANSAKSI, processed_tx)
+    if success:
         st.session_state["db_transaksi"] = data_list
         return True
-    except PermissionError:
-        st.error("⚠️ **Gagal Menyimpan:** File `database_transaksi_rincian.xlsx` sedang terbuka di Excel. Harap tutup file tersebut!")
-        return False
-    except Exception as e:
-        st.error(f"⚠️ Error: {e}"); return False
+    return False
 
 def muat_master_referensi():
-    if os.path.exists(EXCEL_MASTER_REF):
-        try:
-            df = pd.read_excel(EXCEL_MASTER_REF, engine='openpyxl').dropna(how='all')
-            for col in df.columns:
-                if col not in ['Harga Satuan']: df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
-            records = df.to_dict(orient="records")
-            st.session_state["db_master_ref"] = records
-            return records
-        except: pass
+    db_data = muat_data_from_db(TABEL_DB_MASTER_REF)
+    if db_data:
+        st.session_state["db_master_ref"] = db_data
+        return db_data
     return st.session_state.get("db_master_ref", [])
 
 def simpan_master_referensi(data_list):
@@ -305,44 +264,27 @@ def simpan_master_referensi(data_list):
             for k, v in item.items():
                 if pd.isnull(v) or str(v).strip().lower() == "nan":
                     if k != 'Harga Satuan': item[k] = ""
-    df_baru = pd.DataFrame(data_list)
-    try:
-        with pd.ExcelWriter(EXCEL_MASTER_REF, engine='openpyxl') as writer:
-            df_baru.to_excel(writer, index=False, sheet_name="Master_Referensi")
-            terapkan_format_excel_profesional(writer.sheets["Master_Referensi"], df_baru)
+    
+    success = simpan_data_to_db(TABEL_DB_MASTER_REF, data_list)
+    if success:
         st.session_state["db_master_ref"] = data_list
         return True
-    except PermissionError:
-        st.error("⚠️ File `database_master_referensi.xlsx` sedang terbuka di Excel. Harap tutup dahulu!")
-        return False
-    except Exception as e:
-        st.error(f"⚠️ Error: {e}"); return False
+    return False
 
 def muat_master_bank():
     default_banks = [{"Bank Name": "BANK RAKYAT INDONESIA (PERSERO) Tbk.", "Bank Branch": "Cabang Luwuk", "Account No": "0167 0167 8888 303", "Account Name": "PT. BANGGAI SENTRAL SULAWESI", "Attn": "Accounts Payable - Finance Department"}]
-    if os.path.exists(EXCEL_BANK):
-        try:
-            df = pd.read_excel(EXCEL_BANK, engine='openpyxl').dropna(how='all')
-            for col in df.columns: df[col] = df[col].apply(lambda x: bersih_angka(x) if pd.notnull(x) else "")
-            records = df.to_dict(orient="records")
-            st.session_state["db_master_bank"] = records
-            return records
-        except: pass
+    db_data = muat_data_from_db(TABEL_DB_BANK)
+    if db_data:
+        st.session_state["db_master_bank"] = db_data
+        return db_data
     return st.session_state.get("db_master_bank", default_banks)
 
 def simpan_master_bank(data_list):
-    df_baru = pd.DataFrame(data_list)
-    try:
-        with pd.ExcelWriter(EXCEL_BANK, engine='openpyxl') as writer:
-            df_baru.to_excel(writer, index=False, sheet_name="Master_Bank")
-            terapkan_format_excel_profesional(writer.sheets["Master_Bank"], df_baru)
+    success = simpan_data_to_db(TABEL_DB_BANK, data_list)
+    if success:
         st.session_state["db_master_bank"] = data_list
         return True
-    except PermissionError:
-        st.error("⚠️ File `database_master_bank.xlsx` sedang terbuka di Excel!")
-        return False
-    except Exception as e:
-        st.error(f"⚠️ Error: {e}"); return False
+    return False
 
 # --- LOAD DATA KETIKA APLIKASI PERTAMA BUKA ---
 st.session_state["db_tersimpan"] = muat_data_invoice()
@@ -372,7 +314,7 @@ if form_login_sistem():
     st.markdown("""
         <div class="company-header-centered">
             <h2 style="margin:0; font-size: 24px; font-weight: 700; color: #ffffff;">PT. BANGGAI SENTRAL SULAWESI</h2>
-            <p style="margin:4px 0 0 0; font-size: 13px; color: #34d399; font-weight: 500;">General Contractor and Suppliers | Dashboard Terintegrasi Utama</p>
+            <p style="margin:4px 0 0 0; font-size: 13px; color: #34d399; font-weight: 500;">General Contractor and Suppliers | Dashboard Terintegrasi Utama (Cloud MySQL)</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -407,10 +349,10 @@ if form_login_sistem():
 
     st.sidebar.markdown("---")
 
-    if st.sidebar.button("🔄 Reload / Refresh Data Lokal"):
+    if st.sidebar.button("🔄 Reload / Refresh Data Cloud MySQL"):
         st.cache_data.clear()
         muat_data_invoice(); muat_data_transaksi(); muat_master_referensi(); muat_master_bank()
-        st.sidebar.success("✅ Data lokal diperbarui.")
+        st.sidebar.success("✅ Data tersinkronisasi dengan Database MySQL.")
 
     if st.sidebar.button("🔒 Keluar / Logout Sistem"):
         st.session_state.logged_in = False
