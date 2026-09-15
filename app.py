@@ -267,7 +267,10 @@ if form_login_sistem():
         st.query_params["user"] = st.session_state.get("current_user")
 
     render_panel_manajemen_akun()
-    user_role = str(st.session_state.get('current_role', 'Staff')).strip()
+    user_role = str(st.session_state.get('current_role', 'Staff')).strip().lower()
+    
+    # Penanda khusus untuk hak akses Management / Direksi (Read-Only)
+    is_management = user_role in ["management", "direksi"]
 
     # Styling CSS UI Rapi & Tegas
     st.markdown("""
@@ -294,12 +297,18 @@ if form_login_sistem():
     st.sidebar.markdown(f"🕒 **Waktu Sistem (WITA):**<br>`{(datetime.utcnow() + timedelta(hours=8)).strftime('%d %b %Y, %H:%M:%S')}`", unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
-    if user_role == "Admin Support":
+    if user_role == "admin support":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan", "📁 Arsip Dokumen Customer & Pendukung"])
-    elif user_role == "Finance":
+    elif user_role == "finance":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", ["💰 Modul 3: Invoice & Tax Management", "📁 Arsip Dokumen Customer & Pendukung"])
-    elif user_role == "Project Support":
+    elif user_role == "project support":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", ["📁 Modul 1: Database & Master Kontrak", "📄 Modul 2: Invoice & Dokumen Turunan", "📁 Arsip Dokumen Customer & Pendukung"])
+    elif is_management:
+        modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama (Direksi - Read Only):", [
+            "💰 Modul 3: Invoice & Tax Management",
+            "📄 Modul 2: Invoice & Dokumen Turunan",
+            "📁 Arsip Dokumen Customer & Pendukung"
+        ])
     else: 
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
             "📁 Modul 0: Master Referensi Harga & Pekerjaan",
@@ -311,12 +320,21 @@ if form_login_sistem():
 
     st.sidebar.markdown("---")
 
-    if modul_pilihan == "Timesheet Peralatan": menu = "Timesheet"
-    elif modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan": menu = st.sidebar.radio("Pilih Menu:", ["Input & Kelola Master Referensi", "Lihat Daftar Master Referensi Tersimpan"])
-    elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak": menu = st.sidebar.radio("Pilih Menu:", ["Input Database & Invoice (31 Kolom)", "Lihat Database Tersimpan"])
-    elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management": menu = st.sidebar.radio("Pilih Menu:", ["Input Data Invoice Resmi", "Input & Cetak Faktur Pajak", "Pemantauan Proses Pembayaran", "Pratinjau, Cetak & Download PDF Invoice", "Lihat Daftar Invoice & Pajak Tersimpan"])
-    elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung": menu = "Arsip Dokumen Customer & Pendukung"
-    else: menu = st.sidebar.radio("Pilih Menu:", ["Input & Proses Rincian Pekerjaan", "Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"])
+    if user_role == "admin support" and modul_pilihan == "Timesheet Peralatan": 
+        menu = "Timesheet"
+    elif is_management:
+        if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
+            menu = st.sidebar.selectbox("Pilih Menu (Read-Only):", ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan"])
+        elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
+            menu = st.sidebar.selectbox("Pilih Menu (Read-Only):", ["Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"])
+        else:
+            menu = "Arsip Dokumen Customer & Pendukung"
+    else:
+        if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan": menu = st.sidebar.radio("Pilih Menu:", ["Input & Kelola Master Referensi", "Lihat Daftar Master Referensi Tersimpan"])
+        elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak": menu = st.sidebar.radio("Pilih Menu:", ["Input Database & Invoice (31 Kolom)", "Lihat Database Tersimpan"])
+        elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management": menu = st.sidebar.radio("Pilih Menu:", ["Input Data Invoice Resmi", "Input & Cetak Faktur Pajak", "Pemantauan Proses Pembayaran", "Pratinjau, Cetak & Download PDF Invoice", "Lihat Daftar Invoice & Pajak Tersimpan"])
+        elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung": menu = "Arsip Dokumen Customer & Pendukung"
+        else: menu = st.sidebar.radio("Pilih Menu:", ["Input & Proses Rincian Pekerjaan", "Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"])
 
     st.sidebar.markdown("---")
 
@@ -330,41 +348,58 @@ if form_login_sistem():
         st.query_params.clear()
         st.rerun()
 
-    # --- ROUTER MODUL UTAMA ---
-    if user_role == "Admin Support" and modul_pilihan == "Timesheet Peralatan":
+    # --- ROUTER MODUL UTAMA DENGAN PENGAMANAN DIREKSI ---
+    if is_management:
+        st.info("👁️ **Mode Direksi / Management Aktif (Read-Only):** Anda dapat memantau pembayaran, melihat rekap transaksi, mengunduh PDF dokumen, dan menelusuri arsip tanpa hak akses ubah/hapus data.")
+
+    if user_role == "admin support" and modul_pilihan == "Timesheet Peralatan":
         tampilkan_timesheet(muat_data_transaksi())
 
     elif modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
-        tampilkan_modul_0_referensi(
-            menu=menu,
-            muat_master_referensi_func=muat_master_referensi,
-            simpan_master_referensi_func=simpan_master_referensi,
-            muat_data_invoice_func=muat_data_invoice,
-            bersih_angka_func=bersih_angka
-        )
+        if is_management:
+            st.warning("⚠️ Akses Terbatas: Modul Referensi Harga khusus dikelola oleh Admin/Project Support.")
+        else:
+            tampilkan_modul_0_referensi(
+                menu=menu,
+                muat_master_referensi_func=muat_master_referensi,
+                simpan_master_referensi_func=simpan_master_referensi,
+                muat_data_invoice_func=muat_data_invoice,
+                bersih_angka_func=bersih_angka
+            )
 
     elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung":
         tampilkan_arsip_pendukung()
 
     elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
         tx = muat_data_transaksi()
-        if menu == "Input & Cetak Faktur Pajak": tampilkan_faktur_pajak(tx, menu)
-        elif menu == "Pemantauan Proses Pembayaran": tampilkan_pemantauan_pembayaran()
-        else: tampilkan_billing_tax(tx, menu)
+        if is_management:
+            if menu == "Pemantauan Proses Pembayaran":
+                tampilkan_pemantauan_pembayaran()
+            else:
+                tampilkan_billing_tax(tx, "Lihat Daftar Invoice & Pajak Tersimpan")
+        else:
+            if menu == "Input & Cetak Faktur Pajak": tampilkan_faktur_pajak(tx, menu)
+            elif menu == "Pemantauan Proses Pembayaran": tampilkan_pemantauan_pembayaran()
+            else: tampilkan_billing_tax(tx, menu)
 
     elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
-        tampilkan_modul_1_database(
-            menu=menu,
-            saved_db_list=muat_data_invoice(),
-            bersih_angka_func=bersih_angka,
-            parse_date_func=parse_date_safely,
-            sort_pi_key_func=sort_pi_key,
-            simpan_data_invoice_func=simpan_data_invoice,
-            muat_data_invoice_func=muat_data_invoice
-        )
+        if is_management:
+            st.warning("⚠️ Akses Terbatas: Modul input database kontrak hanya dapat dikelola oleh Project Support.")
+        else:
+            tampilkan_modul_1_database(
+                menu=menu,
+                saved_db_list=muat_data_invoice(),
+                bersih_angka_func=bersih_angka,
+                parse_date_func=parse_date_safely,
+                sort_pi_key_func=sort_pi_key,
+                simpan_data_invoice_func=simpan_data_invoice,
+                muat_data_invoice_func=muat_data_invoice
+            )
 
     elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
-        if menu == "Input & Proses Rincian Pekerjaan":
+        if menu == "Input & Proses Rincian Pekerjaan" and is_management:
+            st.warning("⚠️ Akses Terbatas: Direksi berada dalam mode Read-Only dan tidak dapat menginput rincian pekerjaan.")
+        elif menu == "Input & Proses Rincian Pekerjaan":
             tampilkan_modul_2_rincian(
                 saved_db=muat_data_invoice(),
                 master_ref_data=muat_master_referensi(),
@@ -375,7 +410,7 @@ if form_login_sistem():
                 muat_master_bank_func=muat_master_bank,
                 simpan_master_bank_func=simpan_master_bank
             )
-        elif menu == "Pratinjau, Cetak & Download PDF Dokumen":
+        elif menu == "Pratinjau, Cetak & Download PDF Dokumen" or is_management:
             tx_data = muat_data_transaksi()
             if tx_data:
                 kontrak_list = sorted(list(set([t.get("Nomor Kontrak") for t in tx_data if t.get("Nomor Kontrak")])))
