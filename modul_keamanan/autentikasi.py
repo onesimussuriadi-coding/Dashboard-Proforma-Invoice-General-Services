@@ -21,7 +21,7 @@ def muat_database_users():
         except:
             pass
             
-    # Default Users sesuai Rule Perusahaan PT Banggai Sentral Sulawesi
+    # Default Users termasuk Admin Support sesuai Rule PT Banggai Sentral Sulawesi
     default_users = [
         {
             "Username": "admin",
@@ -50,6 +50,13 @@ def muat_database_users():
             "Nama Lengkap": "Project Support / Marketing",
             "Role": "Project Support",
             "Departemen": "Operasional & Marketing"
+        },
+        {
+            "Username": "adminsupport",
+            "Password": hash_password("support2026"),
+            "Nama Lengkap": "Admin Support Arsip",
+            "Role": "Admin Support",
+            "Departemen": "Administrasi & Dokumen"
         },
         {
             "Username": "management",
@@ -124,7 +131,6 @@ def tampilkan_panel_sidebar_akun():
     with st.sidebar:
         st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
         
-        # Fallback nilai jika session sempat kosong
         if not st.session_state.get("current_user"):
             st.session_state["current_user"] = "admin"
         if not st.session_state.get("current_role"):
@@ -147,7 +153,6 @@ def tampilkan_panel_sidebar_akun():
 
             st.markdown("<hr style='margin: 6px 0;'>", unsafe_allow_html=True)
 
-            # Tombol Logout Aktif
             if st.button("🔒 Keluar / Logout Sistem", use_container_width=True, type="secondary"):
                 st.session_state["logged_in"] = False
                 st.session_state["current_user"] = ""
@@ -156,14 +161,15 @@ def tampilkan_panel_sidebar_akun():
                 st.success("👋 Anda telah keluar dari sistem.")
                 st.rerun()
 
-        # Panel Kontrol Pembuatan Akun & Kewenangan (Ditampilkan otomatis untuk Super Admin / Admin)
+        # Panel Pembuatan Akun & Kewenangan (Hanya untuk Super Admin)
         if role_aktif.lower() in ["super admin", "admin"]:
             with st.expander("👥 Pembuatan Akun & Kewenangan", expanded=True):
                 with st.form("form_tambah_user_baru_sidebar"):
                     new_user = st.text_input("Username Baru")
                     new_pass = st.text_input("Password Baru", type="password")
                     new_nama = st.text_input("Nama Lengkap / Dept")
-                    new_role = st.selectbox("Role / Kewenangan", ["Super Admin", "Finance", "Project Manager", "Project Support", "Management"])
+                    # Ditambahkan 'Admin Support' dalam pilihan role
+                    new_role = st.selectbox("Role / Kewenangan", ["Super Admin", "Finance", "Project Manager", "Project Support", "Admin Support", "Management"])
                     
                     btn_simpan_user = st.form_submit_button("➕ Buat Akun Baru", use_container_width=True)
                     if btn_simpan_user:
@@ -185,11 +191,23 @@ def tampilkan_panel_sidebar_akun():
                         else:
                             st.error("⚠️ Username & Password wajib diisi!")
 
-# Alias agar sinkron dengan pemanggilan di app.py
 def render_panel_manajemen_akun():
     return tampilkan_panel_sidebar_akun()
 
 def cek_izin_akses_modul(nomor_modul):
+    """
+    Aturan Hak Akses Modul:
+    - Super Admin: Akses Semua Modul (0, 1, 2, 3, dan Arsip Dokumen)
+    - Finance: Hanya Modul 3
+    - Project Manager: Modul 0, 1, 2
+    - Project Support (Operasi Marketing): Modul 1, 2
+    - Admin Support: Hanya Modul Arsip Dokumen Customer & Penunjang
+    - Management (Viewer): Modul 1, 2, 3 (Read Only)
+    
+    Catatan penomoran modul di app.py biasanya:
+    - Modul Arsip Dokumen Customer & Penunjang diasumsikan bernomor khusus atau string "arsip" / "modul_ arsip". 
+      Jika di app.py menggunakan angka (misal modul 4) atau string, sesuaikan. Di sini kita tangani berbasis string/angka.
+    """
     role = str(st.session_state.get("current_role", "Super Admin")).strip()
     
     if role.lower() in ["super admin", "admin"]:
@@ -200,6 +218,10 @@ def cek_izin_akses_modul(nomor_modul):
         return nomor_modul in [0, 1, 2], False
     elif role == "Project Support":
         return nomor_modul in [1, 2], False
+    elif role == "Admin Support":
+        # Admin Support hanya bisa membuka Modul Arsip Dokumen Customer & Penunjang
+        # (Sesuaikan identifier modul arsip di app.py, misal bernomor "arsip" atau 4)
+        return nomor_modul in ["arsip", "Arsip Dokumen Customer & Penunjang", 4], False
     elif role == "Management":
         is_allowed = nomor_modul in [1, 2, 3]
         return is_allowed, True 
