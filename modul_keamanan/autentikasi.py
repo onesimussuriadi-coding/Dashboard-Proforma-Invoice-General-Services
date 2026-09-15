@@ -119,55 +119,58 @@ def form_login_sistem():
     return True
 
 def tampilkan_panel_sidebar_akun():
-    username_aktif = st.session_state.get("current_user", "admin")
-    role_aktif = st.session_state.get("current_role", "Super Admin")
-    nama_aktif = st.session_state.get("nama_lengkap", "Administrator Utama")
+    # Ditempatkan murni di dalam st.sidebar agar tersembunyi/rapi di kolom kiri
+    with st.sidebar:
+        st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
+        username_aktif = st.session_state.get("current_user", "admin")
+        role_aktif = st.session_state.get("current_role", "Super Admin")
+        nama_aktif = st.session_state.get("nama_lengkap", "Administrator Utama")
 
-    with st.expander("⚙️ Manajemen Akun & Hak Akses", expanded=True):
-        st.markdown(f"""
-            <div style="font-size: 13px; color: #1e293b; line-height: 1.5;">
-                <p style="margin: 2px 0;">👤 <b>Login:</b> <span style="color: #0284c7; font-weight: bold;">{username_aktif}</span></p>
-                <p style="margin: 2px 0;">🛡️ <b>Role:</b> <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #0f172a;">{role_aktif}</span></p>
-                <p style="margin: 2px 0; color: #64748b; font-size: 11px;">Nama: {nama_aktif}</p>
-            </div>
-        """, unsafe_allow_html=True)
+        with st.expander("⚙️ Manajemen Akun & Hak Akses", expanded=False):
+            st.markdown(f"""
+                <div style="font-size: 12px; color: #1e293b; line-height: 1.4;">
+                    <p style="margin: 2px 0;">👤 <b>Login:</b> <span style="color: #0284c7; font-weight: bold;">{username_aktif}</span></p>
+                    <p style="margin: 2px 0;">🛡️ <b>Role:</b> <span style="background: #e2e8f0; padding: 2px 5px; border-radius: 3px; font-weight: bold; color: #0f172a;">{role_aktif}</span></p>
+                    <p style="margin: 2px 0; color: #64748b; font-size: 11px;">Nama: {nama_aktif}</p>
+                </div>
+            """, unsafe_allow_html=True)
 
-        st.markdown("<hr style='margin: 8px 0;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='margin: 6px 0;'>", unsafe_allow_html=True)
 
-        if st.button("🔒 Keluar / Logout Sistem", use_container_width=True, type="secondary"):
-            st.session_state["logged_in"] = False
-            st.session_state["current_user"] = ""
-            st.session_state["current_role"] = ""
-            st.success("👋 Anda telah keluar dari sistem.")
-            st.rerun()
+            if st.button("🔒 Keluar / Logout Sistem", use_container_width=True, type="secondary"):
+                st.session_state["logged_in"] = False
+                st.session_state["current_user"] = ""
+                st.session_state["current_role"] = ""
+                st.success("👋 Anda telah keluar.")
+                st.rerun()
 
-    # Panel Admin Tambah User
-    if role_aktif == "Super Admin":
-        with st.expander("👥 Panel Kontrol Tambah/Edit User", expanded=False):
-            with st.form("form_tambah_user_baru"):
-                new_user = st.text_input("Username Baru")
-                new_pass = st.text_input("Password Baru", type="password")
-                new_nama = st.text_input("Nama Lengkap")
-                new_role = st.selectbox("Pilih Role", ["Super Admin", "Finance", "Project Manager", "Project Support", "Management"])
-                
-                btn_simpan_user = st.form_submit_button("➕ Tambah User Baru")
-                if btn_simpan_user:
-                    if new_user and new_pass:
-                        current_db = st.session_state["db_users"]
-                        current_db.append({
-                            "Username": new_user,
-                            "Password": hash_password(new_pass),
-                            "Nama Lengkap": new_nama if new_nama else new_user,
-                            "Role": new_role,
-                            "Departemen": "Umum"
-                        })
-                        simpan_database_users(current_db)
-                        st.success(f"✅ User `{new_user}` dengan role `{new_role}` berhasil ditambahkan!")
-                        st.rerun()
-                    else:
-                        st.error("⚠️ Username dan Password wajib diisi!")
+        # Panel Kontrol Pembuatan Akun & Role (Hanya untuk Super Admin)
+        if role_aktif == "Super Admin":
+            with st.expander("👥 Pembuatan Akun & Kewenangan", expanded=False):
+                with st.form("form_tambah_user_baru_sidebar"):
+                    new_user = st.text_input("Username Baru")
+                    new_pass = st.text_input("Password Baru", type="password")
+                    new_nama = st.text_input("Nama Lengkap")
+                    new_role = st.selectbox("Role / Kewenangan", ["Super Admin", "Finance", "Project Manager", "Project Support", "Management"])
+                    
+                    btn_simpan_user = st.form_submit_button("➕ Buat Akun Baru", use_container_width=True)
+                    if btn_simpan_user:
+                        if new_user and new_pass:
+                            current_db = st.session_state["db_users"]
+                            current_db.append({
+                                "Username": new_user,
+                                "Password": hash_password(new_pass),
+                                "Nama Lengkap": new_nama if new_nama else new_user,
+                                "Role": new_role,
+                                "Departemen": "Umum"
+                            })
+                            simpan_database_users(current_db)
+                            st.success(f"✅ Akun `{new_user}` ({new_role}) berhasil dibuat!")
+                            st.rerun()
+                        else:
+                            st.error("⚠️ Username & Password wajib diisi!")
 
-# Alias agar sinkron dengan pemanggilan render_panel_manajemen_akun() di app.py
+# Alias agar sinkron dengan render_panel_manajemen_akun() di app.py
 def render_panel_manajemen_akun():
     return tampilkan_panel_sidebar_akun()
 
