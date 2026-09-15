@@ -179,7 +179,7 @@ def terapkan_format_excel_profesional(worksheet, df):
             if len(val_str) > max_len: max_len = len(val_str)
         worksheet.column_dimensions[col_letter].width = min(max(max_len + 5, 16), 55)
 
-# --- FUNGSI DATABASE MYSQL & PENCEGAHAN DUPLIKASI ---
+# --- FUNGSI DATABASE MYSQL & PENYIMPANAN YANG DIKOREKSI ---
 TABEL_DB_INVOICE = "database_proforma_invoice"
 TABEL_DB_TRANSAKSI = "database_transaksi_rincian"
 TABEL_DB_MASTER_REF = "database_master_referensi"
@@ -205,9 +205,6 @@ def muat_data_invoice():
 def simpan_data_invoice(data_list):
     waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
     processed_data = []
-    
-    # Kamus untuk menyaring duplikat berdasarkan Proforma Invoice No. (kolom 0 atau 'Proforma Invoice No.')
-    seen_invoices = {}
     for item in data_list:
         if isinstance(item, dict):
             item_copy = item.copy()
@@ -217,15 +214,7 @@ def simpan_data_invoice(data_list):
                 key_str = str(k).strip()
                 header_name = MAPPING_HEADER_INVOICE.get(key_str, key_str)
                 formatted_item[header_name] = bersih_angka(v) if pd.notnull(v) else ""
-            
-            # Ambil nomor unik proforma untuk deduplikasi
-            inv_no = str(formatted_item.get("Proforma Invoice No.", "")).strip()
-            if inv_no:
-                seen_invoices[inv_no] = formatted_item
-            else:
-                processed_data.append(formatted_item)
-                
-    processed_data = list(seen_invoices.values()) + processed_data
+            processed_data.append(formatted_item)
     
     success = simpan_data_to_db(TABEL_DB_INVOICE, processed_data)
     if success:
@@ -241,32 +230,22 @@ def muat_data_transaksi():
     return st.session_state.get("db_transaksi", [])
 
 def simpan_data_transaksi(data_list):
+    """
+    KOREKSI PENYIMPANAN: Menyimpan seluruh rincian item pekerjaan secara utuh 
+    (multi-item) ke MySQL cPanel tanpa memotong atau menimpa baris transaksi lain.
+    """
     waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
     processed_tx = []
-    
-    # Deduplikasi transaksi berdasarkan kombinasi Nomor Kontrak & PI No.
-    seen_tx = {}
     for item in data_list:
         if isinstance(item, dict):
             item_copy = item.copy()
             item_copy["Update Terakhir"] = waktu_sekarang
             for k, v in item_copy.items():
                 if pd.isnull(v) or str(v).strip().lower() == "nan":
-                    if k not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']: item_copy[k] = ""
-            
-            k_kontrak = str(item_copy.get("Nomor Kontrak", "")).strip()
-            k_pi = str(item_copy.get("PI No.", "")).strip()
-            k_item = str(item_copy.get("Uraian Pekerjaan", "")).strip()
-            
-            # Gunakan kunci unik kombinasi kontrak, PI, dan uraian pekerjaan
-            unique_key = f"{k_kontrak}_{k_pi}_{k_item}"
-            if k_kontrak or k_pi:
-                seen_tx[unique_key] = item_copy
-            else:
-                processed_tx.append(item_copy)
-                
-    processed_tx = list(seen_tx.values()) + processed_tx
-
+                    if k not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']: 
+                        item_copy[k] = ""
+            processed_tx.append(item_copy)
+    
     success = simpan_data_to_db(TABEL_DB_TRANSAKSI, processed_tx)
     if success:
         st.session_state["db_transaksi"] = data_list
