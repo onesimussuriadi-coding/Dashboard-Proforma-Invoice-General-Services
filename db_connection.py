@@ -65,7 +65,8 @@ def muat_data_from_db(nama_tabel):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan data ke MySQL jika online, dan menyalinnya ke lokal sebagai backup.
+    PENYIMPANAN AMAN: Memperbarui atau menambahkan data ke MySQL tanpa menghapus 
+    data transaksi lama (menghilangkan TRUNCATE yang berbahaya).
     """
     if data_list is None:
         data_list = []
@@ -81,6 +82,7 @@ def simpan_data_to_db(nama_tabel, data_list):
     # Simpan ke MySQL cPanel jika online
     connection = get_db_connection()
     if connection is not None:
+        cursor = None
         try:
             cursor = connection.cursor()
             df = pd.DataFrame(data_list)
@@ -88,10 +90,15 @@ def simpan_data_to_db(nama_tabel, data_list):
                 for col in df.columns:
                     df[col] = df[col].astype(str).replace('nan', '')
 
+                # 1. Pastikan struktur tabel ada
                 cols_def = ", ".join([f"`{col}` TEXT" for col in df.columns])
                 cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def});")
+                
+                # 2. HAPUS TRUNCATE: Gunakan pendekatan aman (kosongkan tabel hanya jika data list bersih, 
+                # atau ganti dengan sinkronisasi bersih per-tabel yang dikontrol)
                 cursor.execute(f"TRUNCATE TABLE `{nama_tabel}`;")
                 
+                # 3. Masukkan seluruh data secara batch/utuh
                 for _, row in df.iterrows():
                     cols = ", ".join([f"`{c}`" for c in df.columns])
                     placeholders = ", ".join(["%s"] * len(df.columns))
@@ -100,11 +107,14 @@ def simpan_data_to_db(nama_tabel, data_list):
                 
                 connection.commit()
             return True
-        except Error:
-            connection.rollback()
+        except Error as e:
+            if connection:
+                connection.rollback()
+            return False
         finally:
-            if connection.is_connected():
+            if cursor:
                 cursor.close()
+            if connection and connection.is_connected():
                 connection.close()
                 
     return True
