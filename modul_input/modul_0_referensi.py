@@ -1,33 +1,49 @@
-# modul_input/modul_0_referensi.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 
 def tampilkan_modul_0_referensi(menu, muat_master_referensi_func, simpan_master_referensi_func, muat_data_invoice_func, bersih_angka_func):
-    query_params = st.query_params
-    if "delete_master_idx" in query_params:
-        try:
-            del_idx = int(query_params["delete_master_idx"])
-            all_m = muat_master_referensi_func()
-            if 0 <= del_idx < len(all_m):
-                all_m.pop(del_idx)
-                if simpan_master_referensi_func(all_m):
-                    st.success("✅ Berhasil menghapus baris master referensi secara permanen!")
-                st.query_params.clear()
-                st.rerun()
-        except:
-            pass
+    # Identifikasi role user aktif untuk pengamanan Read-Only Mutlak Direksi
+    current_role_user = str(st.session_state.get("current_role", "")).strip().lower()
+    is_management = current_role_user in ["management", "direksi"]
 
+    query_params = st.query_params
+    
+    # Cegah aksi hapus jika user adalah management
+    if "delete_master_idx" in query_params:
+        if is_management:
+            st.error("❌ Akses Ditolak! Akun Direksi berada dalam mode Read-Only dan tidak diizinkan menghapus data.")
+            st.query_params.clear()
+            st.rerun()
+        else:
+            try:
+                del_idx = int(query_params["delete_master_idx"])
+                all_m = muat_master_referensi_func()
+                if 0 <= del_idx < len(all_m):
+                    all_m.pop(del_idx)
+                    if simpan_master_referensi_func(all_m):
+                        st.success("✅ Berhasil menghapus baris master referensi secara permanen!")
+                    st.query_params.clear()
+                    st.rerun()
+            except:
+                pass
+
+    # Cegah aksi edit jika user adalah management
     if "edit_master_idx" in query_params:
-        try:
-            ed_idx = int(query_params["edit_master_idx"])
-            all_m = muat_master_referensi_func()
-            if 0 <= ed_idx < len(all_m):
-                st.session_state["edit_master_index"] = ed_idx
-                st.query_params.clear()
-                st.rerun()
-        except:
-            pass
+        if is_management:
+            st.warning("⚠️ Akun Direksi berada dalam mode Read-Only (Hanya Lihat).")
+            st.query_params.clear()
+            st.rerun()
+        else:
+            try:
+                ed_idx = int(query_params["edit_master_idx"])
+                all_m = muat_master_referensi_func()
+                if 0 <= ed_idx < len(all_m):
+                    st.session_state["edit_master_index"] = ed_idx
+                    st.query_params.clear()
+                    st.rerun()
+            except:
+                pass
 
     if menu == "Input & Kelola Master Referensi":
         st.markdown("""
@@ -35,6 +51,11 @@ def tampilkan_modul_0_referensi(menu, muat_master_referensi_func, simpan_master_
                 <h3 style="margin-top:0; color:#065f46; font-size:18px;">📌 Input & Panggil Kembali Master Referensi Harga Tetap</h3>
             </div>
         """, unsafe_allow_html=True)
+
+        # PENGAMANAN MUTLAK DIREKSI: Jika Management, blokir form input & edit total
+        if is_management:
+            st.info("🔒 **Mode Direksi (Read-Only):** Formulir input dan pengelolaan master referensi dikunci. Anda dapat melihat daftar referensi pada menu penelusuran.")
+            return
 
         master_data_live = muat_master_referensi_func()
         opsi_panggil_uraian = ["-- Buat Data Referensi Baru --"] + [f"{str(m.get('Uraian Pekerjaan', m.get('Deskripsi Pekerjaan', '')))[:60]}... (Kontrak: {str(m.get('Nomor Kontrak',''))})" for m in master_data_live]
@@ -208,7 +229,9 @@ def tampilkan_modul_0_referensi(menu, muat_master_referensi_func, simpan_master_
                     w_style = "text-align: left;"
                 headers_html += f"<th style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px; {w_style}'>{col}</th>"
             
-            headers_html += "<th class='no-print' style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px; text-align: center; width: 120px;'>Aksi</th>"
+            # Kolom Aksi HANYA MUNCUL JIKA BUKAN MANAGEMENT
+            if not is_management:
+                headers_html += "<th class='no-print' style='border: 1px solid #cbd5e1; padding: 10px; background-color: #1e293b; color: white; font-size: 13px; text-align: center; width: 120px;'>Aksi</th>"
 
             html_table_rows = ""
             for original_idx, row in df_filtered.iterrows():
@@ -241,17 +264,20 @@ def tampilkan_modul_0_referensi(menu, muat_master_referensi_func, simpan_master_
                     
                     html_table_rows += f"<td style='border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; {cell_align}'>{val_str}</td>"
                 
-                action_buttons = f"""
-                    <td class='no-print' style='border: 1px solid #cbd5e1; padding: 8px; text-align: center; white-space: nowrap;'>
-                        <a href='?edit_master_idx={original_idx}' target='_self' style='text-decoration: none;'>
-                            <button style='background-color: #3b82f6; color: white; border: none; padding: 4px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 2px;'>✏️ Edit</button>
-                        </a>
-                        <a href='?delete_master_idx={original_idx}' target='_self' style='text-decoration: none;'>
-                            <button style='background-color: #ef4444; color: white; border: none; padding: 4px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;'>🗑️ Hapus</button>
-                        </a>
-                    </td>
-                """
-                html_table_rows += action_buttons
+                # Sembunyikan tombol Edit & Hapus jika user adalah Management/Direksi
+                if not is_management:
+                    action_buttons = f"""
+                        <td class='no-print' style='border: 1px solid #cbd5e1; padding: 8px; text-align: center; white-space: nowrap;'>
+                            <a href='?edit_master_idx={original_idx}' target='_self' style='text-decoration: none;'>
+                                <button style='background-color: #3b82f6; color: white; border: none; padding: 4px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-right: 2px;'>✏️ Edit</button>
+                            </a>
+                            <a href='?delete_master_idx={original_idx}' target='_self' style='text-decoration: none;'>
+                                <button style='background-color: #ef4444; color: white; border: none; padding: 4px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;'>🗑️ Hapus</button>
+                            </a>
+                        </td>
+                    """
+                    html_table_rows += action_buttons
+                
                 html_table_rows += "</tr>"
 
             full_interactive_table_html = f"""

@@ -1,25 +1,33 @@
-# modul_input/modul_1_database.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
 
 def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_date_func, sort_pi_key_func, simpan_data_invoice_func, muat_data_invoice_func):
     
+    # Identifikasi role user aktif untuk pengamanan Read-Only Mutlak Direksi
+    current_role_user = str(st.session_state.get("current_role", "")).strip().lower()
+    is_management = current_role_user in ["management", "direksi"]
+
     # Handling Aksi Hapus via Query Params / URL Action
     query_params = st.query_params
     if "delete_db_idx" in query_params:
-        try:
-            del_idx = int(query_params["delete_db_idx"])
-            all_db = muat_data_invoice_func()
-            if 0 <= del_idx < len(all_db):
-                deleted_pi = bersih_angka_func(all_db[del_idx].get(0, all_db[del_idx].get('Proforma Invoice No.', '-')))
-                all_db.pop(del_idx)
-                if simpan_data_invoice_func(all_db):
-                    st.success(f"🗑️ Berhasil menghapus data PI [{deleted_pi}] secara permanen!")
-                st.query_params.clear()
-                st.rerun()
-        except Exception as e:
-            st.error(f"Gagal menghapus data: {e}")
+        if is_management:
+            st.error("❌ Akses Ditolak! Akun Direksi berada dalam mode Read-Only dan tidak diizinkan menghapus data.")
+            st.query_params.clear()
+            st.rerun()
+        else:
+            try:
+                del_idx = int(query_params["delete_db_idx"])
+                all_db = muat_data_invoice_func()
+                if 0 <= del_idx < len(all_db):
+                    deleted_pi = bersih_angka_func(all_db[del_idx].get(0, all_db[del_idx].get('Proforma Invoice No.', '-')))
+                    all_db.pop(del_idx)
+                    if simpan_data_invoice_func(all_db):
+                        st.success(f"🗑️ Berhasil menghapus data PI [{deleted_pi}] secara permanen!")
+                    st.query_params.clear()
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Gagal menghapus data: {e}")
 
     # ==========================================
     # MENU 1: INPUT DATABASE & INVOICE (31 KOLOM)
@@ -30,6 +38,11 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                 <h4 style="margin:0; color:#0f172a; font-size:15px; font-weight:700;">🔍 Panggil Ulang Berdasarkan Nomor Kontrak & Nomor PI</h4>
             </div>
         """, unsafe_allow_html=True)
+
+        # PENGAMANAN MUTLAK DIREKSI: Jika Management, blokir form input total
+        if is_management:
+            st.info("🔒 **Mode Direksi (Read-Only):** Formulir input dan pengelolaan database kontrak dikunci. Anda dapat melihat seluruh rekapitulasi data melalui menu 'Lihat Database Tersimpan'.")
+            return
 
         if len(saved_db_list) > 0:
             list_kontrak_db = sorted(list(set(bersih_angka_func(data.get(1, data.get('Nomor Kontrak', '-'))) for data in saved_db_list if isinstance(data, dict) and bersih_angka_func(data.get(1, data.get('Nomor Kontrak', '-'))) != '')))
@@ -297,13 +310,22 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                 <td style="border: 1px solid #cbd5e1; padding: 6px 10px; color: #334155; font-size: 12px; font-family: monospace;">{row['Nomor WO']}</td>
                 <td style="border: 1px solid #cbd5e1; padding: 6px 10px; color: #334155; font-size: 12px; font-family: monospace;">{row['Nomor CTR']}</td>
                 <td style="border: 1px solid #cbd5e1; padding: 6px 10px; text-align: center; color: #475569; font-size: 12px;">{row['Tanggal PI']}</td>
+            """
+            
+            # Kolom Tombol Hapus HANYA DITAMPILKAN JIKA BUKAN MANAGEMENT
+            if not is_management:
+                table_rows += f"""
                 <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center; white-space: nowrap;">
                     <a href="?delete_db_idx={orig_i}" target="_self" style="text-decoration: none;" onclick="return confirm('Apakah Anda yakin ingin menghapus PI {row['Nomor PI']} ini secara permanen?');">
                         <button style="background-color: #ef4444; color: white; border: none; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">🗑️ Hapus</button>
                     </a>
                 </td>
-            </tr>
-            """
+                """
+            
+            table_rows += "</tr>"
+
+        # Header Kolom Aksi disesuaikan berdasarkan role
+        action_header_html = '<th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: center; width: 80px;">Aksi</th>' if not is_management else ''
 
         table_html = f"""
         <div style="overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 4px; background-color: #ffffff;">
@@ -317,7 +339,7 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                         <th style="border: 1px solid #cbd5e1; padding: 8px 10px;">Nomor WO</th>
                         <th style="border: 1px solid #cbd5e1; padding: 8px 10px;">Nomor CTR</th>
                         <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: center;">Tanggal PI</th>
-                        <th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: center; width: 80px;">Aksi</th>
+                        {action_header_html}
                     </tr>
                 </thead>
                 <tbody>

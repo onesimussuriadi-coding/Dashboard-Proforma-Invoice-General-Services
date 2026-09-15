@@ -1,25 +1,33 @@
-# modul_input/modul_2_akumulasi.py
 import streamlit as st
 import pandas as pd
 
 def tampilkan_akumulasi_riwayat_transaksi(tx_data, bersih_angka_func, sort_pi_key_func, simpan_data_transaksi_func, muat_data_transaksi_func):
     
+    # Identifikasi role user aktif untuk pengamanan Read-Only Mutlak Direksi
+    current_role_user = str(st.session_state.get("current_role", "")).strip().lower()
+    is_management = current_role_user in ["management", "direksi"]
+
     # Handling Aksi Hapus PI via Query Params / URL Action
     query_params = st.query_params
     if "delete_tx_pi" in query_params:
-        try:
-            del_pi_target = str(query_params["delete_tx_pi"]).strip()
-            all_tx = muat_data_transaksi_func()
-            
-            # Filter buang data PI yang dihapus
-            updated_tx = [t for t in all_tx if bersih_angka_func(t.get("PI No.")) != del_pi_target]
-            
-            if simpan_data_transaksi_func(updated_tx):
-                st.success(f"🗑️ Berhasil menghapus seluruh riwayat transaksi untuk PI [{del_pi_target}] secara permanen!")
+        if is_management:
+            st.error("❌ Akses Ditolak! Akun Direksi berada dalam mode Read-Only dan tidak diizinkan menghapus data transaksi.")
             st.query_params.clear()
             st.rerun()
-        except Exception as e:
-            st.error(f"Gagal menghapus transaksi: {e}")
+        else:
+            try:
+                del_pi_target = str(query_params["delete_tx_pi"]).strip()
+                all_tx = muat_data_transaksi_func()
+                
+                # Filter buang data PI yang dihapus
+                updated_tx = [t for t in all_tx if bersih_angka_func(t.get("PI No.")) != del_pi_target]
+                
+                if simpan_data_transaksi_func(updated_tx):
+                    st.success(f"🗑️ Berhasil menghapus seluruh riwayat transaksi untuk PI [{del_pi_target}] secara permanen!")
+                st.query_params.clear()
+                st.rerun()
+            except Exception as e:
+                st.error(f"Gagal menghapus transaksi: {e}")
 
     st.markdown("""
         <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 18px 22px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.06); margin-bottom: 20px; border-left: 5px solid #10b981;">
@@ -115,14 +123,17 @@ def tampilkan_akumulasi_riwayat_transaksi(tx_data, bersih_angka_func, sort_pi_ke
             col_info_left, col_info_right = st.columns([3, 1])
             with col_info_left:
                 st.markdown(f"📋 **Detail Breakdown Rincian Pekerjaan PI No:** `{pi_target}`")
-            with col_info_right:
-                st.markdown(f"""
-                    <div style="text-align: right;">
-                        <a href="?delete_tx_pi={pi_target}" target="_self" style="text-decoration: none;" onclick="return confirm('Apakah Anda yakin ingin menghapus seluruh riwayat transaksi PI {pi_target} ini?');">
-                            <button style="background-color: #ef4444; color: white; border: none; padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: bold; cursor: pointer;">🗑️ Hapus PI Ini</button>
-                        </a>
-                    </div>
-                """, unsafe_allow_html=True)
+            
+            # Tombol Hapus PI HANYA MUNCUL JIKA BUKAN MANAGEMENT
+            if not is_management:
+                with col_info_right:
+                    st.markdown(f"""
+                        <div style="text-align: right;">
+                            <a href="?delete_tx_pi={pi_target}" target="_self" style="text-decoration: none;" onclick="return confirm('Apakah Anda yakin ingin menghapus seluruh riwayat transaksi PI {pi_target} ini?');">
+                                <button style="background-color: #ef4444; color: white; border: none; padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: bold; cursor: pointer;">🗑️ Hapus PI Ini</button>
+                            </a>
+                        </div>
+                    """, unsafe_allow_html=True)
 
             # Tabel Breakdown Item Pekerjaan ala Data Grid Zebra
             table_breakdown_rows = ""

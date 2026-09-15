@@ -1,4 +1,3 @@
-# modul_input/modul_2_rincian.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
@@ -13,6 +12,10 @@ def tampilkan_modul_2_rincian(
     muat_master_bank_func, 
     simpan_master_bank_func
 ):
+    # Identifikasi role user aktif untuk pengamanan Read-Only Mutlak Direksi
+    current_role_user = str(st.session_state.get("current_role", "")).strip().lower()
+    is_management = current_role_user in ["management", "direksi"]
+
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📝 Lembar Kerja & Pemrosesan Rincian Pekerjaan</h3>
@@ -111,19 +114,19 @@ def tampilkan_modul_2_rincian(
         raw_po_date = tanggal_po_default_m1 if tanggal_po_default_m1 else (loaded_tx_items[0].get("Tanggal PO", "") if loaded_tx_items else "")
         def_po_date = bersih_angka_func(raw_po_date)
 
-        nomor_po = st.text_input("Nomor PO", def_po_num if def_po_num else "-")
+        nomor_po = st.text_input("Nomor PO", def_po_num if def_po_num else "-", disabled=is_management)
         
         raw_wo_num = nomor_wo_default_m1 if (nomor_wo_default_m1 and nomor_wo_default_m1 != "-") else (loaded_tx_items[0].get("Nomor WO", "") if loaded_tx_items else "")
-        nomor_wo = st.text_input("Nomor WO", bersih_angka_func(raw_wo_num) if raw_wo_num else "-")
+        nomor_wo = st.text_input("Nomor WO", bersih_angka_func(raw_wo_num) if raw_wo_num else "-", disabled=is_management)
 
-        nomor_wan_sa = st.text_input("Nomor WAN / SA (Work Authorization Notice / Service Agreement)", def_wan_num if def_wan_num else "-")
-        tanggal_po = st.text_input("Tanggal PO", def_po_date if def_po_date else "-")
-        mata_uang = st.text_input("Mata Uang", "IDR")
+        nomor_wan_sa = st.text_input("Nomor WAN / SA (Work Authorization Notice / Service Agreement)", def_wan_num if def_wan_num else "-", disabled=is_management)
+        tanggal_po = st.text_input("Tanggal PO", def_po_date if def_po_date else "-", disabled=is_management)
+        mata_uang = st.text_input("Mata Uang", "IDR", disabled=is_management)
 
     # --- KOLOM KIRI: LINGKUP PEKERJAAN DIPINDAHKAN KE BAWAH PI AGAR TIDAK ADA RUANG KOSONG ---
     with col1:
         def_desc_po = desc_po_default_m1 if desc_po_default_m1 else (bersih_angka_func(loaded_tx_items[0].get("Deskripsi PO", "")) if loaded_tx_items else "")
-        desc_po = st.text_area("Lingkup Pekerjaan", def_desc_po, height=130)
+        desc_po = st.text_area("Lingkup Pekerjaan", def_desc_po, height=130, disabled=is_management)
 
     st.markdown("---")
     
@@ -140,7 +143,8 @@ def tampilkan_modul_2_rincian(
         "Pilih Jenis BASTP untuk Dokumen Turunan:",
         opsi_jenis_bastp,
         index=idx_bastp,
-        key="input_jenis_bastp_select"
+        key="input_jenis_bastp_select",
+        disabled=is_management
     )
     
     st.markdown("---")
@@ -152,9 +156,9 @@ def tampilkan_modul_2_rincian(
 
     c_bank1, c_bank2 = st.columns(2)
     with c_bank1:
-        pilih_bank_dropdown = st.selectbox("Pilih Rekening Bank Tujuan", bank_names_list, index=idx_b)
+        pilih_bank_dropdown = st.selectbox("Pilih Rekening Bank Tujuan", bank_names_list, index=idx_b, disabled=is_management)
         
-        if pilih_bank_dropdown == "➕ Tambah Rekening Bank Baru...":
+        if not is_management and pilih_bank_dropdown == "➕ Tambah Rekening Bank Baru...":
             new_b_name = st.text_input("Nama Bank Baru (Contoh: BANK MANDIRI)")
             new_b_branch = st.text_input("Cabang Bank Baru", value="Cabang Luwuk")
             new_b_acc_no = st.text_input("Nomor Rekening Baru")
@@ -194,14 +198,20 @@ def tampilkan_modul_2_rincian(
 
     with c_bank2:
         st.text_input("Atas Nama Rekening", value=bank_acc_name if bank_acc_name else "-", disabled=True)
-        attn_to = st.text_input("Attn. (Penerima Invoice)", value=attn_to if attn_to else "-")
+        attn_to = st.text_input("Attn. (Penerima Invoice)", value=attn_to if attn_to else "-", disabled=is_management)
         try:
             def_percent = float(loaded_tx_items[0].get("Percent", 100.0) or 100.0) if loaded_tx_items else 100.0
         except:
             def_percent = 100.0
-        persen_val = st.number_input("Persentase Tagihan (%)", min_value=1.0, max_value=100.0, value=def_percent)
+        persen_val = st.number_input("Persentase Tagihan (%)", min_value=1.0, max_value=100.0, value=def_percent, disabled=is_management)
 
     st.markdown("---")
+    
+    # PENGAMANAN MUTLAK DIREKSI: Jika Management, berikan informasi Read-Only pada lembar rincian
+    if is_management:
+        st.info("🔒 **Mode Direksi (Read-Only):** Formulir input rincian pekerjaan dan perhitungan tagihan dikunci. Anda dapat melihat rekapitulasi akumulasi transaksi melalui menu laporan.")
+        return
+
     df_ref = pd.DataFrame(master_ref_data)
     df_ref["Nomor Kontrak Clean"] = df_ref["Nomor Kontrak"].astype(str).str.strip()
     df_ref["Kategori Clean"] = df_ref["Kategori"].astype(str).str.strip().str.upper()
