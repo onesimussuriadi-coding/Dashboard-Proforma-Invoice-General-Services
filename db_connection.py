@@ -5,36 +5,54 @@ from mysql.connector import Error
 
 def get_db_connection():
     """
-    Membuat koneksi ke database MySQL menggunakan konfigurasi dari st.secrets 
-    atau fallback ke parameter default cPanel.
+    Membuat koneksi ke database MySQL dengan mengambil konfigurasi dari st.secrets.
+    Jika berjalan di lokal dan secrets belum ada, menggunakan konfigurasi default cPanel.
     """
     try:
-        # Mengambil konfigurasi dari Streamlit Secrets (aman untuk Streamlit Cloud)
-        db_config = st.secrets.get("mysql", {
-            "host": "localhost",
-            "database": "ptba8489_invoice", # Sesuaikan dengan nama database cPanel Bapak
-            "user": "ptba8489_user",       # Sesuaikan dengan username database cPanel
-            "password": "PASSWORD_ANDA",   # Masukkan password database cPanel
-            "port": 3306
-        })
+        # Coba ambil dari st.secrets (baik format [mysql] maupun [database])
+        db_config = {}
+        if "mysql" in st.secrets:
+            db_config = st.secrets["mysql"]
+        elif "database" in st.secrets:
+            db_config = st.secrets["database"]
+        else:
+            # Fallback otomatis untuk testing lokal jika st.secrets kosong
+            db_config = {
+                "host": "localhost",
+                "database": "ptba8489_invoice",
+                "user": "ptba8489_admin",
+                "password": "ayfVy8iSw6kT91",
+                "port": 3306
+            }
 
         connection = mysql.connector.connect(
             host=db_config.get("host", "localhost"),
-            database=db_config.get("database"),
-            user=db_config.get("user"),
-            password=db_config.get("password"),
+            database=db_config.get("database", "ptba8489_invoice"),
+            user=db_config.get("user", "ptba8489_admin"),
+            password=db_config.get("password", "ayfVy8iSw6kT91"),
             port=int(db_config.get("port", 3306))
         )
         if connection.is_connected():
             return connection
-    except Error as e:
-        st.error(f"❌ Kesalahan koneksi ke Database MySQL: {e}")
+    except Exception as e:
+        # Jika st.secrets sama sekali belum ada (di lokal), gunakan langsung kredensial default
+        try:
+            connection = mysql.connector.connect(
+                host="localhost",
+                database="ptba8489_invoice",
+                user="ptba8489_admin",
+                password="ayfVy8iSw6kT91",
+                port=3306
+            )
+            if connection.is_connected():
+                return connection
+        except Error as err:
+            st.error(f"❌ Kesalahan koneksi ke Database MySQL: {err}")
     return None
 
 def muat_data_from_db(nama_tabel):
     """
-    Mengambil seluruh data dari tabel MySQL tertentu dan mengembalikannya sebagai list of dictionaries (records).
-    Jika tabel belum ada atau kosong, mengembalikan list kosong.
+    Mengambil seluruh data dari tabel MySQL tertentu dan mengembalikannya sebagai list of dictionaries.
     """
     connection = get_db_connection()
     if connection is None:
@@ -44,10 +62,8 @@ def muat_data_from_db(nama_tabel):
         query = f"SELECT * FROM `{nama_tabel}`;"
         df = pd.read_sql(query, connection)
         if df is not None and not df.empty:
-            # Konversi kolom tanggal atau format khusus jika diperlukan
             return df.to_dict(orient="records")
-    except Error as e:
-        # Jika tabel belum ada, abaikan atau kembalikan list kosong
+    except Error:
         pass
     finally:
         if connection.is_connected():
@@ -57,11 +73,8 @@ def muat_data_from_db(nama_tabel):
 def simpan_data_to_db(nama_tabel, data_list):
     """
     Menyimpan data (list of dictionaries) ke tabel MySQL.
-    Metode ini melakukan overwrite (menghapus isi lama dan memasukkan data baru) 
-    atau menyelaraskan dengan struktur DataFrame modul Bapak.
     """
-    if not data_list:
-        # Jika data kosong, buat tabel kosong atau bersihkan
+    if data_list is None:
         data_list = []
 
     connection = get_db_connection()
@@ -73,18 +86,13 @@ def simpan_data_to_db(nama_tabel, data_list):
         cursor = connection.cursor()
         df = pd.DataFrame(data_list)
         
-        # Buat tabel secara otomatis jika belum ada berdasarkan struktur DataFrame
         if not df.empty:
-            # Konversi tipe data object/dict ke string agar aman disimpan ke SQL
             for col in df.columns:
                 df[col] = df[col].astype(str).replace('nan', '')
 
-            # Gunakan pandas to_sql melalui sqlalchemy engine atau manual insert
-            # Untuk kesederhanaan dan kestabilan dengan mysql.connector:
-            # Kita buat tabel sederhana atau drop & create ulang untuk sinkronisasi penuh
             cols_def = ", ".join([f"`{col}` TEXT" for col in df.columns])
             cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def});")
-            cursor.execute(f"TRUNCATE TABLE `{nama_tabel}`;") # Bersihkan data lama
+            cursor.execute(f"TRUNCATE TABLE `{nama_tabel}`;")
             
             for _, row in df.iterrows():
                 cols = ", ".join([f"`{c}`" for c in df.columns])
@@ -92,6 +100,12 @@ def simpan_data_to_db(nama_tabel, data_list):
                 sql = f"INSERT INTO `{nama_tabel}` ({cols}) VALUES ({placeholders});"
                 cursor.execute(sql, tuple(row))
             
+            connection.commit()
+            return True
+        else:
+            # Jika dataframe kosong, pastikan tabel tetap ada atau dibersihkan
+            cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` (`id` INT AUTO_INCREMENT PRIMARY KEY);")
+            cursor.execute(f"TRUNCATE TABLE `{nama_tabel}`;")
             connection.commit()
             return True
     except Error as e:
