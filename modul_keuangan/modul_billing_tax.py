@@ -974,6 +974,29 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         if billing_records:
             df_bill = pd.DataFrame(billing_records)
             
+            # --- TABEL REKAPITULASI AKUMULASI PER NOMOR KONTRAK ---
+            st.markdown("---")
+            st.markdown("##### 📊 Rekapitulasi Total Nilai Invoice Diserahkan per Nomor Kontrak")
+            
+            if "Kontrak No." in df_bill.columns and "Total Netto" in df_bill.columns:
+                df_bill["Total Netto_num"] = pd.to_numeric(df_bill["Total Netto"], errors="coerce").fillna(0.0)
+                
+                rekap_kontrak = df_bill.groupby("Kontrak No.").agg(
+                    Jumlah_Invoice=("Nomor Invoice Resmi", "count"),
+                    Daftar_Nomor_Invoice=("Nomor Invoice Resmi", lambda x: ", ".join(map(str, x))),
+                    Total_Nilai_Netto=("Total Netto_num", "sum")
+                ).reset_index()
+                
+                rekap_kontrak.columns = ["Nomor Kontrak", "Jumlah Invoice", "Daftar Nomor Invoice", "Total Netto Diserahkan (Rp)"]
+                rekap_kontrak["Total Netto Diserahkan (Rp)"] = rekap_kontrak["Total Netto Diserahkan (Rp)"].apply(lambda x: f"Rp {x:,.0f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                
+                st.dataframe(rekap_kontrak, use_container_width=True, hide_index=True)
+            else:
+                st.info("Kolom kontrak atau total netto belum lengkap untuk direkap.")
+
+            st.markdown("---")
+            st.markdown("##### 📋 Daftar Rincian Seluruh Invoice Tersimpan")
+            
             kolom_prioritas = [
                 "Nomor Invoice Resmi", "PI No.", "Customer", "Kontrak No.", "Nomor PO", "Nomor SA / WAN",
                 "Nilai Gross (Bruto)", "Diskon Nominal (10%)", "Nilai Invoice", 
@@ -982,7 +1005,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             ]
             
             kolom_ada = [c for c in kolom_prioritas if c in df_bill.columns]
-            kolom_sisa = [c for c in df_bill.columns if c not in kolom_prioritas]
+            kolom_sisa = [c for c in df_bill.columns if c not in kolom_prioritas and c != "Total Netto_num"]
             df_display = df_bill[kolom_ada + kolom_sisa]
             
             st.dataframe(df_display, use_container_width=True)
