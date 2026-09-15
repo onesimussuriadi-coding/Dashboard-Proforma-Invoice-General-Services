@@ -70,7 +70,8 @@ def simpan_database_users(users_list):
     df.to_excel(EXCEL_USERS, index=False, sheet_name="Users")
     st.session_state["db_users"] = users_list
 
-def kelola_autentikasi_dan_hak_akses():
+# Nama fungsi disesuaikan persis dengan pemanggilan di app.py (form_login_sistem)
+def form_login_sistem():
     if "db_users" not in st.session_state:
         st.session_state["db_users"] = muat_database_users()
 
@@ -81,7 +82,7 @@ def kelola_autentikasi_dan_hak_akses():
     if "current_role" not in st.session_state:
         st.session_state["current_role"] = ""
 
-    # Halaman Login Sistem
+    # Halaman Login Sistem jika belum login
     if not st.session_state["logged_in"]:
         st.markdown("""
             <div style="max-width: 420px; margin: 40px auto; padding: 30px; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
@@ -94,7 +95,7 @@ def kelola_autentikasi_dan_hak_akses():
 
         col_l1, col_l2, col_l3 = st.columns([1, 2.2, 1])
         with col_l2:
-            with st.form("form_login_system"):
+            with st.form("form_login_auth_system"):
                 username_input = st.text_input("Username Pengguna", placeholder="Masukkan username...")
                 password_input = st.text_input("Password", type="password", placeholder="Masukkan password...")
                 submit_login = st.form_submit_button("🔑 Masuk ke Sistem", use_container_width=True, type="primary")
@@ -179,7 +180,7 @@ def cek_izin_akses_modul(nomor_modul):
     role = st.session_state.get("current_role", "Super Admin")
     
     if role == "Super Admin":
-        return True, False # (Bisa Diakses, Bukan Read-Only Murni jika Admin)
+        return True, False
     elif role == "Finance":
         return nomor_modul == 3, False
     elif role == "Project Manager":
@@ -187,7 +188,6 @@ def cek_izin_akses_modul(nomor_modul):
     elif role == "Project Support":
         return nomor_modul in [1, 2], False
     elif role == "Management":
-        # Manajemen bisa akses modul 1 sampai 3 dengan sifat Read-Only (True, True)
         is_allowed = nomor_modul in [1, 2, 3]
         return is_allowed, True 
     return False, False
