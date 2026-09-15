@@ -974,39 +974,49 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         if billing_records:
             df_bill = pd.DataFrame(billing_records)
             
-            # --- TABEL REKAPITULASI PER KONTRAK (BERSIH, TANPA DAFTAR INVOICE, ADA GRAND TOTAL) ---
+            # --- TABEL REKAPITULASI DETAIL PER KONTRAK UNTUK CROSS-CHECK ---
             st.markdown("---")
-            st.markdown("##### 📊 Rekapitulasi Total Nilai Invoice Diserahkan per Nomor Kontrak")
+            st.markdown("##### 📊 Rekapitulasi Rincian Nilai Kontrak (Cross-Check Pemantauan Pembayaran)")
             
-            if "Kontrak No." in df_bill.columns and "Total Netto" in df_bill.columns:
-                df_bill["Total Netto_num"] = pd.to_numeric(df_bill["Total Netto"], errors="coerce").fillna(0.0)
+            if "Kontrak No." in df_bill.columns and "Nilai Invoice" in df_bill.columns:
+                df_bill["Nilai Invoice_num"] = pd.to_numeric(df_bill["Nilai Invoice"], errors="coerce").fillna(0.0)
+                df_bill["PPN Nominal_num"] = pd.to_numeric(df_bill.get("PPN Nominal", 0), errors="coerce").fillna(0.0)
                 
-                # Grouping rekapitulasi per nomor kontrak tanpa kolom daftar nomor invoice
+                # Hitung Total Include PPN per baris invoice (DPP + PPN)
+                df_bill["Total Include PPN"] = df_bill["Nilai Invoice_num"] + df_bill["PPN Nominal_num"]
+                
+                # Grouping rekapitulasi per nomor kontrak
                 rekap_kontrak = df_bill.groupby("Kontrak No.").agg(
                     Jumlah_Invoice=("Nomor Invoice Resmi", "count"),
-                    Total_Nilai_Netto=("Total Netto_num", "sum")
+                    Total_Netto_Sebelum_PPN=("Nilai Invoice_num", "sum"),
+                    Total_PPN=("PPN Nominal_num", "sum"),
+                    Total_Include_PPN=("Total Include PPN", "sum")
                 ).reset_index()
                 
-                rekap_kontrak.columns = ["Nomor Kontrak", "Jumlah Invoice", "Total Netto Diserahkan"]
+                rekap_kontrak.columns = ["Nomor Kontrak", "Jumlah", "Total Netto (Sebelum PPN)", "Total PPN (11%)", "Total Include PPN"]
                 
                 # Hitung Grand Total keseluruhan
-                total_jumlah_inv = rekap_kontrak["Jumlah Invoice"].sum()
-                grand_total_netto = rekap_kontrak["Total_Nilai_Netto"].sum() if "Total_Nilai_Netto" in rekap_kontrak.columns else rekap_kontrak["Total Netto Diserahkan"].sum()
+                tot_jml = rekap_kontrak["Jumlah"].sum()
+                tot_netto = rekap_kontrak["Total Netto (Sebelum PPN)"].sum()
+                tot_ppn = rekap_kontrak["Total PPN (11%)"].sum()
+                tot_include = rekap_kontrak["Total Include PPN"].sum()
                 
-                # Tambahkan baris Grand Total ke tabel ringkasan
                 baris_grand_total = pd.DataFrame([{
                     "Nomor Kontrak": "GRAND TOTAL KESELURUHAN",
-                    "Jumlah Invoice": total_jumlah_inv,
-                    "Total Netto Diserahkan": grand_total_netto
+                    "Jumlah": tot_jml,
+                    "Total Netto (Sebelum PPN)": tot_netto,
+                    "Total PPN (11%)": tot_ppn,
+                    "Total Include PPN": tot_include
                 }])
                 rekap_kontrak = pd.concat([rekap_kontrak, baris_grand_total], ignore_index=True)
                 
-                # Format Rupiah
-                rekap_kontrak["Total Netto Diserahkan"] = rekap_kontrak["Total Netto Diserahkan"].apply(lambda x: f"Rp {x:,.0f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                # Format Rupiah untuk seluruh kolom nominal
+                for col_rupiah in ["Total Netto (Sebelum PPN)", "Total PPN (11%)", "Total Include PPN"]:
+                    rekap_kontrak[col_rupiah] = rekap_kontrak[col_rupiah].apply(lambda x: f"Rp {x:,.0f}".replace(",", "X").replace(".", ",").replace("X", "."))
                 
                 st.dataframe(rekap_kontrak, use_container_width=True, hide_index=True)
             else:
-                st.info("Kolom kontrak atau total netto belum lengkap untuk direkap.")
+                st.info("Kolom kontrak atau nilai invoice belum lengkap untuk direkap.")
 
             st.markdown("---")
             st.markdown("##### 📋 Daftar Rincian Seluruh Invoice Tersimpan")
@@ -1019,7 +1029,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             ]
             
             kolom_ada = [c for c in kolom_prioritas if c in df_bill.columns]
-            kolom_sisa = [c for c in df_bill.columns if c not in kolom_prioritas and c != "Total Netto_num"]
+            kolom_sisa = [c for c in df_bill.columns if c not in kolom_prioritas and c != "Nilai Invoice_num" and c != "PPN Nominal_num" and c != "Total Include PPN"]
             df_display = df_bill[kolom_ada + kolom_sisa]
             
             st.dataframe(df_display, use_container_width=True)
