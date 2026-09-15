@@ -70,7 +70,6 @@ def simpan_database_users(users_list):
     df.to_excel(EXCEL_USERS, index=False, sheet_name="Users")
     st.session_state["db_users"] = users_list
 
-# Nama fungsi disesuaikan persis dengan pemanggilan di app.py (form_login_sistem)
 def form_login_sistem():
     if "db_users" not in st.session_state:
         st.session_state["db_users"] = muat_database_users()
@@ -167,6 +166,10 @@ def tampilkan_panel_sidebar_akun():
                         st.rerun()
                     else:
                         st.error("⚠️ Username dan Password wajib diisi!")
+
+# Alias agar sinkron dengan pemanggilan render_panel_manajemen_akun() di app.py
+def render_panel_manajemen_akun():
+    return tampilkan_panel_sidebar_akun()
 
 def cek_izin_akses_modul(nomor_modul):
     """
