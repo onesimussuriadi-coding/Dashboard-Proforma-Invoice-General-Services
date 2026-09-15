@@ -504,7 +504,6 @@ def tampilkan_pemantauan_pembayaran():
     all_inv_no_contract = []
     for inv in inv_list_filtered_contract:
         val_inv = str(inv.get(col_key_inv, inv.get("Nomor Invoice Resmi", ""))).strip()
-        # PASTIKAN HANYA NOMOR INVOICE MURNI (TIDAK BOLEH SAMA DENGAN NOMOR KONTRAK)
         if val_inv and val_inv != 'nan' and len(val_inv) > 1 and val_inv != str(form_kontrak_pilih).strip():
             all_inv_no_contract.append(val_inv)
 
@@ -562,7 +561,7 @@ def tampilkan_pemantauan_pembayaran():
             st.markdown(f"""
                 <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; font-size: 12px; margin-top: 22px;">
                     <b>📈 Rincian Performa Invoice Terpilih:</b><br>
-                    • DPP: <code>{fmt_rp(dpp_otomatis)}</code><br>
+                    • DPP (Basis Fee / Management Fee): <code>{fmt_rp(dpp_otomatis)}</code><br>
                     • PPN (11%): <code>{fmt_rp(ppn_otomatis)}</code><br>
                     • <b>Total Tagihan (Inc. PPN):</b> <span style="color: #0284c7; font-weight: bold;">{fmt_rp(total_tagihan_inc_ppn)}</span>
                 </div>
@@ -620,24 +619,62 @@ def tampilkan_pemantauan_pembayaran():
                 tgl_pelunasan = None
 
         st.markdown("---")
-        st.markdown("##### 💵 Rincian Potongan Pajak & Penerimaan Kas/Bank")
+        st.markdown("##### 💵 Rincian Potongan Pajak & Penerimaan Kas/Bank (Otomatis & Opsional)")
+
+        # --- FITUR TARIF PPH OTOMATIS & OPSIONAL ---
+        col_opt1, col_opt2 = st.columns(2)
+        with col_opt1:
+            opsi_tarif_pph = ["Tanpa PPh / 0%", "1%", "1.5%", "1.75%", "2%", "2.5%", "3%", "4%", "Custom (Manual)"]
+            default_tarif_choice = "2%" # Default umum PPh 23 jasa
+            selected_tarif_pph = st.selectbox("Pilih Tarif PPh (Otomatis dari DPP / Management Fee):", opsi_tarif_pph, index=4, key="select_tarif_pph_auto")
+        
+        # Hitung PPh otomatis berdasarkan pilihan tarif terhadap DPP (Professional Sum / Management Fee)
+        calculated_auto_pph = 0.0
+        if selected_tarif_pph == "1%":
+            calculated_auto_pph = dpp_otomatis * 0.01
+        elif selected_tarif_pph == "1.5%":
+            calculated_auto_pph = dpp_otomatis * 0.015
+        elif selected_tarif_pph == "1.75%":
+            calculated_auto_pph = dpp_otomatis * 0.0175
+        elif selected_tarif_pph == "2%":
+            calculated_auto_pph = dpp_otomatis * 0.02
+        elif selected_tarif_pph == "2.5%":
+            calculated_auto_pph = dpp_otomatis * 0.025
+        elif selected_tarif_pph == "3%":
+            calculated_auto_pph = dpp_otomatis * 0.03
+        elif selected_tarif_pph == "4%":
+            calculated_auto_pph = dpp_otomatis * 0.04
+        else:
+            calculated_auto_pph = float(existing_pay.get("Potongan PPh", 0.0))
+
+        with col_opt2:
+            st.markdown(f"<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("⚡ Terapkan PPh Otomatis", use_container_width=True):
+                st.session_state["val_pph_auto_set"] = calculated_auto_pph
+                st.rerun()
+
+        if "val_pph_auto_set" in st.session_state:
+            default_pot_pph = float(st.session_state.pop("val_pph_auto_set"))
+        else:
+            default_pot_pph = float(existing_pay.get("Potongan PPh", calculated_auto_pph if selected_tarif_pph != "Custom (Manual)" else 0.0))
 
         col_pp1, col_pp2 = st.columns(2)
         with col_pp1:
-            default_pot_pph = float(existing_pay.get("Potongan PPh", 0.0))
-            potongan_pph = st.number_input("Potongan PPh (Pasal 23 / 22):", min_value=0.0, value=default_pot_pph, step=1000.0, key="input_pot_pph")
+            potongan_pph = st.number_input("Potongan PPh (Pasal 23 / 22 - Opsional/Dapat Diedit):", min_value=0.0, value=default_pot_pph, step=1000.0, key="input_pot_pph")
 
         with col_pp2:
-            default_pot_wapu = float(existing_pay.get("Potongan PPN WAPU", 0.0))
-            potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Dipotong Klien WAPU):", min_value=0.0, value=default_pot_wapu, step=1000.0, key="input_pot_wapu")
+            # PPN WAPU membaca otomatis dari total PPN (11%) pada tagihan
+            default_pot_wapu = float(existing_pay.get("Potongan PPN WAPU", ppn_otomatis))
+            potongan_ppn_wapu = st.number_input("Potongan PPN WAPU (Otomatis dari PPN Tagihan):", min_value=0.0, value=default_pot_wapu, step=1000.0, key="input_pot_wapu")
 
+        # Nominal penerimaan bersih bank otomatis: Total Tagihan - PPh - PPN WAPU
         nominal_bank_seharusnya = max(0.0, total_tagihan_inc_ppn - potongan_pph - potongan_ppn_wapu)
-        st.markdown(f"💡 **Nilai Bersih Seharusnya Diterima Bank:** `{fmt_rp(nominal_bank_seharusnya)}` *(Total Tagihan - PPh - PPN WAPU)*")
+        st.markdown(f"💡 **Nilai Bersih Seharusnya Diterima Bank (Otomatis):** `{fmt_rp(nominal_bank_seharusnya)}` *(Total Tagihan - PPh - PPN WAPU)*")
         
         col_b1, col_b2 = st.columns([3, 1])
         with col_b2:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("⚡ Hitung / Set Otomatis Diterima Bank", use_container_width=True):
+            if st.button("⚡ Set Nilai Diterima Bank Otomatis", use_container_width=True):
                 st.session_state["val_bayar_aktual_set"] = nominal_bank_seharusnya
                 st.rerun()
 
@@ -647,7 +684,7 @@ def tampilkan_pemantauan_pembayaran():
             default_bayar_akt = float(existing_pay.get("Nominal Pembayaran Aktual", nominal_bank_seharusnya))
 
         with col_b1:
-            nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Ketik Aktual Perbankan/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0, key="input_bayar_aktual")
+            nominal_pembayaran_aktual = st.number_input("Nominal Pembayaran Diterima (Input Manual Aktual Perbankan/Kas):", min_value=0.0, value=default_bayar_akt, step=1000.0, key="input_bayar_aktual")
 
         selisih_pembayaran = nominal_pembayaran_aktual - nominal_bank_seharusnya
         
