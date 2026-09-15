@@ -20,16 +20,13 @@ except ImportError:
 def terapkan_format_excel_profesional(worksheet, df):
     if df.empty: return
     
-    # 1. Header: Hijau Muda Menyala dengan Teks Hitam Tebal
     header_fill = PatternFill(start_color="A7F3D0", end_color="A7F3D0", fill_type="solid")
     header_font = Font(name="Calibri", size=11, bold=True, color="000000")
     header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
     
-    # 2. Zebra striping (Baris selang-seling warna putih dan abu-abu sangat muda)
     zebra_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
     white_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
     
-    # 3. Garis Tepi (Borders) tipis yang jelas untuk setiap sel
     thin_border = Border(
         left=Side(style='thin', color='CBD5E1'), 
         right=Side(style='thin', color='CBD5E1'),
@@ -40,7 +37,6 @@ def terapkan_format_excel_profesional(worksheet, df):
     max_col_letter = worksheet.cell(row=1, column=len(df.columns)).column_letter
     worksheet.auto_filter.ref = f"A1:{max_col_letter}{len(df) + 1}"
 
-    # Terapkan Format ke Header Kolom
     for col_idx in range(1, len(df.columns) + 1):
         cell = worksheet.cell(row=1, column=col_idx)
         cell.fill = header_fill
@@ -49,7 +45,6 @@ def terapkan_format_excel_profesional(worksheet, df):
         cell.border = thin_border
         worksheet.row_dimensions[1].height = 30
 
-    # Terapkan Format ke Baris Data (Zebra Striping, Border, Teks Hitam, Alignment, Wrap Text)
     for row_idx in range(2, len(df) + 2):
         row_fill = zebra_fill if row_idx % 2 == 0 else white_fill
         worksheet.row_dimensions[row_idx].height = 24
@@ -58,11 +53,9 @@ def terapkan_format_excel_profesional(worksheet, df):
             cell.fill = row_fill
             cell.border = thin_border
             cell.font = Font(name="Calibri", size=10, color="000000")
-            # Paksa format teks/general agar nomor panjang tidak jadi 1E+09 atau ########
             cell.number_format = '@'
             cell.alignment = Alignment(vertical="center", horizontal="left", wrap_text=False)
 
-    # 4. Otomatis Sesuaikan Lebar Kolom (Auto-fit) dengan ruang ekstra aman agar tidak ada ####
     for col in worksheet.columns:
         max_len = 0
         col_letter = col[0].column_letter
@@ -70,7 +63,6 @@ def terapkan_format_excel_profesional(worksheet, df):
             val_str = str(cell.value or '')
             if len(val_str) > max_len: 
                 max_len = len(val_str)
-        # Berikan lebar minimal 22 agar tanggal, nomor kontrak, dan nominal tampil 100% utuh
         worksheet.column_dimensions[col_letter].width = min(max(max_len + 6, 22), 65)
 
 def sort_pi_key(pi_str):
@@ -104,7 +96,6 @@ def format_nomor_bersih(val):
     return s
 
 def parse_harga_presisi(val):
-    """Fungsi presisi mutlak anti-lonjakan untuk membersihkan format Rupiah string/float Indonesia"""
     if val is None:
         return 0.0
     if isinstance(val, (int, float)):
@@ -175,7 +166,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
     EXCEL_BILLING = os.path.join(DIR_DATABASE, "database_billing_tax.xlsx")
     EXCEL_NPWP = os.path.join(DIR_DATABASE, "database_npwp_customer.xlsx")
 
-    # PATH FILE PERMANEN LOGO & TTD
     PATH_LOGO_BSS = os.path.join(DIR_DATABASE, "persistent_logo_bss.png")
     PATH_LOGO_ISO = os.path.join(DIR_DATABASE, "persistent_logo_iso.png")
     PATH_TTD_DIR = os.path.join(DIR_DATABASE, "persistent_ttd_direktur.png")
@@ -195,7 +185,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         df_baru = pd.DataFrame(data_list)
         try:
             with pd.ExcelWriter(EXCEL_BILLING, engine='openpyxl') as writer:
-                # index=False MUTLAK AGAR TIDAK ADA KOLOM ANGKA 0, 1, 2...
                 df_baru.to_excel(writer, index=False, sheet_name="Database_Billing")
                 terapkan_format_excel_profesional(writer.sheets["Database_Billing"], df_baru)
         except Exception as e:
@@ -333,7 +322,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         matched_transaksi = [t for t in filtered_by_sawanan if str(t.get("PI No.")) == str(selected_pi_m3)]
         selected_po_m3 = matched_transaksi[0].get("Nomor PO", target_po_val) if matched_transaksi else target_po_val
 
-        # KALKULASI TAGIHAN GROSS (KOTOR) & DISKON SECARA PRESISI
         gross_subtotal_m2 = 0.0
         for t in matched_transaksi:
             q_val = parse_harga_presisi(t.get("Qty", 0))
@@ -433,12 +421,10 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 gross_tagihan_akhir = input_add_cost + input_mgmt_fee
                 diskon_nominal_akhir = 0.0
                 dpp_invoice_akhir = gross_tagihan_akhir
-                st.info(f"💡 **PROFESSIONAL SUM Breakdown:** Add Cost Murni (Rp {input_add_cost:,.2f}) + Fee 15% (Rp {input_mgmt_fee:,.2f}) = **DPP Invoice / Total Due (Rp {dpp_invoice_akhir:,.2f})**".replace(",", "X").replace(".", ",").replace("X", "."))
             elif gunakan_estimasi_sum:
                 gross_tagihan_akhir = gross_subtotal_m2
                 diskon_nominal_akhir = gross_tagihan_akhir * 0.10
                 dpp_invoice_akhir = gross_tagihan_akhir - diskon_nominal_akhir
-                st.info(f"💡 **ESTIMATED SUM Breakdown:** Gross (Rp {gross_tagihan_akhir:,.2f}) - Diskon 10% (Rp {diskon_nominal_akhir:,.2f}) = **DPP Invoice (Rp {dpp_invoice_akhir:,.2f})**".replace(",", "X").replace(".", ",").replace("X", "."))
             else:
                 gross_tagihan_akhir = gross_subtotal_m2
                 diskon_nominal_akhir = 0.0
@@ -586,7 +572,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     tampilkan_kuitansi(transaksi_list)
 
             else:
-                # --- SISTEM PERSISTENT (PERMANEN) LOGO & TTD DIREKTUR ---
                 with st.expander("🖼️ Pengaturan Permanen Logo Kop Surat & Tanda Tangan Direktur", expanded=False):
                     st.info("💡 Logo dan Tanda Tangan yang di-upload di sini akan tersimpan secara permanen dan otomatis dipakai untuk semua invoice berikutnya tanpa perlu upload ulang.")
                     
@@ -615,7 +600,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             st.success("✅ Berhasil mereset semua gambar tersimpan!")
                             st.rerun()
 
-                # MEMUAT GAMBAR PERMANEN DARI FOLDER AMAN JIKA ADA
                 def load_persistent_image_base64(path_file):
                     if os.path.exists(path_file):
                         try:
@@ -667,19 +651,19 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
                     if is_prof_sum_akt:
                         tabel_item_html = f"""
-                        <tr style="vertical-align: top !important;">
-                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top !important;">1</td>
-                            <td style="border: 1px solid #000; padding: 4px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.2;"><b>Add Cost:</b><br>{deskripsi_keterangan_inv}</div></td>
-                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top !important;">-</td>
-                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top !important;">-</td>
-                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top !important;">Rp {val_add_cost:,.2f}</td>
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top;">1</td>
+                            <td style="border: 1px solid #000; padding: 4px 8px; vertical-align: top; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.2;"><b>Add Cost:</b><br>{deskripsi_keterangan_inv}</div></td>
+                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top;">-</td>
+                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top;">-</td>
+                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top;">Rp {val_add_cost:,.2f}</td>
                         </tr>
-                        <tr style="vertical-align: top !important;">
-                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top !important;">2</td>
-                            <td style="border: 1px solid #000; padding: 4px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.2;"><b>Management Fee / Handling Fee (15%):</b><br>Layanan manajemen & pengelolaan operasional terkait</div></td>
-                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top !important;">-</td>
-                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top !important;">-</td>
-                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top !important;">Rp {val_mgmt_fee:,.2f}</td>
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top;">2</td>
+                            <td style="border: 1px solid #000; padding: 4px 8px; vertical-align: top; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.2;"><b>Management Fee / Handling Fee (15%):</b><br>Layanan manajemen & pengelolaan operasional terkait</div></td>
+                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top;">-</td>
+                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top;">-</td>
+                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top;">Rp {val_mgmt_fee:,.2f}</td>
                         </tr>
                         """
                         total_amount_due = val_add_cost + val_mgmt_fee
@@ -706,13 +690,14 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             if keterangan_row:
                                 desc_full += f"<br><span style='font-size: 10px; font-style: italic;'>{keterangan_row}</span>"
 
+                            # KOREKSI UTAMA: QTY MENGGUNAKAN DESIMAL (2 DIGIT) AGAR TIDAK JADI 0 BULAN
                             tabel_item_html += f"""
-                            <tr style="vertical-align: top !important;">
-                                <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top !important;">{idx_m2}</td>
-                                <td style="border: 1px solid #000; padding: 4px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.2;">{desc_full}</div></td>
-                                <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top !important;">{qty_val:,.0f} {satuan_val}</td>
-                                <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top !important;">Rp {harga_satuan_val:,.2f}</td>
-                                <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top !important;">Rp {amount_murni_row:,.2f}</td>
+                            <tr>
+                                <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top;">{idx_m2}</td>
+                                <td style="border: 1px solid #000; padding: 4px 8px; vertical-align: top; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.2;">{desc_full}</div></td>
+                                <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top;">{qty_val:,.2f} {satuan_val}</td>
+                                <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top;">Rp {harga_satuan_val:,.2f}</td>
+                                <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top;">Rp {amount_murni_row:,.2f}</td>
                             </tr>
                             """
                         
@@ -725,12 +710,12 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     else:
                         gross_subtotal = val_inv
                         tabel_item_html = f"""
-                        <tr style="vertical-align: top !important;">
-                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top !important;">1</td>
-                            <td style="border: 1px solid #000; padding: 4px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.2;"><b>{deskripsi_keterangan_inv}</b></div></td>
-                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top !important;">-</td>
-                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top !important;">-</td>
-                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top !important;">Rp {val_inv:,.2f}</td>
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top;">1</td>
+                            <td style="border: 1px solid #000; padding: 4px 8px; vertical-align: top; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.2;"><b>{deskripsi_keterangan_inv}</b></div></td>
+                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: center; vertical-align: top;">-</td>
+                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top;">-</td>
+                            <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; vertical-align: top;">Rp {val_inv:,.2f}</td>
                         </tr>
                         """
                         total_amount_due = val_inv
@@ -876,20 +861,20 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                         <tr style="background-color: #f1f5f9; border: 1px solid #000;">
                                             <th style="border: 1px solid #000; padding: 6px; width: 45px; text-align: center;">No.</th>
                                             <th style="border: 1px solid #000; padding: 6px; text-align: left;">DESCRIPTION</th>
-                                            <th style="border: 1px solid #000; padding: 6px; width: 90px; text-align: center;">UNIT</th>
+                                            <th style="border: 1px solid #000; padding: 6px; width: 95px; text-align: center;">UNIT</th>
                                             <th style="border: 1px solid #000; padding: 6px; width: 110px; text-align: right;">UNIT PRICE (Rp.)</th>
                                             <th style="border: 1px solid #000; padding: 6px; width: 130px; text-align: right;">AMOUNT (Rp.)</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {tabel_item_html}
-                                        <tr style="vertical-align: top !important;">
-                                            <td colspan="3" style="border: 1px solid #000; padding: 12px; vertical-align: top !important;">
+                                        <tr>
+                                            <td colspan="3" style="border: 1px solid #000; padding: 12px; vertical-align: top;">
                                                 <div style="font-size: 11px; font-weight: bold; margin-bottom: 3px; text-transform: uppercase;">PAYMENT INSTRUCTION</div>
                                                 <div style="font-size: 10.5px; margin-bottom: 5px; color: #334155;">Please remit to our bank:</div>
                                                 <div style="border: 1px solid #000; padding: 8px; background: #fafafa; font-size: 11px; line-height: 1.3; display: inline-block; width: 94%;">{bank_info_val}</div>
                                             </td>
-                                            <td colspan="2" style="border: 1px solid #000; padding: 0; vertical-align: top !important;">
+                                            <td colspan="2" style="border: 1px solid #000; padding: 0; vertical-align: top;">
                                                 <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
                                                     {summary_rows_html}
                                                 </table>
@@ -981,7 +966,6 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         if billing_records:
             df_bill = pd.DataFrame(billing_records)
             
-            # Kolom prioritas dengan "PI No." tepat di sebelah kanan "Nomor Invoice Resmi"
             kolom_prioritas = [
                 "Nomor Invoice Resmi", "PI No.", "Customer", "Kontrak No.", "Nomor PO", "Nomor SA / WAN",
                 "Nilai Gross (Bruto)", "Diskon Nominal (10%)", "Nilai Invoice", 
