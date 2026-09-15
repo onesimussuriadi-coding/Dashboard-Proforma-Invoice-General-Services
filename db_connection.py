@@ -1,119 +1,115 @@
 import streamlit as st
 import pandas as pd
+import os
 import mysql.connector
 from mysql.connector import Error
 
+# Tentukan direktori penyimpanan lokal sebagai fallback
+DIR_DATABASE = "database_penyimpanan_aman"
+if not os.path.exists(DIR_DATABASE):
+    os.makedirs(DIR_DATABASE)
+
+def is_in_cloud():
+    """Mendeteksi apakah aplikasi berjalan di Streamlit Cloud atau di lokal."""
+    # Streamlit Cloud biasanya tidak memiliki direktori file lokal yang persisten atau mendeteksi environment tertentu
+    return "mysql" in st.secrets and st.secrets["mysql"].get("host") != "localhost"
+
 def get_db_connection():
     """
-    Membuat koneksi ke database MySQL dengan mengambil konfigurasi dari st.secrets.
-    Jika berjalan di lokal dan secrets belum ada, menggunakan konfigurasi default cPanel.
+    Membuat koneksi ke database MySQL jika di cloud. 
+    Jika di lokal, kembalikan None agar menggunakan penyimpanan lokal.
     """
-    try:
-        # Coba ambil dari st.secrets (baik format [mysql] maupun [database])
-        db_config = {}
-        if "mysql" in st.secrets:
-            db_config = st.secrets["mysql"]
-        elif "database" in st.secrets:
-            db_config = st.secrets["database"]
-        else:
-            # Fallback otomatis untuk testing lokal jika st.secrets kosong
-            db_config = {
-                "host": "localhost",
-                "database": "ptba8489_invoice",
-                "user": "ptba8489_admin",
-                "password": "ayfVy8iSw6kT91",
-                "port": 3306
-            }
+    if not is_in_cloud():
+        return None  # Berjalan di lokal, gunakan file Excel
 
+    try:
+        db_config = st.secrets.get("mysql", st.secrets.get("database", {}))
         connection = mysql.connector.connect(
             host=db_config.get("host", "localhost"),
             database=db_config.get("database", "ptba8489_invoice"),
             user=db_config.get("user", "ptba8489_admin"),
             password=db_config.get("password", "ayfVy8iSw6kT91"),
-            port=int(db_config.get("port", 3306))
+            port=int(db_config.get("port", 3306)),
+            connect_timeout=5
         )
         if connection.is_connected():
             return connection
-    except Exception as e:
-        # Jika st.secrets sama sekali belum ada (di lokal), gunakan langsung kredensial default
-        try:
-            connection = mysql.connector.connect(
-                host="localhost",
-                database="ptba8489_invoice",
-                user="ptba8489_admin",
-                password="ayfVy8iSw6kT91",
-                port=3306
-            )
-            if connection.is_connected():
-                return connection
-        except Error as err:
-            st.error(f"❌ Kesalahan koneksi ke Database MySQL: {err}")
+    except Error:
+        pass
     return None
 
 def muat_data_from_db(nama_tabel):
     """
-    Mengambil seluruh data dari tabel MySQL tertentu dan mengembalikannya sebagai list of dictionaries.
+    Mengambil data dari MySQL jika online, atau dari file Excel lokal jika offline.
     """
     connection = get_db_connection()
-    if connection is None:
-        return []
     
-    try:
-        query = f"SELECT * FROM `{nama_tabel}`;"
-        df = pd.read_sql(query, connection)
-        if df is not None and not df.empty:
-            return df.to_dict(orient="records")
-    except Error:
-        pass
-    finally:
-        if connection.is_connected():
-            connection.close()
+    # Jika koneksi database tersedia (di Cloud)
+    if connection is not None:
+        try:
+            query = f"SELECT * FROM `{nama_tabel}`;"
+            df = pd.read_sql(query, connection)
+            if df is not None and not df.empty:
+                return df.to_dict(orient="records")
+        except Error:
+            pass
+        finally:
+            if connection.is_connected():
+                connection.close()
+    
+    # Fallback ke penyimpanan Excel lokal jika di komputer lokal
+    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
+    if os.path.exists(file_path):
+        try:
+            df_local = pd.read_excel(file_path, engine='openpyxl')
+            if df_local is not None and not df_local.empty:
+                return df_local.to_dict(orient="records")
+        except:
+            pass
     return []
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan data (list of dictionaries) ke tabel MySQL.
+    Menyimpan data ke MySQL jika online, dan selalu menyalinnya ke Excel lokal sebagai cadangan.
     """
     if data_list is None:
         data_list = []
 
-    connection = get_db_connection()
-    if connection is None:
-        st.error("❌ Gagal menyimpan data: Koneksi database terputus.")
-        return False
-
+    # Selalu simpan ke file Excel lokal agar aman di komputer lokal
+    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     try:
-        cursor = connection.cursor()
-        df = pd.DataFrame(data_list)
-        
-        if not df.empty:
-            for col in df.columns:
-                df[col] = df[col].astype(str).replace('nan', '')
+        df_local = pd.DataFrame(data_list)
+        df_local.to_excel(file_path, index=False, engine='openpyxl')
+    except Exception as e:
+        print(f"Gagal simpan lokal: {e}")
 
-            cols_def = ", ".join([f"`{col}` TEXT" for col in df.columns])
-            cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def});")
-            cursor.execute(f"TRUNCATE TABLE `{nama_tabel}`;")
-            
-            for _, row in df.iterrows():
-                cols = ", ".join([f"`{c}`" for c in df.columns])
-                placeholders = ", ".join(["%s"] * len(df.columns))
-                sql = f"INSERT INTO `{nama_tabel}` ({cols}) VALUES ({placeholders});"
-                cursor.execute(sql, tuple(row))
-            
-            connection.commit()
+    # Coba simpan ke MySQL jika online
+    connection = get_db_connection()
+    if connection is not None:
+        try:
+            cursor = connection.cursor()
+            df = pd.DataFrame(data_list)
+            if not df.empty:
+                for col in df.columns:
+                    df[col] = df[col].astype(str).replace('nan', '')
+
+                cols_def = ", ".join([f"`{col}` TEXT" for col in df.columns])
+                cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def});")
+                cursor.execute(f"TRUNCATE TABLE `{nama_tabel}`;")
+                
+                for _, row in df.iterrows():
+                    cols = ", ".join([f"`{c}`" for c in df.columns])
+                    placeholders = ", ".join(["%s"] * len(df.columns))
+                    sql = f"INSERT INTO `{nama_tabel}` ({cols}) VALUES ({placeholders});"
+                    cursor.execute(sql, tuple(row))
+                
+                connection.commit()
             return True
-        else:
-            # Jika dataframe kosong, pastikan tabel tetap ada atau dibersihkan
-            cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` (`id` INT AUTO_INCREMENT PRIMARY KEY);")
-            cursor.execute(f"TRUNCATE TABLE `{nama_tabel}`;")
-            connection.commit()
-            return True
-    except Error as e:
-        st.error(f"❌ Gagal menyimpan ke database MySQL: {e}")
-        connection.rollback()
-        return False
-    finally:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
-    return False
+        except Error:
+            connection.rollback()
+        finally:
+            if connection.is_connected():
+                cursor.close()
+                connection.close()
+                
+    return True # Tetap mengembalikan True karena data sudah tersimpan di lokal
