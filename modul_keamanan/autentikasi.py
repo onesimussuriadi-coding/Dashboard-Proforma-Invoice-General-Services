@@ -108,7 +108,7 @@ def form_login_sistem():
                     if matched_user:
                         st.session_state["logged_in"] = True
                         st.session_state["current_user"] = matched_user.get("Username")
-                        st.session_state["current_role"] = matched_user.get("Role")
+                        st.session_state["current_role"] = str(matched_user.get("Role")).strip()
                         st.session_state["nama_lengkap"] = matched_user.get("Nama Lengkap")
                         st.success(f"🎉 Selamat datang, {matched_user.get('Nama Lengkap')}! Memuat sistem...")
                         st.rerun()
@@ -119,14 +119,13 @@ def form_login_sistem():
     return True
 
 def tampilkan_panel_sidebar_akun():
-    # Ditempatkan murni di dalam st.sidebar agar tersembunyi/rapi di kolom kiri
     with st.sidebar:
         st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
         username_aktif = st.session_state.get("current_user", "admin")
-        role_aktif = st.session_state.get("current_role", "Super Admin")
+        role_aktif = str(st.session_state.get("current_role", "Super Admin")).strip()
         nama_aktif = st.session_state.get("nama_lengkap", "Administrator Utama")
 
-        with st.expander("⚙️ Manajemen Akun & Hak Akses", expanded=False):
+        with st.expander("⚙️ Manajemen Akun & Hak Akses", expanded=True):
             st.markdown(f"""
                 <div style="font-size: 12px; color: #1e293b; line-height: 1.4;">
                     <p style="margin: 2px 0;">👤 <b>Login:</b> <span style="color: #0284c7; font-weight: bold;">{username_aktif}</span></p>
@@ -144,29 +143,33 @@ def tampilkan_panel_sidebar_akun():
                 st.success("👋 Anda telah keluar.")
                 st.rerun()
 
-        # Panel Kontrol Pembuatan Akun & Role (Hanya untuk Super Admin)
-        if role_aktif == "Super Admin":
-            with st.expander("👥 Pembuatan Akun & Kewenangan", expanded=False):
+        # Panel Kontrol Pembuatan Akun & Kewenangan (Ditampilkan jika Admin / Super Admin)
+        if role_aktif.lower() in ["super admin", "admin"]:
+            with st.expander("👥 Pembuatan Akun & Kewenangan", expanded=True):
                 with st.form("form_tambah_user_baru_sidebar"):
                     new_user = st.text_input("Username Baru")
                     new_pass = st.text_input("Password Baru", type="password")
-                    new_nama = st.text_input("Nama Lengkap")
+                    new_nama = st.text_input("Nama Lengkap / Dept")
                     new_role = st.selectbox("Role / Kewenangan", ["Super Admin", "Finance", "Project Manager", "Project Support", "Management"])
                     
                     btn_simpan_user = st.form_submit_button("➕ Buat Akun Baru", use_container_width=True)
                     if btn_simpan_user:
                         if new_user and new_pass:
                             current_db = st.session_state["db_users"]
-                            current_db.append({
-                                "Username": new_user,
-                                "Password": hash_password(new_pass),
-                                "Nama Lengkap": new_nama if new_nama else new_user,
-                                "Role": new_role,
-                                "Departemen": "Umum"
-                            })
-                            simpan_database_users(current_db)
-                            st.success(f"✅ Akun `{new_user}` ({new_role}) berhasil dibuat!")
-                            st.rerun()
+                            # Cek duplikat username
+                            if any(str(u.get("Username")).strip().lower() == new_user.strip().lower() for u in current_db):
+                                st.error(f"⚠️ Username `{new_user}` sudah terdaftar!")
+                            else:
+                                current_db.append({
+                                    "Username": new_user.strip(),
+                                    "Password": hash_password(new_pass),
+                                    "Nama Lengkap": new_nama if new_nama else new_user,
+                                    "Role": new_role,
+                                    "Departemen": "Umum"
+                                })
+                                simpan_database_users(current_db)
+                                st.success(f"✅ Akun `{new_user}` ({new_role}) berhasil dibuat!")
+                                st.rerun()
                         else:
                             st.error("⚠️ Username & Password wajib diisi!")
 
@@ -183,9 +186,9 @@ def cek_izin_akses_modul(nomor_modul):
     - Project Support (Operasi Marketing): Modul 1, 2
     - Management (Viewer): Modul 1, 2, 3 (Read Only)
     """
-    role = st.session_state.get("current_role", "Super Admin")
+    role = str(st.session_state.get("current_role", "Super Admin")).strip()
     
-    if role == "Super Admin":
+    if role.lower() in ["super admin", "admin"]:
         return True, False
     elif role == "Finance":
         return nomor_modul == 3, False
