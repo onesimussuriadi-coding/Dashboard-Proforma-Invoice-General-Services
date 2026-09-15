@@ -974,21 +974,35 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
         if billing_records:
             df_bill = pd.DataFrame(billing_records)
             
-            # --- TABEL REKAPITULASI AKUMULASI PER NOMOR KONTRAK ---
+            # --- TABEL REKAPITULASI PER KONTRAK (BERSIH, TANPA DAFTAR INVOICE, ADA GRAND TOTAL) ---
             st.markdown("---")
             st.markdown("##### 📊 Rekapitulasi Total Nilai Invoice Diserahkan per Nomor Kontrak")
             
             if "Kontrak No." in df_bill.columns and "Total Netto" in df_bill.columns:
                 df_bill["Total Netto_num"] = pd.to_numeric(df_bill["Total Netto"], errors="coerce").fillna(0.0)
                 
+                # Grouping rekapitulasi per nomor kontrak tanpa kolom daftar nomor invoice
                 rekap_kontrak = df_bill.groupby("Kontrak No.").agg(
                     Jumlah_Invoice=("Nomor Invoice Resmi", "count"),
-                    Daftar_Nomor_Invoice=("Nomor Invoice Resmi", lambda x: ", ".join(map(str, x))),
                     Total_Nilai_Netto=("Total Netto_num", "sum")
                 ).reset_index()
                 
-                rekap_kontrak.columns = ["Nomor Kontrak", "Jumlah Invoice", "Daftar Nomor Invoice", "Total Netto Diserahkan (Rp)"]
-                rekap_kontrak["Total Netto Diserahkan (Rp)"] = rekap_kontrak["Total Netto Diserahkan (Rp)"].apply(lambda x: f"Rp {x:,.0f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                rekap_kontrak.columns = ["Nomor Kontrak", "Jumlah Invoice", "Total Netto Diserahkan"]
+                
+                # Hitung Grand Total keseluruhan
+                total_jumlah_inv = rekap_kontrak["Jumlah Invoice"].sum()
+                grand_total_netto = rekap_kontrak["Total_Nilai_Netto"].sum() if "Total_Nilai_Netto" in rekap_kontrak.columns else rekap_kontrak["Total Netto Diserahkan"].sum()
+                
+                # Tambahkan baris Grand Total ke tabel ringkasan
+                baris_grand_total = pd.DataFrame([{
+                    "Nomor Kontrak": "GRAND TOTAL KESELURUHAN",
+                    "Jumlah Invoice": total_jumlah_inv,
+                    "Total Netto Diserahkan": grand_total_netto
+                }])
+                rekap_kontrak = pd.concat([rekap_kontrak, baris_grand_total], ignore_index=True)
+                
+                # Format Rupiah
+                rekap_kontrak["Total Netto Diserahkan"] = rekap_kontrak["Total Netto Diserahkan"].apply(lambda x: f"Rp {x:,.0f}".replace(",", "X").replace(".", ",").replace("X", "."))
                 
                 st.dataframe(rekap_kontrak, use_container_width=True, hide_index=True)
             else:
