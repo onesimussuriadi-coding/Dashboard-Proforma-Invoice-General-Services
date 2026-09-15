@@ -651,19 +651,19 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
                     if is_prof_sum_akt:
                         tabel_item_html = f"""
-                        <tr style="vertical-align: top !important;">
-                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: center; vertical-align: top !important;">1</td>
-                            <td style="border: 1px solid #000; padding: 6px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.2;"><b>Add Cost:</b><br>{deskripsi_keterangan_inv}</div></td>
-                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: center; vertical-align: top !important;">-</td>
-                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: right; vertical-align: top !important;">-</td>
-                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: right; vertical-align: top !important;">Rp {val_add_cost:,.2f}</td>
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">1</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.35;"><b>Add Cost:</b><br>{deskripsi_keterangan_inv}</div></td>
+                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">-</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">-</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">Rp {val_add_cost:,.2f}</td>
                         </tr>
-                        <tr style="vertical-align: top !important;">
-                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: center; vertical-align: top !important;">2</td>
-                            <td style="border: 1px solid #000; padding: 6px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.2;"><b>Management Fee / Handling Fee (15%):</b><br>Layanan manajemen & pengelolaan operasional terkait</div></td>
-                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: center; vertical-align: top !important;">-</td>
-                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: right; vertical-align: top !important;">-</td>
-                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: right; vertical-align: top !important;">Rp {val_mgmt_fee:,.2f}</td>
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">2</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.35;"><b>Management Fee / Handling Fee (15%):</b><br>Layanan manajemen & pengelolaan operasional terkait</div></td>
+                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">-</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">-</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">Rp {val_mgmt_fee:,.2f}</td>
                         </tr>
                         """
                         total_amount_due = val_add_cost + val_mgmt_fee
@@ -690,14 +690,14 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             if keterangan_row:
                                 desc_full += f"<br><span style='font-size: 10px; font-style: italic;'>{keterangan_row}</span>"
 
-                            # KOREKSI UTAMA: DISET VERTICAL-ALIGN TOP DI SETIAP <TR> DAN <TD> AGAR MERAPAT KE ATAS SEJAJAR
+                            # KOREKSI ELEGAN: PADDING YANG LAPANG (10px) DAN LINE-HEIGHT NYAMAN AGAR TERASA MEWAH DAN RAPI
                             tabel_item_html += f"""
-                            <tr style="vertical-align: top !important;">
-                                <td style="border: 1px solid #000; padding: 6px 8px; text-align: center; vertical-align: top !important;">{idx_m2}</td>
-                                <td style="border: 1px solid #000; padding: 6px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.2;">{desc_full}</div></td>
-                                <td style="border: 1px solid #000; padding: 6px 8px; text-align: center; vertical-align: top !important;">{qty_val:,.2f} {satuan_val}</td>
-                                <td style="border: 1px solid #000; padding: 6px 8px; text-align: right; vertical-align: top !important;">Rp {harga_satuan_val:,.2f}</td>
-                                <td style="border: 1px solid #000; padding: 6px 8px; text-align: right; vertical-align: top !important;">Rp {amount_murni_row:,.2f}</td>
+                            <tr>
+                                <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">{idx_m2}</td>
+                                <td style="border: 1px solid #000; padding: 10px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.35;">{desc_full}</div></td>
+                                <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">{qty_val:,.2f} {satuan_val}</td>
+                                <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">Rp {harga_satuan_val:,.2f}</td>
+                                <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">Rp {amount_murni_row:,.2f}</td>
                             </tr>
                             """
                         
@@ -710,12 +710,12 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     else:
                         gross_subtotal = val_inv
                         tabel_item_html = f"""
-                        <tr style="vertical-align: top !important;">
-                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: center; vertical-align: top !important;">1</td>
-                            <td style="border: 1px solid #000; padding: 6px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.2;"><b>{deskripsi_keterangan_inv}</b></div></td>
-                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: center; vertical-align: top !important;">-</td>
-                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: right; vertical-align: top !important;">-</td>
-                            <td style="border: 1px solid #000; padding: 6px 8px; text-align: right; vertical-align: top !important;">Rp {val_inv:,.2f}</td>
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">1</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px; vertical-align: top !important; word-break: break-word;"><div style="margin: 0; padding: 0; line-height: 1.35;"><b>{deskripsi_keterangan_inv}</b></div></td>
+                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: center; vertical-align: top !important; font-size: 11.5px;">-</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">-</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px; text-align: right; vertical-align: top !important; font-size: 11.5px;">Rp {val_inv:,.2f}</td>
                         </tr>
                         """
                         total_amount_due = val_inv
@@ -859,22 +859,22 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                                 <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 12px;">
                                     <thead>
                                         <tr style="background-color: #f1f5f9; border: 1px solid #000;">
-                                            <th style="border: 1px solid #000; padding: 6px; width: 45px; text-align: center;">No.</th>
-                                            <th style="border: 1px solid #000; padding: 6px; text-align: left;">DESCRIPTION</th>
-                                            <th style="border: 1px solid #000; padding: 6px; width: 95px; text-align: center;">UNIT</th>
-                                            <th style="border: 1px solid #000; padding: 6px; width: 110px; text-align: right;">UNIT PRICE (Rp.)</th>
-                                            <th style="border: 1px solid #000; padding: 6px; width: 130px; text-align: right;">AMOUNT (Rp.)</th>
+                                            <th style="border: 1px solid #000; padding: 8px 6px; width: 45px; text-align: center;">No.</th>
+                                            <th style="border: 1px solid #000; padding: 8px 6px; text-align: left;">DESCRIPTION</th>
+                                            <th style="border: 1px solid #000; padding: 8px 6px; width: 95px; text-align: center;">UNIT</th>
+                                            <th style="border: 1px solid #000; padding: 8px 6px; width: 110px; text-align: right;">UNIT PRICE (Rp.)</th>
+                                            <th style="border: 1px solid #000; padding: 8px 6px; width: 130px; text-align: right;">AMOUNT (Rp.)</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {tabel_item_html}
-                                        <tr style="vertical-align: top !important;">
-                                            <td colspan="3" style="border: 1px solid #000; padding: 12px; vertical-align: top !important;">
+                                        <tr>
+                                            <td colspan="3" style="border: 1px solid #000; padding: 12px; vertical-align: top;">
                                                 <div style="font-size: 11px; font-weight: bold; margin-bottom: 3px; text-transform: uppercase;">PAYMENT INSTRUCTION</div>
                                                 <div style="font-size: 10.5px; margin-bottom: 5px; color: #334155;">Please remit to our bank:</div>
                                                 <div style="border: 1px solid #000; padding: 8px; background: #fafafa; font-size: 11px; line-height: 1.3; display: inline-block; width: 94%;">{bank_info_val}</div>
                                             </td>
-                                            <td colspan="2" style="border: 1px solid #000; padding: 0; vertical-align: top !important;">
+                                            <td colspan="2" style="border: 1px solid #000; padding: 0; vertical-align: top;">
                                                 <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
                                                     {summary_rows_html}
                                                 </table>
