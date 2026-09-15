@@ -1,4 +1,4 @@
-import streamlit as str_lit
+import streamlit as st
 import os
 import pandas as pd
 import glob
@@ -81,7 +81,6 @@ def tampilkan_arsip_pendukung():
     with tab_upload:
         st.markdown("#### 📥 Form Upload Dokumen dengan Identifikasi Ganda (Nomor PI & Nomor PO/Ref)")
         
-        # Peringatan privasi jika bukan finance
         if not is_finance_or_admin:
             st.info("ℹ️ Catatan: Kategori kamar dokumen privat finansial (Faktur Pajak) disembunyikan dan hanya dapat diakses oleh bagian Finance & Super Admin.")
 
@@ -102,7 +101,6 @@ def tampilkan_arsip_pendukung():
             submit_upload = st.form_submit_button("💾 Simpan & Masukkan ke Kamar", use_container_width=True)
 
             if submit_upload:
-                # Validasi tambahan keamanan: Mencegah user non-finance mengupload ke kamar privat
                 if "PRIVAT" in kategori_dok and not is_finance_or_admin:
                     st.error("❌ Akses Ditolak! Anda tidak memiliki kewenangan untuk mengunggah dokumen ke kamar privat keuangan.")
                 else:
@@ -232,7 +230,6 @@ def tampilkan_arsip_pendukung():
                                     )
 
                                     if st.button("🗑️ Hapus", key=f"del_kamar_{folder_name}_{file_name}", use_container_width=True):
-                                        # Validasi keamanan hak hapus untuk dokumen privat
                                         if "PRIVAT" in nama_kamar and not is_finance_or_admin:
                                             st.error("❌ Anda tidak berhak menghapus dokumen keuangan privat ini!")
                                         else:
