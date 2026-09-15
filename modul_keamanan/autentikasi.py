@@ -6,12 +6,10 @@ import pandas as pd
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Direktori penyimpanan aman yang dikelola oleh Super Admin
 DIR_DATABASE = "database_penyimpanan_aman"
 EXCEL_USERS = os.path.join(DIR_DATABASE, "database_users.xlsx")
 
 def muat_database_users_dinamis():
-    """Membaca data akun secara murni dinamis dari database Excel yang dikelola Super Admin."""
     if os.path.exists(EXCEL_USERS):
         try:
             df = pd.read_excel(EXCEL_USERS, engine='openpyxl')
@@ -20,7 +18,6 @@ def muat_database_users_dinamis():
         except Exception:
             pass
     
-    # Fallback darurat jika file database belum ada sama sekali (hanya 1 akun super admin awal)
     return [
         {
             "Username": "admin",
@@ -48,7 +45,6 @@ def render_autentikasi():
             submit_login = st.form_submit_button("Masuk Sistem", use_container_width=True)
 
             if submit_login:
-                # Memuat akun secara dinamis langsung dari database kelolaan Super Admin
                 users = muat_database_users_dinamis()
                 hashed_pw = hash_password(password_input)
                 
@@ -66,3 +62,7 @@ def render_autentikasi():
         return False
     
     return True
+
+# --- ALIAS FUNGSI UNTUK MENCEGAH NAMEERROR DI APP.PY ---
+def form_login_sistem():
+    return render_autentikasi()
