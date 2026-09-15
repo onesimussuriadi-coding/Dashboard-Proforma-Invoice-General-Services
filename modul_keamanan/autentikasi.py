@@ -7,9 +7,11 @@ DIR_DATABASE = "database_penyimpanan_aman"
 EXCEL_USERS = os.path.join(DIR_DATABASE, "database_users_hak_akses.xlsx")
 
 def hash_password(password):
+    """Enkripsi SHA-256 standar untuk keamanan password kredensial."""
     return hashlib.sha256(str(password).encode()).hexdigest()
 
 def muat_database_users():
+    """Memuat database kredensial user dan password."""
     if not os.path.exists(DIR_DATABASE):
         os.makedirs(DIR_DATABASE)
         
@@ -21,6 +23,7 @@ def muat_database_users():
         except:
             pass
             
+    # Default Users & Password Kredensial PT Banggai Sentral Sulawesi
     default_users = [
         {
             "Username": "admin",
@@ -51,9 +54,9 @@ def muat_database_users():
             "Departemen": "Operasional & Marketing"
         },
         {
-            "Username": "adminsupport",
+            "Username": "elvira@ptbss.id",
             "Password": hash_password("support2026"),
-            "Nama Lengkap": "Admin Support Arsip",
+            "Nama Lengkap": "General Services",
             "Role": "Admin Support",
             "Departemen": "Administrasi & Dokumen"
         },
@@ -70,6 +73,7 @@ def muat_database_users():
     return default_users
 
 def simpan_database_users(users_list):
+    """Menyimpan pembaruan kredensial user dan password ke penyimpanan lokal."""
     if not os.path.exists(DIR_DATABASE):
         os.makedirs(DIR_DATABASE)
     df = pd.DataFrame(users_list)
@@ -77,6 +81,7 @@ def simpan_database_users(users_list):
     st.session_state["db_users"] = users_list
 
 def form_login_sistem():
+    """Form autentikasi login dengan pencocokan username dan password terenkripsi."""
     if "db_users" not in st.session_state:
         st.session_state["db_users"] = muat_database_users()
 
@@ -115,7 +120,7 @@ def form_login_sistem():
                     if matched_user:
                         st.session_state["logged_in"] = True
                         st.session_state["current_user"] = str(matched_user.get("Username"))
-                        st.session_state["current_role"] = str(matched_user.get("Role", "Super Admin"))
+                        st.session_state["current_role"] = str(matched_user.get("Role", "Staff"))
                         st.session_state["nama_lengkap"] = str(matched_user.get("Nama Lengkap", ""))
                         st.success(f"🎉 Selamat datang, {matched_user.get('Nama Lengkap')}! Memuat sistem...")
                         st.rerun()
@@ -126,6 +131,7 @@ def form_login_sistem():
     return True
 
 def tampilkan_panel_sidebar_akun():
+    """Panel sidebar untuk informasi akun aktif, manajemen password, dan pembuatan user baru."""
     with st.sidebar:
         st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
         
@@ -159,15 +165,16 @@ def tampilkan_panel_sidebar_akun():
                 st.success("👋 Anda telah keluar dari sistem.")
                 st.rerun()
 
+        # Panel Pembuatan Akun & Kredensial Baru (Khusus Super Admin)
         if role_aktif.lower() in ["super admin", "admin"]:
-            with st.expander("👥 Pembuatan Akun & Kewenangan", expanded=True):
+            with st.expander("👥 Pembuatan Akun & Kredensial", expanded=True):
                 with st.form("form_tambah_user_baru_sidebar"):
-                    new_user = st.text_input("Username Baru")
+                    new_user = st.text_input("Username Baru (Email/ID)")
                     new_pass = st.text_input("Password Baru", type="password")
                     new_nama = st.text_input("Nama Lengkap / Dept")
                     new_role = st.selectbox("Role / Kewenangan", ["Super Admin", "Finance", "Project Manager", "Project Support", "Admin Support", "Management"])
                     
-                    btn_simpan_user = st.form_submit_button("➕ Buat Akun Baru", use_container_width=True)
+                    btn_simpan_user = st.form_submit_button("➕ Buat Akun & Kredensial", use_container_width=True)
                     if btn_simpan_user:
                         if new_user and new_pass:
                             current_db = st.session_state["db_users"]
@@ -182,49 +189,10 @@ def tampilkan_panel_sidebar_akun():
                                     "Departemen": "Umum"
                                 })
                                 simpan_database_users(current_db)
-                                st.success(f"✅ Akun `{new_user}` ({new_role}) berhasil dibuat!")
+                                st.success(f"✅ Akun `{new_user}` berhasil dibuat dengan password terenkripsi!")
                                 st.rerun()
                         else:
                             st.error("⚠️ Username & Password wajib diisi!")
 
 def render_panel_manajemen_akun():
     return tampilkan_panel_sidebar_akun()
-
-def cek_izin_akses_modul(identifier_modul):
-    """
-    Menentukan apakah role yang sedang login berhak mengakses suatu modul.
-    Mengembalikan (is_allowed: bool, is_read_only: bool)
-    """
-    role = str(st.session_state.get("current_role", "Super Admin")).strip().lower()
-    mod_str = str(identifier_modul).strip().lower()
-    
-    # 1. Super Admin: Akses Penuh ke semua modul
-    if role in ["super admin", "admin"]:
-        return True, False
-        
-    # 2. Finance: Hanya Modul 3
-    elif role == "finance":
-        allowed = any(k in mod_str for k in ["3", "invoice & tax management"])
-        return allowed, False
-        
-    # 3. Project Manager: Modul 0, 1, 2
-    elif role == "project manager":
-        allowed = any(k in mod_str for k in ["0", "1", "2", "master referensi", "master kontrak", "dokumen turunan"])
-        return allowed, False
-        
-    # 4. Project Support: Modul 1, 2
-    elif role == "project support":
-        allowed = any(k in mod_str for k in ["1", "2", "master kontrak", "dokumen turunan"])
-        return allowed, False
-        
-    # 5. Admin Support: HANYA Modul Arsip Dokumen Customer & Pendukung
-    elif role == "admin support":
-        allowed = any(k in mod_str for k in ["arsip", "customer", "pendukung"])
-        return allowed, False
-        
-    # 6. Management: Modul 1, 2, 3 (Read Only)
-    elif role == "management":
-        allowed = any(k in mod_str for k in ["1", "2", "3", "master kontrak", "dokumen turunan", "invoice & tax"])
-        return allowed, True 
-        
-    return False, False

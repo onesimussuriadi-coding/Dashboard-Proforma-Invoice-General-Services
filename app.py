@@ -151,41 +151,7 @@ MAPPING_HEADER_INVOICE = {
 }
 REVERSE_MAPPING_HEADER = {v: k for k, v in MAPPING_HEADER_INVOICE.items()}
 
-# --- FORMATTING EXCEL PROFESIONAL ---
-def terapkan_format_excel_profesional(worksheet, df):
-    if df.empty: return
-    header_fill = PatternFill(start_color="A7F3D0", end_color="A7F3D0", fill_type="solid")
-    header_font = Font(name="Calibri", size=11, bold=True, color="000000")
-    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    zebra_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
-    white_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
-    thin_border = Border(left=Side(style='thin', color='CBD5E1'), right=Side(style='thin', color='CBD5E1'), top=Side(style='thin', color='CBD5E1'), bottom=Side(style='thin', color='CBD5E1'))
-
-    max_col_letter = worksheet.cell(row=1, column=len(df.columns)).column_letter
-    worksheet.auto_filter.ref = f"A1:{max_col_letter}{len(df) + 1}"
-
-    for col_idx in range(1, len(df.columns) + 1):
-        cell = worksheet.cell(row=1, column=col_idx)
-        cell.fill = header_fill; cell.font = header_font; cell.alignment = header_align; cell.border = thin_border
-        worksheet.row_dimensions[1].height = 25
-
-    for row_idx in range(2, len(df) + 2):
-        row_fill = zebra_fill if row_idx % 2 == 0 else white_fill
-        worksheet.row_dimensions[row_idx].height = 20
-        for col_idx in range(1, len(df.columns) + 1):
-            cell = worksheet.cell(row=row_idx, column=col_idx)
-            cell.fill = row_fill; cell.border = thin_border; cell.font = Font(name="Calibri", size=10, color="000000")
-            cell.alignment = Alignment(vertical="center", horizontal="left")
-
-    for col in worksheet.columns:
-        max_len = 0
-        col_letter = col[0].column_letter
-        for cell in col:
-            val_str = str(cell.value or '')
-            if len(val_str) > max_len: max_len = len(val_str)
-        worksheet.column_dimensions[col_letter].width = min(max(max_len + 5, 16), 55)
-
-# --- FUNGSI DATABASE MYSQL & PENYIMPANAN YANG DIKOREKSI ---
+# --- TABEL DATABASE MYSQL ---
 TABEL_DB_INVOICE = "database_proforma_invoice"
 TABEL_DB_TRANSAKSI = "database_transaksi_rincian"
 TABEL_DB_MASTER_REF = "database_master_referensi"
@@ -221,7 +187,6 @@ def simpan_data_invoice(data_list):
                 header_name = MAPPING_HEADER_INVOICE.get(key_str, key_str)
                 formatted_item[header_name] = bersih_angka(v) if pd.notnull(v) else ""
             processed_data.append(formatted_item)
-    
     success = simpan_data_to_db(TABEL_DB_INVOICE, processed_data)
     if success:
         st.session_state["db_tersimpan"] = data_list
@@ -236,10 +201,6 @@ def muat_data_transaksi():
     return st.session_state.get("db_transaksi", [])
 
 def simpan_data_transaksi(data_list):
-    """
-    PENYIMPANAN AMAN MULTI-ITEM: Memastikan seluruh baris rincian pekerjaan 
-    dikirim dan disimpan secara utuh ke database MySQL cPanel.
-    """
     waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
     processed_tx = []
     for item in data_list:
@@ -251,7 +212,6 @@ def simpan_data_transaksi(data_list):
                     if k not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']: 
                         item_copy[k] = ""
             processed_tx.append(item_copy)
-    
     success = simpan_data_to_db(TABEL_DB_TRANSAKSI, processed_tx)
     if success:
         st.session_state["db_transaksi"] = data_list
@@ -273,7 +233,6 @@ def simpan_master_referensi(data_list):
             for k, v in item.items():
                 if pd.isnull(v) or str(v).strip().lower() == "nan":
                     if k != 'Harga Satuan': item[k] = ""
-    
     success = simpan_data_from_db(TABEL_DB_MASTER_REF, data_list)
     if success:
         st.session_state["db_master_ref"] = data_list
@@ -301,15 +260,14 @@ st.session_state["db_transaksi"] = muat_data_transaksi()
 st.session_state["db_master_ref"] = muat_master_referensi()
 st.session_state["db_master_bank"] = muat_master_bank()
 
-# --- AUTENTIKASI LOGIN SISTEM DENGAN PERSISTEN URL ---
+# --- AUTENTIKASI LOGIN KREDENSIAL DENGAN PERSISTEN URL ---
 if form_login_sistem():
-    # Jika login sukses dari form, simpan parameter ke URL agar aman dari refresh
     if st.session_state.get("logged_in", False) and st.session_state.get("current_user"):
         st.query_params["session"] = "active_bss_corporate"
         st.query_params["user"] = st.session_state.get("current_user")
 
     render_panel_manajemen_akun()
-    user_role = st.session_state.get('current_role', 'Staff')
+    user_role = str(st.session_state.get('current_role', 'Staff')).strip()
 
     # Styling CSS UI Rapi & Tegas
     st.markdown("""
@@ -319,7 +277,6 @@ if form_login_sistem():
         div[data-baseweb="base-input"], div[data-baseweb="textarea"], div[data-baseweb="select"] { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; color: #000000 !important; font-size: 14px !important; }
         input, textarea { background-color: #ffffff !important; color: #000000 !important; font-size: 14px !important; }
         .company-header-centered { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 18px 25px; border-radius: 10px; text-align: center; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); border-bottom: 3px solid #10b981; margin-bottom: 25px; }
-        .dashboard-card { background-color: #ffffff; border: 1px solid #cbd5e1; padding: 20px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); color: #0f172a; }
         .stButton>button { width: 100%; border-radius: 6px; font-weight: 600; font-size: 14px !important; background-color: #10b981; color: white; }
         .stButton>button:hover { background-color: #059669; color: white; }
         </style>
@@ -332,16 +289,16 @@ if form_login_sistem():
         </div>
     """, unsafe_allow_html=True)
 
-    # --- SIDEBAR NAVIGASI ---
+    # --- SIDEBAR NAVIGASI BERDASARKAN ROLE KREDENSIAL ---
     st.sidebar.markdown("### 🗂️ Navigasi Dashboard Utama")
     st.sidebar.markdown(f"🕒 **Waktu Sistem (WITA):**<br>`{(datetime.utcnow() + timedelta(hours=8)).strftime('%d %b %Y, %H:%M:%S')}`", unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
-    if user_role == "Staff Timesheet":
-        modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan"])
-    elif user_role == "Finance / Invoice":
+    if user_role == "Admin Support":
+        modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan", "📁 Arsip Dokumen Customer & Pendukung"])
+    elif user_role == "Finance":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", ["💰 Modul 3: Invoice & Tax Management", "📁 Arsip Dokumen Customer & Pendukung"])
-    elif user_role == "Staf Marketing / Operasional":
+    elif user_role == "Project Support":
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", ["📁 Modul 1: Database & Master Kontrak", "📄 Modul 2: Invoice & Dokumen Turunan", "📁 Arsip Dokumen Customer & Pendukung"])
     else: 
         modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
@@ -373,8 +330,8 @@ if form_login_sistem():
         st.query_params.clear()
         st.rerun()
 
-    # --- ROUTER MODUL ULTIMATE ---
-    if user_role == "Staff Timesheet":
+    # --- ROUTER MODUL UTAMA ---
+    if user_role == "Admin Support" and modul_pilihan == "Timesheet Peralatan":
         tampilkan_timesheet(muat_data_transaksi())
 
     elif modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
