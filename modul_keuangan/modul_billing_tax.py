@@ -668,18 +668,18 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     if is_prof_sum_akt:
                         tabel_item_html = f"""
                         <tr>
-                            <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">1</td>
-                            <td style="border: 1px solid #000; padding: 8px; vertical-align: top;"><b>Add Cost:</b><br>{deskripsi_keterangan_inv}</td>
-                            <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">-</td>
-                            <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">-</td>
-                            <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {val_add_cost:,.2f}</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top !important;">1</td>
+                            <td style="border: 1px solid #000; padding: 8px; vertical-align: top !important;"><b>Add Cost:</b><br>{deskripsi_keterangan_inv}</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top !important;">-</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top !important;">-</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top !important;">Rp {val_add_cost:,.2f}</td>
                         </tr>
                         <tr>
-                            <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">2</td>
-                            <td style="border: 1px solid #000; padding: 8px; vertical-align: top;"><b>Management Fee / Handling Fee (15%):</b><br>Layanan manajemen & pengelolaan operasional terkait</td>
-                            <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">-</td>
-                            <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">-</td>
-                            <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {val_mgmt_fee:,.2f}</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top !important;">2</td>
+                            <td style="border: 1px solid #000; padding: 8px; vertical-align: top !important;"><b>Management Fee / Handling Fee (15%):</b><br>Layanan manajemen & pengelolaan operasional terkait</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top !important;">-</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top !important;">-</td>
+                            <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top !important;">Rp {val_mgmt_fee:,.2f}</td>
                         </tr>
                         """
                         total_amount_due = val_add_cost + val_mgmt_fee
@@ -708,11 +708,11 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
 
                             tabel_item_html += f"""
                             <tr>
-                                <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">{idx_m2}</td>
-                                <td style="border: 1px solid #000; padding: 8px; vertical-align: top;">{desc_full}</td>
-                                <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top;">{qty_val:,.0f} {satuan_val}</td>
-                                <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {harga_satuan_val:,.2f}</td>
-                                <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top;">Rp {amount_murni_row:,.2f}</td>
+                                <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top !important;">{idx_m2}</td>
+                                <td style="border: 1px solid #000; padding: 8px; vertical-align: top !important;">{desc_full}</td>
+                                <td style="border: 1px solid #000; padding: 8px; text-align: center; vertical-align: top !important;">{qty_val:,.0f} {satuan_val}</td>
+                                <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top !important;">Rp {harga_satuan_val:,.2f}</td>
+                                <td style="border: 1px solid #000; padding: 8px; text-align: right; vertical-align: top !important;">Rp {amount_murni_row:,.2f}</td>
                             </tr>
                             """
                         
@@ -726,11 +726,11 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         gross_subtotal = val_inv
                         tabel_item_html = f"""
                         <tr>
-                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: center; vertical-align: top;">1</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; vertical-align: top;"><b>{deskripsi_keterangan_inv}</b></td>
-                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: center; vertical-align: top;">-</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: right; vertical-align: top;">-</td>
-                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: right; vertical-align: top;">Rp {val_inv:,.2f}</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: center; vertical-align: top !important;">1</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; vertical-align: top !important;"><b>{deskripsi_keterangan_inv}</b></td>
+                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: center; vertical-align: top !important;">-</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: right; vertical-align: top !important;">-</td>
+                            <td style="border: 1px solid #000; padding: 10px 8px 145px 8px; text-align: right; vertical-align: top !important;">Rp {val_inv:,.2f}</td>
                         </tr>
                         """
                         total_amount_due = val_inv
