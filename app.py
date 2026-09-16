@@ -277,6 +277,9 @@ if form_login_sistem():
     is_management = user_role in ["management", "direksi"]
     is_finance_tax = user_role in ["finance & tax", "finance", "tax"]
     is_project_manager = user_role in ["project manager", "pm"]
+    is_project_support = user_role in ["project support"]
+    is_admin_support = user_role in ["admin support"]
+    is_super_admin = user_role in ["super admin", "admin"]
 
     # Styling CSS UI Rapi & Tegas
     st.markdown("""
@@ -305,9 +308,9 @@ if form_login_sistem():
 
     daftar_modul_tersedia = []
 
-    if user_role == "admin support":
+    if is_admin_support:
         daftar_modul_tersedia = ["Timesheet Peralatan", "📁 Arsip Dokumen Customer & Pendukung"]
-    elif is_finance_tax or user_role == "finance":
+    elif is_finance_tax:
         daftar_modul_tersedia = ["💰 Modul 3: Invoice & Tax Management", "📁 Arsip Dokumen Customer & Pendukung"]
     elif is_project_manager:
         daftar_modul_tersedia = [
@@ -316,7 +319,7 @@ if form_login_sistem():
             "💰 Modul 3: Invoice & Tax Management",
             "📁 Arsip Dokumen Customer & Pendukung"
         ]
-    elif user_role == "project support":
+    elif is_project_support:
         daftar_modul_tersedia = ["📁 Modul 1: Database & Master Kontrak", "📄 Modul 2: Invoice & Dokumen Turunan", "📁 Arsip Dokumen Customer & Pendukung"]
     elif is_management:
         daftar_modul_tersedia = [
@@ -333,14 +336,14 @@ if form_login_sistem():
             "📁 Arsip Dokumen Customer & Pendukung"
         ]
 
-    if user_role == "super admin":
+    if is_super_admin:
         daftar_modul_tersedia.append("⚙️ Manajemen Akun & Hak Akses")
 
     modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", daftar_modul_tersedia)
 
     st.sidebar.markdown("---")
 
-    if user_role == "admin support" and modul_pilihan == "Timesheet Peralatan": 
+    if is_admin_support and modul_pilihan == "Timesheet Peralatan": 
         menu = "Timesheet"
     elif modul_pilihan == "⚙️ Manajemen Akun & Hak Akses":
         menu = "Manajemen Akun"
@@ -390,7 +393,7 @@ if form_login_sistem():
         st.query_params.clear()
         st.rerun()
 
-    # Peringatan khusus role tertentu
+    # --- BANNER NOTIFIKASI POSISI / PERAN AKTIF (MENYELURUH UNTUK SEMUA ROLE) ---
     if is_management:
         st.markdown("""
             <div style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
@@ -405,12 +408,40 @@ if form_login_sistem():
                 <p style="margin:4px 0 0 0; font-size: 13px; color: #0c4a6e;">Akses pengawasan kontrak, progres dokumen turunan, dan pemantauan pembayaran proyek.</p>
             </div>
         """, unsafe_allow_html=True)
+    elif is_finance_tax:
+        st.markdown("""
+            <div style="background-color: #ecfdf5; border: 1px solid #10b981; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="margin:0; color: #047857; font-size: 15px;">💰 Panel Finance & Tax</h4>
+                <p style="margin:4px 0 0 0; font-size: 13px; color: #065f46;">Akses pengelolaan faktur pajak, billing, pemantauan pembayaran, dan manajemen keuangan.</p>
+            </div>
+        """, unsafe_allow_html=True)
+    elif is_project_support:
+        st.markdown("""
+            <div style="background-color: #f1f5f9; border: 1px solid #64748b; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="margin:0; color: #334155; font-size: 15px;">📁 Panel Project Support</h4>
+                <p style="margin:4px 0 0 0; font-size: 13px; color: #475569;">Akses pengelolaan database kontrak, rincian pekerjaan, dan pembuatan dokumen turunan.</p>
+            </div>
+        """, unsafe_allow_html=True)
+    elif is_admin_support:
+        st.markdown("""
+            <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="margin:0; color: #475569; font-size: 15px;">📋 Panel Admin Support</h4>
+                <p style="margin:4px 0 0 0; font-size: 13px; color: #64748b;">Akses pengelolaan administrasi pendukung dan timesheet peralatan.</p>
+            </div>
+        """, unsafe_allow_html=True)
+    elif is_super_admin:
+        st.markdown("""
+            <div style="background-color: #f3e8ff; border: 1px solid #a855f7; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="margin:0; color: #7e22ce; font-size: 15px;">⚙️ Panel Super Admin</h4>
+                <p style="margin:4px 0 0 0; font-size: 13px; color: #581c87;">Akses penuh sistem, pengelolaan hak akses, dan manajemen kredensial pengguna.</p>
+            </div>
+        """, unsafe_allow_html=True)
 
     # --- ROUTER MODUL UTAMA ---
     if modul_pilihan == "⚙️ Manajemen Akun & Hak Akses":
         render_panel_manajemen_akun()
 
-    elif user_role == "admin support" and modul_pilihan == "Timesheet Peralatan":
+    elif is_admin_support and modul_pilihan == "Timesheet Peralatan":
         tampilkan_timesheet(muat_data_transaksi())
 
     elif modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
