@@ -266,7 +266,6 @@ if form_login_sistem():
         st.query_params["session"] = "active_bss_corporate"
         st.query_params["user"] = st.session_state.get("current_user")
 
-    render_panel_manajemen_akun()
     user_role = str(st.session_state.get('current_role', 'Staff')).strip().lower()
     
     # Penanda khusus untuk hak akses Management / Direksi (Read-Only Mutlak)
@@ -297,31 +296,43 @@ if form_login_sistem():
     st.sidebar.markdown(f"🕒 **Waktu Sistem (WITA):**<br>`{(datetime.utcnow() + timedelta(hours=8)).strftime('%d %b %Y, %H:%M:%S')}`", unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
+    # Daftar pilihan modul utama di sidebar (dengan tambahan opsi Manajemen Akun khusus Super Admin)
+    daftar_modul_tersedia = []
+
     if user_role == "admin support":
-        modul_pilihan = st.sidebar.selectbox("Pilih Modul:", ["Timesheet Peralatan", "📁 Arsip Dokumen Customer & Pendukung"])
+        daftar_modul_tersedia = ["Timesheet Peralatan", "📁 Arsip Dokumen Customer & Pendukung"]
     elif user_role == "finance":
-        modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", ["💰 Modul 3: Invoice & Tax Management", "📁 Arsip Dokumen Customer & Pendukung"])
+        daftar_modul_tersedia = ["💰 Modul 3: Invoice & Tax Management", "📁 Arsip Dokumen Customer & Pendukung"]
     elif user_role == "project support":
-        modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", ["📁 Modul 1: Database & Master Kontrak", "📄 Modul 2: Invoice & Dokumen Turunan", "📁 Arsip Dokumen Customer & Pendukung"])
+        daftar_modul_tersedia = ["📁 Modul 1: Database & Master Kontrak", "📄 Modul 2: Invoice & Dokumen Turunan", "📁 Arsip Dokumen Customer & Pendukung"]
     elif is_management:
-        modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama (Direksi - Read Only):", [
+        daftar_modul_tersedia = [
             "💰 Modul 3: Invoice & Tax Management",
             "📄 Modul 2: Invoice & Dokumen Turunan",
             "📁 Arsip Dokumen Customer & Pendukung"
-        ])
+        ]
     else: 
-        modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", [
+        daftar_modul_tersedia = [
             "📁 Modul 0: Master Referensi Harga & Pekerjaan",
             "📁 Modul 1: Database & Master Kontrak",
             "📄 Modul 2: Invoice & Dokumen Turunan",
             "💰 Modul 3: Invoice & Tax Management",
             "📁 Arsip Dokumen Customer & Pendukung"
-        ])
+        ]
+
+    # Jika yang login adalah Super Admin, tambahkan menu manajemen akun secara rapi di sidebar
+    if user_role == "super admin":
+        daftar_modul_tersedia.append("⚙️ Manajemen Akun & Hak Akses")
+
+    modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", daftar_modul_tersedia)
 
     st.sidebar.markdown("---")
 
+    # Routing Menu berdasarkan modul yang dipilih
     if user_role == "admin support" and modul_pilihan == "Timesheet Peralatan": 
         menu = "Timesheet"
+    elif modul_pilihan == "⚙️ Manajemen Akun & Hak Akses":
+        menu = "Manajemen Akun"
     elif is_management:
         if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
             menu = st.sidebar.selectbox("Pilih Menu (Read-Only):", ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan"])
@@ -357,7 +368,11 @@ if form_login_sistem():
             </div>
         """, unsafe_allow_html=True)
 
-    if user_role == "admin support" and modul_pilihan == "Timesheet Peralatan":
+    # Pemanggilan panel manajemen akun HANYA KETIKA DIPILIH DI SIDEBAR
+    if modul_pilihan == "⚙️ Manajemen Akun & Hak Akses":
+        render_panel_manajemen_akun()
+
+    elif user_role == "admin support" and modul_pilihan == "Timesheet Peralatan":
         tampilkan_timesheet(muat_data_transaksi())
 
     elif modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
