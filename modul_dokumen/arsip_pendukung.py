@@ -13,9 +13,14 @@ def tampilkan_arsip_pendukung():
         </div>
     """, unsafe_allow_html=True)
 
-    # Identifikasi role user yang aktif untuk pengamanan dokumen privat keuangan
+    # Identifikasi role user yang aktif untuk pengamanan dokumen privat keuangan (mencakup variasi Finance & Tax, Super Admin, Management, Direksi, dan Project Manager)
     current_role_user = str(st.session_state.get("current_role", "")).strip().lower()
-    is_finance_or_admin = current_role_user in ["finance", "super admin", "admin"]
+    is_finance_or_admin = current_role_user in [
+        "finance & tax", "finance", "tax", 
+        "super admin", "admin", 
+        "management", "direksi", 
+        "project manager", "pm"
+    ]
 
     DIR_ARJEP = os.path.join("database_penyimpanan_aman", "arsip_dokumen_customer")
     if not os.path.exists(DIR_ARJEP):
@@ -34,7 +39,7 @@ def tampilkan_arsip_pendukung():
         "Korespondensi / Lainnya": "09_Korespondensi"
     }
 
-    # PENGAMANAN PRIVASI: Tambahkan 4 pilihan kamar khusus dokumen finansial & pajak jika role adalah Finance / Super Admin
+    # PENGAMANAN PRIVASI: Tambahkan 4 pilihan kamar khusus dokumen finansial & pajak jika role yang login memiliki izin akses
     if is_finance_or_admin:
         kamar_dokumen["🔒 [PRIVAT] 1. Dokumen Invoice Resmi"] = "10_Privat_Invoice_Resmi"
         kamar_dokumen["🔒 [PRIVAT] 2. Dokumen Faktur Pajak"] = "11_Privat_Faktur_Pajak"
@@ -85,7 +90,7 @@ def tampilkan_arsip_pendukung():
         st.markdown("#### 📥 Form Upload Dokumen dengan Identifikasi Ganda (Nomor PI & Nomor PO/Ref)")
         
         if not is_finance_or_admin:
-            st.info("ℹ️ Catatan: Kategori kamar dokumen privat finansial (Invoice, Faktur Pajak, SSP PPN, Bukti Potong PPh) disembunyikan dan hanya dapat diakses oleh bagian Finance & Super Admin.")
+            st.info("ℹ️ Catatan: Kategori kamar dokumen privat finansial (Invoice, Faktur Pajak, SSP PPN, Bukti Potong PPh) disembunyikan dan hanya dapat diakses oleh bagian Finance, Project Manager, & Super Admin.")
 
         with st.form("form_upload_arsip_kamar", clear_on_submit=True):
             col1, col2 = st.columns(2)
