@@ -281,6 +281,10 @@ if form_login_sistem():
     is_admin_support = user_role in ["admin support"]
     is_super_admin = user_role in ["super admin", "admin"]
 
+    # Injeksi session state global untuk izin modul privat arsip dokumen
+    is_privileged_role = is_super_admin or is_finance_tax or is_project_manager or is_management
+    st.session_state["is_privileged_role"] = is_privileged_role
+
     # Styling CSS UI Rapi & Tegas
     st.markdown("""
         <style>
@@ -441,7 +445,7 @@ if form_login_sistem():
     if modul_pilihan == "⚙️ Manajemen Akun & Hak Akses":
         render_panel_manajemen_akun()
 
-    elif is_admin_support and modul_pilihan == "Timesheet Peralatan":
+    elif is_admin_support and modul_pilihan == "Timesheet Peralatan": 
         tampilkan_timesheet(muat_data_transaksi())
 
     elif modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan":
