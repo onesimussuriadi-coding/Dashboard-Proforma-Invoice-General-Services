@@ -10,7 +10,6 @@ DIR_DATABASE = "database_penyimpanan_aman"
 EXCEL_USERS = os.path.join(DIR_DATABASE, "database_users.xlsx")
 
 def muat_database_users_dinamis():
-    """Membaca data akun secara murni dinamis dari database Excel yang dikelola Super Admin."""
     if not os.path.exists(DIR_DATABASE):
         os.makedirs(DIR_DATABASE)
         
@@ -22,7 +21,6 @@ def muat_database_users_dinamis():
         except Exception:
             pass
     
-    # Fallback inisialisasi awal jika file excel belum ada
     default_users = [
         {
             "Username": "admin",
@@ -53,7 +51,6 @@ def render_autentikasi():
         st.session_state["logged_in"] = False
 
     if not st.session_state["logged_in"]:
-        # Layout tengah layar yang proporsional
         col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
         with col_l2:
             st.markdown("""
@@ -64,12 +61,8 @@ def render_autentikasi():
                 </div>
             """, unsafe_allow_html=True)
             
-            # Kartu kontainer form dengan latar belakang putih bersih & border elegan
             with st.form("form_login_modern"):
-                st.markdown("""
-                    <div style="padding-top: 5px;"></div>
-                """, unsafe_allow_html=True)
-                
+                st.markdown("<div style='padding-top: 5px;'></div>", unsafe_allow_html=True)
                 username_input = st.text_input("Username / Email", placeholder="Masukkan email atau username...")
                 password_input = st.text_input("Password", type="password", placeholder="Masukkan kata sandi...")
                 
@@ -91,12 +84,6 @@ def render_autentikasi():
                         st.rerun()
                     else:
                         st.error("❌ Username atau Password salah!")
-            
-            st.markdown("""
-                <div style="text-align: center; margin-top: 15px; font-size: 10.5px; color: #64748b;">
-                    Protected System • PT BSS Internal Access Only
-                </div>
-            """, unsafe_allow_html=True)
         return False
     
     return True
@@ -128,7 +115,15 @@ def render_panel_manajemen_akun():
             new_password = st.text_input("Password / Sandi Awal", type="password")
             new_nama = st.text_input("Nama Lengkap & Jabatan")
         with col_u2:
-            new_role = st.selectbox("Hak Akses (Role)", ["Project Support", "Admin Support", "Management", "Super Admin"])
+            # Pilihan Role ditambah "Finance & Tax" dan "Project Manager"
+            new_role = st.selectbox("Hak Akses (Role)", [
+                "Project Support", 
+                "Admin Support", 
+                "Finance & Tax", 
+                "Project Manager", 
+                "Management", 
+                "Super Admin"
+            ])
             new_dept = st.text_input("Departemen / Unit Kerja")
 
         submit_tambah = st.form_submit_button("💾 Simpan Akun Baru", use_container_width=True, type="primary")
@@ -157,7 +152,7 @@ def render_panel_manajemen_akun():
     if len(users) > 1:
         st.markdown("---")
         st.markdown("##### 🗑️ Hapus Akun Pengguna")
-        list_username_tersedia = [u.get("Username") for u in users if u.get("Username") != "admin"]
+        list_username_tersedia = [u.get("Username") for u in users if u.get("Username"] != "admin"]
         
         col_d1, col_d2 = st.columns([2, 1])
         with col_d1:
@@ -171,6 +166,5 @@ def render_panel_manajemen_akun():
                 st.success(f"🗑️ Akun `{target_hapus_user}` berhasil dihapus dari sistem!")
                 st.rerun()
 
-# --- ALIAS FUNGSI UNTUK KOMPATIBILITAS DI APP.PY ---
 def form_login_sistem():
     return render_autentikasi()
