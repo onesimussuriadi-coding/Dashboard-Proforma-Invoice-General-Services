@@ -115,7 +115,6 @@ def render_panel_manajemen_akun():
             new_password = st.text_input("Password / Sandi Awal", type="password")
             new_nama = st.text_input("Nama Lengkap & Jabatan")
         with col_u2:
-            # Pilihan Role ditambah "Finance & Tax" dan "Project Manager"
             new_role = st.selectbox("Hak Akses (Role)", [
                 "Project Support", 
                 "Admin Support", 
@@ -152,7 +151,7 @@ def render_panel_manajemen_akun():
     if len(users) > 1:
         st.markdown("---")
         st.markdown("##### 🗑️ Hapus Akun Pengguna")
-        list_username_tersedia = [u.get("Username") for u in users if u.get("Username"] != "admin"]
+        list_username_tersedia = [u.get("Username") for u in users if u.get("Username") != "admin"]
         
         col_d1, col_d2 = st.columns([2, 1])
         with col_d1:
