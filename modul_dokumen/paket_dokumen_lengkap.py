@@ -76,35 +76,8 @@ def tampilkan_paket_lengkap(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
-    # --- FILTER UTAMA: HANYA IZINKAN NOMOR KONTRAK 7207250142 ---
-    kontrak_diperbolehkan = "7207250142"
-    
     db_invoice_path = os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx")
     
-    # Saring transaksi list hanya yang memiliki nomor kontrak 7207250142
-    filtered_transaksi_list = []
-    for t in transaksi_list:
-        pi_val = str(t.get('PI No.', t.get('PI', ''))).strip()
-        # Periksa juga melalui database proforma invoice untuk memastikan nomor kontraknya
-        matched_kontrak = str(t.get('Nomor Kontrak', '')).strip()
-        if os.path.exists(db_invoice_path):
-            try:
-                df_inv = pd.read_excel(db_invoice_path)
-                for _, row in df_inv.iterrows():
-                    if str(row.iloc[0]).strip().lower() == pi_val.lower():
-                        matched_kontrak = str(row.iloc[1] if len(row) > 1 else matched_kontrak).strip()
-                        break
-            except:
-                pass
-        
-        # Jika nomor kontrak sesuai dengan 7207250142, masukkan ke daftar
-        if matched_kontrak == kontrak_diperbolehkan or str(t.get('Nomor Kontrak', '')).strip() == kontrak_diperbolehkan:
-            filtered_transaksi_list.append(t)
-
-    if not filtered_transaksi_list:
-        st.info("ℹ️ Master Bundle saat ini dikhususkan untuk menampilkan Kontrak No. **7207250142**. Data untuk kontrak 7201250141 dan 7203250036 disembunyikan sesuai permintaan.")
-        return
-
     DIR_PAKET_SAVED = os.path.join("database_penyimpanan_aman", "paket_dokumen_tersimpan")
     if not os.path.exists(DIR_PAKET_SAVED):
         os.makedirs(DIR_PAKET_SAVED)
@@ -140,7 +113,7 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     seen_pi_dd = set()
     unique_pi_list = []
-    for t in filtered_transaksi_list:
+    for t in transaksi_list:
         pi_key = str(t.get('PI No.', t.get('PI', ''))).strip()
         if pi_key and pi_key not in seen_pi_dd:
             seen_pi_dd.add(pi_key)
@@ -291,9 +264,9 @@ def tampilkan_paket_lengkap(transaksi_list):
     custom_ttd_onesimus = img_to_base64_str(ttd_onesimus_file)
     custom_ttd_ferry = img_to_base64_str(ttd_ferry_file)
 
-    mutasi_terpilih = [t for t in filtered_transaksi_list if str(t.get('PI No.', t.get('PI', ''))).strip() == current_pi_no]
+    mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.', t.get('PI', ''))).strip() == current_pi_no]
     if not mutasi_terpilih:
-        mutasi_terpilih = filtered_transaksi_list
+        mutasi_terpilih = transaksi_list
 
     if not mutasi_terpilih:
         st.warning("⚠️ Tidak ada item ditemukan untuk PI ini.")
@@ -356,7 +329,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 return str(v).strip()
         return fallback
 
-    nomor_kontrak = get_induk(1, 'Nomor Kontrak', t_data_utama.get('Nomor Kontrak', kontrak_diperbolehkan))
+    nomor_kontrak = get_induk(1, 'Nomor Kontrak', t_data_utama.get('Nomor Kontrak', ''))
     nama_kontrak = get_induk(7, 'Nama Kontrak', t_data_utama.get('Nama Kontrak', '-'))
     nomor_tender = get_induk(2, 'Nomor Tender', '-')
     tgl_kontrak = get_induk(4, 'Tanggal Kontrak', '-')
@@ -1186,73 +1159,76 @@ def tampilkan_paket_lengkap(transaksi_list):
     </table>
     """
 
-    wcc_html = f"""
-    <div class="page-break portrait-page">
-        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
-            <tr>
-                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 25px;">
-                    {img_tag_reversed_left}
-                </td>
-                <td style="width: 50%; text-align: center; vertical-align: middle;">
-                    <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">{wcc_header_title}</div>
-                    <div style="font-size: 11px; color: #4b5563;">{wcc_header_contract}</div>
-                </td>
-                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 25px;">
-                    {img_tag_reversed_right}
-                </td>
-            </tr>
-        </table>
-        <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
-        
-        <div style="border: 1px solid #000; background-color: #dbeafe; text-align: center; font-weight: bold; font-size: 13px; padding: 6px; margin-bottom: 2px;">
-            WORK COMPLETION CERTIFICATE
-        </div>
-        <div style="border: 1px solid #000; background-color: #f8fafc; text-align: center; font-weight: bold; font-size: 12px; padding: 6px; margin-bottom: 20px;">
-            CERTIFICATE NO : {wcc_cert_no}
-        </div>
+    # --- KONTROL FILTER WCC: HANYA TAMPILKAN JIKA NOMOR KONTRAK 7207250142 ---
+    wcc_html = ""
+    if str(nomor_kontrak).strip() == "7207250142":
+        wcc_html = f"""
+        <div class="page-break portrait-page">
+            <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
+                <tr>
+                    <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 25px;">
+                        {img_tag_reversed_left}
+                    </td>
+                    <td style="width: 50%; text-align: center; vertical-align: middle;">
+                        <div style="font-weight: bold; font-size: 12px; margin-bottom: 2px;">{wcc_header_title}</div>
+                        <div style="font-size: 11px; color: #4b5563;">{wcc_header_contract}</div>
+                    </td>
+                    <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 25px;">
+                        {img_tag_reversed_right}
+                    </td>
+                </tr>
+            </table>
+            <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
+            
+            <div style="border: 1px solid #000; background-color: #dbeafe; text-align: center; font-weight: bold; font-size: 13px; padding: 6px; margin-bottom: 2px;">
+                WORK COMPLETION CERTIFICATE
+            </div>
+            <div style="border: 1px solid #000; background-color: #f8fafc; text-align: center; font-weight: bold; font-size: 12px; padding: 6px; margin-bottom: 20px;">
+                CERTIFICATE NO : {wcc_cert_no}
+            </div>
 
-        <div style="font-size: 11px; margin-bottom: 15px;">
-            On the date of <b>{wcc_date_str}</b> we on behalf of <b>{p2_nama}</b> have completed the following job:
+            <div style="font-size: 11px; margin-bottom: 15px;">
+                On the date of <b>{wcc_date_str}</b> we on behalf of <b>{p2_nama}</b> have completed the following job:
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 25px;">
+                <tr style="border: 1px solid #000;">
+                    <td style="width: 25%; font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc;">WORK ORDER NUMBER</td>
+                    <td style="width: 3%; padding: 8px; border: 1px solid #000; text-align: center;">:</td>
+                    <td style="width: 72%; padding: 8px; border: 1px solid #000;">{wcc_wo_no}</td>
+                </tr>
+                <tr style="border: 1px solid #000;">
+                    <td style="font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc;">WORK ORDER TITLE</td>
+                    <td style="padding: 8px; border: 1px solid #000; text-align: center;">:</td>
+                    <td style="padding: 8px; border: 1px solid #000;">{wcc_wo_title}</td>
+                </tr>
+                <tr style="border: 1px solid #000;">
+                    <td style="font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc;">CTR NUMBER</td>
+                    <td style="padding: 8px; border: 1px solid #000; text-align: center;">:</td>
+                    <td style="padding: 8px; border: 1px solid #000;">{wcc_ctr_no}</td>
+                </tr>
+                <tr style="border: 1px solid #000;">
+                    <td style="font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc; vertical-align: top;">DESCRIPTION</td>
+                    <td style="padding: 8px; border: 1px solid #000; text-align: center; vertical-align: top;">:</td>
+                    <td style="padding: 8px; border: 1px solid #000;">
+                        <span style="font-size: 11px; font-weight: bold;">{progress_desc}</span> &nbsp;&nbsp; 
+                        <span style="font-size: 12px; font-weight: bold; color: #000;">Rp {grand_total:,.0f}</span>
+                    </td>
+                </tr>
+                <tr style="border: 1px solid #000;">
+                    <td style="font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc;">AMOUNT TOTAL</td>
+                    <td style="padding: 8px; border: 1px solid #000; text-align: center;">:</td>
+                    <td style="padding: 8px; border: 1px solid #000; font-weight: bold;">{terbilang_str}</td>
+                </tr>
+            </table>
+
+            <div style="font-size: 11px; margin-bottom: 30px;">
+                The work has been properly completed as per requirement, witnessed and accepted by <b>{p1_nama}</b>.
+            </div>
+
+            {wcc_sig_table_html}
         </div>
-
-        <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 25px;">
-            <tr style="border: 1px solid #000;">
-                <td style="width: 25%; font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc;">WORK ORDER NUMBER</td>
-                <td style="width: 3%; padding: 8px; border: 1px solid #000; text-align: center;">:</td>
-                <td style="width: 72%; padding: 8px; border: 1px solid #000;">{wcc_wo_no}</td>
-            </tr>
-            <tr style="border: 1px solid #000;">
-                <td style="font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc;">WORK ORDER TITLE</td>
-                <td style="padding: 8px; border: 1px solid #000; text-align: center;">:</td>
-                <td style="padding: 8px; border: 1px solid #000;">{wcc_wo_title}</td>
-            </tr>
-            <tr style="border: 1px solid #000;">
-                <td style="font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc;">CTR NUMBER</td>
-                <td style="padding: 8px; border: 1px solid #000; text-align: center;">:</td>
-                <td style="padding: 8px; border: 1px solid #000;">{wcc_ctr_no}</td>
-            </tr>
-            <tr style="border: 1px solid #000;">
-                <td style="font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc; vertical-align: top;">DESCRIPTION</td>
-                <td style="padding: 8px; border: 1px solid #000; text-align: center; vertical-align: top;">:</td>
-                <td style="padding: 8px; border: 1px solid #000;">
-                    <span style="font-size: 11px; font-weight: bold;">{progress_desc}</span> &nbsp;&nbsp; 
-                    <span style="font-size: 12px; font-weight: bold; color: #000;">Rp {grand_total:,.0f}</span>
-                </td>
-            </tr>
-            <tr style="border: 1px solid #000;">
-                <td style="font-weight: bold; padding: 8px; border: 1px solid #000; background-color: #f8fafc;">AMOUNT TOTAL</td>
-                <td style="padding: 8px; border: 1px solid #000; text-align: center;">:</td>
-                <td style="padding: 8px; border: 1px solid #000; font-weight: bold;">{terbilang_str}</td>
-            </tr>
-        </table>
-
-        <div style="font-size: 11px; margin-bottom: 30px;">
-            The work has been properly completed as per requirement, witnessed and accepted by <b>{p1_nama}</b>.
-        </div>
-
-        {wcc_sig_table_html}
-    </div>
-    """
+        """
 
     if str(nomor_kontrak).strip() == "7207250142":
         opname_sig_table_html = f"""
@@ -1564,7 +1540,11 @@ def tampilkan_paket_lengkap(transaksi_list):
     if ada_barang:
         list_halaman_bundle.append(bastb_html)
 
-    list_halaman_bundle.extend([wcc_html, opname_html, tkdn_html])
+    # WCC hanya ditambahkan ke daftar halaman jika wcc_html tidak kosong (artinya khusus kontrak 7207250142)
+    if wcc_html.strip():
+        list_halaman_bundle.append(wcc_html)
+
+    list_halaman_bundle.extend([opname_html, tkdn_html])
 
     master_html = f"""
     <!DOCTYPE html>
