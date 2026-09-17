@@ -135,7 +135,7 @@ def tampilkan_basp(transaksi_list):
         deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
         desc_final_m = f"<b>{kategori_m}</b><br>{deskripsi_m}" if kategori_m else deskripsi_m
 
-        # KOREKSI UTAMA: Format pemisah ribuan standar Indonesia pada row_qty
+        # KOREKSI UTAMA: Mengubah format {row_qty:.2f} menjadi {row_qty:,.2f} agar memunculkan pemisah ribuan
         rows_html += f"""
             <tr>
                 <td style="text-align: center;">{idx}</td>
