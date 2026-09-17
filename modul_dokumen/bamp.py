@@ -88,7 +88,6 @@ def tampilkan_bamp(transaksi_list):
             'ttd_2': None
         }
     else:
-        # Jika session sudah ada tapi main_date masih menggunakan date.today() default lama, sinkronkan ke min_date jika belum diset user
         if 'main_date' not in st.session_state.bamp_saved_data[pi_storage_key]:
             st.session_state.bamp_saved_data[pi_storage_key]['main_date'] = min_date_default
 
@@ -161,13 +160,14 @@ def tampilkan_bamp(transaksi_list):
         deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
         desc_final_m = f"<b>{kategori_m}</b><br>{deskripsi_m}" if kategori_m else deskripsi_m
 
+        # Perataan teks kolom catatan diubah dari center ke left
         rows_html += f"""
             <tr>
                 <td style="text-align: center;">{idx}</td>
                 <td style="text-align: left;">{desc_final_m}</td>
                 <td style="text-align: center;">{row_qty:,.2f}</td>
                 <td style="text-align: center;">{row_uom}</td>
-                <td style="text-align: center;"><b>{catatan_row_final}</b></td>
+                <td style="text-align: left;"><b>{catatan_row_final}</b></td>
             </tr>
         """
         st.markdown("<br>", unsafe_allow_html=True)
