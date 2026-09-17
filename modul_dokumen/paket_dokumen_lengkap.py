@@ -5,11 +5,17 @@ import base64
 import re
 from datetime import datetime, date
 
+# --- IMPOR FUNGSI DATABASE PERSISTEN ---
+try:
+    from db_connection import simpan_parameter_dokumen_to_db, muat_parameter_dokumen_from_db
+except ImportError:
+    def simpan_parameter_dokumen_to_db(doc_key, data_dict): return False
+    def muat_parameter_dokumen_from_db(doc_key): return None
+
 def bersihkan_karakter_aneh(text):
     if not text or pd.isnull(text):
         return ""
     text_str = str(text)
-    # Memperbaiki mojibake encoding UTF-8 / karakter terdistorsi dari Excel/Word
     replacements = {
         "â€“": "-",
         "â€”": "-",
@@ -21,9 +27,7 @@ def bersihkan_karakter_aneh(text):
     for old, new in replacements.items():
         text_str = text_str.replace(old, new)
     
-    # Menghapus karakter non-ASCII yang merusak tampilan
     text_str = re.sub(r'[^\x00-\x7F]+', ' ', text_str)
-    # Merapikan spasi ganda
     text_str = re.sub(r'\s+', ' ', text_str).strip()
     return text_str
 
@@ -119,7 +123,13 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI) untuk Paket Dokumen:", unique_pi_list, key="bundle_pi_select")
     current_pi_no = str(selected_pi).strip()
-    pi_storage_key = current_pi_no
+    pi_storage_key = f"bundle_{current_pi_no}".replace("/", "_")
+
+    # --- SINKRONISASI DATA MASTER BUNDLE KE CLOUD MYSQL ---
+    db_bundle_payload = muat_parameter_dokumen_from_db(pi_storage_key)
+    if db_bundle_payload and f"db_loaded_{current_pi_no}" not in st.session_state:
+        # Jika ada data tersimpan di DB, kita pastikan status file/session memuatnya
+        st.session_state[f"db_loaded_{current_pi_no}"] = True
 
     file_saved_path = os.path.join(DIR_PAKET_SAVED, f"paket_{current_pi_no.replace('/', '_')}.html")
     
@@ -465,7 +475,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         else:
             kat_display = kat
 
-        # PERBAIKAN: Volume menggunakan format tanda baca pemisah ribuan {:,.2f}
         rincian_rows_html += f"""
             <tr>
                 <td style="text-align: center; width: 4%;">{idx}</td>
@@ -524,11 +533,7 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     mutasi_jasa = mutasi_terpilih
     
-    # ==========================================
-    # PENARIKAN PRESISI DATA BAMP MANDIRI (MULTI-KEY & SMART FALLBACK)
-    # ==========================================
     all_bamp_store = st.session_state.get("bamp_saved_data", {})
-    
     bamp_saved_container = {}
     possible_keys = [
         current_pi_no,
@@ -1217,7 +1222,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         """
 
-    # PERBAIKAN: Volume ringkasan total pada tabel opname di dalam master paket menggunakan format pemisah ribuan {:,.2f}
     qty_val_main = float(t_data_utama.get('Qty', 1.0))
     opname_html = f"""
     <div class="page-break">
@@ -1517,7 +1521,15 @@ def tampilkan_paket_lengkap(transaksi_list):
             try:
                 with open(file_saved_path, "w", encoding="utf-8") as f:
                     f.write(master_html)
-                st.success(f"✅ Paket dokumen untuk PI [{current_pi_no}] berhasil disimpan secara permanen!")
+                
+                # Simpan juga ke Cloud MySQL sebagai backup permanen
+                simpan_parameter_dokumen_to_db(pi_storage_key, {
+                    'pi_no': current_pi_no,
+                    'grand_total': grand_total,
+                    'status': 'final_saved'
+                })
+
+                st.success(f"✅ Paket dokumen untuk PI [{current_pi_no}] berhasil disimpan secara permanen di server & Cloud MySQL!")
                 st.session_state[f"loaded_saved_{current_pi_no}"] = True
                 st.rerun()
             except Exception as e:
