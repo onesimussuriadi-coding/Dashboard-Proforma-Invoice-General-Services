@@ -63,16 +63,34 @@ def tampilkan_bamp(transaksi_list):
         st.info("ℹ️ Nomor Proforma Invoice (PI) ini tidak memiliki rincian Pekerjaan Jasa/Layanan. Berita Acara Mulai Pekerjaan (BAMP) tidak diperlukan untuk item murni barang/material.")
         return
 
+    # --- PENCARIAN TANGGAL PALING AWAL (MINIMUM DATE) DARI SEMUA ITEM ---
+    min_date_default = date.today()
+    try:
+        all_item_dates = []
+        for m in mutasi_terpilih:
+            raw_t = m.get('Tanggal Mulai')
+            if raw_t:
+                parsed_t = pd.to_datetime(raw_t).date()
+                all_item_dates.append(parsed_t)
+        if all_item_dates:
+            min_date_default = min(all_item_dates)
+    except:
+        pass
+
     if pi_storage_key not in st.session_state.bamp_saved_data:
         st.session_state.bamp_saved_data[pi_storage_key] = {
             'lokasi': "Luwuk",
-            'main_date': date.today(),
+            'main_date': min_date_default,
             'items': {},
             'logo_1': None,
             'logo_2': None,
             'ttd_1': None,
             'ttd_2': None
         }
+    else:
+        # Jika session sudah ada tapi main_date masih menggunakan date.today() default lama, sinkronkan ke min_date jika belum diset user
+        if 'main_date' not in st.session_state.bamp_saved_data[pi_storage_key]:
+            st.session_state.bamp_saved_data[pi_storage_key]['main_date'] = min_date_default
 
     saved_global = st.session_state.bamp_saved_data[pi_storage_key]
     t_data_utama = mutasi_terpilih[0]
@@ -82,7 +100,7 @@ def tampilkan_bamp(transaksi_list):
     with col_sel2:
         lokasi_office = st.text_input("📍 Lokasi Office (Tempat BAMP):", value=str(saved_global.get('lokasi', 'Luwuk')), key=f"bamp_lokasi_{pi_storage_key}")
 
-    selected_date = st.date_input("📅 Tanggal Utama Berita Acara (BAMP):", value=saved_global.get('main_date', date.today()), key=f"bamp_main_date_{pi_storage_key}")
+    selected_date = st.date_input("📅 Tanggal Utama Berita Acara (BAMP):", value=saved_global.get('main_date', min_date_default), key=f"bamp_main_date_{pi_storage_key}")
     
     bulan_indo = {
         1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
