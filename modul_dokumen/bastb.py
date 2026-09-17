@@ -57,18 +57,6 @@ def tampilkan_bastb(transaksi_list):
     selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list, key="bastb_pi_select")
     
     pi_storage_key = str(selected_pi).strip()
-    if pi_storage_key not in st.session_state.bastb_saved_data:
-        st.session_state.bastb_saved_data[pi_storage_key] = {
-            'lokasi': "Luwuk",
-            'main_date': date.today(),
-            'items': {},
-            'logo_1': None,
-            'logo_2': None,
-            'ttd_1': None,
-            'ttd_2': None
-        }
-
-    saved_global = st.session_state.bastb_saved_data[pi_storage_key]
 
     # Ambil mutasi yang spesifik untuk PI ini
     mutasi_terpilih = [
@@ -80,6 +68,35 @@ def tampilkan_bastb(transaksi_list):
         st.warning("⚠️ Tidak ada item mutasi ditemukan untuk PI ini.")
         return
 
+    # --- PENCARIAN TANGGAL PALING AKHIR (MAXIMUM DATE) DARI SEMUA ITEM TERIMA BARANG ---
+    max_date_default = date.today()
+    try:
+        all_item_dates = []
+        for m in mutasi_terpilih:
+            raw_t = m.get('Tanggal Selesai')
+            if raw_t:
+                parsed_t = pd.to_datetime(raw_t).date()
+                all_item_dates.append(parsed_t)
+        if all_item_dates:
+            max_date_default = max(all_item_dates)
+    except:
+        pass
+
+    if pi_storage_key not in st.session_state.bastb_saved_data:
+        st.session_state.bastb_saved_data[pi_storage_key] = {
+            'lokasi': "Luwuk",
+            'main_date': max_date_default,
+            'items': {},
+            'logo_1': None,
+            'logo_2': None,
+            'ttd_1': None,
+            'ttd_2': None
+        }
+    else:
+        if 'main_date' not in st.session_state.bastb_saved_data[pi_storage_key]:
+            st.session_state.bastb_saved_data[pi_storage_key]['main_date'] = max_date_default
+
+    saved_global = st.session_state.bastb_saved_data[pi_storage_key]
     t_data_utama = mutasi_terpilih[0]
     current_pi_no = pi_storage_key.lower()
 
@@ -87,7 +104,7 @@ def tampilkan_bastb(transaksi_list):
     with col_sel2:
         lokasi_office = st.text_input("📍 Lokasi Office (Tempat BASTB):", value=str(saved_global.get('lokasi', 'Luwuk')), key=f"bastb_lokasi_{pi_storage_key}")
 
-    selected_date = st.date_input("📅 Tanggal Utama Berita Acara (BASTB):", value=saved_global.get('main_date', date.today()), key=f"bastb_main_date_{pi_storage_key}")
+    selected_date = st.date_input("📅 Tanggal Utama Berita Acara (BASTB):", value=saved_global.get('main_date', max_date_default), key=f"bastb_main_date_{pi_storage_key}")
     
     bulan_indo = {
         1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
@@ -430,5 +447,5 @@ def tampilkan_bastb(transaksi_list):
         
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
-        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="BASTB_{nomor_kontrak_str.replace("/", "-")}.html" style="text-style: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File HTML/PDF</button></a>'
+        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="BASTB_{nomor_kontrak_str.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File HTML/PDF</button></a>'
         st.markdown(download_link, unsafe_allow_html=True)
