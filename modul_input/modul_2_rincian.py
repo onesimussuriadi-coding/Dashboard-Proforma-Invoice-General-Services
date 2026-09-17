@@ -222,11 +222,11 @@ def tampilkan_modul_2_rincian(
     if df_ref_kontrak.empty:
         df_ref_kontrak = df_ref 
 
-    list_kat = sorted(df_ref_kontrak["Kategori Clean"].dropna().unique().tolist())
-    if "PROFESSIONAL SUM" not in list_kat and "PROVISIONAL SUM" not in list_kat:
-        list_kat.append("PROVISIONAL SUM")
-    if "ESTIMATED SUM" not in list_kat:
-        list_kat.append("ESTIMATED SUM")
+    base_list_kat = sorted(df_ref_kontrak["Kategori Clean"].dropna().unique().tolist())
+    if "PROFESSIONAL SUM" not in base_list_kat and "PROVISIONAL SUM" not in base_list_kat:
+        base_list_kat.append("PROVISIONAL SUM")
+    if "ESTIMATED SUM" not in base_list_kat:
+        base_list_kat.append("ESTIMATED SUM")
 
     if "num_rows" not in st.session_state:
         st.session_state.num_rows = len(loaded_tx_items) if loaded_tx_items else 1
@@ -237,15 +237,18 @@ def tampilkan_modul_2_rincian(
         for i in range(st.session_state.num_rows):
             default_item_data = loaded_tx_items[i] if loaded_tx_items and i < len(loaded_tx_items) else {}
             
+            # KOREKSI PRESISI KATEGORI: Pastikan kategori tersimpan ditarik dan diletakkan di urutan teratas selectbox agar tidak melompat
+            def_kat_item = str(default_item_data.get("Kategori", "")).strip().upper()
+            list_kat = list(base_list_kat)
+            if def_kat_item and def_kat_item not in list_kat:
+                list_kat.insert(0, def_kat_item)
+            elif def_kat_item in list_kat:
+                list_kat.remove(def_kat_item)
+                list_kat.insert(0, def_kat_item)
+
             c_k1, c_k2 = st.columns(2)
             with c_k1:
-                # KOREKSI PRESISI 2: Ambil kategori persis dari database transaksi yang tersimpan, bukan default indeks pertama!
-                def_kat_item = str(default_item_data.get("Kategori", list_kat[0] if list_kat else "-")).strip().upper()
-                if def_kat_item not in list_kat and def_kat_item:
-                    list_kat.append(def_kat_item)
-                    list_kat = sorted(list(set(list_kat)))
-                idx_kat = list_kat.index(def_kat_item) if def_kat_item in list_kat else 0
-                
+                idx_kat = 0 if list_kat else 0
                 kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}", disabled=is_management)
             
             is_provisional = "provisional" in str(kat_pilih).lower() or "professional" in str(kat_pilih).lower()
@@ -267,9 +270,18 @@ def tampilkan_modul_2_rincian(
                         
                     raw_list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
                     
+                    def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", default_item_data.get("Uraian Pekerjaan", "")))
+                    
                     spek_display_map = {}
                     spek_options_formatted = []
                     
+                    # Pastikan deskripsi tersimpan ditarik ke urutan teratas agar index-nya selalu 0
+                    if def_spek_item and def_spek_item not in raw_list_spek:
+                        raw_list_spek.insert(0, def_spek_item)
+                    elif def_spek_item in raw_list_spek:
+                        raw_list_spek.remove(def_spek_item)
+                        raw_list_spek.insert(0, def_spek_item)
+
                     for orig_text in raw_list_spek:
                         if "BBM & " in orig_text:
                             parts = orig_text.split("BBM & ")
@@ -281,20 +293,7 @@ def tampilkan_modul_2_rincian(
                         spek_display_map[display_text] = orig_text
                         spek_options_formatted.append(display_text)
 
-                    def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", default_item_data.get("Uraian Pekerjaan", "")))
-                    
-                    # Pastikan jika deskripsi tersimpan belum ada di list referensi, dimasukkan agar tidak melompat ke indeks 0
-                    if def_spek_item and def_spek_item not in spek_display_map.values():
-                        spek_display_map[def_spek_item] = def_spek_item
-                        spek_options_formatted.append(def_spek_item)
-
-                    default_display_val = spek_options_formatted[0] if spek_options_formatted else "- (Tidak ada data uraian)"
-                    for disp, orig in spek_display_map.items():
-                        if orig == def_spek_item:
-                            default_display_val = disp
-                            break
-
-                    idx_spek = spek_options_formatted.index(default_display_val) if default_display_val in spek_options_formatted else 0
+                    idx_spek = 0 if spek_options_formatted else 0
                     
                     selected_display_spek = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", spek_options_formatted if spek_options_formatted else ["-"], index=idx_spek, key=f"spek_{i}", disabled=is_management)
                     spek_pilih = spek_display_map.get(selected_display_spek, selected_display_spek)
@@ -332,7 +331,7 @@ def tampilkan_modul_2_rincian(
                 u_opts = sorted(list(set(default_u_opts + existing_u_from_master)))
                 def_unit = str(default_item_data.get("Unit", unit_otomatis))
                 if def_unit not in u_opts and def_unit:
-                    u_opts.append(def_unit)
+                    u_opts.insert(0, def_unit)
                 idx_u = u_opts.index(def_unit) if def_unit in u_opts else 0
                 u_val = st.selectbox(f"Unit {i+1}", u_opts, index=idx_u, key=f"unit_{i}", disabled=is_management)
             with c_item3:
@@ -358,7 +357,6 @@ def tampilkan_modul_2_rincian(
                 hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i+1} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}", disabled=is_management)
                 hs_final = hs_manual
             else:
-                # Jika item tidak provisional, ambil harga satuan dari data tersimpan jika ada, atau fallback ke harga otomatis master
                 try:
                     def_hs_saved = float(default_item_data.get("Harga Satuan", 0.0) or 0.0)
                 except:

@@ -343,7 +343,8 @@ if form_login_sistem():
     if is_super_admin:
         daftar_modul_tersedia.append("⚙️ Manajemen Akun & Hak Akses")
 
-    modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", daftar_modul_tersedia)
+    # KOREKSI PERSISI: Tambahkan key="nav_modul_utama" agar posisi modul terkunci saat refresh
+    modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", daftar_modul_tersedia, key="nav_modul_utama")
 
     st.sidebar.markdown("---")
 
@@ -359,31 +360,36 @@ if form_login_sistem():
                 "Pemantauan Proses Pembayaran", 
                 "Pratinjau, Cetak & Download PDF Invoice", 
                 "Lihat Daftar Invoice & Pajak Tersimpan"
-            ])
+            ], key="nav_menu_finance")
         else:
             menu = "Arsip Dokumen Customer & Pendukung"
     elif is_project_manager:
         if modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
-            menu = st.sidebar.selectbox("Pilih Menu:", ["Lihat Database Tersimpan"])
+            menu = st.sidebar.selectbox("Pilih Menu:", ["Lihat Database Tersimpan"], key="nav_menu_pm_m1")
         elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
-            menu = st.sidebar.selectbox("Pilih Menu:", ["Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"])
+            menu = st.sidebar.selectbox("Pilih Menu:", ["Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"], key="nav_menu_pm_m2")
         elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
-            menu = st.sidebar.selectbox("Pilih Menu:", ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan"])
+            menu = st.sidebar.selectbox("Pilih Menu:", ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan"], key="nav_menu_pm_m3")
         else:
             menu = "Arsip Dokumen Customer & Pendukung"
     elif is_management:
         if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
-            menu = st.sidebar.selectbox("Pilih Menu (Read-Only):", ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan"])
+            menu = st.sidebar.selectbox("Pilih Menu (Read-Only):", ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan"], key="nav_menu_mg_m3")
         elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
-            menu = st.sidebar.selectbox("Pilih Menu (Read-Only):", ["Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"])
+            menu = st.sidebar.selectbox("Pilih Menu (Read-Only):", ["Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"], key="nav_menu_mg_m2")
         else:
             menu = "Arsip Dokumen Customer & Pendukung"
     else:
-        if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan": menu = st.sidebar.radio("Pilih Menu:", ["Input & Kelola Master Referensi", "Lihat Daftar Master Referensi Tersimpan"])
-        elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak": menu = st.sidebar.radio("Pilih Menu:", ["Input Database & Invoice (31 Kolom)", "Lihat Database Tersimpan"])
-        elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management": menu = st.sidebar.radio("Pilih Menu:", ["Input Data Invoice Resmi", "Input & Cetak Faktur Pajak", "Pemantauan Proses Pembayaran", "Pratinjau, Cetak & Download PDF Invoice", "Lihat Daftar Invoice & Pajak Tersimpan"])
-        elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung": menu = "Arsip Dokumen Customer & Pendukung"
-        else: menu = st.sidebar.radio("Pilih Menu:", ["Input & Proses Rincian Pekerjaan", "Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"])
+        if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan": 
+            menu = st.sidebar.radio("Pilih Menu:", ["Input & Kelola Master Referensi", "Lihat Daftar Master Referensi Tersimpan"], key="nav_menu_m0")
+        elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak": 
+            menu = st.sidebar.radio("Pilih Menu:", ["Input Database & Invoice (31 Kolom)", "Lihat Database Tersimpan"], key="nav_menu_m1")
+        elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management": 
+            menu = st.sidebar.radio("Pilih Menu:", ["Input Data Invoice Resmi", "Input & Cetak Faktur Pajak", "Pemantauan Proses Pembayaran", "Pratinjau, Cetak & Download PDF Invoice", "Lihat Daftar Invoice & Pajak Tersimpan"], key="nav_menu_m3")
+        elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung": 
+            menu = "Arsip Dokumen Customer & Pendukung"
+        else: 
+            menu = st.sidebar.radio("Pilih Menu:", ["Input & Proses Rincian Pekerjaan", "Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"], key="nav_menu_m2")
 
     st.sidebar.markdown("---")
 
