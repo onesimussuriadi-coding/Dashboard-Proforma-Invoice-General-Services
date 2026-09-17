@@ -44,18 +44,6 @@ def tampilkan_basp(transaksi_list):
     selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list, key="basp_pi_select")
     
     pi_storage_key = str(selected_pi).strip()
-    if pi_storage_key not in st.session_state.basp_saved_data:
-        st.session_state.basp_saved_data[pi_storage_key] = {
-            'lokasi': "Luwuk",
-            'main_date': date.today(),
-            'items': {},
-            'logo_1': None,
-            'logo_2': None,
-            'ttd_1': None,
-            'ttd_2': None
-        }
-
-    saved_global = st.session_state.basp_saved_data[pi_storage_key]
 
     # Hanya ambil mutasi yang spesifik untuk PI ini dan merupakan kategori Jasa
     mutasi_terpilih = [
@@ -69,6 +57,35 @@ def tampilkan_basp(transaksi_list):
         st.warning("⚠️ Tidak ada item mutasi Jasa ditemukan untuk PI ini.")
         return
 
+    # --- PENCARIAN TANGGAL PALING AKHIR (MAXIMUM DATE) DARI SEMUA ITEM SELESAI ---
+    max_date_default = date.today()
+    try:
+        all_item_dates = []
+        for m in mutasi_terpilih:
+            raw_t = m.get('Tanggal Selesai')
+            if raw_t:
+                parsed_t = pd.to_datetime(raw_t).date()
+                all_item_dates.append(parsed_t)
+        if all_item_dates:
+            max_date_default = max(all_item_dates)
+    except:
+        pass
+
+    if pi_storage_key not in st.session_state.basp_saved_data:
+        st.session_state.basp_saved_data[pi_storage_key] = {
+            'lokasi': "Luwuk",
+            'main_date': max_date_default,
+            'items': {},
+            'logo_1': None,
+            'logo_2': None,
+            'ttd_1': None,
+            'ttd_2': None
+        }
+    else:
+        if 'main_date' not in st.session_state.basp_saved_data[pi_storage_key]:
+            st.session_state.basp_saved_data[pi_storage_key]['main_date'] = max_date_default
+
+    saved_global = st.session_state.basp_saved_data[pi_storage_key]
     t_data_utama = mutasi_terpilih[0]
     current_pi_no = pi_storage_key.lower()
 
@@ -76,7 +93,7 @@ def tampilkan_basp(transaksi_list):
     with col_sel2:
         lokasi_office = st.text_input("📍 Lokasi Office (Tempat BASP):", value=str(saved_global.get('lokasi', 'Luwuk')), key=f"basp_lokasi_{pi_storage_key}")
 
-    selected_date = st.date_input("📅 Tanggal Utama Berita Acara (BASP):", value=saved_global.get('main_date', date.today()), key=f"basp_main_date_{pi_storage_key}")
+    selected_date = st.date_input("📅 Tanggal Utama Berita Acara (BASP):", value=saved_global.get('main_date', max_date_default), key=f"basp_main_date_{pi_storage_key}")
     
     bulan_indo = {
         1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
@@ -135,7 +152,6 @@ def tampilkan_basp(transaksi_list):
         deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
         desc_final_m = f"<b>{kategori_m}</b><br>{deskripsi_m}" if kategori_m else deskripsi_m
 
-        # KOREKSI UTAMA: Mengubah format {row_qty:.2f} menjadi {row_qty:,.2f} agar memunculkan pemisah ribuan
         rows_html += f"""
             <tr>
                 <td style="text-align: center;">{idx}</td>
