@@ -68,7 +68,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📦 Master Bundle: Fotokopi Digital Dokumen (Exact Duplication & Batch Export)</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Modul ini menduplikasi secara utuh dan identik 100% seluruh dokumen asli termasuk BASTB, BAMP, BASP, WCC, Invoice, dan Opname yang telah divalidasi dalam format Landscape profesional.</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Modul ini menduplikasi secara utuh dan identik 100% seluruh dokumen asli dengan format cetak Landscape khusus untuk Rincian Pekerjaan & Opname Pekerjaan.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -473,15 +473,15 @@ def tampilkan_paket_lengkap(transaksi_list):
         rincian_rows_html += f"""
             <tr>
                 <td style="text-align: center; width: 4%;">{idx}</td>
-                <td style="text-align: left; padding-left: 4px; word-wrap: break-word; width: 11%;">{kat_display}</td>
-                <td style="text-align: left; padding-left: 5px; word-wrap: break-word; width: 22%;">{desc}</td>
-                <td style="text-align: center; width: 5%;">{qty:,.2f}</td>
+                <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 14%;">{kat_display}</td>
+                <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 26%;">{desc}</td>
+                <td style="text-align: center; width: 6%;">{qty:,.2f}</td>
                 <td style="text-align: center; width: 6%;">{unit}</td>
                 <td style="text-align: center; width: 7%;">{tgl_mulai_item}</td>
                 <td style="text-align: center; width: 7%;">{tgl_selesai_item}</td>
-                <td style="text-align: right; padding-right: 5px; width: 11%;">{price:,.0f}</td>
-                <td style="text-align: right; padding-right: 5px; width: 11%;">{tot:,.0f}</td>
-                <td style="text-align: left; padding-left: 5px; word-wrap: break-word; width: 16%;">{ket}</td>
+                <td style="text-align: right; padding-right: 6px; width: 10%;">{price:,.0f}</td>
+                <td style="text-align: right; padding-right: 6px; width: 10%;">{tot:,.0f}</td>
+                <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 10%;">{ket}</td>
             </tr>
         """
 
@@ -528,7 +528,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         price = float(m.get('Harga Satuan', 0.0))
         tot_curr = float(m.get('Total Harga', qty_curr * price))
 
-        # Mengambil volume master kontrak asli secara presisi (jika row 1 -> 18300, row 2 -> 9200)
         if idx == 1:
             qty_po = 18300.0
         elif idx == 2:
@@ -734,14 +733,15 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
     """
 
+    # --- RINCIAN PEKERJAAN (LANDSCAPE) ---
     rincian_html = f"""
-    <div class="page-break portrait-page">
+    <div class="page-break landscape-page">
         {kop_bss_html}
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
         
-        <h2 style="text-align: center; font-size: 14px; text-transform: uppercase; margin-bottom: 15px;">RINCIAN PEKERJAAN</h2>
+        <h2 style="text-align: center; font-size: 15px; font-weight: bold; text-transform: uppercase; margin-bottom: 15px;">RINCIAN PEKERJAAN</h2>
         
-        <table style="width: 100%; font-size: 10.5px; margin-bottom: 15px; border-collapse: collapse;">
+        <table style="width: 100%; font-size: 11px; margin-bottom: 15px; border-collapse: collapse;">
             <tr>
                 <td style="width: 18%; font-weight: bold;">Rincian Pekerjaan</td><td style="width: 2%;">:</td><td style="width: 35%;"><b>{current_pi_no}</b></td>
                 <td style="width: 18%; font-weight: bold;">Ditujukan Kepada</td><td style="width: 2%;">:</td><td style="width: 25%;"><b>{p1_nama}</b></td>
@@ -764,32 +764,32 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         </table>
 
-        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 9.5px; table-layout: fixed;">
+        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 15px; font-size: 10px; table-layout: fixed;">
             <thead>
                 <tr>
                     <th style="width: 4%;">No.</th>
-                    <th style="width: 11%; text-align: left; padding-left: 4px;">Kategori</th>
-                    <th style="width: 22%; text-align: left; padding-left: 5px;">Uraian Pekerjaan</th>
-                    <th style="width: 5%;">Qty</th>
+                    <th style="width: 14%; text-align: left; padding-left: 6px;">Kategori</th>
+                    <th style="width: 26%; text-align: left; padding-left: 6px;">Uraian Pekerjaan</th>
+                    <th style="width: 6%;">Qty</th>
                     <th style="width: 6%;">Satuan</th>
                     <th style="width: 7%;">Tgl Mulai</th>
                     <th style="width: 7%;">Tgl Selesai</th>
-                    <th style="width: 11%;">Harga Satuan (IDR)</th>
-                    <th style="width: 11%;">Total Harga (IDR)</th>
-                    <th style="width: 16%; text-align: left; padding-left: 5px;">Keterangan</th>
+                    <th style="width: 10%;">Harga Satuan (IDR)</th>
+                    <th style="width: 10%;">Total Harga (IDR)</th>
+                    <th style="width: 10%; text-align: left; padding-left: 6px;">Keterangan</th>
                 </tr>
             </thead>
             <tbody>
                 {rincian_rows_html}
                 <tr style="font-weight: bold; background: #f9fafb;">
                     <td colspan="8" style="text-align: right; padding-right: 8px;">TOTAL TAGIHAN :</td>
-                    <td style="text-align: right; padding-right: 5px;">{grand_total:,.0f}</td>
+                    <td style="text-align: right; padding-right: 6px;">{grand_total:,.0f}</td>
                     <td></td>
                 </tr>
             </tbody>
         </table>
 
-        <div style="font-size: 10.5px; margin-bottom: 20px;">
+        <div style="font-size: 11px; margin-bottom: 25px;">
             <b>Terbilang :</b> <i>{terbilang_str}</i>
         </div>
 
@@ -1272,7 +1272,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         """
 
-    # --- HALAMAN OPNAME KHUSUS LANDSCAPE SUPAYA LEBAR & RAPI ---
+    # --- OPNAME PEKERJAAN (LANDSCAPE) ---
     opname_html = f"""
     <div class="page-break landscape-page">
         {kop_bss_html}
@@ -1561,7 +1561,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 body {{ -webkit-print-color-adjust: exact; margin: 0; }}
             }}
             body {{ font-family: Arial, sans-serif; font-size: 11px; color: #000; line-height: 1.3; }}
-            .doc-table th, .doc-table td {{ border: 1px solid #000; padding: 5px 6px; font-size: 9px; vertical-align: middle; word-wrap: break-word; }}
+            .doc-table th, .doc-table td {{ border: 1px solid #000; padding: 5px 6px; font-size: 9.5px; vertical-align: middle; word-wrap: break-word; }}
             .doc-table th {{ background-color: #f1f5f9; font-weight: bold; text-align: center; }}
         </style>
     </head>
