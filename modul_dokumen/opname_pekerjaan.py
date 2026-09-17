@@ -157,7 +157,8 @@ def tampilkan_opname(transaksi_list):
             st.markdown(f"**Item {idx}: {item_label}**")
             c_p1, c_p2, c_p3, c_p4 = st.columns(4)
             
-            default_qty = float(m.get('Qty', 1.0))
+            # Nilai mutlak Volume Kontrak Asli (Base on CTR/PO) dari database transaksi
+            default_contract_qty = float(m.get('Qty', 1.0))
             is_prov_sum = "provisional" in kategori_m.lower() or "professional" in kategori_m.lower()
             is_est_sum = "estimated" in kategori_m.lower() or "estimasi" in kategori_m.lower()
             
@@ -170,13 +171,15 @@ def tampilkan_opname(transaksi_list):
             saved_item_opn = saved_global.get('items', {}).get(idx, {})
 
             with c_p1:
-                po_vol = st.number_input(f"📦 Volume PO / Kontrak (Item {idx})", value=float(saved_item_opn.get('po_vol', default_qty)), step=0.1, format="%.2f", key=f"opn_po_vol_{opname_storage_key}_{idx}")
+                # Kolom 1: Volume PO / Kontrak (Base on CTR/PO) - Terpisah dari Aktual
+                po_vol = st.number_input(f"📦 Volume PO / Kontrak (Item {idx})", value=float(saved_item_opn.get('po_vol', default_contract_qty)), step=0.1, format="%.2f", key=f"opn_po_vol_{opname_storage_key}_{idx}")
             with c_p2:
                 unit_price = st.number_input(f"💵 Unit Price / Harga Satuan (Item {idx})", value=float(saved_item_opn.get('unit_price', default_price)), step=1000.0, format="%.2f", key=f"opn_unit_price_{opname_storage_key}_{idx}")
             with c_p3:
                 prev_vol = st.number_input(f"📉 Volume Lalu / Previous (Item {idx})", value=float(saved_item_opn.get('prev_vol', 0.0)), step=0.1, format="%.2f", key=f"opn_prev_vol_{opname_storage_key}_{idx}")
             with c_p4:
-                current_vol = st.number_input(f"📈 Volume Aktual Bulan Ini (Item {idx})", value=float(saved_item_opn.get('current_vol', default_qty)), step=0.1, format="%.2f", key=f"opn_curr_vol_{opname_storage_key}_{idx}")
+                # Kolom 4: Volume Aktual Bulan Ini
+                current_vol = st.number_input(f"📈 Volume Aktual Bulan Ini (Item {idx})", value=float(saved_item_opn.get('current_vol', default_contract_qty)), step=0.1, format="%.2f", key=f"opn_curr_vol_{opname_storage_key}_{idx}")
 
             temp_items_storage[idx] = {
                 'po_vol': po_vol,
@@ -280,6 +283,7 @@ def tampilkan_opname(transaksi_list):
             default_price_calc = raw_hs
 
         active_item_data = saved_global.get('items', {}).get(idx, {})
+        # Memastikan Volume Base on CTR/PO mengambil input tersimpan secara akurat
         po_vol = float(active_item_data.get('po_vol', float(m.get('Qty', 1.0))))
         unit_price = float(active_item_data.get('unit_price', default_price_calc))
         prev_vol = float(active_item_data.get('prev_vol', 0.0))
@@ -317,7 +321,6 @@ def tampilkan_opname(transaksi_list):
         if ket_m:
             desc_full += f"<br><span style='font-size: 8.5px; color: #334155;'>{ket_m}</span>"
 
-        # PERBAIKAN: Volume menggunakan format tanda baca pemisah ribuan {:,.2f}
         rows_html += f"""
             <tr>
                 <td>1.{idx}</td>
