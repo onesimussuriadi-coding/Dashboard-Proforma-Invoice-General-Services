@@ -343,7 +343,7 @@ if form_login_sistem():
     if is_super_admin:
         daftar_modul_tersedia.append("⚙️ Manajemen Akun & Hak Akses")
 
-    # --- SINKRONISASI URL QUERY PARAMS UNTUK MENGUNCI POSISI SAAT REFRESH ---
+    # --- SINKRONISASI URL QUERY PARAMS UNTUK MODUL UTAMA ---
     url_modul = st.query_params.get("modul", None)
     if url_modul and url_modul in daftar_modul_tersedia:
         default_modul_idx = daftar_modul_tersedia.index(url_modul)
@@ -354,59 +354,113 @@ if form_login_sistem():
         st.session_state["nav_modul_utama"] = daftar_modul_tersedia[default_modul_idx]
 
     modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", daftar_modul_tersedia, key="nav_modul_utama")
-    
-    # Simpan pilihan modul ke URL browser agar aman saat refresh
     st.query_params["modul"] = modul_pilihan
 
     st.sidebar.markdown("---")
 
+    # --- SINKRONISASI URL QUERY PARAMS UNTUK SUB-MENU ---
     if is_admin_support and modul_pilihan == "Timesheet Peralatan": 
         menu = "Timesheet"
     elif modul_pilihan == "⚙️ Manajemen Akun & Hak Akses":
         menu = "Manajemen Akun"
     elif is_finance_tax:
         if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
-            menu = st.sidebar.radio("Pilih Menu (Finance & Tax):", [
+            list_menu_fin = [
                 "Input Data Invoice Resmi", 
                 "Input & Cetak Faktur Pajak", 
                 "Pemantauan Proses Pembayaran", 
                 "Pratinjau, Cetak & Download PDF Invoice", 
                 "Lihat Daftar Invoice & Pajak Tersimpan"
-            ], key="nav_menu_finance")
+            ]
+            url_menu = st.query_params.get("menu", None)
+            def_idx = list_menu_fin.index(url_menu) if url_menu in list_menu_fin else 0
+            if "nav_menu_finance" not in st.session_state:
+                st.session_state["nav_menu_finance"] = list_menu_fin[def_idx]
+            menu = st.sidebar.radio("Pilih Menu (Finance & Tax):", list_menu_fin, key="nav_menu_finance")
+            st.query_params["menu"] = menu
         else:
             menu = "Arsip Dokumen Customer & Pendukung"
     elif is_project_manager:
         if modul_pilihan == "📁 Modul 1: Database & Master Kontrak":
             menu = st.sidebar.selectbox("Pilih Menu:", ["Lihat Database Tersimpan"], key="nav_menu_pm_m1")
         elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
-            menu = st.sidebar.selectbox("Pilih Menu:", ["Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"], key="nav_menu_pm_m2")
+            list_menu_pm2 = ["Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"]
+            url_menu = st.query_params.get("menu", None)
+            def_idx = list_menu_pm2.index(url_menu) if url_menu in list_menu_pm2 else 0
+            if "nav_menu_pm_m2" not in st.session_state:
+                st.session_state["nav_menu_pm_m2"] = list_menu_pm2[def_idx]
+            menu = st.sidebar.selectbox("Pilih Menu:", list_menu_pm2, key="nav_menu_pm_m2")
+            st.query_params["menu"] = menu
         elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
-            menu = st.sidebar.selectbox("Pilih Menu:", ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan"], key="nav_menu_pm_m3")
+            list_menu_pm3 = ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan"]
+            url_menu = st.query_params.get("menu", None)
+            def_idx = list_menu_pm3.index(url_menu) if url_menu in list_menu_pm3 else 0
+            if "nav_menu_pm_m3" not in st.session_state:
+                st.session_state["nav_menu_pm_m3"] = list_menu_pm3[def_idx]
+            menu = st.sidebar.selectbox("Pilih Menu:", list_menu_pm3, key="nav_menu_pm_m3")
+            st.query_params["menu"] = menu
         else:
             menu = "Arsip Dokumen Customer & Pendukung"
     elif is_management:
         if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
-            menu = st.sidebar.selectbox("Pilih Menu (Read-Only):", ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan"], key="nav_menu_mg_m3")
+            list_menu_mg3 = ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan"]
+            url_menu = st.query_params.get("menu", None)
+            def_idx = list_menu_mg3.index(url_menu) if url_menu in list_menu_mg3 else 0
+            if "nav_menu_mg_m3" not in st.session_state:
+                st.session_state["nav_menu_mg_m3"] = list_menu_mg3[def_idx]
+            menu = st.sidebar.selectbox("Pilih Menu (Read-Only):", list_menu_mg3, key="nav_menu_mg_m3")
+            st.query_params["menu"] = menu
         elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
-            menu = st.sidebar.selectbox("Pilih Menu (Read-Only):", ["Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"], key="nav_menu_mg_m2")
+            list_menu_mg2 = ["Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"]
+            url_menu = st.query_params.get("menu", None)
+            def_idx = list_menu_mg2.index(url_menu) if url_menu in list_menu_mg2 else 0
+            if "nav_menu_mg_m2" not in st.session_state:
+                st.session_state["nav_menu_mg_m2"] = list_menu_mg2[def_idx]
+            menu = st.sidebar.selectbox("Pilih Menu (Read-Only):", list_menu_mg2, key="nav_menu_mg_m2")
+            st.query_params["menu"] = menu
         else:
             menu = "Arsip Dokumen Customer & Pendukung"
     else:
         if modul_pilihan == "📁 Modul 0: Master Referensi Harga & Pekerjaan": 
-            menu = st.sidebar.radio("Pilih Menu:", ["Input & Kelola Master Referensi", "Lihat Daftar Master Referensi Tersimpan"], key="nav_menu_m0")
+            list_menu_m0 = ["Input & Kelola Master Referensi", "Lihat Daftar Master Referensi Tersimpan"]
+            url_menu = st.query_params.get("menu", None)
+            def_idx = list_menu_m0.index(url_menu) if url_menu in list_menu_m0 else 0
+            if "nav_menu_m0" not in st.session_state:
+                st.session_state["nav_menu_m0"] = list_menu_m0[def_idx]
+            menu = st.sidebar.radio("Pilih Menu:", list_menu_m0, key="nav_menu_m0")
+            st.query_params["menu"] = menu
         elif modul_pilihan == "📁 Modul 1: Database & Master Kontrak": 
-            menu = st.sidebar.radio("Pilih Menu:", ["Input Database & Invoice (31 Kolom)", "Lihat Database Tersimpan"], key="nav_menu_m1")
+            list_menu_m1 = ["Input Database & Invoice (31 Kolom)", "Lihat Database Tersimpan"]
+            url_menu = st.query_params.get("menu", None)
+            def_idx = list_menu_m1.index(url_menu) if url_menu in list_menu_m1 else 0
+            if "nav_menu_m1" not in st.session_state:
+                st.session_state["nav_menu_m1"] = list_menu_m1[def_idx]
+            menu = st.sidebar.radio("Pilih Menu:", list_menu_m1, key="nav_menu_m1")
+            st.query_params["menu"] = menu
         elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management": 
-            menu = st.sidebar.radio("Pilih Menu:", ["Input Data Invoice Resmi", "Input & Cetak Faktur Pajak", "Pemantauan Proses Pembayaran", "Pratinjau, Cetak & Download PDF Invoice", "Lihat Daftar Invoice & Pajak Tersimpan"], key="nav_menu_m3")
+            list_menu_m3 = ["Input Data Invoice Resmi", "Input & Cetak Faktur Pajak", "Pemantauan Proses Pembayaran", "Pratinjau, Cetak & Download PDF Invoice", "Lihat Daftar Invoice & Pajak Tersimpan"]
+            url_menu = st.query_params.get("menu", None)
+            def_idx = list_menu_m3.index(url_menu) if url_menu in list_menu_m3 else 0
+            if "nav_menu_m3" not in st.session_state:
+                st.session_state["nav_menu_m3"] = list_menu_m3[def_idx]
+            menu = st.sidebar.radio("Pilih Menu:", list_menu_m3, key="nav_menu_m3")
+            st.query_params["menu"] = menu
         elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung": 
             menu = "Arsip Dokumen Customer & Pendukung"
         else: 
-            menu = st.sidebar.radio("Pilih Menu:", [
+            list_menu_m2_staff = [
                 "Input & Proses Rincian Pekerjaan", 
                 "Pratinjau, Cetak & Download PDF Dokumen", 
                 "Lihat Akumulasi Riwayat Transaksi", 
                 "Lihat Master Rekap Transaksi"
-            ], key="nav_menu_m2_staff")
+            ]
+            url_menu = st.query_params.get("menu", None)
+            def_idx = list_menu_m2_staff.index(url_menu) if url_menu in list_menu_m2_staff else 0
+            if "nav_menu_m2_staff" not in st.session_state:
+                st.session_state["nav_menu_m2_staff"] = list_menu_m2_staff[def_idx]
+            
+            menu = st.sidebar.radio("Pilih Menu:", list_menu_m2_staff, key="nav_menu_m2_staff")
+            st.query_params["menu"] = menu
 
     st.sidebar.markdown("---")
 
