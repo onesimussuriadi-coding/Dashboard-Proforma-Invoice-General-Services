@@ -470,18 +470,19 @@ def tampilkan_paket_lengkap(transaksi_list):
         else:
             kat_display = kat
 
+        # --- UPDATE LEBAR KOLOM (Keterangan diperlebar, Satuan & Harga Satuan diperkecil) ---
         rincian_rows_html += f"""
             <tr>
                 <td style="text-align: center; width: 4%;">{idx}</td>
                 <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 14%;">{kat_display}</td>
-                <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 26%;">{desc}</td>
+                <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 23%;">{desc}</td>
                 <td style="text-align: center; width: 6%;">{qty:,.2f}</td>
-                <td style="text-align: center; width: 6%;">{unit}</td>
-                <td style="text-align: center; width: 7%;">{tgl_mulai_item}</td>
-                <td style="text-align: center; width: 7%;">{tgl_selesai_item}</td>
-                <td style="text-align: right; padding-right: 6px; width: 10%;">{price:,.0f}</td>
-                <td style="text-align: right; padding-right: 6px; width: 10%;">{tot:,.0f}</td>
-                <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 10%;">{ket}</td>
+                <td style="text-align: center; width: 4%;">{unit}</td>
+                <td style="text-align: center; width: 6%;">{tgl_mulai_item}</td>
+                <td style="text-align: center; width: 6%;">{tgl_selesai_item}</td>
+                <td style="text-align: right; padding-right: 6px; width: 8%;">{price:,.0f}</td>
+                <td style="text-align: right; padding-right: 6px; width: 9%;">{tot:,.0f}</td>
+                <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 20%;">{ket}</td>
             </tr>
         """
 
@@ -769,14 +770,14 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <tr>
                     <th style="width: 4%;">No.</th>
                     <th style="width: 14%; text-align: left; padding-left: 6px;">Kategori</th>
-                    <th style="width: 26%; text-align: left; padding-left: 6px;">Uraian Pekerjaan</th>
+                    <th style="width: 23%; text-align: left; padding-left: 6px;">Uraian Pekerjaan</th>
                     <th style="width: 6%;">Qty</th>
-                    <th style="width: 6%;">Satuan</th>
-                    <th style="width: 7%;">Tgl Mulai</th>
-                    <th style="width: 7%;">Tgl Selesai</th>
-                    <th style="width: 10%;">Harga Satuan (IDR)</th>
-                    <th style="width: 10%;">Total Harga (IDR)</th>
-                    <th style="width: 10%; text-align: left; padding-left: 6px;">Keterangan</th>
+                    <th style="width: 4%;">Satuan</th>
+                    <th style="width: 6%;">Tgl Mulai</th>
+                    <th style="width: 6%;">Tgl Selesai</th>
+                    <th style="width: 8%;">Harga Satuan (IDR)</th>
+                    <th style="width: 9%;">Total Harga (IDR)</th>
+                    <th style="width: 20%; text-align: left; padding-left: 6px;">Keterangan</th>
                 </tr>
             </thead>
             <tbody>
