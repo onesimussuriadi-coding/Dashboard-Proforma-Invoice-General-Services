@@ -13,7 +13,7 @@ def bersihkan_karakter_aneh(text):
     replacements = {
         "â€“": "-",
         "â€”": "-",
-        "â  ": " s/d ",
+        "â ": " s/d ",
         "â": "-",
         "Â": "",
         "\xa0": " "
@@ -327,7 +327,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     nomor_tender = get_induk(2, 'Nomor Tender', '-')
     tgl_kontrak = get_induk(4, 'Tanggal Kontrak', '-')
     
-    # --- PROSES SANITASI DAN PEMBERSIHAN KARAKTER ANEH KHUSUS JANGKA WAKTU KONTRAK ---
     raw_jangka_waktu = get_induk(5, 'Jangka Waktu Kontrak', '2 tahun')
     jangka_waktu = bersihkan_karakter_aneh(raw_jangka_waktu)
     
@@ -344,7 +343,6 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     tgl_po = get_induk(9, 'Tanggal Purchase Order', t_data_utama.get('Tanggal PO', '-'))
 
-    # --- PENARIKAN PRESISI TANGGAL PO KHUSUS UNTUK TKDN HEADER ---
     raw_po_date = tgl_po
     if raw_po_date and str(raw_po_date).strip() not in ["-", "", "nan", "None"]:
         try:
@@ -467,12 +465,13 @@ def tampilkan_paket_lengkap(transaksi_list):
         else:
             kat_display = kat
 
+        # PERBAIKAN: Volume menggunakan format tanda baca pemisah ribuan {:,.2f}
         rincian_rows_html += f"""
             <tr>
                 <td style="text-align: center; width: 4%;">{idx}</td>
                 <td style="text-align: left; padding-left: 4px; word-wrap: break-word; width: 11%;">{kat_display}</td>
                 <td style="text-align: left; padding-left: 5px; word-wrap: break-word; width: 22%;">{desc}</td>
-                <td style="text-align: center; width: 5%;">{qty:.2f}</td>
+                <td style="text-align: center; width: 5%;">{qty:,.2f}</td>
                 <td style="text-align: center; width: 6%;">{unit}</td>
                 <td style="text-align: center; width: 7%;">{tgl_mulai_item}</td>
                 <td style="text-align: center; width: 7%;">{tgl_selesai_item}</td>
@@ -495,7 +494,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: center; width: 6%;">{idx}</td>
                 <td style="text-align: left; padding-left: 6px; width: 46%;">{desc_full_pi}</td>
-                <td style="text-align: center; width: 7%;">{qty:.2f}</td>
+                <td style="text-align: center; width: 7%;">{qty:,.2f}</td>
                 <td style="text-align: center; width: 8%;">{unit}</td>
                 <td style="text-align: right; padding-right: 6px; width: 16%;">{price:,.0f}</td>
                 <td style="text-align: right; padding-right: 6px; width: 17%;">{tot:,.0f}</td>
@@ -511,14 +510,14 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: center;">1.{idx}</td>
                 <td style="text-align: left; padding-left: 4px;">{desc_full_opname}</td>
                 <td style="text-align: center;">{unit}</td>
-                <td style="text-align: center; white-space: nowrap;">{qty:.2f}</td>
+                <td style="text-align: center; white-space: nowrap;">{qty:,.2f}</td>
                 <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{price:,.0f}</td>
                 <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot:,.0f}</td>
                 <td style="text-align: center; white-space: nowrap;">0.00</td>
                 <td style="text-align: right; padding-right: 4px; white-space: nowrap;">0</td>
-                <td style="text-align: center; white-space: nowrap;">{qty:.2f}</td>
+                <td style="text-align: center; white-space: nowrap;">{qty:,.2f}</td>
                 <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot:,.0f}</td>
-                <td style="text-align: center; white-space: nowrap;">{qty:.2f}</td>
+                <td style="text-align: center; white-space: nowrap;">{qty:,.2f}</td>
                 <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot:,.0f}</td>
             </tr>
         """
@@ -567,7 +566,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         elif isinstance(saved_bamp_items_map, list) and (idx - 1) < len(saved_bamp_items_map):
             saved_bamp_row = saved_bamp_items_map[idx - 1]
 
-        # Baca Qty & Satuan murni BAMP Mandiri
         if 'qty' in saved_bamp_row and saved_bamp_row['qty'] is not None:
             row_qty_bamp = float(saved_bamp_row['qty'])
         elif 'jumlah' in saved_bamp_row and saved_bamp_row['jumlah'] is not None:
@@ -577,7 +575,6 @@ def tampilkan_paket_lengkap(transaksi_list):
 
         row_uom_bamp = str(saved_bamp_row.get('uom', saved_bamp_row.get('satuan', m.get('Unit', 'Day')))).strip()
 
-        # Baca Catatan murni BAMP Mandiri
         kat_bamp = str(m.get('Kategori', '')).strip()
         desc_bamp = str(m.get('Deskripsi Pekerjaan', '')).strip()
         
@@ -596,7 +593,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: center; width: 6%;">{idx}</td>
                 <td style="text-align: left; padding-left: 6px; width: 42%;">{desc_full_bamp}</td>
-                <td style="text-align: center; width: 8%;">{row_qty_bamp:.2f}</td>
+                <td style="text-align: center; width: 8%;">{row_qty_bamp:,.2f}</td>
                 <td style="text-align: center; width: 10%;">{row_uom_bamp}</td>
                 <td style="text-align: left; padding-left: 6px; width: 34%;">{row_catatan_bamp}</td>
             </tr>
@@ -617,7 +614,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: center; width: 6%;">{idx}</td>
                 <td style="text-align: left; padding-left: 5px; width: 42%;"><b>{kat}</b><br>{desc}</td>
-                <td style="text-align: center; width: 8%;">{qty:.2f}</td>
+                <td style="text-align: center; width: 8%;">{qty:,.2f}</td>
                 <td style="text-align: center; width: 10%;">{unit}</td>
                 <td style="text-align: left; padding-left: 5px; width: 34%;">{catatan_basp}</td>
             </tr>
@@ -652,7 +649,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: center; width: 6%;">{idx}</td>
                 <td style="text-align: left; padding-left: 6px; width: 42%;">{desc_final_m}</td>
-                <td style="text-align: center; width: 8%;">{row_qty:.2f}</td>
+                <td style="text-align: center; width: 8%;">{row_qty:,.2f}</td>
                 <td style="text-align: center; width: 10%;">{row_uom}</td>
                 <td style="text-align: left; padding-left: 6px; width: 34%;"><b>{row_catatan}</b></td>
             </tr>
@@ -1220,6 +1217,8 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         """
 
+    # PERBAIKAN: Volume ringkasan total pada tabel opname di dalam master paket menggunakan format pemisah ribuan {:,.2f}
+    qty_val_main = float(t_data_utama.get('Qty', 1.0))
     opname_html = f"""
     <div class="page-break">
         {kop_bss_html}
@@ -1261,10 +1260,10 @@ def tampilkan_paket_lengkap(transaksi_list):
                 {opname_rows_html}
                 <tr style="font-weight: bold; background: #f9fafb;">
                     <td colspan="3" style="text-align: right;">TOTAL :</td>
-                    <td style="text-align: center; white-space: nowrap;">{float(t_data_utama.get('Qty', 1.0)):.2f}</td><td style="white-space: nowrap;">-</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">{grand_total:,.0f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{qty_val_main:,.2f}</td><td style="white-space: nowrap;">-</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">{grand_total:,.0f}</td>
                     <td style="text-align: center; white-space: nowrap;">0.00</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">0</td>
-                    <td style="text-align: center; white-space: nowrap;">{float(t_data_utama.get('Qty', 1.0)):.2f}</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">{grand_total:,.0f}</td>
-                    <td style="text-align: center; white-space: nowrap;">{float(t_data_utama.get('Qty', 1.0)):.2f}</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">{grand_total:,.0f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{qty_val_main:,.2f}</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">{grand_total:,.0f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{qty_val_main:,.2f}</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">{grand_total:,.0f}</td>
                 </tr>
             </tbody>
         </table>
