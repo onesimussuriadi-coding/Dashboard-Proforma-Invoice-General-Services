@@ -343,7 +343,10 @@ if form_login_sistem():
     if is_super_admin:
         daftar_modul_tersedia.append("⚙️ Manajemen Akun & Hak Akses")
 
-    # KOREKSI PRESISI: key="nav_modul_utama" mengunci posisi modul saat refresh
+    # --- PENGAMAN & KUNCI STATE PERSISTEN AGAR TIDAK RESET SAAT REFRESH ---
+    if "nav_modul_utama" not in st.session_state or st.session_state["nav_modul_utama"] not in daftar_modul_tersedia:
+        st.session_state["nav_modul_utama"] = daftar_modul_tersedia[0] if daftar_modul_tersedia else ""
+
     modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", daftar_modul_tersedia, key="nav_modul_utama")
 
     st.sidebar.markdown("---")
@@ -389,7 +392,6 @@ if form_login_sistem():
         elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung": 
             menu = "Arsip Dokumen Customer & Pendukung"
         else: 
-            # KOREKSI PRESISI: key="nav_menu_m2_staff" mengunci posisi menu Staff saat refresh
             menu = st.sidebar.radio("Pilih Menu:", [
                 "Input & Proses Rincian Pekerjaan", 
                 "Pratinjau, Cetak & Download PDF Dokumen", 
@@ -409,7 +411,7 @@ if form_login_sistem():
         st.query_params.clear()
         st.rerun()
 
-    # --- BANNER NOTIFIKASI POSISI / PERAN AKTIF (MENYELURUH UNTUK SEMUA ROLE) ---
+    # --- BANNER NOTIFIKASI POSISI / PERAN AKTIF ---
     if is_management:
         st.markdown("""
             <div style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
