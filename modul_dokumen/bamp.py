@@ -134,11 +134,12 @@ def tampilkan_bamp(transaksi_list):
         deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
         desc_final_m = f"<b>{kategori_m}</b><br>{deskripsi_m}" if kategori_m else deskripsi_m
 
+        # KOREKSI UTAMA: Format pemisah ribuan standar Indonesia pada row_qty
         rows_html += f"""
             <tr>
                 <td style="text-align: center;">{idx}</td>
                 <td style="text-align: left;">{desc_final_m}</td>
-                <td style="text-align: center;">{row_qty:.2f}</td>
+                <td style="text-align: center;">{row_qty:,.2f}</td>
                 <td style="text-align: center;">{row_uom}</td>
                 <td style="text-align: center;"><b>{catatan_row_final}</b></td>
             </tr>
