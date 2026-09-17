@@ -603,7 +603,31 @@ if form_login_sistem():
                 sel_pi = st.selectbox("Pilih PI:", pi_list)
                 target_tx = [t for t in tx_data if t.get("Nomor Kontrak") == sel_k and t.get("PI No.") == sel_pi]
                 
-                doc_type = st.selectbox("Jenis Dokumen:", ["Rincian Pekerjaan", "Proforma Invoice", "BAMP", "BASP", "WCC", "TKDN", "Opname", "Master Paket Batch"])
+                # --- PENYARINGAN DINAMIS OPSI DOKUMEN BERDASARKAN KATEGORI ITEM ---
+                ada_item_jasa = False
+                ada_item_barang = False
+
+                for t in target_tx:
+                    kategori_str = str(t.get('Kategori', '')).lower()
+                    excluded_keywords = ["material", "barang", "safety equipment", "pengadaan", "alat", "sparepart", "tools"]
+                    if any(kw in kategori_str for kw in excluded_keywords):
+                        ada_item_barang = True
+                    else:
+                        ada_item_jasa = True
+
+                # Buat daftar dokumen secara dinamis (menyembunyikan BAMP, BASP, WCC jika murni barang)
+                daftar_dokumen_tersedia = ["Rincian Pekerjaan", "Proforma Invoice"]
+                
+                if ada_item_jasa:
+                    daftar_dokumen_tersedia.extend(["BAMP", "BASP", "WCC"])
+                
+                if ada_item_barang:
+                    daftar_dokumen_tersedia.append("BASTB")
+
+                daftar_dokumen_tersedia.extend(["TKDN", "Opname", "Master Paket Batch"])
+
+                doc_type = st.selectbox("Jenis Dokumen:", daftar_dokumen_tersedia)
+                
                 if doc_type == "Rincian Pekerjaan": tampilkan_rincian_pekerjaan(target_tx)
                 elif doc_type == "Proforma Invoice": tampilkan_proforma_invoice(target_tx)
                 elif doc_type == "BAMP": tampilkan_bamp(target_tx)
@@ -612,6 +636,7 @@ if form_login_sistem():
                 elif doc_type == "TKDN": tampilkan_tkdn(target_tx)
                 elif doc_type == "Opname": tampilkan_opname(target_tx)
                 elif doc_type == "Master Paket Batch": tampilkan_paket_lengkap(target_tx)
+                elif doc_type == "BASTB": tampilkan_bastb(target_tx)
         elif menu == "Lihat Akumulasi Riwayat Transaksi":
             tampilkan_akumulasi_riwayat_transaksi(
                 tx_data=muat_data_transaksi(),
