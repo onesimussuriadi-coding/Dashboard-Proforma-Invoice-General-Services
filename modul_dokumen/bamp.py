@@ -134,7 +134,6 @@ def tampilkan_bamp(transaksi_list):
         deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
         desc_final_m = f"<b>{kategori_m}</b><br>{deskripsi_m}" if kategori_m else deskripsi_m
 
-        # KOREKSI UTAMA: Format pemisah ribuan standar Indonesia pada row_qty
         rows_html += f"""
             <tr>
                 <td style="text-align: center;">{idx}</td>
