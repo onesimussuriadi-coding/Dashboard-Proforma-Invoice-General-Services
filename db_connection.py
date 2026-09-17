@@ -101,7 +101,6 @@ def simpan_data_to_db(nama_tabel, data_list):
             cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def});")
 
             # Tentukan kolom acuan unik untuk identifikasi data (primary/unique key)
-            # Berdasarkan struktur modul kita, pilih kolom identifikasi yang sesuai
             unique_col = None
             for col_candidate in ["Nomor Invoice Resmi", "PI No.", "Nomor Kontrak", "Bank Name"]:
                 if col_candidate in df.columns:
@@ -112,14 +111,6 @@ def simpan_data_to_db(nama_tabel, data_list):
                 cols = [f"`{c}`" for c in df.columns]
                 vals = tuple(row)
                 placeholders = ", ".join(["%s"] * len(df.columns))
-                
-                if unique_col and unique_col in df.columns:
-                    # Jika data dengan nomor/ID yang sama sudah ada, perbarui (UPDATE)
-                    # Jika belum ada, masukkan sebagai baris baru (INSERT)
-                    update_clause = ", ".join([f"`{c}` = VALUES(`{c}`)" for c in df.columns if c != unique_col])
-                    sql = f"INSERT INTO `{nama_tabel}` ({', '.join(cols)}) VALUES ({placeholder_str := placeholders}) ON DUPLICATE KEY UPDATE {update_clause};"
-                    # Catatan: MySQL mendukung ON DUPLICATE KEY jika ada Unique Index. 
-                    # Untuk amannya, kita gunakan pendekatan aman: Cek keberadaan atau Insert biasa.
                 
                 # Metode Standar Aman: Insert / Replace tanpa menghapus baris tabel lain
                 cols_str = ", ".join(cols)
@@ -140,3 +131,66 @@ def simpan_data_to_db(nama_tabel, data_list):
                 connection.close()
                 
     return True
+
+
+# =====================================================================
+# FUNGSI TAMBAHAN KHUSUS PENYIMPANAN PARAMETER DOKUMEN TURURAN (PERSISTENT)
+# Memastikan teks, nomor PO, tanggal, dan konfigurasi opname/bamp/bastb 
+# tersimpan permanen di MySQL dan tidak hilang saat halaman di-refresh.
+# =====================================================================
+
+TABEL_DB_DOKUMEN_PARAM = "database_dokumen_parameter"
+
+def simpan_parameter_dokumen_to_db(doc_key, data_dict):
+    """
+    Menyimpan parameter dokumen (seperti opname, bamp, bastb) berdasarkan key unik ke MySQL.
+    """
+    try:
+        connection = get_db_connection()
+        if connection is not None:
+            cursor = connection.cursor()
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS `{TABEL_DB_DOKUMEN_PARAM}` (
+                    `doc_key` VARCHAR(255) PRIMARY KEY,
+                    `payload` LONGTEXT
+                );
+            """)
+            
+            import json
+            # Konversi data dictionary / object menjadi string JSON yang aman disimpan
+            payload_str = json.dumps(data_dict, default=str)
+            
+            sql = f"""
+                INSERT INTO `{TABEL_DB_DOKUMEN_PARAM}` (`doc_key`, `payload`) 
+                VALUES (%s, %s)
+                ON DUPLICATE KEY UPDATE `payload` = VALUES(`payload`);
+            """
+            cursor.execute(sql, (doc_key, payload_str))
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return True
+    except Exception as e:
+        print(f"Gagal menyimpan parameter dokumen ke DB: {e}")
+    return False
+
+def muat_parameter_dokumen_from_db(doc_key):
+    """
+    Memuat kembali parameter dokumen yang tersimpan dari MySQL berdasarkan key unik.
+    """
+    try:
+        connection = get_db_connection()
+        if connection is not None:
+            cursor = connection.cursor()
+            cursor.execute(f"SHOW TABLES LIKE '{TABEL_DB_DOKUMEN_PARAM}';")
+            if cursor.fetchone():
+                cursor.execute(f"SELECT `payload` FROM `{TABEL_DB_DOKUMEN_PARAM}` WHERE `doc_key` = %s;", (doc_key,))
+                res = cursor.fetchone()
+                if res and res[0]:
+                    import json
+                    return json.loads(res[0])
+            cursor.close()
+            connection.close()
+    except Exception as e:
+        print(f"Gagal memuat parameter dokumen dari DB: {e}")
+    return None

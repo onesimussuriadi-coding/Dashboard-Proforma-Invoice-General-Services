@@ -4,6 +4,13 @@ import os
 import base64
 from datetime import datetime, date
 
+# --- IMPOR FUNGSI DATABASE PERSISTEN ---
+try:
+    from db_connection import simpan_parameter_dokumen_to_db, muat_parameter_dokumen_from_db
+except ImportError:
+    def simpan_parameter_dokumen_to_db(doc_key, data_dict): return False
+    def muat_parameter_dokumen_from_db(doc_key): return None
+
 def terbilang(n):
     n = float(n)
     if n < 0:
@@ -76,22 +83,33 @@ def tampilkan_opname(transaksi_list):
 
     pi_sekarang = str(selected_pi).strip()
     po_sekarang = str(selected_po).strip()
-    opname_storage_key = f"{pi_sekarang}_{po_sekarang}"
+    opname_storage_key = f"opname_{pi_sekarang}_{po_sekarang}".replace("/", "_")
 
-    # --- INISIALISASI SESSION STATE PERMANEN UNTUK OPNAME ---
+    # --- INISIALISASI & SINKRONISASI KE MENGAMBIL DARI DATABASE MYSQL ---
     if "opname_saved_data" not in st.session_state:
         st.session_state.opname_saved_data = {}
 
     if opname_storage_key not in st.session_state.opname_saved_data:
-        st.session_state.opname_saved_data[opname_storage_key] = {
-            'lokasi_office': "Luwuk",
-            'tanggal_opname': date.today(),
-            'items': {},
-            'logo_1': None,
-            'logo_2': None,
-            'ttd_1': None,
-            'ttd_2': None
-        }
+        # Coba muat data permanen dari database MySQL
+        db_saved_payload = muat_parameter_dokumen_from_db(opname_storage_key)
+        if db_saved_payload:
+            # Konversi string tanggal kembali menjadi objek datetime.date
+            if 'tanggal_opname' in db_saved_payload and isinstance(db_saved_payload['tanggal_opname'], str):
+                try:
+                    db_saved_payload['tanggal_opname'] = datetime.strptime(db_saved_payload['tanggal_opname'], "%Y-%m-%d").date()
+                except:
+                    db_saved_payload['tanggal_opname'] = date.today()
+            st.session_state.opname_saved_data[opname_storage_key] = db_saved_payload
+        else:
+            st.session_state.opname_saved_data[opname_storage_key] = {
+                'lokasi_office': "Luwuk",
+                'tanggal_opname': date.today(),
+                'items': {},
+                'logo_1': None,
+                'logo_2': None,
+                'ttd_1': None,
+                'ttd_2': None
+            }
 
     saved_global = st.session_state.opname_saved_data[opname_storage_key]
 
@@ -157,7 +175,6 @@ def tampilkan_opname(transaksi_list):
             st.markdown(f"**Item {idx}: {item_label}**")
             c_p1, c_p2, c_p3, c_p4 = st.columns(4)
             
-            # Nilai mutlak Volume Kontrak Asli (Base on CTR/PO) dari database transaksi
             default_contract_qty = float(m.get('Qty', 1.0))
             is_prov_sum = "provisional" in kategori_m.lower() or "professional" in kategori_m.lower()
             is_est_sum = "estimated" in kategori_m.lower() or "estimasi" in kategori_m.lower()
@@ -171,14 +188,12 @@ def tampilkan_opname(transaksi_list):
             saved_item_opn = saved_global.get('items', {}).get(idx, {})
 
             with c_p1:
-                # Kolom 1: Volume PO / Kontrak (Base on CTR/PO) - Terpisah dari Aktual
                 po_vol = st.number_input(f"📦 Volume PO / Kontrak (Item {idx})", value=float(saved_item_opn.get('po_vol', default_contract_qty)), step=0.1, format="%.2f", key=f"opn_po_vol_{opname_storage_key}_{idx}")
             with c_p2:
                 unit_price = st.number_input(f"💵 Unit Price / Harga Satuan (Item {idx})", value=float(saved_item_opn.get('unit_price', default_price)), step=1000.0, format="%.2f", key=f"opn_unit_price_{opname_storage_key}_{idx}")
             with c_p3:
                 prev_vol = st.number_input(f"📉 Volume Lalu / Previous (Item {idx})", value=float(saved_item_opn.get('prev_vol', 0.0)), step=0.1, format="%.2f", key=f"opn_prev_vol_{opname_storage_key}_{idx}")
             with c_p4:
-                # Kolom 4: Volume Aktual Bulan Ini
                 current_vol = st.number_input(f"📈 Volume Aktual Bulan Ini (Item {idx})", value=float(saved_item_opn.get('current_vol', default_contract_qty)), step=0.1, format="%.2f", key=f"opn_curr_vol_{opname_storage_key}_{idx}")
 
             temp_items_storage[idx] = {
@@ -191,6 +206,17 @@ def tampilkan_opname(transaksi_list):
 
         submit_save_opname = st.form_submit_button("💾 Simpan / Kunci Parameter Opname Ini", type="primary")
         if submit_save_opname:
+            payload_to_save = {
+                'lokasi_office': lokasi_office,
+                'tanggal_opname': selected_date_obj.strftime("%Y-%m-%d"),
+                'items': temp_items_storage,
+                'logo_1': saved_global.get('logo_1'),
+                'logo_2': saved_global.get('logo_2'),
+                'ttd_1': saved_global.get('ttd_1'),
+                'ttd_2': saved_global.get('ttd_2')
+            }
+            
+            # Simpan ke Session State
             st.session_state.opname_saved_data[opname_storage_key] = {
                 'lokasi_office': lokasi_office,
                 'tanggal_opname': selected_date_obj,
@@ -200,7 +226,10 @@ def tampilkan_opname(transaksi_list):
                 'ttd_1': saved_global.get('ttd_1'),
                 'ttd_2': saved_global.get('ttd_2')
             }
-            st.success("✅ Parameter opname berhasil disimpan dan dikunci secara permanen!")
+            
+            # Simpan secara permanen ke Cloud MySQL
+            simpan_parameter_dokumen_to_db(opname_storage_key, payload_to_save)
+            st.success("✅ Parameter opname berhasil disimpan dan dikunci secara permanen ke Cloud MySQL!")
 
     # --- PENGATURAN LOGO ---
     st.markdown("---")
@@ -252,6 +281,9 @@ def tampilkan_opname(transaksi_list):
 
     active_lokasi = saved_global.get('lokasi_office', "Luwuk")
     active_date_obj = saved_global.get('tanggal_opname', date.today())
+    if isinstance(active_date_obj, str):
+        try: active_date_obj = datetime.strptime(active_date_obj, "%Y-%m-%d").date()
+        except: active_date_obj = date.today()
     opname_date = active_date_obj.strftime('%d %B %Y')
 
     rows_html = ""
@@ -283,7 +315,6 @@ def tampilkan_opname(transaksi_list):
             default_price_calc = raw_hs
 
         active_item_data = saved_global.get('items', {}).get(idx, {})
-        # Memastikan Volume Base on CTR/PO mengambil input tersimpan secara akurat
         po_vol = float(active_item_data.get('po_vol', float(m.get('Qty', 1.0))))
         unit_price = float(active_item_data.get('unit_price', default_price_calc))
         prev_vol = float(active_item_data.get('prev_vol', 0.0))
