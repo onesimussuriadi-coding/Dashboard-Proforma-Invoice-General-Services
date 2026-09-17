@@ -128,7 +128,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     # --- SINKRONISASI DATA MASTER BUNDLE KE CLOUD MYSQL ---
     db_bundle_payload = muat_parameter_dokumen_from_db(pi_storage_key)
     if db_bundle_payload and f"db_loaded_{current_pi_no}" not in st.session_state:
-        # Jika ada data tersimpan di DB, kita pastikan status file/session memuatnya
         st.session_state[f"db_loaded_{current_pi_no}"] = True
 
     file_saved_path = os.path.join(DIR_PAKET_SAVED, f"paket_{current_pi_no.replace('/', '_')}.html")
@@ -453,7 +452,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     grand_total = 0.0
     rincian_rows_html = ""
     pi_rows_html = ""
-    opname_rows_html = ""
 
     for idx, m in enumerate(mutasi_terpilih, start=1):
         kat = str(m.get('Kategori', '')).strip()
@@ -510,6 +508,53 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
+    # --- PEMBUATAN BARIS OPNAME DENGAN SKALA KONTRAK UTUH & DEVIASI ---
+    total_vol_po = 0.0
+    total_price_po = 0.0
+    total_vol_prev = 0.0
+    total_price_prev = 0.0
+    total_vol_curr = 0.0
+    total_price_curr = 0.0
+    total_vol_cum = 0.0
+    total_price_cum = 0.0
+    total_vol_dev = 0.0
+    total_price_dev = 0.0
+
+    opname_rows_html = ""
+
+    for idx, m in enumerate(mutasi_terpilih, start=1):
+        kat = str(m.get('Kategori', '')).strip()
+        desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
+        ket = str(m.get('Keterangan', '')).strip()
+        
+        qty_curr = float(m.get('Qty', 1.0))
+        price = float(m.get('Harga Satuan', 0.0))
+        tot_curr = float(m.get('Total Harga', qty_curr * price))
+
+        # Volume total kontrak PO (Fallback estimasi proporsional jika belum ada input khusus PO master)
+        qty_po = float(m.get('Qty PO', m.get('Total Qty Kontrak', qty_curr * 7.1)))
+        tot_po = qty_po * price
+
+        qty_prev = 0.0
+        tot_prev = 0.0
+
+        qty_cum = qty_prev + qty_curr
+        tot_cum = tot_prev + tot_curr
+
+        qty_dev = qty_po - qty_cum
+        tot_dev = tot_po - tot_cum
+
+        total_vol_po += qty_po
+        total_price_po += tot_po
+        total_vol_prev += qty_prev
+        total_price_prev += tot_prev
+        total_vol_curr += qty_curr
+        total_price_curr += tot_curr
+        total_vol_cum += qty_cum
+        total_price_cum += tot_cum
+        total_vol_dev += qty_dev
+        total_price_dev += tot_dev
+
         desc_full_opname = f"<b>{kat}</b><br>{desc}"
         if ket:
             desc_full_opname += f"<br>{ket}"
@@ -518,16 +563,18 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: center;">1.{idx}</td>
                 <td style="text-align: left; padding-left: 4px;">{desc_full_opname}</td>
-                <td style="text-align: center;">{unit}</td>
-                <td style="text-align: center; white-space: nowrap;">{qty:,.2f}</td>
+                <td style="text-align: center;">{str(m.get('Unit', 'AU'))}</td>
+                <td style="text-align: center; white-space: nowrap;">{qty_po:,.2f}</td>
                 <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{price:,.0f}</td>
-                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot:,.0f}</td>
-                <td style="text-align: center; white-space: nowrap;">0.00</td>
-                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">0</td>
-                <td style="text-align: center; white-space: nowrap;">{qty:,.2f}</td>
-                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot:,.0f}</td>
-                <td style="text-align: center; white-space: nowrap;">{qty:,.2f}</td>
-                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot:,.0f}</td>
+                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot_po:,.0f}</td>
+                <td style="text-align: center; white-space: nowrap;">{qty_prev:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot_prev:,.0f}</td>
+                <td style="text-align: center; white-space: nowrap;">{qty_curr:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot_curr:,.0f}</td>
+                <td style="text-align: center; white-space: nowrap;">{qty_cum:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot_cum:,.0f}</td>
+                <td style="text-align: center; white-space: nowrap;">{qty_dev:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{tot_dev:,.0f}</td>
             </tr>
         """
 
@@ -1222,13 +1269,12 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         """
 
-    qty_val_main = float(t_data_utama.get('Qty', 1.0))
     opname_html = f"""
     <div class="page-break">
         {kop_bss_html}
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
         
-        <h2 style="text-align: center; font-size: 15px; font-weight: bold; text-transform: uppercase; margin-bottom: 15px;">BERITA ACARA PEKERJAAN / OPNAME</h2>
+        <h2 style="text-align: center; font-size: 14px; font-weight: bold; text-transform: uppercase; margin-bottom: 15px;">BERITA ACARA PEKERJAAN / OPNAME</h2>
 
         <table style="width: 100%; font-size: 10.5px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 25%; font-weight: bold;">JOB TITLE / WO / PO</td><td>: {lingkup_pekerjaan}</td></tr>
@@ -1237,44 +1283,54 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td style="font-weight: bold; color: #065f46;">PROFORMA INVOICE No.</td><td>: <b>{current_pi_no}</b></td></tr>
         </table>
 
-        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 7.5px; table-layout: fixed;">
+        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 7px; table-layout: fixed;">
             <thead>
                 <tr>
                     <th rowspan="2" style="width: 4%;">NO</th>
-                    <th rowspan="2" style="width: 21%;">ITEM - DESCRIPTION</th>
-                    <th rowspan="2" style="width: 5%;">UOM</th>
+                    <th rowspan="2" style="width: 18%;">ITEM - DESCRIPTION</th>
+                    <th rowspan="2" style="width: 4%;">UOM</th>
                     <th colspan="3">BASE ON CTR / PO</th>
                     <th colspan="2">PREVIOUS OPNAME (IDR)</th>
                     <th colspan="2">AKTUAL OPNAME (BULAN INI) (IDR)</th>
                     <th colspan="2">CUMMULATIVE OPNAME (IDR)</th>
+                    <th colspan="2">SISA ANGGARAN (DEVIASI) (IDR)</th>
                 </tr>
                 <tr>
                     <th style="width: 5%;">VOLUME</th>
-                    <th style="width: 12%;">UNIT PRICE</th>
-                    <th style="width: 13%;">TOTAL PRICE</th>
+                    <th style="width: 9%;">UNIT PRICE</th>
+                    <th style="width: 10%;">TOTAL PRICE</th>
                     <th style="width: 5%;">VOLUME</th>
-                    <th style="width: 9%;">TOTAL PRICE</th>
+                    <th style="width: 8%;">TOTAL PRICE</th>
                     <th style="width: 5%;">VOLUME</th>
-                    <th style="width: 13%;">TOTAL PRICE</th>
-                    <th style="width: 4%;">VOLUME</th>
-                    <th style="width: 4%;">TOTAL PRICE</th>
+                    <th style="width: 10%;">TOTAL PRICE</th>
+                    <th style="width: 5%;">VOLUME</th>
+                    <th style="width: 10%;">TOTAL PRICE</th>
+                    <th style="width: 5%;">VOLUME</th>
+                    <th style="width: 10%;">TOTAL PRICE</th>
                 </tr>
             </thead>
             <tbody>
                 {opname_rows_html}
                 <tr style="font-weight: bold; background: #f9fafb;">
                     <td colspan="3" style="text-align: right;">TOTAL :</td>
-                    <td style="text-align: center; white-space: nowrap;">{qty_val_main:,.2f}</td><td style="white-space: nowrap;">-</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">{grand_total:,.0f}</td>
-                    <td style="text-align: center; white-space: nowrap;">0.00</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">0</td>
-                    <td style="text-align: center; white-space: nowrap;">{qty_val_main:,.2f}</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">{grand_total:,.0f}</td>
-                    <td style="text-align: center; white-space: nowrap;">{qty_val_main:,.2f}</td><td style="text-align: right; padding-right: 4px; white-space: nowrap;">{grand_total:,.0f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{total_vol_po:,.2f}</td>
+                    <td style="white-space: nowrap;">-</td>
+                    <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{total_price_po:,.0f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{total_vol_prev:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{total_price_prev:,.0f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{total_vol_curr:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{total_price_curr:,.0f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{total_vol_cum:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{total_price_cum:,.0f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{total_vol_dev:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px; white-space: nowrap;">{total_price_dev:,.0f}</td>
                 </tr>
             </tbody>
         </table>
 
         <div style="font-size: 10.5px; font-weight: bold; margin-bottom: 20px;">
             Total Akumulasi Penyerapan (Cumulative Opname): Rp {grand_total:,.0f}<br>
-            Sisa Nilai Anggaran PO (Deviasi): Rp 0
+            Sisa Nilai Anggaran PO (Deviasi): Rp {total_price_dev:,.0f}
         </div>
 
         {opname_sig_table_html}
@@ -1522,7 +1578,6 @@ def tampilkan_paket_lengkap(transaksi_list):
                 with open(file_saved_path, "w", encoding="utf-8") as f:
                     f.write(master_html)
                 
-                # Simpan juga ke Cloud MySQL sebagai backup permanen
                 simpan_parameter_dokumen_to_db(pi_storage_key, {
                     'pi_no': current_pi_no,
                     'grand_total': grand_total,
