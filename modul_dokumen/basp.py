@@ -135,11 +135,12 @@ def tampilkan_basp(transaksi_list):
         deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
         desc_final_m = f"<b>{kategori_m}</b><br>{deskripsi_m}" if kategori_m else deskripsi_m
 
+        # KOREKSI UTAMA: Format pemisah ribuan standar Indonesia pada row_qty
         rows_html += f"""
             <tr>
                 <td style="text-align: center;">{idx}</td>
                 <td style="text-align: left;">{desc_final_m}</td>
-                <td style="text-align: center;">{row_qty:.2f}</td>
+                <td style="text-align: center;">{row_qty:,.2f}</td>
                 <td style="text-align: center;">{row_uom}</td>
                 <td style="text-align: left;"><b>{catatan_row_final}</b></td>
             </tr>
@@ -423,5 +424,5 @@ def tampilkan_basp(transaksi_list):
         
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
-        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="BASP_{nomor_kontrak_str.replace("/", "-")}.html" style="text-style: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File HTML/PDF</button></a>'
+        download_link = f'<a href="data:text/html;base64,{b64_pdf}" download="BASP_{nomor_kontrak_str.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File HTML/PDF</button></a>'
         st.markdown(download_link, unsafe_allow_html=True)
