@@ -343,7 +343,7 @@ if form_login_sistem():
     if is_super_admin:
         daftar_modul_tersedia.append("⚙️ Manajemen Akun & Hak Akses")
 
-    # KOREKSI PRESISI: Tambahkan key="nav_modul_utama" agar posisi modul terkunci saat refresh
+    # KOREKSI PRESISI: key="nav_modul_utama" mengunci posisi modul saat refresh
     modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", daftar_modul_tersedia, key="nav_modul_utama")
 
     st.sidebar.markdown("---")
@@ -389,8 +389,13 @@ if form_login_sistem():
         elif modul_pilihan == "📁 Arsip Dokumen Customer & Pendukung": 
             menu = "Arsip Dokumen Customer & Pendukung"
         else: 
-            # KOREKSI PRESISI: Tambahkan key="nav_menu_m2_staff" agar radio menu Staff terkunci saat refresh
-            menu = st.sidebar.radio("Pilih Menu:", ["Input & Proses Rincian Pekerjaan", "Pratinjau, Cetak & Download PDF Dokumen", "Lihat Akumulasi Riwayat Transaksi", "Lihat Master Rekap Transaksi"], key="nav_menu_m2_staff")
+            # KOREKSI PRESISI: key="nav_menu_m2_staff" mengunci posisi menu Staff saat refresh
+            menu = st.sidebar.radio("Pilih Menu:", [
+                "Input & Proses Rincian Pekerjaan", 
+                "Pratinjau, Cetak & Download PDF Dokumen", 
+                "Lihat Akumulasi Riwayat Transaksi", 
+                "Lihat Master Rekap Transaksi"
+            ], key="nav_menu_m2_staff")
 
     st.sidebar.markdown("---")
 
