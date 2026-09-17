@@ -350,7 +350,12 @@ def tampilkan_modul_2_rincian(
 
             formatted_hs = f"Rp {hs_final:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            if is_estimated_sum:
+            # KOREKSI UTAMA: Pemisahan tegas perhitungan agar item Barang/Material/Safety Equipment tidak terimbas fee Provisional Sum (1.15)
+            is_pure_material_or_goods = "material" in str(kat_pilih).lower() or "barang" in str(kat_pilih).lower() or "equipment" in str(kat_pilih).lower() or "safety" in str(kat_pilih).lower()
+
+            if is_provisional and not is_pure_material_or_goods:
+                calc_total = (q_val * hs_final * 1.15) * (persen_val / 100.0)
+            elif is_estimated_sum:
                 calc_total = (q_val * hs_final * 0.9) * (persen_val / 100.0)
             else:
                 calc_total = q_val * hs_final * (persen_val / 100.0)
@@ -380,12 +385,13 @@ def tampilkan_modul_2_rincian(
                 "harga_satuan": hs_final,
                 "keterangan": ket_val,
                 "is_provisional": is_provisional,
-                "is_estimated_sum": is_estimated_sum
+                "is_estimated_sum": is_estimated_sum,
+                "is_pure_material_or_goods": is_pure_material_or_goods
             })
 
         grand_total_preview = 0
         for item_prev in items_data_input:
-            if item_prev.get("is_provisional"):
+            if item_prev.get("is_provisional") and not item_prev.get("is_pure_material_or_goods"):
                 sub_prov = item_prev["qty"] * item_prev["harga_satuan"]
                 grand_total_preview += (sub_prov * 1.15) * (persen_val / 100.0)
             elif item_prev.get("is_estimated_sum"):
@@ -432,12 +438,12 @@ def tampilkan_modul_2_rincian(
             
             existing_tx = [t for t in existing_tx if bersih_angka_func(t.get("PI No.")) != pi_target_simpan]
 
-            prov_items = [it for it in items_data_input if it.get("is_provisional")]
+            prov_items = [it for it in items_data_input if it.get("is_provisional") and not it.get("is_pure_material_or_goods")]
             subtotal_prov = sum([it["qty"] * it["harga_satuan"] for it in prov_items])
             total_prov_with_fee = subtotal_prov * 1.15 
 
             for item in items_data_input:
-                if item.get("is_provisional"):
+                if item.get("is_provisional") and not item.get("is_pure_material_or_goods"):
                     if len(prov_items) > 0 and item == prov_items[0]:
                         total_harga = total_prov_with_fee * (persen_val / 100.0)
                     else:
@@ -493,12 +499,12 @@ def tampilkan_modul_2_rincian(
             
             existing_tx = [t for t in existing_tx if bersih_angka_func(t.get("PI No.")) != pi_baru]
 
-            prov_items = [it for it in items_data_input if it.get("is_provisional")]
+            prov_items = [it for it in items_data_input if it.get("is_provisional") and not it.get("is_pure_material_or_goods")]
             subtotal_prov = sum([it["qty"] * it["harga_satuan"] for it in prov_items])
             total_prov_with_fee = subtotal_prov * 1.15
 
             for item in items_data_input:
-                if item.get("is_provisional"):
+                if item.get("is_provisional") and not item.get("is_pure_material_or_goods"):
                     if len(prov_items) > 0 and item == prov_items[0]:
                         total_harga = total_prov_with_fee * (persen_val / 100.0)
                     else:
