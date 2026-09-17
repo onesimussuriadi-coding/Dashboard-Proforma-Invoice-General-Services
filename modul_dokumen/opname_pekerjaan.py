@@ -161,7 +161,6 @@ def tampilkan_opname(transaksi_list):
             is_prov_sum = "provisional" in kategori_m.lower() or "professional" in kategori_m.lower()
             is_est_sum = "estimated" in kategori_m.lower() or "estimasi" in kategori_m.lower()
             
-            # Hitung harga dasar per unit mandiri (termasuk fee 15% jika provisional/professional)
             raw_hs = float(m.get('Harga Satuan', 0.0))
             if is_prov_sum:
                 default_price = raw_hs * 1.15
@@ -200,7 +199,7 @@ def tampilkan_opname(transaksi_list):
             }
             st.success("✅ Parameter opname berhasil disimpan dan dikunci secara permanen!")
 
-    # --- PENGATURAN LOGO (DI LUAR FORM AGAR REAKTIF & ADA TOMBOL HAPUS) ---
+    # --- PENGATURAN LOGO ---
     st.markdown("---")
     st.markdown("#### 🖼️ Pengaturan Logo Header Dokumen Opname")
     c_log1, c_log2 = st.columns(2)
@@ -224,7 +223,7 @@ def tampilkan_opname(transaksi_list):
                 st.success("✅ Logo Pihak Kedua berhasil dihapus!")
                 st.rerun()
 
-    # --- PENGATURAN TANDA TANGAN (DI LUAR FORM AGAR REAKTIF & ADA TOMBOL HAPUS) ---
+    # --- PENGATURAN TANDA TANGAN ---
     st.markdown("---")
     st.markdown("#### ✍️ Pengaturan Tanda Tangan Digital Opname")
     c_ttd1, c_ttd2 = st.columns(2)
@@ -248,12 +247,10 @@ def tampilkan_opname(transaksi_list):
                 st.success("✅ TTD Pihak Kedua berhasil dihapus!")
                 st.rerun()
 
-    # Ambil data aktif yang tersimpan
     active_lokasi = saved_global.get('lokasi_office', "Luwuk")
     active_date_obj = saved_global.get('tanggal_opname', date.today())
     opname_date = active_date_obj.strftime('%d %B %Y')
 
-    # Kalkulasi nilai menggunakan data yang tersimpan/terkunci secara transparan per baris
     rows_html = ""
     sum_po_vol = 0.0
     sum_base_price = 0.0
@@ -288,7 +285,6 @@ def tampilkan_opname(transaksi_list):
         prev_vol = float(active_item_data.get('prev_vol', 0.0))
         current_vol = float(active_item_data.get('current_vol', float(m.get('Qty', 1.0))))
 
-        # Perhitungan mandiri per baris dengan penambahan Estimated Sum (Diskon 10%)
         if is_est_sum:
             base_price = (po_vol * unit_price * 0.9) * (percent_val / 100.0)
             prev_tot = (prev_vol * unit_price * 0.9) * (percent_val / 100.0)
@@ -321,21 +317,22 @@ def tampilkan_opname(transaksi_list):
         if ket_m:
             desc_full += f"<br><span style='font-size: 8.5px; color: #334155;'>{ket_m}</span>"
 
+        # PERBAIKAN: Volume menggunakan format tanda baca pemisah ribuan {:,.2f}
         rows_html += f"""
             <tr>
                 <td>1.{idx}</td>
                 <td class="text-left">{desc_full}</td>
                 <td>{actual_unit}</td>
-                <td>{po_vol:.2f}</td>
+                <td>{po_vol:,.2f}</td>
                 <td class="text-right">{unit_price:,.2f}</td>
                 <td class="text-right">{base_price:,.2f}</td>
-                <td>{prev_vol:.2f}</td>
+                <td>{prev_vol:,.2f}</td>
                 <td class="text-right">{prev_tot:,.2f}</td>
-                <td>{current_vol:.2f}</td>
+                <td>{current_vol:,.2f}</td>
                 <td class="text-right">{curr_tot:,.2f}</td>
-                <td>{cum_vol:.2f}</td>
+                <td>{cum_vol:,.2f}</td>
                 <td class="text-right">{cum_tot:,.2f}</td>
-                <td>{sisa_vol:.2f}</td>
+                <td>{sisa_vol:,.2f}</td>
                 <td class="text-right">{sisa_tot:,.2f}</td>
             </tr>
         """
@@ -536,16 +533,16 @@ def tampilkan_opname(transaksi_list):
             {rows_html}
             <tr style="background-color: #fafafa; font-weight: bold;">
                 <td colspan="3" class="text-right">TOTAL :</td>
-                <td>{sum_po_vol_tot:.2f}</td>
+                <td>{sum_po_vol_tot:,.2f}</td>
                 <td class="text-right">-</td>
                 <td class="text-right">{sum_base_price:,.2f}</td>
-                <td>{sum_prev_vol_tot:.2f}</td>
+                <td>{sum_prev_vol_tot:,.2f}</td>
                 <td class="text-right">{sum_prev_tot:,.2f}</td>
-                <td>{sum_curr_vol_tot:.2f}</td>
+                <td>{sum_curr_vol_tot:,.2f}</td>
                 <td class="text-right">{sum_curr_tot:,.2f}</td>
-                <td>{sum_cum_vol_tot:.2f}</td>
+                <td>{sum_cum_vol_tot:,.2f}</td>
                 <td class="text-right">{sum_cum_tot:,.2f}</td>
-                <td>{sum_sisa_vol_tot:.2f}</td>
+                <td>{sum_sisa_vol_tot:,.2f}</td>
                 <td class="text-right">{sum_sisa_tot:,.2f}</td>
             </tr>
         </table>
