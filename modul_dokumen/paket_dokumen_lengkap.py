@@ -733,7 +733,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
     """
 
-    # --- RINCIAN PEKERJAAN (LANDSCAPE) ---
+    # --- 1. RINCIAN PEKERJAAN (LANDSCAPE) ---
     rincian_html = f"""
     <div class="page-break landscape-page">
         {kop_bss_html}
@@ -1272,7 +1272,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         """
 
-    # --- OPNAME PEKERJAAN (LANDSCAPE) ---
+    # --- 2. OPNAME PEKERJAAN (LANDSCAPE) ---
     opname_html = f"""
     <div class="page-break landscape-page">
         {kop_bss_html}
