@@ -343,11 +343,20 @@ if form_login_sistem():
     if is_super_admin:
         daftar_modul_tersedia.append("⚙️ Manajemen Akun & Hak Akses")
 
-    # --- PENGAMAN & KUNCI STATE PERSISTEN AGAR TIDAK RESET SAAT REFRESH ---
+    # --- SINKRONISASI URL QUERY PARAMS UNTUK MENGUNCI POSISI SAAT REFRESH ---
+    url_modul = st.query_params.get("modul", None)
+    if url_modul and url_modul in daftar_modul_tersedia:
+        default_modul_idx = daftar_modul_tersedia.index(url_modul)
+    else:
+        default_modul_idx = 0
+
     if "nav_modul_utama" not in st.session_state or st.session_state["nav_modul_utama"] not in daftar_modul_tersedia:
-        st.session_state["nav_modul_utama"] = daftar_modul_tersedia[0] if daftar_modul_tersedia else ""
+        st.session_state["nav_modul_utama"] = daftar_modul_tersedia[default_modul_idx]
 
     modul_pilihan = st.sidebar.selectbox("Pilih Modul Utama:", daftar_modul_tersedia, key="nav_modul_utama")
+    
+    # Simpan pilihan modul ke URL browser agar aman saat refresh
+    st.query_params["modul"] = modul_pilihan
 
     st.sidebar.markdown("---")
 
