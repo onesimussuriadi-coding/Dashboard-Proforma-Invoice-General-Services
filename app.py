@@ -177,6 +177,7 @@ def muat_data_invoice():
             normalized_records.append(new_rec)
         st.session_state["db_tersimpan"] = normalized_records
         return normalized_records
+    # PENGAMAN (FALLBACK): Jika DB kosong/timeout sesaat, kembalikan data yang sudah ada di session state agar tidak tertimpa kosong
     return st.session_state.get("db_tersimpan", [])
 
 def simpan_data_invoice(data_list):
@@ -203,6 +204,7 @@ def muat_data_transaksi():
     if db_data:
         st.session_state["db_transaksi"] = db_data
         return db_data
+    # PENGAMAN (FALLBACK)
     return st.session_state.get("db_transaksi", [])
 
 def simpan_data_transaksi(data_list):
@@ -228,6 +230,7 @@ def muat_master_referensi():
     if db_data:
         st.session_state["db_master_ref"] = db_data
         return db_data
+    # PENGAMAN (FALLBACK)
     return st.session_state.get("db_master_ref", [])
 
 def simpan_master_referensi(data_list):
@@ -250,6 +253,7 @@ def muat_master_bank():
     if db_data:
         st.session_state["db_master_bank"] = db_data
         return db_data
+    # PENGAMAN (FALLBACK)
     return st.session_state.get("db_master_bank", default_banks)
 
 def simpan_master_bank(data_list):
