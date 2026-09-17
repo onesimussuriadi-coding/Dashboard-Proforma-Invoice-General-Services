@@ -14,15 +14,22 @@ def tampilkan_bamp(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
-    # --- FILTER CERDAS BAMP (HANYA AMBIL ITEM JASA / GABUNGAN) ---
-    transaksi_list = [
-        t for t in transaksi_list 
-        if "material" not in str(t.get('Kategori', '')).lower() 
-        and "barang" not in str(t.get('Kategori', '')).lower()
-    ]
+    # --- FILTER CERDAS & PRESISI BAMP (HANYA KATEGORI JASA / LAYANAN / SEWA) ---
+    # Item barang, material, atau safety equipment disaring otomatis keluar
+    filtered_items = []
+    for t in transaksi_list:
+        kategori_str = str(t.get('Kategori', '')).lower()
+        # Kata kunci yang tergolong barang/material/equipment fisik yang harus masuk BASTB
+        excluded_keywords = ["material", "barang", "safety equipment", "pengadaan", "alat", "sparepart", "tools"]
+        
+        is_excluded = any(kw in kategori_str for kw in excluded_keywords)
+        if not is_excluded:
+            filtered_items.append(t)
+
+    transaksi_list = filtered_items
 
     if not transaksi_list:
-        st.warning("ℹ️ Tidak ada item kategori Jasa untuk ditampilkan pada BAMP di PI ini (Item murni Barang/Material disaring otomatis ke BASTB).")
+        st.warning("ℹ️ Tidak ada item kategori Jasa/Layanan untuk ditampilkan pada BAMP di PI ini (Item murni Barang/Material/Equipment disaring otomatis ke BASTB).")
         return
 
     seen_pi_dd = set()
@@ -58,12 +65,13 @@ def tampilkan_bamp(transaksi_list):
     saved_global = st.session_state.bamp_saved_data[pi_storage_key]
 
     # Hanya ambil mutasi yang spesifik untuk PI ini dan merupakan kategori Jasa
-    mutasi_terpilih = [
-        t for t in transaksi_list 
-        if str(t.get('PI No.')).strip() == pi_storage_key 
-        and "material" not in str(t.get('Kategori', '')).lower() 
-        and "barang" not in str(t.get('Kategori', '')).lower()
-    ]
+    mutasi_terpilih = []
+    for t in transaksi_list:
+        if str(t.get('PI No.')).strip() == pi_storage_key:
+            kategori_str = str(t.get('Kategori', '')).lower()
+            excluded_keywords = ["material", "barang", "safety equipment", "pengadaan", "alat", "sparepart", "tools"]
+            if not any(kw in kategori_str for kw in excluded_keywords):
+                mutasi_terpilih.append(t)
     
     if not mutasi_terpilih:
         st.warning("⚠️ Tidak ada item mutasi Jasa ditemukan untuk PI ini.")
