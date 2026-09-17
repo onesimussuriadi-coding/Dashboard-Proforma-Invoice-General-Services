@@ -239,7 +239,11 @@ def tampilkan_modul_2_rincian(
             
             c_k1, c_k2 = st.columns(2)
             with c_k1:
+                # KOREKSI PRESISI 2: Ambil kategori persis dari database transaksi yang tersimpan, bukan default indeks pertama!
                 def_kat_item = str(default_item_data.get("Kategori", list_kat[0] if list_kat else "-")).strip().upper()
+                if def_kat_item not in list_kat and def_kat_item:
+                    list_kat.append(def_kat_item)
+                    list_kat = sorted(list(set(list_kat)))
                 idx_kat = list_kat.index(def_kat_item) if def_kat_item in list_kat else 0
                 
                 kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}", disabled=is_management)
@@ -278,6 +282,12 @@ def tampilkan_modul_2_rincian(
                         spek_options_formatted.append(display_text)
 
                     def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", default_item_data.get("Uraian Pekerjaan", "")))
+                    
+                    # Pastikan jika deskripsi tersimpan belum ada di list referensi, dimasukkan agar tidak melompat ke indeks 0
+                    if def_spek_item and def_spek_item not in spek_display_map.values():
+                        spek_display_map[def_spek_item] = def_spek_item
+                        spek_options_formatted.append(def_spek_item)
+
                     default_display_val = spek_options_formatted[0] if spek_options_formatted else "- (Tidak ada data uraian)"
                     for disp, orig in spek_display_map.items():
                         if orig == def_spek_item:
@@ -321,6 +331,8 @@ def tampilkan_modul_2_rincian(
                 existing_u_from_master = df_ref["Unit"].dropna().astype(str).unique().tolist() if "Unit" in df_ref.columns else []
                 u_opts = sorted(list(set(default_u_opts + existing_u_from_master)))
                 def_unit = str(default_item_data.get("Unit", unit_otomatis))
+                if def_unit not in u_opts and def_unit:
+                    u_opts.append(def_unit)
                 idx_u = u_opts.index(def_unit) if def_unit in u_opts else 0
                 u_val = st.selectbox(f"Unit {i+1}", u_opts, index=idx_u, key=f"unit_{i}", disabled=is_management)
             with c_item3:
@@ -346,7 +358,12 @@ def tampilkan_modul_2_rincian(
                 hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i+1} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}", disabled=is_management)
                 hs_final = hs_manual
             else:
-                hs_final = hs_otomatis
+                # Jika item tidak provisional, ambil harga satuan dari data tersimpan jika ada, atau fallback ke harga otomatis master
+                try:
+                    def_hs_saved = float(default_item_data.get("Harga Satuan", 0.0) or 0.0)
+                except:
+                    def_hs_saved = 0.0
+                hs_final = def_hs_saved if def_hs_saved > 0 else hs_otomatis
 
             formatted_hs = f"Rp {hs_final:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
@@ -464,7 +481,7 @@ def tampilkan_modul_2_rincian(
                     "Deskripsi PO": desc_po,
                     "Tanggal PO": tanggal_po,
                     "Mata Uang": mata_uang,
-                    "Jenis BASTP": jenis_bastp_pilih,  # <--- KOREKSI PRESISI: Variabel Jenis BASTP Disimpan ke Dictionary Transaksi
+                    "Jenis BASTP": jenis_bastp_pilih, 
                     "Kategori": item["kategori"],
                     "Deskripsi Pekerjaan": item["deskripsi"],
                     "Qty": item["qty"],
@@ -525,7 +542,7 @@ def tampilkan_modul_2_rincian(
                     "Deskripsi PO": desc_po,
                     "Tanggal PO": tanggal_po,
                     "Mata Uang": mata_uang,
-                    "Jenis BASTP": jenis_bastp_pilih,  # <--- KOREKSI PRESISI: Variabel Jenis BASTP Disimpan ke Dictionary Transaksi
+                    "Jenis BASTP": jenis_bastp_pilih, 
                     "Kategori": item["kategori"],
                     "Deskripsi Pekerjaan": item["deskripsi"],
                     "Qty": item["qty"],
