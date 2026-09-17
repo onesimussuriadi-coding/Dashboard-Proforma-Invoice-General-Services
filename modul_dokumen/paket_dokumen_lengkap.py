@@ -76,6 +76,35 @@ def tampilkan_paket_lengkap(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
+    # --- FILTER UTAMA: HANYA IZINKAN NOMOR KONTRAK 7207250142 ---
+    kontrak_diperbolehkan = "7207250142"
+    
+    db_invoice_path = os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx")
+    
+    # Saring transaksi list hanya yang memiliki nomor kontrak 7207250142
+    filtered_transaksi_list = []
+    for t in transaksi_list:
+        pi_val = str(t.get('PI No.', t.get('PI', ''))).strip()
+        # Periksa juga melalui database proforma invoice untuk memastikan nomor kontraknya
+        matched_kontrak = str(t.get('Nomor Kontrak', '')).strip()
+        if os.path.exists(db_invoice_path):
+            try:
+                df_inv = pd.read_excel(db_invoice_path)
+                for _, row in df_inv.iterrows():
+                    if str(row.iloc[0]).strip().lower() == pi_val.lower():
+                        matched_kontrak = str(row.iloc[1] if len(row) > 1 else matched_kontrak).strip()
+                        break
+            except:
+                pass
+        
+        # Jika nomor kontrak sesuai dengan 7207250142, masukkan ke daftar
+        if matched_kontrak == kontrak_diperbolehkan or str(t.get('Nomor Kontrak', '')).strip() == kontrak_diperbolehkan:
+            filtered_transaksi_list.append(t)
+
+    if not filtered_transaksi_list:
+        st.info("ℹ️ Master Bundle saat ini dikhususkan untuk menampilkan Kontrak No. **7207250142**. Data untuk kontrak 7201250141 dan 7203250036 disembunyikan sesuai permintaan.")
+        return
+
     DIR_PAKET_SAVED = os.path.join("database_penyimpanan_aman", "paket_dokumen_tersimpan")
     if not os.path.exists(DIR_PAKET_SAVED):
         os.makedirs(DIR_PAKET_SAVED)
@@ -111,7 +140,7 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     seen_pi_dd = set()
     unique_pi_list = []
-    for t in transaksi_list:
+    for t in filtered_transaksi_list:
         pi_key = str(t.get('PI No.', t.get('PI', ''))).strip()
         if pi_key and pi_key not in seen_pi_dd:
             seen_pi_dd.add(pi_key)
@@ -262,9 +291,9 @@ def tampilkan_paket_lengkap(transaksi_list):
     custom_ttd_onesimus = img_to_base64_str(ttd_onesimus_file)
     custom_ttd_ferry = img_to_base64_str(ttd_ferry_file)
 
-    mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.', t.get('PI', ''))).strip() == current_pi_no]
+    mutasi_terpilih = [t for t in filtered_transaksi_list if str(t.get('PI No.', t.get('PI', ''))).strip() == current_pi_no]
     if not mutasi_terpilih:
-        mutasi_terpilih = transaksi_list
+        mutasi_terpilih = filtered_transaksi_list
 
     if not mutasi_terpilih:
         st.warning("⚠️ Tidak ada item ditemukan untuk PI ini.")
@@ -304,7 +333,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     opname_date_str = format_tgl_indo(opname_date_obj)
     tkdn_date_str = format_tgl_indo(tkdn_date_obj)
 
-    db_invoice_path = os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx")
     matched_db_row = {}
     if os.path.exists(db_invoice_path):
         try:
@@ -328,7 +356,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 return str(v).strip()
         return fallback
 
-    nomor_kontrak = get_induk(1, 'Nomor Kontrak', t_data_utama.get('Nomor Kontrak', '-'))
+    nomor_kontrak = get_induk(1, 'Nomor Kontrak', t_data_utama.get('Nomor Kontrak', kontrak_diperbolehkan))
     nama_kontrak = get_induk(7, 'Nama Kontrak', t_data_utama.get('Nama Kontrak', '-'))
     nomor_tender = get_induk(2, 'Nomor Tender', '-')
     tgl_kontrak = get_induk(4, 'Tanggal Kontrak', '-')
@@ -395,7 +423,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         default_ctr = "006-TOMORI-FLD-BSS- CTR-2025"
     else:
         default_wo = no_po if no_po and no_po != current_pi_no else "S25051FLD-TOMORI-WO-006"
-        default_ctr = f"006-TOMORI-FLD-BSS- CTR-2025" if str(nomor_kontrak).strip() == "7207250142" else f"017/BSS-JOB/FLD/II/2026"
+        default_ctr = f"006-TOMORI-FLD-BSS- CTR-2025"
 
     wcc_wo_no = curr_wcc_dict.get('wo_no', default_wo)
     wcc_ctr_no = curr_wcc_dict.get('ctr_no', default_ctr)
@@ -470,7 +498,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         else:
             kat_display = kat
 
-        # --- UPDATE LEBAR KOLOM (Keterangan diperlebar, Satuan & Harga Satuan diperkecil) ---
         rincian_rows_html += f"""
             <tr>
                 <td style="text-align: center; width: 4%;">{idx}</td>
@@ -506,7 +533,6 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
-    # --- PEMBUATAN BARIS OPNAME DENGAN DATA KONTRAK ASLI & PRESISI ---
     total_vol_po = 0.0
     total_price_po = 0.0
     total_vol_prev = 0.0
@@ -621,7 +647,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         elif isinstance(saved_bamp_items_map, list) and (idx - 1) < len(saved_bamp_items_map):
             saved_bamp_row = saved_bamp_items_map[idx - 1]
 
-        # --- PERBAIKAN: AMBIL QTY & CATATAN PERSIS SEPERTI DI FORMAT MANDIRI BAMP ---
         if 'qty' in saved_bamp_row and saved_bamp_row['qty'] is not None:
             row_qty_bamp = float(saved_bamp_row['qty'])
         elif 'jumlah' in saved_bamp_row and saved_bamp_row['jumlah'] is not None:
@@ -634,7 +659,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         kat_bamp = str(m.get('Kategori', '')).strip()
         desc_bamp = str(m.get('Deskripsi Pekerjaan', '')).strip()
         
-        # Ambil catatan dari saved_bamp_row, atau fallback ke Keterangan item transaksi tanpa menimpanya dengan teks tanggal otomatis
         row_catatan_bamp = str(saved_bamp_row.get('catatan', saved_bamp_row.get('keterangan', ''))).strip()
         if not row_catatan_bamp:
             row_catatan_bamp = str(m.get('Keterangan', '')).strip()
