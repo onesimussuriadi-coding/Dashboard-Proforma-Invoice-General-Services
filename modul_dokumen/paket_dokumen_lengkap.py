@@ -621,26 +621,23 @@ def tampilkan_paket_lengkap(transaksi_list):
         elif isinstance(saved_bamp_items_map, list) and (idx - 1) < len(saved_bamp_items_map):
             saved_bamp_row = saved_bamp_items_map[idx - 1]
 
+        # --- PERBAIKAN: AMBIL QTY & CATATAN PERSIS SEPERTI DI FORMAT MANDIRI BAMP ---
         if 'qty' in saved_bamp_row and saved_bamp_row['qty'] is not None:
             row_qty_bamp = float(saved_bamp_row['qty'])
         elif 'jumlah' in saved_bamp_row and saved_bamp_row['jumlah'] is not None:
             row_qty_bamp = float(saved_bamp_row['jumlah'])
         else:
-            row_qty_bamp = float(m.get('Qty BAMP', m.get('Qty_BAMP', 1.0)))
+            row_qty_bamp = float(m.get('Qty', 1.0))
 
-        row_uom_bamp = str(saved_bamp_row.get('uom', saved_bamp_row.get('satuan', m.get('Unit', 'Day')))).strip()
+        row_uom_bamp = str(saved_bamp_row.get('uom', saved_bamp_row.get('satuan', m.get('Unit', 'AU')))).strip()
 
         kat_bamp = str(m.get('Kategori', '')).strip()
         desc_bamp = str(m.get('Deskripsi Pekerjaan', '')).strip()
         
+        # Ambil catatan dari saved_bamp_row, atau fallback ke Keterangan item transaksi tanpa menimpanya dengan teks tanggal otomatis
         row_catatan_bamp = str(saved_bamp_row.get('catatan', saved_bamp_row.get('keterangan', ''))).strip()
-        
         if not row_catatan_bamp:
-            ket_mentah_bamp = str(m.get('Catatan BAMP', m.get('Keterangan BAMP', ''))).strip()
-            if ket_mentah_bamp:
-                row_catatan_bamp = f"Mulai Berlaku Tanggal {bamp_date_str}<br>{ket_mentah_bamp}"
-            else:
-                row_catatan_bamp = f"Mulai Berlaku Tanggal {bamp_date_str}"
+            row_catatan_bamp = str(m.get('Keterangan', '')).strip()
 
         desc_full_bamp = f"<b>{kat_bamp}</b><br>{desc_bamp}" if kat_bamp else desc_bamp
 
