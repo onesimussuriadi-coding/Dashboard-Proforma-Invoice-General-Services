@@ -109,6 +109,9 @@ def tampilkan_bamp(transaksi_list):
 
         saved_item_data = saved_global.get('items', {}).get(idx, {})
 
+        # Ambil nilai default catatan dari kolom 'Keterangan' rincian pekerjaan jika belum ada input tersimpan
+        default_keterangan_item = str(m.get('Keterangan', '')).strip()
+
         with c_b1:
             row_date = st.date_input(f"Tanggal Efektif / Mulai (Item {idx})", value=saved_item_data.get('date', default_row_date), key=f"bamp_date_{pi_storage_key}_{idx}")
         with c_b2:
@@ -120,7 +123,7 @@ def tampilkan_bamp(transaksi_list):
             default_idx = uom_options.index(default_uom) if default_uom in uom_options else 0
             row_uom = st.selectbox(f"Satuan (Item {idx})", uom_options, index=default_idx, key=f"bamp_uom_{pi_storage_key}_{idx}")
         with c_b4:
-            row_catatan = st.text_input(f"Catatan Bebas / Fleksibel (Item {idx})", value=saved_item_data.get('catatan', ''), placeholder="Contoh: Mulai Efektif", key=f"bamp_cat_{pi_storage_key}_{idx}")
+            row_catatan = st.text_input(f"Catatan Bebas / Fleksibel (Item {idx})", value=saved_item_data.get('catatan', default_keterangan_item), placeholder="Contoh: Mulai Efektif", key=f"bamp_cat_{pi_storage_key}_{idx}")
 
         temp_items_storage[idx] = {
             'date': row_date,
