@@ -103,7 +103,6 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
             st.session_state["active_pi_key"] = current_pi_val
             st.warning(f"📝 **Mode Tinjau Data:** Menampilkan Data Baris #{edit_idx+1} — PI No: `{current_pi_val}`")
         
-        # Simpan nilai inputan sementara di session berdasarkan PI aktif agar tidak hilang saat refresh kode
         active_pi = st.session_state.get("active_pi_key", "default_form")
         storage_state_key = f"form_cache_{active_pi}".replace("/", "_")
         
@@ -252,13 +251,20 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                     if st.session_state.get("edit_index") is not None and st.session_state["edit_index"] < len(current_data):
                         current_data[st.session_state["edit_index"]] = data_terinput
                         if simpan_data_invoice_func(current_data):
+                            # Notifikasi pop-up toast & success yang jelas & permanen
+                            st.toast("✅ Data berhasil diperbarui secara permanen ke Database MySQL!", icon="✨")
                             st.success("✨ Data berhasil diperbarui secara permanen ke file lokal & database!")
                 elif submit_save_as or submit_baru:
                     current_data.append(data_terinput)
                     if simpan_data_invoice_func(current_data):
+                        st.toast("✅ Data baru berhasil disimpan permanen!", icon="🎉")
                         st.success("🎉 Data berhasil disimpan secara permanen ke file lokal & database!")
                         st.session_state["edit_index"] = None
                         st.session_state["active_pi_key"] = None
+                
+                # Beri jeda sejenak agar notifikasi sukses sempat terbaca sebelum halaman merender ulang
+                import time
+                time.sleep(0.8)
                 st.rerun()
 
     elif menu == "Lihat Database Tersimpan":
@@ -344,7 +350,7 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
             
             table_rows += "</tr>"
 
-        action_header_html = '<th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: center; width: 80px;">Aksi</th>' if not is_management else ''
+        action_header_html = '<th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: width: 80px;">Aksi</th>' if not is_management else ''
 
         table_html = f"""
         <div style="overflow-x: auto; border: 1px solid #cbd5e1; border-radius: 4px; background-color: #ffffff;">
