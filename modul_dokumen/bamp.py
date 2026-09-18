@@ -77,6 +77,7 @@ def tampilkan_bamp(transaksi_list):
     except:
         pass
 
+    # --- PENYEMPURNAAN INISIALISASI SESSION STATE PER PI ---
     if pi_storage_key not in st.session_state.bamp_saved_data:
         st.session_state.bamp_saved_data[pi_storage_key] = {
             'lokasi': "Luwuk",
@@ -90,8 +91,12 @@ def tampilkan_bamp(transaksi_list):
     else:
         if 'main_date' not in st.session_state.bamp_saved_data[pi_storage_key]:
             st.session_state.bamp_saved_data[pi_storage_key]['main_date'] = min_date_default
+        if 'items' not in st.session_state.bamp_saved_data[pi_storage_key]:
+            st.session_state.bamp_saved_data[pi_storage_key]['items'] = {}
 
     saved_global = st.session_state.bamp_saved_data[pi_storage_key]
+    saved_items_cache = saved_global.get('items', {})
+    
     t_data_utama = mutasi_terpilih[0]
     current_pi_no = pi_storage_key.lower()
 
@@ -114,6 +119,7 @@ def tampilkan_bamp(transaksi_list):
     rows_html = ""
     temp_items_storage = {}
 
+    # --- PENGAMANAN STATE PER BARIS ITEM (MENCEGAH RESET KETIKA DISIMPAN) ---
     for idx, m in enumerate(mutasi_terpilih, start=1):
         st.markdown(f"**Item {idx}: {m.get('Kategori')} - {m.get('Deskripsi Pekerjaan')}**")
         c_b1, c_b2, c_b3, c_b4 = st.columns(4)
@@ -124,23 +130,27 @@ def tampilkan_bamp(transaksi_list):
         except:
             default_row_date = date.today()
 
-        saved_item_data = saved_global.get('items', {}).get(idx, {})
+        # Ambil data spesifik baris dari cache session state jika sudah pernah disimpan
+        saved_item_data = saved_items_cache.get(idx, {})
 
-        # Ambil nilai default catatan dari kolom 'Keterangan' rincian pekerjaan jika belum ada input tersimpan
+        default_row_date_val = saved_item_data.get('date', default_row_date)
+        default_row_qty_val = float(saved_item_data.get('qty', m.get('Qty', 1.0)))
+        default_row_uom_val = str(saved_item_data.get('uom', m.get('Unit', 'Day'))).strip()
+        
         default_keterangan_item = str(m.get('Keterangan', '')).strip()
+        default_row_cat_val = saved_item_data.get('catatan', default_keterangan_item)
 
         with c_b1:
-            row_date = st.date_input(f"Tanggal Efektif / Mulai (Item {idx})", value=saved_item_data.get('date', default_row_date), key=f"bamp_date_{pi_storage_key}_{idx}")
+            row_date = st.date_input(f"Tanggal Efektif / Mulai (Item {idx})", value=default_row_date_val, key=f"bamp_date_{pi_storage_key}_{idx}")
         with c_b2:
-            row_qty = st.number_input(f"Jumlah / Qty (Item {idx})", min_value=0.0, value=float(saved_item_data.get('qty', m.get('Qty', 1.0))), step=1.0, format="%.2f", key=f"bamp_qty_{pi_storage_key}_{idx}")
+            row_qty = st.number_input(f"Jumlah / Qty (Item {idx})", min_value=0.0, value=default_row_qty_val, step=1.0, format="%.2f", key=f"bamp_qty_{pi_storage_key}_{idx}")
         with c_b3:
-            default_uom = str(saved_item_data.get('uom', m.get('Unit', 'Day'))).strip()
-            if default_uom not in uom_options:
-                uom_options.append(default_uom)
-            default_idx = uom_options.index(default_uom) if default_uom in uom_options else 0
+            if default_row_uom_val not in uom_options:
+                uom_options.append(default_row_uom_val)
+            default_idx = uom_options.index(default_row_uom_val) if default_row_uom_val in uom_options else 0
             row_uom = st.selectbox(f"Satuan (Item {idx})", uom_options, index=default_idx, key=f"bamp_uom_{pi_storage_key}_{idx}")
         with c_b4:
-            row_catatan = st.text_input(f"Catatan Bebas / Fleksibel (Item {idx})", value=saved_item_data.get('catatan', default_keterangan_item), placeholder="Contoh: Mulai Efektif", key=f"bamp_cat_{pi_storage_key}_{idx}")
+            row_catatan = st.text_input(f"Catatan Bebas / Fleksibel (Item {idx})", value=default_row_cat_val, placeholder="Contoh: Mulai Efektif", key=f"bamp_cat_{pi_storage_key}_{idx}")
 
         temp_items_storage[idx] = {
             'date': row_date,
@@ -160,7 +170,6 @@ def tampilkan_bamp(transaksi_list):
         deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
         desc_final_m = f"<b>{kategori_m}</b><br>{deskripsi_m}" if kategori_m else deskripsi_m
 
-        # Perataan teks kolom catatan diubah dari center ke left
         rows_html += f"""
             <tr>
                 <td style="text-align: center;">{idx}</td>
@@ -212,7 +221,7 @@ def tampilkan_bamp(transaksi_list):
                 st.success("✅ TTD Pihak Kedua berhasil dihapus!")
                 st.rerun()
 
-    # --- FORM TOMBOL SIMPAN & KUNCI ---
+    # --- FORM TOMBOL SIMPAN & KUNCI (DENGAN PENYINKRONAN STATE LANGSUNG) ---
     with st.form(key=f"form_bamp_save_{pi_storage_key}"):
         st.markdown(f"**Konfirmasi Dokumen BAMP (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi.")
         submit_save_bamp = st.form_submit_button("💾 Simpan & Kunci Dokumen BAMP Ini", type="primary")
@@ -223,6 +232,7 @@ def tampilkan_bamp(transaksi_list):
             t1_final = uploaded_ttd_1.getvalue() if uploaded_ttd_1 is not None else saved_global.get('ttd_1')
             t2_final = uploaded_ttd_2.getvalue() if uploaded_ttd_2 is not None else saved_global.get('ttd_2')
 
+            # Simpan data terbaru ke session state secara permanen untuk PI ini
             st.session_state.bamp_saved_data[pi_storage_key] = {
                 'lokasi': lokasi_office,
                 'main_date': selected_date,
@@ -233,6 +243,7 @@ def tampilkan_bamp(transaksi_list):
                 'ttd_2': t2_final
             }
             st.success(f"✅ Dokumen BAMP untuk PI [{selected_pi}] beserta logo dan tanda tangan berhasil disimpan permanen!")
+            st.rerun()
 
     # Render HTML Logo & Tanda Tangan dari Data yang Tersimpan di Session State
     l1_bytes = saved_global.get('logo_1')
