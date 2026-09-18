@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import json
 import mysql.connector
 from mysql.connector import Error
 
@@ -40,7 +41,8 @@ def get_db_connection():
 
 def muat_data_from_db(nama_tabel):
     """
-    Memuat data secara real-time dari database MySQL hosting.
+    Memuat data secara real-time dari database MySQL hosting,
+    dengan fallback otomatis ke file lokal Excel jika koneksi cloud mengalami timed out.
     """
     connection = get_db_connection()
     if connection is not None:
@@ -79,7 +81,8 @@ def muat_data_from_db(nama_tabel):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    PENYIMPANAN AMAN BERBASIS UPSERT KE MYSQL CLOUD
+    Penyimpanan aman berbasis upsert ke MySQL cloud, 
+    disertai pencadangan otomatis ke file Excel lokal.
     """
     if data_list is None:
         data_list = []
@@ -181,7 +184,6 @@ def simpan_parameter_dokumen_to_db(doc_key, data_dict):
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
             
-            import json
             payload_str = json.dumps(data_dict, default=str)
             
             sql = f"""
@@ -208,7 +210,6 @@ def muat_parameter_dokumen_from_db(doc_key):
                 cursor.execute(f"SELECT `payload` FROM `{TABEL_DB_DOKUMEN_PARAM}` WHERE `doc_key` = %s;", (doc_key,))
                 res = cursor.fetchone()
                 if res and res[0]:
-                    import json
                     return json.loads(res[0])
             cursor.close()
             connection.close()
