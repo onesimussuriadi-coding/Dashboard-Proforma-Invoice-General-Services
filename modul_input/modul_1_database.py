@@ -79,7 +79,13 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                     if st.button("🔄 Panggil Data", use_container_width=True, type="primary"):
                         if selected_pi_label != "-- Tidak Ada PI --" and selected_pi_label in index_mapping:
                             st.session_state["edit_index"] = index_mapping[selected_pi_label]
-                            st.session_state["active_pi_key"] = pi_mapping[selected_pi_label]
+                            target_pi_val = pi_mapping[selected_pi_label]
+                            st.session_state["active_pi_key"] = target_pi_val
+                            
+                            # --- PEMBERSIHAN CACHE LAMA (MEMAKSA MEMUAT DATA TERBARU DARI DB) ---
+                            target_storage_key = f"form_cache_{target_pi_val}".replace("/", "_")
+                            if target_storage_key in st.session_state:
+                                del st.session_state[target_storage_key]
                         else:
                             st.session_state["edit_index"] = None
                             st.session_state["active_pi_key"] = None
@@ -256,7 +262,6 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                 st.rerun()
 
     elif menu == "Lihat Database Tersimpan":
-        # Bagian menu lihat database tetap berjalan normal seperti semula
         st.markdown("""
             <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 12px 18px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #0284c7;">
                 <h4 style="margin:0; color:#0f172a; font-size:15px; font-weight:700;">📂 Database Grid — Kontrak & Proforma Invoice</h4>
