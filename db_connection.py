@@ -23,8 +23,8 @@ def muat_data_from_db(nama_tabel):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan dan memperbarui data secara aman ke file Excel lokal 
-    tanpa kendala tipe data.
+    Menyimpan dan memperbarui (Update/Upsert) data secara presisi 
+    langsung ke file Excel lokal server.
     """
     if data_list is None:
         data_list = []
@@ -36,28 +36,33 @@ def simpan_data_to_db(nama_tabel, data_list):
         if df_new.empty:
             return True
 
-        # Jika file lama sudah ada, gabungkan atau perbarui dengan aman
+        # Jika file lama sudah ada, lakukan pembaruan baris (Update) secara akurat
         if os.path.exists(file_path):
             try:
                 df_old = pd.read_excel(file_path, engine='openpyxl')
-                if not df_old.empty:
-                    # Identifikasi kolom kunci (biasanya kolom pertama / nomor invoice)
+                if not df_old.empty and not df_new.empty:
+                    # Ambil nama kolom pertama sebagai kunci unik (biasanya Nomor Proforma Invoice)
                     key_col = df_old.columns[0]
+                    
                     if key_col in df_new.columns:
-                        # Ubah ke string untuk pencocokan yang akurat
+                        # Standardisasi nilai kunci ke string untuk pencocokan yang tepat
                         df_old[key_col] = df_old[key_col].astype(str).str.strip()
                         df_new[key_col] = df_new[key_col].astype(str).str.strip()
                         
-                        # Hapus duplikat dari data baru yang memiliki key sama dengan data lama
-                        keys_to_update = df_new[key_col].tolist()
-                        df_old = df_old[~df_old[key_col].isin(keys_to_update)]
+                        # Set index untuk memudahkan proses update baris
+                        df_old = df_old.set_index(key_col)
+                        df_new = df_new.set_index(key_col)
                         
-                        # Gabungkan data lama yang tersisa dengan data baru yang di-update
-                        df_new = pd.concat([df_old, df_new], ignore_index=True)
-            except Exception:
-                pass
+                        # Timpa data lama dengan data baru yang memiliki key yang sama
+                        df_old.update(df_new)
+                        
+                        # Gabungkan kembali sisa data baru yang belum ada di data lama
+                        df_final = pd.concat([df_new[~df_new.index.isin(df_old.index)], df_old])
+                        df_new = df_final.reset_index()
+            except Exception as e:
+                print(f"Catatan saat update baris: {e}")
 
-        # Simpan hasil akhir ke file Excel lokal
+        # Simpan hasil pembaruan mutlak ke file Excel lokal
         df_new.to_excel(file_path, index=False, engine='openpyxl')
         return True
     except Exception as e:
@@ -66,7 +71,7 @@ def simpan_data_to_db(nama_tabel, data_list):
 
 def render_download_button_excel(nama_tabel):
     """
-    Tombol unduh file Excel cadangan untuk arsip ke Google Drive/komputer.
+    Tombol unduh file Excel cadangan untuk arsip ke komputer/Google Drive.
     """
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     if os.path.exists(file_path):
