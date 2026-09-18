@@ -528,22 +528,21 @@ def tampilkan_paket_lengkap(transaksi_list):
         desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
         ket = str(m.get('Keterangan', '')).strip()
         
-        # Ambil data dari format mandiri opname jika ada, jika belum ada baru fallback ke transaksi dasar
         row_mandiri_op = {}
         if isinstance(saved_opname_items, dict):
             row_mandiri_op = saved_opname_items.get(idx, saved_opname_items.get(str(idx), {}))
         elif isinstance(saved_opname_items, list) and (idx - 1) < len(saved_opname_items):
             row_mandiri_op = saved_opname_items[idx - 1]
 
-        # Volume Base on CTR / PO murni dari input mandiri opname (tidak berasumsi atau menghitung sendiri)
-        qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', m.get('Qty PO', m.get('Total Qty Kontrak', float(m.get('Qty', 1.0)) * 1.0)))))
-        price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', m.get('Harga Satuan', 0.0))))
+        # PENGAMBILAN STRICT: Sesuai struktur data form opname mandiri (qty_po / volume_po)
+        qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', float(m.get('Qty PO', m.get('Total Qty Kontrak', 4.0))))))
+        price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', float(m.get('Harga Satuan', 0.0)))))
         tot_po = qty_po * price
 
         qty_prev = float(row_mandiri_op.get('qty_prev', row_mandiri_op.get('volume_prev', 0.0)))
         tot_prev = qty_prev * price
 
-        qty_curr = float(row_mandiri_op.get('qty_curr', row_mandiri_op.get('volume_curr', m.get('Qty', 1.0))))
+        qty_curr = float(row_mandiri_op.get('qty_curr', row_mandiri_op.get('volume_curr', float(m.get('Qty', 1.0)))))
         tot_curr = qty_curr * price
 
         qty_cum = qty_prev + qty_curr
