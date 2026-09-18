@@ -47,11 +47,12 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
             if selected_kontrak_input == "-- Buat Data Baru (Formulir Kosong) --":
                 with col_pk2:
                     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                    st.info("💡 Formulir siap untuk ditinjau.")
+                    st.info("💡 Formulir siap untuk ditinjau / data baru.")
                 with col_pk_btn:
                     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
                     if st.button("🔄 Panggil"):
                         st.session_state["edit_index"] = None
+                        st.session_state["active_pi_key"] = None
                         st.rerun()
             else:
                 matched_pi_records_sorted = sorted(
@@ -62,11 +63,13 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                 
                 opsi_pi_filtered = []
                 index_mapping = {}
+                pi_mapping = {}
                 for orig_idx, data in matched_pi_records_sorted:
                     pi_num = bersih_angka_func(data.get(0, data.get('Proforma Invoice No.', '-')))
                     label_pi = f"PI: {pi_num if pi_num else '-'} (Data #{orig_idx+1})"
                     opsi_pi_filtered.append(label_pi)
                     index_mapping[label_pi] = orig_idx
+                    pi_mapping[label_pi] = pi_num
 
                 with col_pk2:
                     selected_pi_label = st.selectbox(f"Pilih Nomor PI [{selected_kontrak_input}]:", opsi_pi_filtered if opsi_pi_filtered else ["-- Tidak Ada PI --"], key="input_filter_pi")
@@ -76,19 +79,35 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                     if st.button("🔄 Panggil Data", use_container_width=True, type="primary"):
                         if selected_pi_label != "-- Tidak Ada PI --" and selected_pi_label in index_mapping:
                             st.session_state["edit_index"] = index_mapping[selected_pi_label]
+                            st.session_state["active_pi_key"] = pi_mapping[selected_pi_label]
                         else:
                             st.session_state["edit_index"] = None
+                            st.session_state["active_pi_key"] = None
                         st.rerun()
         else:
             st.info("📌 Belum ada data database tersimpan di folder aman.")
 
+        # --- MEKANISME PENGUNCIAN DATA BERBASIS STATE & NOMOR PI ---
         def_data = {}
-        if st.session_state.get("edit_index") is not None and st.session_state["edit_index"] < len(st.session_state.get("db_tersimpan", [])):
-            def_data = st.session_state["db_tersimpan"][st.session_state["edit_index"]]
-            st.warning(f"📝 **Mode Tinjau Data:** Menampilkan Data Baris #{st.session_state['edit_index']+1} — PI No: `{bersih_angka_func(def_data.get(0, def_data.get('Proforma Invoice No.', '-')))}`")
+        edit_idx = st.session_state.get("edit_index")
         
+        if edit_idx is not None and edit_idx < len(st.session_state.get("db_tersimpan", [])):
+            def_data = st.session_state["db_tersimpan"][edit_idx]
+            current_pi_val = bersih_angka_func(def_data.get(0, def_data.get('Proforma Invoice No.', '-')))
+            st.session_state["active_pi_key"] = current_pi_val
+            st.warning(f"📝 **Mode Tinjau Data:** Menampilkan Data Baris #{edit_idx+1} — PI No: `{current_pi_val}`")
+        
+        # Simpan nilai inputan sementara di session berdasarkan PI aktif agar tidak hilang saat refresh kode
+        active_pi = st.session_state.get("active_pi_key", "default_form")
+        storage_state_key = f"form_cache_{active_pi}".replace("/", "_")
+        
+        if storage_state_key not in st.session_state:
+            st.session_state[storage_state_key] = def_data
+
+        cached_data = st.session_state[storage_state_key]
+
         def get_val(idx_key, text_key):
-            val = def_data.get(idx_key, def_data.get(text_key, def_data.get(str(idx_key), "")))
+            val = cached_data.get(idx_key, cached_data.get(text_key, cached_data.get(str(idx_key), "")))
             cleaned = bersih_angka_func(val)
             return cleaned if cleaned else ""
 
@@ -218,20 +237,26 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                     29: val_30, 30: val_31,
                     "Update Terakhir": waktu_aksi
                 }
+                
+                # Perbarui cache session agar data langsung sinkron
+                st.session_state[storage_state_key] = data_terinput
+                
                 current_data = muat_data_invoice_func()
                 if submit_update:
                     if st.session_state.get("edit_index") is not None and st.session_state["edit_index"] < len(current_data):
                         current_data[st.session_state["edit_index"]] = data_terinput
                         if simpan_data_invoice_func(current_data):
-                            st.success("✨ Data berhasil diperbarui secara permanen ke file lokal Excel!")
+                            st.success("✨ Data berhasil diperbarui secara permanen ke file lokal & database!")
                 elif submit_save_as or submit_baru:
                     current_data.append(data_terinput)
                     if simpan_data_invoice_func(current_data):
-                        st.success("🎉 Data berhasil disimpan secara permanen ke file lokal Excel!")
+                        st.success("🎉 Data berhasil disimpan secara permanen ke file lokal & database!")
                         st.session_state["edit_index"] = None
+                        st.session_state["active_pi_key"] = None
                 st.rerun()
 
     elif menu == "Lihat Database Tersimpan":
+        # Bagian menu lihat database tetap berjalan normal seperti semula
         st.markdown("""
             <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 12px 18px; border-radius: 6px; margin-bottom: 15px; border-left: 4px solid #0284c7;">
                 <h4 style="margin:0; color:#0f172a; font-size:15px; font-weight:700;">📂 Database Grid — Kontrak & Proforma Invoice</h4>
