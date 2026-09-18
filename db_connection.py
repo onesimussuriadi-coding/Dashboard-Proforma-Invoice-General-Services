@@ -43,6 +43,14 @@ def muat_data_from_db(nama_tabel):
             query = f"SELECT * FROM `{nama_tabel}`;"
             df = pd.read_sql(query, connection)
             if df is not None and not df.empty:
+                # Konversi nama kolom key kembali ke integer jika bentuknya angka (untuk kompatibilitas form 31 kolom)
+                cols_converted = {}
+                for c in df.columns:
+                    if str(c).isdigit():
+                        cols_converted[c] = int(c)
+                if cols_converted:
+                    df = df.rename(columns=cols_converted)
+
                 # Simpan juga sebagai backup lokal terbaru
                 file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
                 df.to_excel(file_path, index=False, engine='openpyxl')
@@ -66,9 +74,9 @@ def muat_data_from_db(nama_tabel):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    PENYIMPANAN AMAN BERBASIS UPDATE & INSERT (PRECISE UPSERT):
-    Memastikan data tersimpan permanen di MySQL hosting berdasarkan Nomor PI Unik,
-    sehingga data dan nomor PO tidak akan pernah tertimpa atau kembali menjadi 0.
+    PENYIMPANAN AMAN BERBASIS UPSERT KETAT:
+    Memastikan data tersimpan permanen di MySQL hosting dengan menjadikan 
+    kolom Nomor PI (Proforma Invoice No. / kolom 0) sebagai Primary Key.
     """
     if data_list is None:
         data_list = []
@@ -85,7 +93,7 @@ def simpan_data_to_db(nama_tabel, data_list):
     if df.empty:
         return True
 
-    # 2. Sinkronisasi ke Cloud MySQL hosting dengan presisi tinggi
+    # 2. Sinkronisasi ke Cloud MySQL hosting dengan penguncian Primary Key
     connection = get_db_connection()
     if connection is not None:
         cursor = None
@@ -96,46 +104,52 @@ def simpan_data_to_db(nama_tabel, data_list):
             for col in df.columns:
                 df[col] = df[col].astype(str).replace(['nan', 'None', 'NAT'], '')
 
-            # Pastikan struktur tabel ada di database
-            cols_def = ", ".join([f"`{col}` TEXT" for col in df.columns])
-            cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def});")
-
-            # Identifikasi kolom kunci unik untuk pencocokan data (Prioritas: Proforma Invoice No. atau 0)
-            pi_column_candidates = ["Proforma Invoice No.", "0", "PI No.", "Nomor Invoice Resmi"]
-            target_pi_col = None
-            for cand in pi_column_candidates:
+            # Identifikasi kolom kunci unik untuk PI (Kolom 'Proforma Invoice No.' atau kolom 0)
+            pi_col_name = None
+            for cand in ["Proforma Invoice No.", 0, "0", "PI No."]:
                 if cand in df.columns:
-                    target_pi_col = cand
+                    pi_col_name = cand
                     break
 
+            # Buat tabel dengan struktur aman dan pastikan kolom PI menjadi PRIMARY KEY
+            cols_def_list = []
+            for col in df.columns:
+                col_str = str(col)
+                if pi_col_name is not None and col == pi_col_name:
+                    cols_def_list.append(f"`{col_str}` VARCHAR(255) PRIMARY KEY")
+                else:
+                    cols_def_list.append(f"`{col_str}` TEXT")
+            
+            cols_def_str = ", ".join(cols_def_list)
+            cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def_str}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
+
+            # Jika tabel belum punya PRIMARY KEY karena terlanjur dibuat sebelumnya, tambahkan secara aman
+            if pi_col_name is not None:
+                try:
+                    cursor.execute(f"ALTER TABLE `{nama_tabel}` ADD PRIMARY KEY (`{pi_col_name}`);")
+                except Exception:
+                    pass # Abaikan jika primary key sudah ada
+
             for _, row in df.iterrows():
-                cols = [f"`{c}`" for c in df.columns]
+                cols = [f"`{str(c)}`" for c in df.columns]
                 vals = tuple(row)
                 placeholders = ", ".join(["%s"] * len(df.columns))
                 cols_str = ", ".join(cols)
                 
-                # Jika tabel proforma invoice dan ditemukan kolom PI, lakukan pengecekan eksistensi data
-                if nama_tabel == "database_proforma_invoice" and target_pi_col is not None:
-                    pi_val = str(row[target_pi_col]).strip()
-                    if pi_val:
-                        # Cek apakah nomor PI ini sudah ada di database MySQL
-                        check_sql = f"SELECT COUNT(*) FROM `{nama_tabel}` WHERE `{target_pi_col}` = %s;"
-                        cursor.execute(check_sql, (pi_val,))
-                        exists = cursor.fetchone()[0] > 0
-                        
-                        if exists:
-                            # Jika sudah ada, LAKUKAN UPDATE (Menjaga data & PO agar tidak berubah/reset)
-                            update_parts = [f"`{c}` = %s" for c in df.columns if c != target_pi_col]
-                            update_vals = [row[c] for c in df.columns if c != target_pi_col] + [pi_val]
-                            update_str = ", ".join(update_parts)
-                            
-                            sql_update = f"UPDATE `{nama_tabel}` SET {update_str} WHERE `{target_pi_col}` = %s;"
-                            cursor.execute(sql_update, tuple(update_vals))
-                            continue
+                # Gunakan perintah SQL ON DUPLICATE KEY UPDATE yang murni dan handal
+                updates = []
+                for c in df.columns:
+                    c_str = str(c)
+                    if pi_col_name is not None and c == pi_col_name:
+                        continue
+                    updates.append(f"`{c_str}` = VALUES(`{c_str}`)")
+                update_str = ", ".join(updates) if updates else f"`{str(df.columns[0])}` = VALUES(`{str(df.columns[0])}`)"
 
-                # Jika belum ada atau tabel lain, lakukan INSERT standar
-                sql_insert = f"INSERT INTO `{nama_tabel}` ({cols_str}) VALUES ({placeholders});"
-                cursor.execute(sql_insert, vals)
+                sql_upsert = f"""
+                    INSERT INTO `{nama_tabel}` ({cols_str}) VALUES ({placeholders})
+                    ON DUPLICATE KEY UPDATE {update_str};
+                """
+                cursor.execute(sql_upsert, vals)
             
             connection.commit()
             return True
@@ -168,7 +182,7 @@ def simpan_parameter_dokumen_to_db(doc_key, data_dict):
                 CREATE TABLE IF NOT EXISTS `{TABEL_DB_DOKUMEN_PARAM}` (
                     `doc_key` VARCHAR(255) PRIMARY KEY,
                     `payload` LONGTEXT
-                );
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
             
             import json
