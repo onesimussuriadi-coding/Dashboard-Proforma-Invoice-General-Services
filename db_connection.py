@@ -34,8 +34,7 @@ def get_db_connection():
 
 def muat_data_from_db(nama_tabel):
     """
-    Memuat data secara real-time dari database MySQL hosting.
-    Jika gagal/offline, otomatis membaca backup lokal yang aman.
+    Memuat data secara real-time dari database MySQL hosting dengan konversi key integer yang presisi.
     """
     connection = get_db_connection()
     if connection is not None:
@@ -43,13 +42,14 @@ def muat_data_from_db(nama_tabel):
             query = f"SELECT * FROM `{nama_tabel}`;"
             df = pd.read_sql(query, connection)
             if df is not None and not df.empty:
-                # Konversi nama kolom key kembali ke integer jika bentuknya angka (untuk kompatibilitas form 31 kolom)
-                cols_converted = {}
-                for c in df.columns:
-                    if str(c).isdigit():
-                        cols_converted[c] = int(c)
-                if cols_converted:
-                    df = df.rename(columns=cols_converted)
+                # Normalisasi nama kolom dari string angka kembali menjadi integer (0-30) agar terbaca sempurna oleh form
+                rename_map = {}
+                for col in df.columns:
+                    col_str = str(col).strip()
+                    if col_str.isdigit():
+                        rename_map[col] = int(col_str)
+                if rename_map:
+                    df = df.rename(columns=rename_map)
 
                 # Simpan juga sebagai backup lokal terbaru
                 file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
@@ -61,7 +61,7 @@ def muat_data_from_db(nama_tabel):
             if connection.is_connected():
                 connection.close()
     
-    # Fallback ke file lokal jika koneksi cPanel/hosting bermasalah
+    # Fallback ke file lokal jika koneksi cPanel bermasalah
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     if os.path.exists(file_path):
         try:
@@ -74,16 +74,14 @@ def muat_data_from_db(nama_tabel):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    PENYIMPANAN AMAN BERBASIS UPSERT KETAT:
-    Memastikan data tersimpan permanen di MySQL hosting dengan menjadikan 
-    kolom Nomor PI (Proforma Invoice No. / kolom 0) sebagai Primary Key.
+    PENYIMPANAN AMAN DENGAN PEMETAAN INDEKS KOLOM YANG PRESISI KE MYSQL
     """
     if data_list is None:
         data_list = []
 
     df = pd.DataFrame(data_list)
     
-    # 1. Selalu simpan backup lokal terlebih dahulu sebagai pengaman
+    # 1. Simpan backup lokal sebagai pengaman
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     try:
         df.to_excel(file_path, index=False, engine='openpyxl')
@@ -93,7 +91,7 @@ def simpan_data_to_db(nama_tabel, data_list):
     if df.empty:
         return True
 
-    # 2. Sinkronisasi ke Cloud MySQL hosting dengan penguncian Primary Key
+    # 2. Sinkronisasi mutlak ke Cloud MySQL cPanel
     connection = get_db_connection()
     if connection is not None:
         cursor = None
@@ -104,31 +102,12 @@ def simpan_data_to_db(nama_tabel, data_list):
             for col in df.columns:
                 df[col] = df[col].astype(str).replace(['nan', 'None', 'NAT'], '')
 
-            # Identifikasi kolom kunci unik untuk PI (Kolom 'Proforma Invoice No.' atau kolom 0)
-            pi_col_name = None
-            for cand in ["Proforma Invoice No.", 0, "0", "PI No."]:
-                if cand in df.columns:
-                    pi_col_name = cand
-                    break
+            # Pastikan struktur tabel di MySQL menggunakan nama kolom string dari key dictionary (misal: '0', '1', '8', dll)
+            cols_def = ", ".join([f"`{str(col)}` TEXT" for col in df.columns])
+            cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
 
-            # Buat tabel dengan struktur aman dan pastikan kolom PI menjadi PRIMARY KEY
-            cols_def_list = []
-            for col in df.columns:
-                col_str = str(col)
-                if pi_col_name is not None and col == pi_col_name:
-                    cols_def_list.append(f"`{col_str}` VARCHAR(255) PRIMARY KEY")
-                else:
-                    cols_def_list.append(f"`{col_str}` TEXT")
-            
-            cols_def_str = ", ".join(cols_def_list)
-            cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def_str}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
-
-            # Jika tabel belum punya PRIMARY KEY karena terlanjur dibuat sebelumnya, tambahkan secara aman
-            if pi_col_name is not None:
-                try:
-                    cursor.execute(f"ALTER TABLE `{nama_tabel}` ADD PRIMARY KEY (`{pi_col_name}`);")
-                except Exception:
-                    pass # Abaikan jika primary key sudah ada
+            # Tentukan kolom acuan unik (Kolom 0 / Proforma Invoice No.)
+            pi_col = 0 if 0 in df.columns else ("Proforma Invoice No." if "Proforma Invoice No." in df.columns else None)
 
             for _, row in df.iterrows():
                 cols = [f"`{str(c)}`" for c in df.columns]
@@ -136,20 +115,27 @@ def simpan_data_to_db(nama_tabel, data_list):
                 placeholders = ", ".join(["%s"] * len(df.columns))
                 cols_str = ", ".join(cols)
                 
-                # Gunakan perintah SQL ON DUPLICATE KEY UPDATE yang murni dan handal
-                updates = []
-                for c in df.columns:
-                    c_str = str(c)
-                    if pi_col_name is not None and c == pi_col_name:
-                        continue
-                    updates.append(f"`{c_str}` = VALUES(`{c_str}`)")
-                update_str = ", ".join(updates) if updates else f"`{str(df.columns[0])}` = VALUES(`{str(df.columns[0])}`)"
+                if nama_tabel == "database_proforma_invoice" and pi_col is not None:
+                    pi_val = str(row[pi_col]).strip()
+                    if pi_val:
+                        # Cek apakah nomor PI sudah ada di database MySQL
+                        check_sql = f"SELECT COUNT(*) FROM `{nama_tabel}` WHERE `{str(pi_col)}` = %s;"
+                        cursor.execute(check_sql, (pi_val,))
+                        exists = cursor.fetchone()[0] > 0
+                        
+                        if exists:
+                            # LAKUKAN UPDATE PRESISI BERDASARKAN KOLOM PI
+                            update_parts = [f"`{str(c)}` = %s" for c in df.columns if c != pi_col]
+                            update_vals = [row[c] for c in df.columns if c != pi_col] + [pi_val]
+                            update_str = ", ".join(update_parts)
+                            
+                            sql_update = f"UPDATE `{nama_tabel}` SET {update_str} WHERE `{str(pi_col)}` = %s;"
+                            cursor.execute(sql_update, tuple(update_vals))
+                            continue
 
-                sql_upsert = f"""
-                    INSERT INTO `{nama_tabel}` ({cols_str}) VALUES ({placeholders})
-                    ON DUPLICATE KEY UPDATE {update_str};
-                """
-                cursor.execute(sql_upsert, vals)
+                # INSERT standar jika belum ada
+                sql_insert = f"INSERT INTO `{nama_tabel}` ({cols_str}) VALUES ({placeholders});"
+                cursor.execute(sql_insert, vals)
             
             connection.commit()
             return True
@@ -168,7 +154,7 @@ def simpan_data_to_db(nama_tabel, data_list):
 
 
 # =====================================================================
-# FUNGSI TAMBAHAN KHUSUS PENYIMPANAN PARAMETER DOKUMEN TURUNAN (PERSISTENT)
+# FUNGSI TAMBAHAN PARAMETER DOKUMEN BAMP
 # =====================================================================
 
 TABEL_DB_DOKUMEN_PARAM = "database_dokumen_parameter"
