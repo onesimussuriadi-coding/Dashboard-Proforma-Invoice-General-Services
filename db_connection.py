@@ -9,6 +9,10 @@ if not os.path.exists(DIR_DATABASE):
     os.makedirs(DIR_DATABASE)
 
 def get_db_connection():
+    """
+    Koneksi MySQL dengan penanganan error transparan ke layar,
+    sehingga kita tahu persis jika ada kendala jaringan/kredensial ke cPanel.
+    """
     try:
         db_config = {}
         if "mysql" in st.secrets:
@@ -16,6 +20,7 @@ def get_db_connection():
         elif "database" in st.secrets:
             db_config = st.secrets["database"]
         else:
+            st.error("❌ Konfigurasi secrets untuk 'mysql' atau 'database' tidak ditemukan di Streamlit Secrets!")
             return None
 
         connection = mysql.connector.connect(
@@ -29,12 +34,13 @@ def get_db_connection():
         if connection.is_connected():
             return connection
     except Exception as e:
-        print(f"Koneksi MySQL Gagal: {e}")
+        # Munculkan error langsung ke layar agar terlihat jelas kendalanya
+        st.error(f"❌ Koneksi MySQL ke cPanel Gagal: {e}")
     return None
 
 def muat_data_from_db(nama_tabel):
     """
-    Memuat data secara real-time dari database MySQL hosting dengan konversi key integer yang presisi.
+    Memuat data secara real-time dari database MySQL hosting.
     """
     connection = get_db_connection()
     if connection is not None:
@@ -42,7 +48,6 @@ def muat_data_from_db(nama_tabel):
             query = f"SELECT * FROM `{nama_tabel}`;"
             df = pd.read_sql(query, connection)
             if df is not None and not df.empty:
-                # Normalisasi nama kolom dari string angka kembali menjadi integer (0-30) agar terbaca sempurna oleh form
                 rename_map = {}
                 for col in df.columns:
                     col_str = str(col).strip()
@@ -51,17 +56,17 @@ def muat_data_from_db(nama_tabel):
                 if rename_map:
                     df = df.rename(columns=rename_map)
 
-                # Simpan juga sebagai backup lokal terbaru
+                # Simpan backup lokal
                 file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
                 df.to_excel(file_path, index=False, engine='openpyxl')
                 return df.to_dict(orient="records")
         except Error as e:
-            print(f"Gagal memuat dari DB: {e}")
+            st.error(f"❌ Gagal membaca tabel `{nama_tabel}` dari MySQL: {e}")
         finally:
             if connection.is_connected():
                 connection.close()
     
-    # Fallback ke file lokal jika koneksi cPanel bermasalah
+    # Fallback ke file lokal jika koneksi cPanel benar-benar terputus/gagal
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     if os.path.exists(file_path):
         try:
@@ -74,14 +79,14 @@ def muat_data_from_db(nama_tabel):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    PENYIMPANAN AMAN DENGAN PEMETAAN INDEKS KOLOM YANG PRESISI KE MYSQL
+    PENYIMPANAN AMAN BERBASIS UPSERT KE MYSQL CLOUD
     """
     if data_list is None:
         data_list = []
 
     df = pd.DataFrame(data_list)
     
-    # 1. Simpan backup lokal sebagai pengaman
+    # Simpan backup lokal terlebih dahulu
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     try:
         df.to_excel(file_path, index=False, engine='openpyxl')
@@ -91,23 +96,34 @@ def simpan_data_to_db(nama_tabel, data_list):
     if df.empty:
         return True
 
-    # 2. Sinkronisasi mutlak ke Cloud MySQL cPanel
+    # Sinkronisasi ke Cloud MySQL cPanel
     connection = get_db_connection()
     if connection is not None:
         cursor = None
         try:
             cursor = connection.cursor()
             
-            # Bersihkan format nilai NaN/Null
             for col in df.columns:
                 df[col] = df[col].astype(str).replace(['nan', 'None', 'NAT'], '')
 
-            # Pastikan struktur tabel di MySQL menggunakan nama kolom string dari key dictionary (misal: '0', '1', '8', dll)
-            cols_def = ", ".join([f"`{str(col)}` TEXT" for col in df.columns])
-            cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
-
-            # Tentukan kolom acuan unik (Kolom 0 / Proforma Invoice No.)
             pi_col = 0 if 0 in df.columns else ("Proforma Invoice No." if "Proforma Invoice No." in df.columns else None)
+
+            cols_def_list = []
+            for col in df.columns:
+                col_str = str(col)
+                if pi_col is not None and col == pi_col:
+                    cols_def_list.append(f"`{col_str}` VARCHAR(255) PRIMARY KEY")
+                else:
+                    cols_def_list.append(f"`{col_str}` TEXT")
+            
+            cols_def_str = ", ".join(cols_def_list)
+            cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def_str}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
+
+            if pi_col is not None:
+                try:
+                    cursor.execute(f"ALTER TABLE `{nama_tabel}` ADD PRIMARY KEY (`{pi_col}`);")
+                except Exception:
+                    pass
 
             for _, row in df.iterrows():
                 cols = [f"`{str(c)}`" for c in df.columns]
@@ -115,32 +131,24 @@ def simpan_data_to_db(nama_tabel, data_list):
                 placeholders = ", ".join(["%s"] * len(df.columns))
                 cols_str = ", ".join(cols)
                 
-                if nama_tabel == "database_proforma_invoice" and pi_col is not None:
-                    pi_val = str(row[pi_col]).strip()
-                    if pi_val:
-                        # Cek apakah nomor PI sudah ada di database MySQL
-                        check_sql = f"SELECT COUNT(*) FROM `{nama_tabel}` WHERE `{str(pi_col)}` = %s;"
-                        cursor.execute(check_sql, (pi_val,))
-                        exists = cursor.fetchone()[0] > 0
-                        
-                        if exists:
-                            # LAKUKAN UPDATE PRESISI BERDASARKAN KOLOM PI
-                            update_parts = [f"`{str(c)}` = %s" for c in df.columns if c != pi_col]
-                            update_vals = [row[c] for c in df.columns if c != pi_col] + [pi_val]
-                            update_str = ", ".join(update_parts)
-                            
-                            sql_update = f"UPDATE `{nama_tabel}` SET {update_str} WHERE `{str(pi_col)}` = %s;"
-                            cursor.execute(sql_update, tuple(update_vals))
-                            continue
+                updates = []
+                for c in df.columns:
+                    c_str = str(c)
+                    if pi_col is not None and c == pi_col:
+                        continue
+                    updates.append(f"`{c_str}` = VALUES(`{c_str}`)")
+                update_str = ", ".join(updates) if updates else f"`{str(df.columns[0])}` = VALUES(`{str(df.columns[0])}`)"
 
-                # INSERT standar jika belum ada
-                sql_insert = f"INSERT INTO `{nama_tabel}` ({cols_str}) VALUES ({placeholders});"
-                cursor.execute(sql_insert, vals)
+                sql_upsert = f"""
+                    INSERT INTO `{nama_tabel}` ({cols_str}) VALUES ({placeholders})
+                    ON DUPLICATE KEY UPDATE {update_str};
+                """
+                cursor.execute(sql_upsert, vals)
             
             connection.commit()
             return True
         except Error as e:
-            print(f"Error MySQL saat menyimpan: {e}")
+            st.error(f"❌ Error MySQL saat menyimpan ke tabel `{nama_tabel}`: {e}")
             if connection:
                 connection.rollback()
             return False
@@ -150,7 +158,9 @@ def simpan_data_to_db(nama_tabel, data_list):
             if connection and connection.is_connected():
                 connection.close()
                 
-    return True
+    else:
+        st.error("⚠️ Gagal menyimpan ke MySQL karena koneksi terputus atau ditolak server cPanel. Data sementara diamankan di file lokal.")
+    return False
 
 
 # =====================================================================
