@@ -14,6 +14,13 @@ def tampilkan_bamp(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
+    # --- IMPORT FUNGSI DATABASE MYSQL UNTUK PARAMETER DOKUMEN BAMP ---
+    try:
+        from db_connection import simpan_parameter_dokumen_to_db, muat_parameter_dokumen_from_db
+    except ImportError:
+        simpan_parameter_dokumen_to_db = lambda k, v: True
+        muat_parameter_dokumen_from_db = lambda k: None
+
     # --- FILTER CERDAS & PRESISI BAMP (HANYA KATEGORI JASA / LAYANAN / SEWA) ---
     filtered_items = []
     for t in transaksi_list:
@@ -47,9 +54,15 @@ def tampilkan_bamp(transaksi_list):
         st.session_state.bamp_saved_data = {}
 
     selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list, key="bamp_sel_pi")
-    
     pi_storage_key = str(selected_pi).strip()
-    
+    doc_db_key = f"bamp_payload_{pi_storage_key}".replace("/", "_")
+
+    # Muat data dari Database MySQL hosting jika belum ada di session state lokal
+    if pi_storage_key not in st.session_state.bamp_saved_data:
+        db_loaded_payload = muat_parameter_dokumen_from_db(doc_db_key)
+        if db_loaded_payload:
+            st.session_state.bamp_saved_data[pi_storage_key] = db_loaded_payload
+
     # Validasi ganda: Pastikan PI yang dipilih benar-benar memiliki mutasi jasa
     mutasi_terpilih = []
     for t in transaksi_list:
@@ -119,7 +132,7 @@ def tampilkan_bamp(transaksi_list):
     rows_html = ""
     temp_items_storage = {}
 
-    # --- PENGAMANAN STATE PER BARIS ITEM (MENCEGAH RESET KETIKA DISIMPAN) ---
+    # --- PENGAMANAN STATE PER BARIS ITEM (MENCEGAH RESET & MENANGANI ANGKA NOL) ---
     for idx, m in enumerate(mutasi_terpilih, start=1):
         st.markdown(f"**Item {idx}: {m.get('Kategori')} - {m.get('Deskripsi Pekerjaan')}**")
         c_b1, c_b2, c_b3, c_b4 = st.columns(4)
@@ -134,7 +147,14 @@ def tampilkan_bamp(transaksi_list):
         saved_item_data = saved_items_cache.get(idx, {})
 
         default_row_date_val = saved_item_data.get('date', default_row_date)
-        default_row_qty_val = float(saved_item_data.get('qty', m.get('Qty', 1.0)))
+        
+        # Pengecekan aman untuk qty agar angka 0 (nol) tidak tertimpa nilai default master
+        raw_saved_qty = saved_item_data.get('qty', None)
+        if raw_saved_qty is not None:
+            default_row_qty_val = float(raw_saved_qty)
+        else:
+            default_row_qty_val = float(m.get('Qty', 1.0))
+
         default_row_uom_val = str(saved_item_data.get('uom', m.get('Unit', 'Day'))).strip()
         
         default_keterangan_item = str(m.get('Keterangan', '')).strip()
@@ -221,9 +241,9 @@ def tampilkan_bamp(transaksi_list):
                 st.success("✅ TTD Pihak Kedua berhasil dihapus!")
                 st.rerun()
 
-    # --- FORM TOMBOL SIMPAN & KUNCI (DENGAN PENYINKRONAN STATE LANGSUNG) ---
+    # --- FORM TOMBOL SIMPAN & KUNCI (DISINKRONKAN KE DATABASE MYSQL) ---
     with st.form(key=f"form_bamp_save_{pi_storage_key}"):
-        st.markdown(f"**Konfirmasi Dokumen BAMP (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi.")
+        st.markdown(f"**Konfirmasi Dokumen BAMP (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi dan menyimpannya secara permanen ke Database MySQL hosting.")
         submit_save_bamp = st.form_submit_button("💾 Simpan & Kunci Dokumen BAMP Ini", type="primary")
         
         if submit_save_bamp:
@@ -232,8 +252,7 @@ def tampilkan_bamp(transaksi_list):
             t1_final = uploaded_ttd_1.getvalue() if uploaded_ttd_1 is not None else saved_global.get('ttd_1')
             t2_final = uploaded_ttd_2.getvalue() if uploaded_ttd_2 is not None else saved_global.get('ttd_2')
 
-            # Simpan data terbaru ke session state secara permanen untuk PI ini
-            st.session_state.bamp_saved_data[pi_storage_key] = {
+            new_payload = {
                 'lokasi': lokasi_office,
                 'main_date': selected_date,
                 'items': temp_items_storage,
@@ -242,7 +261,17 @@ def tampilkan_bamp(transaksi_list):
                 'ttd_1': t1_final,
                 'ttd_2': t2_final
             }
-            st.success(f"✅ Dokumen BAMP untuk PI [{selected_pi}] beserta logo dan tanda tangan berhasil disimpan permanen!")
+
+            # Simpan ke session state dan sinkronkan ke database MySQL hosting secara permanen
+            st.session_state.bamp_saved_data[pi_storage_key] = new_payload
+            if simpan_parameter_dokumen_to_db(doc_db_key, new_payload):
+                st.toast("✅ Data BAMP berhasil disimpan permanen ke Database MySQL!", icon="💾")
+                st.success(f"✅ Dokumen BAMP untuk PI [{selected_pi}] beserta konfigurasi qty, logo, dan tanda tangan berhasil disimpan permanen!")
+            else:
+                st.error("❌ Gagal menyimpan ke Database MySQL hosting.")
+            
+            import time
+            time.sleep(0.8)
             st.rerun()
 
     # Render HTML Logo & Tanda Tangan dari Data yang Tersimpan di Session State
