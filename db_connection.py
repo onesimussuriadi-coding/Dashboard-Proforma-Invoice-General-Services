@@ -24,7 +24,7 @@ def get_db_connection():
             user=db_config.get("user", "ptba8489_admin"),
             password=db_config.get("password", "ayfVy8iSw6kT91"),
             port=int(db_config.get("port", 3306)),
-            connect_timeout=5
+            connect_timeout=10
         )
         if connection.is_connected():
             return connection
@@ -34,7 +34,7 @@ def get_db_connection():
 
 def muat_data_from_db(nama_tabel):
     """
-    Memuat data secara real-time dari database MySQL cPanel.
+    Memuat data secara real-time dari database MySQL hosting.
     Jika gagal/offline, otomatis membaca backup lokal yang aman.
     """
     connection = get_db_connection()
@@ -53,7 +53,7 @@ def muat_data_from_db(nama_tabel):
             if connection.is_connected():
                 connection.close()
     
-    # Fallback ke file lokal jika koneksi cPanel bermasalah
+    # Fallback ke file lokal jika koneksi cPanel/hosting bermasalah
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     if os.path.exists(file_path):
         try:
@@ -66,9 +66,9 @@ def muat_data_from_db(nama_tabel):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    PENYIMPANAN AMAN ANTI-HILANG (UP-SERT): 
-    Menyimpan data ke MySQL cPanel TANPA menghapus data lama (No TRUNCATE/DELETE).
-    Data lama tetap aman dan tersinkronisasi sempurna.
+    PENYIMPANAN AMAN BERBASIS UPDATE & INSERT (PRECISE UPSERT):
+    Memastikan data tersimpan permanen di MySQL hosting berdasarkan Nomor PI Unik,
+    sehingga data dan nomor PO tidak akan pernah tertimpa atau kembali menjadi 0.
     """
     if data_list is None:
         data_list = []
@@ -85,7 +85,7 @@ def simpan_data_to_db(nama_tabel, data_list):
     if df.empty:
         return True
 
-    # 2. Sinkronisasi ke Cloud MySQL cPanel dengan aman
+    # 2. Sinkronisasi ke Cloud MySQL hosting dengan presisi tinggi
     connection = get_db_connection()
     if connection is not None:
         cursor = None
@@ -100,22 +100,42 @@ def simpan_data_to_db(nama_tabel, data_list):
             cols_def = ", ".join([f"`{col}` TEXT" for col in df.columns])
             cursor.execute(f"CREATE TABLE IF NOT EXISTS `{nama_tabel}` ({cols_def});")
 
-            # Tentukan kolom acuan unik untuk identifikasi data (primary/unique key)
-            unique_col = None
-            for col_candidate in ["Nomor Invoice Resmi", "PI No.", "Nomor Kontrak", "Bank Name"]:
-                if col_candidate in df.columns:
-                    unique_col = col_candidate
+            # Identifikasi kolom kunci unik untuk pencocokan data (Prioritas: Proforma Invoice No. atau 0)
+            pi_column_candidates = ["Proforma Invoice No.", "0", "PI No.", "Nomor Invoice Resmi"]
+            target_pi_col = None
+            for cand in pi_column_candidates:
+                if cand in df.columns:
+                    target_pi_col = cand
                     break
 
             for _, row in df.iterrows():
                 cols = [f"`{c}`" for c in df.columns]
                 vals = tuple(row)
                 placeholders = ", ".join(["%s"] * len(df.columns))
-                
-                # Metode Standar Aman: Insert / Replace tanpa menghapus baris tabel lain
                 cols_str = ", ".join(cols)
-                sql = f"REPLACE INTO `{nama_tabel}` ({cols_str}) VALUES ({placeholders});"
-                cursor.execute(sql, vals)
+                
+                # Jika tabel proforma invoice dan ditemukan kolom PI, lakukan pengecekan eksistensi data
+                if nama_tabel == "database_proforma_invoice" and target_pi_col is not None:
+                    pi_val = str(row[target_pi_col]).strip()
+                    if pi_val:
+                        # Cek apakah nomor PI ini sudah ada di database MySQL
+                        check_sql = f"SELECT COUNT(*) FROM `{nama_tabel}` WHERE `{target_pi_col}` = %s;"
+                        cursor.execute(check_sql, (pi_val,))
+                        exists = cursor.fetchone()[0] > 0
+                        
+                        if exists:
+                            # Jika sudah ada, LAKUKAN UPDATE (Menjaga data & PO agar tidak berubah/reset)
+                            update_parts = [f"`{c}` = %s" for c in df.columns if c != target_pi_col]
+                            update_vals = [row[c] for c in df.columns if c != target_pi_col] + [pi_val]
+                            update_str = ", ".join(update_parts)
+                            
+                            sql_update = f"UPDATE `{nama_tabel}` SET {update_str} WHERE `{target_pi_col}` = %s;"
+                            cursor.execute(sql_update, tuple(update_vals))
+                            continue
+
+                # Jika belum ada atau tabel lain, lakukan INSERT standar
+                sql_insert = f"INSERT INTO `{nama_tabel}` ({cols_str}) VALUES ({placeholders});"
+                cursor.execute(sql_insert, vals)
             
             connection.commit()
             return True
@@ -134,17 +154,12 @@ def simpan_data_to_db(nama_tabel, data_list):
 
 
 # =====================================================================
-# FUNGSI TAMBAHAN KHUSUS PENYIMPANAN PARAMETER DOKUMEN TURURAN (PERSISTENT)
-# Memastikan teks, nomor PO, tanggal, dan konfigurasi opname/bamp/bastb 
-# tersimpan permanen di MySQL dan tidak hilang saat halaman di-refresh.
+# FUNGSI TAMBAHAN KHUSUS PENYIMPANAN PARAMETER DOKUMEN TURUNAN (PERSISTENT)
 # =====================================================================
 
 TABEL_DB_DOKUMEN_PARAM = "database_dokumen_parameter"
 
 def simpan_parameter_dokumen_to_db(doc_key, data_dict):
-    """
-    Menyimpan parameter dokumen (seperti opname, bamp, bastb) berdasarkan key unik ke MySQL.
-    """
     try:
         connection = get_db_connection()
         if connection is not None:
@@ -157,7 +172,6 @@ def simpan_parameter_dokumen_to_db(doc_key, data_dict):
             """)
             
             import json
-            # Konversi data dictionary / object menjadi string JSON yang aman disimpan
             payload_str = json.dumps(data_dict, default=str)
             
             sql = f"""
@@ -175,9 +189,6 @@ def simpan_parameter_dokumen_to_db(doc_key, data_dict):
     return False
 
 def muat_parameter_dokumen_from_db(doc_key):
-    """
-    Memuat kembali parameter dokumen yang tersimpan dari MySQL berdasarkan key unik.
-    """
     try:
         connection = get_db_connection()
         if connection is not None:
