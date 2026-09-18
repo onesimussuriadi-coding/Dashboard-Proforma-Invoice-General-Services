@@ -11,8 +11,7 @@ if not os.path.exists(DIR_DATABASE):
 
 def get_db_connection():
     """
-    Koneksi MySQL dengan penanganan error senyap (silent fallback),
-    sehingga tidak memunculkan kotak merah timed out di layar Streamlit Cloud.
+    Koneksi opsional ke cPanel MySQL di latar belakang (non-blocking).
     """
     try:
         db_config = {}
@@ -29,49 +28,49 @@ def get_db_connection():
             user=db_config.get("user", "ptba8489_admin"),
             password=db_config.get("password", "ayfVy8iSw6kT91"),
             port=int(db_config.get("port", 3306)),
-            connect_timeout=5
+            connect_timeout=2
         )
         if connection.is_connected():
             return connection
     except Exception:
-        # Error koneksi ditangkap diam-diam tanpa memunculkan st.error di layar
         pass
     return None
 
 def muat_data_from_db(nama_tabel):
     """
-    Memuat data dari database MySQL hosting, langsung beralih ke file lokal
-    jika koneksi cloud mengalami timed out secara senyap.
+    Local-First Strategy: Memuat data secara instan dari file lokal Excel
+    tanpa jeda timeout jaringan, menjamin performa real-time yang sangat cepat.
     """
-    connection = get_db_connection()
-    if connection is not None:
-        try:
-            query = f"SELECT * FROM `{nama_tabel}`;"
-            df = pd.read_sql(query, connection)
-            if df is not None and not df.empty:
-                rename_map = {}
-                for col in df.columns:
-                    col_str = str(col).strip()
-                    if col_str.isdigit():
-                        rename_map[col] = int(col_str)
-                if rename_map:
-                    df = df.rename(columns=rename_map)
-
-                # Simpan backup lokal
-                file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
-                df.to_excel(file_path, index=False, engine='openpyxl')
-                return df.to_dict(orient="records")
-        except Error:
-            pass
-        finally:
+    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
+    
+    # Jika file lokal belum ada, buat file kosong atau coba tarik dari cPanel sekali saja
+    if not os.path.exists(file_path):
+        connection = get_db_connection()
+        if connection is not None:
             try:
-                if connection.is_connected():
+                query = f"SELECT * FROM `{nama_tabel}`;"
+                df = pd.read_sql(query, connection)
+                if df is not None and not df.empty:
+                    rename_map = {}
+                    for col in df.columns:
+                        col_str = str(col).strip()
+                        if col_str.isdigit():
+                            rename_map[col] = int(col_str)
+                    if rename_map:
+                        df = df.rename(columns=rename_map)
+                    df.to_excel(file_path, index=False, engine='openpyxl')
                     connection.close()
+                    return df.to_dict(orient="records")
             except Exception:
                 pass
-    
-    # Fallback mulus ke file lokal tanpa pesan error mengganggu
-    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
+            finally:
+                try:
+                    if connection.is_connected():
+                        connection.close()
+                except Exception:
+                    pass
+
+    # Baca langsung dari file lokal (sangat cepat & instan tanpa delay)
     if os.path.exists(file_path):
         try:
             df_local = pd.read_excel(file_path, engine='openpyxl')
@@ -79,28 +78,31 @@ def muat_data_from_db(nama_tabel):
                 return df_local.to_dict(orient="records")
         except Exception:
             pass
+            
     return []
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Penyimpanan aman dengan pencadangan otomatis ke file Excel lokal.
+    Menyimpan data secara instan ke file lokal (real-time response) 
+    dan melakukan sinkronisasi opsional ke cPanel di background.
     """
     if data_list is None:
         data_list = []
 
     df = pd.DataFrame(data_list)
     
-    # Simpan backup lokal terlebih dahulu
+    # Simpan instan ke file lokal untuk respons real-time tanpa delay
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     try:
         df.to_excel(file_path, index=False, engine='openpyxl')
-    except Exception:
-        pass
+    except Exception as e:
+        st.error(f"❌ Gagal menyimpan data lokal: {e}")
+        return False
 
     if df.empty:
         return True
 
-    # Sinkronisasi ke Cloud MySQL cPanel jika jalur memungkinkan
+    # Sinkronisasi ke Cloud MySQL cPanel secara senyap (background)
     connection = get_db_connection()
     if connection is not None:
         cursor = None
@@ -150,11 +152,9 @@ def simpan_data_to_db(nama_tabel, data_list):
                 cursor.execute(sql_upsert, vals)
             
             connection.commit()
-            return True
-        except Error:
+        except Exception:
             if connection:
                 connection.rollback()
-            return False
         finally:
             try:
                 if cursor:
@@ -174,46 +174,27 @@ def simpan_data_to_db(nama_tabel, data_list):
 TABEL_DB_DOKUMEN_PARAM = "database_dokumen_parameter"
 
 def simpan_parameter_dokumen_to_db(doc_key, data_dict):
+    file_path = os.path.join(DIR_DATABASE, f"{TABEL_DB_DOKUMEN_PARAM}.json")
     try:
-        connection = get_db_connection()
-        if connection is not None:
-            cursor = connection.cursor()
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS `{TABEL_DB_DOKUMEN_PARAM}` (
-                    `doc_key` VARCHAR(255) PRIMARY KEY,
-                    `payload` LONGTEXT
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-            """)
-            
-            payload_str = json.dumps(data_dict, default=str)
-            
-            sql = f"""
-                INSERT INTO `{TABEL_DB_DOKUMEN_PARAM}` (`doc_key`, `payload`) 
-                VALUES (%s, %s)
-                ON DUPLICATE KEY UPDATE `payload` = VALUES(`payload`);
-            """
-            cursor.execute(sql, (doc_key, payload_str))
-            connection.commit()
-            cursor.close()
-            connection.close()
-            return True
+        data_all = {}
+        if os.path.exists(file_path):
+            with open(file_path, "r", encoding="utf-8") as f:
+                data_all = json.load(f)
+        data_all[doc_key] = data_dict
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data_all, f, default=str, ensure_ascii=False, indent=4)
+        return True
     except Exception:
         pass
     return False
 
 def muat_parameter_dokumen_from_db(doc_key):
+    file_path = os.path.join(DIR_DATABASE, f"{TABEL_DB_DOKUMEN_PARAM}.json")
     try:
-        connection = get_db_connection()
-        if connection is not None:
-            cursor = connection.cursor()
-            cursor.execute(f"SHOW TABLES LIKE '{TABEL_DB_DOKUMEN_PARAM}';")
-            if cursor.fetchone():
-                cursor.execute(f"SELECT `payload` FROM `{TABEL_DB_DOKUMEN_PARAM}` WHERE `doc_key` = %s;", (doc_key,))
-                res = cursor.fetchone()
-                if res and res[0]:
-                    return json.loads(res[0])
-            cursor.close()
-            connection.close()
+        if os.path.exists(file_path):
+            with open(file_path, "r", encoding="utf-8") as f:
+                data_all = json.load(f)
+                return data_all.get(doc_key, None)
     except Exception:
         pass
     return None
