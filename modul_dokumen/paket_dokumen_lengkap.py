@@ -528,13 +528,8 @@ def tampilkan_paket_lengkap(transaksi_list):
         price = float(m.get('Harga Satuan', 0.0))
         tot_curr = float(m.get('Total Harga', qty_curr * price))
 
-        if idx == 1:
-            qty_po = 18300.0
-        elif idx == 2:
-            qty_po = 9200.0
-        else:
-            qty_po = float(m.get('Qty PO', m.get('Total Qty Kontrak', qty_curr * 7.1)))
-            
+        # PERBAIKAN UTAMA: Membaca Qty PO/CTR secara dinamis dari data transaksi / mutasi terpilih
+        qty_po = float(m.get('Qty PO', m.get('Total Qty Kontrak', qty_curr)))
         tot_po = qty_po * price
 
         qty_prev = 0.0
@@ -1540,7 +1535,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     if ada_barang:
         list_halaman_bundle.append(bastb_html)
 
-    # WCC hanya ditambahkan ke daftar halaman jika wcc_html tidak kosong (artinya khusus kontrak 7207250142)
     if wcc_html.strip():
         list_halaman_bundle.append(wcc_html)
 
