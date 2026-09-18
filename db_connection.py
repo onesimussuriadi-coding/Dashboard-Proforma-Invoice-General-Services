@@ -9,7 +9,7 @@ if not os.path.exists(DIR_DATABASE):
 
 def muat_data_from_db(nama_tabel):
     """
-    Memuat data secara instan, aman, dan real-time dari file Excel lokal server.
+    Memuat data secara instan dari file Excel lokal server Streamlit.
     """
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     if os.path.exists(file_path):
@@ -17,73 +17,80 @@ def muat_data_from_db(nama_tabel):
             df_local = pd.read_excel(file_path, engine='openpyxl')
             if df_local is not None and not df_local.empty:
                 return df_local.to_dict(orient="records")
-        except Exception:
-            pass
+        except Exception as e:
+            st.error(f"Error membaca file lokal: {e}")
     return []
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan dan memperbarui (Update/Upsert) data secara presisi 
-    langsung ke file Excel lokal server.
+    Menyimpan dan memperbarui data secara mutlak ke file Excel lokal server Streamlit,
+    disertai validasi fisik untuk memastikan data benar-benar tertulis.
     """
-    if data_list is None:
-        data_list = []
+    if data_list is None or len(data_list) == 0:
+        st.error("❌ Data kosong, tidak dapat disimpan.")
+        return False
 
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     
     try:
         df_new = pd.DataFrame(data_list)
-        if df_new.empty:
-            return True
 
-        # Jika file lama sudah ada, lakukan pembaruan baris (Update) secara akurat
+        # Jika file lama sudah ada, gabungkan atau perbarui baris secara akurat
         if os.path.exists(file_path):
             try:
                 df_old = pd.read_excel(file_path, engine='openpyxl')
-                if not df_old.empty and not df_new.empty:
-                    # Ambil nama kolom pertama sebagai kunci unik (biasanya Nomor Proforma Invoice)
-                    key_col = df_old.columns[0]
-                    
+                if not df_old.empty:
+                    key_col = df_old.columns[0] # Kolom pertama (Nomor Proforma Invoice)
                     if key_col in df_new.columns:
-                        # Standardisasi nilai kunci ke string untuk pencocokan yang tepat
                         df_old[key_col] = df_old[key_col].astype(str).str.strip()
                         df_new[key_col] = df_new[key_col].astype(str).str.strip()
                         
-                        # Set index untuk memudahkan proses update baris
                         df_old = df_old.set_index(key_col)
                         df_new = df_new.set_index(key_col)
                         
-                        # Timpa data lama dengan data baru yang memiliki key yang sama
+                        # Timpa/update data lama dengan data baru
                         df_old.update(df_new)
-                        
-                        # Gabungkan kembali sisa data baru yang belum ada di data lama
                         df_final = pd.concat([df_new[~df_new.index.isin(df_old.index)], df_old])
                         df_new = df_final.reset_index()
             except Exception as e:
-                print(f"Catatan saat update baris: {e}")
+                st.warning(adi := f"Catatan penyesuaian baris: {e}")
 
-        # Simpan hasil pembaruan mutlak ke file Excel lokal
+        # Tulis fisik ke file Excel server
         df_new.to_excel(file_path, index=False, engine='openpyxl')
-        return True
+        
+        # Validasi fisik: Pastikan file benar-benar ada dan ukurannya valid
+        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+            return True
+        else:
+            st.error("❌ Gagal: File fisik gagal dibuat di server.")
+            return False
+            
     except Exception as e:
         st.error(f"❌ Gagal menyimpan data: {e}")
         return False
 
-def render_download_button_excel(nama_tabel):
+def render_download_button_excel(nama_tabel="database_proforma_invoice"):
     """
-    Tombol unduh file Excel cadangan untuk arsip ke komputer/Google Drive.
+    Menampilkan tombol unduh file Excel secara jelas di antarmuka web,
+    sehingga Bapak bisa mendownload file paling update dari server cloud kapan saja.
     """
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
+    
+    st.markdown("### 📥 Unduh File Excel Server Terbaru")
+    st.info("Gunakan tombol di bawah ini untuk mendownload file Excel yang berisi data paling update langsung dari server cloud Streamlit ke komputer/Google Drive Anda.")
+    
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
             excel_bytes = f.read()
         st.download_button(
-            label=f"📥 Download File Excel Terbaru ({nama_tabel})",
+            label=f"📥 Download {nama_tabel}.xlsx Sekarang",
             data=excel_bytes,
             file_name=f"{nama_tabel}_terbaru.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"download_{nama_tabel}"
+            key=f"download_btn_{nama_tabel}"
         )
+    else:
+        st.warning(f"⚠️ File data untuk tabel '{nama_tabel}' belum ditemukan di server.")
 
 # =====================================================================
 # FUNGSI PARAMETER DOKUMEN BAMP
