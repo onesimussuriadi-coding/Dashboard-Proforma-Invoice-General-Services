@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import json
+import io
 import mysql.connector
 from mysql.connector import Error
 
@@ -38,39 +39,39 @@ def get_db_connection():
 
 def muat_data_from_db(nama_tabel):
     """
-    Local-First Strategy: Memuat data secara instan dari file lokal Excel
-    tanpa jeda timeout jaringan, menjamin performa real-time yang sangat cepat.
+    Memuat data secara instan dan responsif. Mencoba ambil dari cPanel,
+    jika gagal/timeout langsung memuat dari file cadangan lokal server.
     """
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     
-    # Jika file lokal belum ada, buat file kosong atau coba tarik dari cPanel sekali saja
-    if not os.path.exists(file_path):
-        connection = get_db_connection()
-        if connection is not None:
+    # Coba tarik data terbaru dari cPanel MySQL jika memungkinkan
+    connection = get_db_connection()
+    if connection is not None:
+        try:
+            query = f"SELECT * FROM `{nama_tabel}`;"
+            df = pd.read_sql(query, connection)
+            if df is not None and not df.empty:
+                rename_map = {}
+                for col in df.columns:
+                    col_str = str(col).strip()
+                    if col_str.isdigit():
+                        rename_map[col] = int(col_str)
+                if rename_map:
+                    df = df.rename(columns=rename_map)
+                # Perbarui file lokal di server
+                df.to_excel(file_path, index=False, engine='openpyxl')
+                connection.close()
+                return df.to_dict(orient="records")
+        except Exception:
+            pass
+        finally:
             try:
-                query = f"SELECT * FROM `{nama_tabel}`;"
-                df = pd.read_sql(query, connection)
-                if df is not None and not df.empty:
-                    rename_map = {}
-                    for col in df.columns:
-                        col_str = str(col).strip()
-                        if col_str.isdigit():
-                            rename_map[col] = int(col_str)
-                    if rename_map:
-                        df = df.rename(columns=rename_map)
-                    df.to_excel(file_path, index=False, engine='openpyxl')
+                if connection.is_connected():
                     connection.close()
-                    return df.to_dict(orient="records")
             except Exception:
                 pass
-            finally:
-                try:
-                    if connection.is_connected():
-                        connection.close()
-                except Exception:
-                    pass
 
-    # Baca langsung dari file lokal (sangat cepat & instan tanpa delay)
+    # Fallback ke file lokal jika cPanel sedang tidak terjangkau
     if os.path.exists(file_path):
         try:
             df_local = pd.read_excel(file_path, engine='openpyxl')
@@ -83,15 +84,14 @@ def muat_data_from_db(nama_tabel):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan data secara instan ke file lokal (real-time response) 
-    dan melakukan sinkronisasi opsional ke cPanel di background.
+    Menyimpan data ke file lokal server dan melakukan sinkronisasi ke cPanel MySQL.
     """
     if data_list is None:
         data_list = []
 
     df = pd.DataFrame(data_list)
     
-    # Simpan instan ke file lokal untuk respons real-time tanpa delay
+    # Simpan ke file lokal server terlebih dahulu
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     try:
         df.to_excel(file_path, index=False, engine='openpyxl')
@@ -102,7 +102,7 @@ def simpan_data_to_db(nama_tabel, data_list):
     if df.empty:
         return True
 
-    # Sinkronisasi ke Cloud MySQL cPanel secara senyap (background)
+    # Sinkronisasi ke Cloud MySQL cPanel
     connection = get_db_connection()
     if connection is not None:
         cursor = None
@@ -165,6 +165,28 @@ def simpan_data_to_db(nama_tabel, data_list):
                 pass
                 
     return True
+
+
+# =====================================================================
+# FUNGSI PENDUKUNG DOWNLOAD EXCEL UNTUK GOOGLE DRIVE
+# =====================================================================
+
+def render_download_button_excel(nama_tabel):
+    """
+    Menampilkan tombol unduh file Excel langsung di antarmuka Streamlit,
+    sehingga Bapak bisa menyimpan backup terbaru langsung ke Google Drive kapan saja.
+    """
+    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            excel_bytes = f.read()
+        st.download_button(
+            label=f"📥 Download Backup Excel ({nama_tabel})",
+            data=excel_bytes,
+            file_name=f"{nama_tabel}_backup.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"download_{nama_tabel}"
+        )
 
 
 # =====================================================================
