@@ -506,6 +506,10 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
+    # --- PENGAMBILAN DATA OPNAME SECARA LIVE DARI FORMAT MANDIRI OPNAME (SESSION STATE) ---
+    opname_saved_dict = st.session_state.get("opname_saved_data", {}).get(pi_storage_key, {})
+    saved_opname_items = opname_saved_dict.get('items', {})
+
     total_vol_po = 0.0
     total_price_po = 0.0
     total_vol_prev = 0.0
@@ -524,16 +528,23 @@ def tampilkan_paket_lengkap(transaksi_list):
         desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
         ket = str(m.get('Keterangan', '')).strip()
         
-        qty_curr = float(m.get('Qty', 1.0))
-        price = float(m.get('Harga Satuan', 0.0))
-        tot_curr = float(m.get('Total Harga', qty_curr * price))
+        # Ambil data dari format mandiri opname jika ada, jika belum ada baru fallback ke transaksi dasar
+        row_mandiri_op = {}
+        if isinstance(saved_opname_items, dict):
+            row_mandiri_op = saved_opname_items.get(idx, saved_opname_items.get(str(idx), {}))
+        elif isinstance(saved_opname_items, list) and (idx - 1) < len(saved_opname_items):
+            row_mandiri_op = saved_opname_items[idx - 1]
 
-        # PERBAIKAN UTAMA: Membaca Qty PO/CTR secara dinamis dari data transaksi / mutasi terpilih
-        qty_po = float(m.get('Qty PO', m.get('Total Qty Kontrak', qty_curr)))
+        # Volume Base on CTR / PO murni dari input mandiri opname (tidak berasumsi atau menghitung sendiri)
+        qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', m.get('Qty PO', m.get('Total Qty Kontrak', float(m.get('Qty', 1.0)) * 1.0)))))
+        price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', m.get('Harga Satuan', 0.0))))
         tot_po = qty_po * price
 
-        qty_prev = 0.0
-        tot_prev = 0.0
+        qty_prev = float(row_mandiri_op.get('qty_prev', row_mandiri_op.get('volume_prev', 0.0)))
+        tot_prev = qty_prev * price
+
+        qty_curr = float(row_mandiri_op.get('qty_curr', row_mandiri_op.get('volume_curr', m.get('Qty', 1.0))))
+        tot_curr = qty_curr * price
 
         qty_cum = qty_prev + qty_curr
         tot_cum = tot_prev + tot_curr
