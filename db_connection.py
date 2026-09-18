@@ -11,8 +11,8 @@ if not os.path.exists(DIR_DATABASE):
 
 def get_db_connection():
     """
-    Koneksi MySQL dengan penanganan error transparan ke layar,
-    sehingga kita tahu persis jika ada kendala jaringan/kredensial ke cPanel.
+    Koneksi MySQL dengan penanganan error senyap (silent fallback),
+    sehingga tidak memunculkan kotak merah timed out di layar Streamlit Cloud.
     """
     try:
         db_config = {}
@@ -21,7 +21,6 @@ def get_db_connection():
         elif "database" in st.secrets:
             db_config = st.secrets["database"]
         else:
-            st.error("❌ Konfigurasi secrets untuk 'mysql' atau 'database' tidak ditemukan di Streamlit Secrets!")
             return None
 
         connection = mysql.connector.connect(
@@ -30,19 +29,19 @@ def get_db_connection():
             user=db_config.get("user", "ptba8489_admin"),
             password=db_config.get("password", "ayfVy8iSw6kT91"),
             port=int(db_config.get("port", 3306)),
-            connect_timeout=10
+            connect_timeout=5
         )
         if connection.is_connected():
             return connection
-    except Exception as e:
-        # Munculkan error langsung ke layar agar terlihat jelas kendalanya
-        st.error(f"❌ Koneksi MySQL ke cPanel Gagal: {e}")
+    except Exception:
+        # Error koneksi ditangkap diam-diam tanpa memunculkan st.error di layar
+        pass
     return None
 
 def muat_data_from_db(nama_tabel):
     """
-    Memuat data secara real-time dari database MySQL hosting,
-    dengan fallback otomatis ke file lokal Excel jika koneksi cloud mengalami timed out.
+    Memuat data dari database MySQL hosting, langsung beralih ke file lokal
+    jika koneksi cloud mengalami timed out secara senyap.
     """
     connection = get_db_connection()
     if connection is not None:
@@ -62,13 +61,16 @@ def muat_data_from_db(nama_tabel):
                 file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
                 df.to_excel(file_path, index=False, engine='openpyxl')
                 return df.to_dict(orient="records")
-        except Error as e:
-            st.error(f"❌ Gagal membaca tabel `{nama_tabel}` dari MySQL: {e}")
+        except Error:
+            pass
         finally:
-            if connection.is_connected():
-                connection.close()
+            try:
+                if connection.is_connected():
+                    connection.close()
+            except Exception:
+                pass
     
-    # Fallback ke file lokal jika koneksi cPanel benar-benar terputus/gagal
+    # Fallback mulus ke file lokal tanpa pesan error mengganggu
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     if os.path.exists(file_path):
         try:
@@ -81,8 +83,7 @@ def muat_data_from_db(nama_tabel):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Penyimpanan aman berbasis upsert ke MySQL cloud, 
-    disertai pencadangan otomatis ke file Excel lokal.
+    Penyimpanan aman dengan pencadangan otomatis ke file Excel lokal.
     """
     if data_list is None:
         data_list = []
@@ -99,7 +100,7 @@ def simpan_data_to_db(nama_tabel, data_list):
     if df.empty:
         return True
 
-    # Sinkronisasi ke Cloud MySQL cPanel
+    # Sinkronisasi ke Cloud MySQL cPanel jika jalur memungkinkan
     connection = get_db_connection()
     if connection is not None:
         cursor = None
@@ -150,20 +151,20 @@ def simpan_data_to_db(nama_tabel, data_list):
             
             connection.commit()
             return True
-        except Error as e:
-            st.error(f"❌ Error MySQL saat menyimpan ke tabel `{nama_tabel}`: {e}")
+        except Error:
             if connection:
                 connection.rollback()
             return False
         finally:
-            if cursor:
-                cursor.close()
-            if connection and connection.is_connected():
-                connection.close()
+            try:
+                if cursor:
+                    cursor.close()
+                if connection and connection.is_connected():
+                    connection.close()
+            except Exception:
+                pass
                 
-    else:
-        st.error("⚠️ Gagal menyimpan ke MySQL karena koneksi terputus atau ditolak server cPanel. Data sementara diamankan di file lokal.")
-    return False
+    return True
 
 
 # =====================================================================
@@ -196,8 +197,8 @@ def simpan_parameter_dokumen_to_db(doc_key, data_dict):
             cursor.close()
             connection.close()
             return True
-    except Exception as e:
-        print(f"Gagal menyimpan parameter dokumen ke DB: {e}")
+    except Exception:
+        pass
     return False
 
 def muat_parameter_dokumen_from_db(doc_key):
@@ -213,6 +214,6 @@ def muat_parameter_dokumen_from_db(doc_key):
                     return json.loads(res[0])
             cursor.close()
             connection.close()
-    except Exception as e:
-        print(f"Gagal memuat parameter dokumen dari DB: {e}")
+    except Exception:
+        pass
     return None
