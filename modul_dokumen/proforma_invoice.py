@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import base64
+import os
 
 def terbilang(n):
     n = int(n)
@@ -38,6 +39,31 @@ def tampilkan_proforma_invoice(transaksi_list):
     if not transaksi_list:
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
+
+    # --- DIREKTORI PENYIMPANAN EXCEL PROFORMA INVOICE ---
+    DIR_DATABASE_PI = os.path.join("database_penyimpanan_aman")
+    if not os.path.exists(DIR_DATABASE_PI):
+        os.makedirs(DIR_DATABASE_PI)
+    EXCEL_FILE_PI = os.path.join(DIR_DATABASE_PI, "database_proforma_invoice_tersimpan.xlsx")
+
+    def muat_database_pi_excel():
+        if os.path.exists(EXCEL_FILE_PI):
+            try:
+                df = pd.read_excel(EXCEL_FILE_PI)
+                if df is not None and not df.empty:
+                    return df.to_dict(orient="records")
+            except:
+                pass
+        return []
+
+    def simpan_database_pi_excel(list_data_rekaman):
+        try:
+            df_save = pd.DataFrame(list_data_rekaman)
+            df_save.to_excel(EXCEL_FILE_PI, index=False)
+            return True
+        except Exception as e:
+            st.error(f"Gagal menyimpan ke Excel: {e}")
+            return False
 
     seen_pi_dd = set()
     unique_pi_list = []
@@ -83,7 +109,7 @@ def tampilkan_proforma_invoice(transaksi_list):
             st.rerun()
 
     with st.form(key=f"form_proforma_save_{pi_storage_key}"):
-        st.markdown(f"**Status Dokumen PI:** `{selected_pi}` siap dikunci.")
+        st.markdown(f"**Status Dokumen PI:** `{selected_pi}` siap dikunci dan disimpan ke database Excel.")
         submit_save_proforma = st.form_submit_button("💾 Simpan & Kunci Proforma Invoice Ini", type="primary")
         if submit_save_proforma:
             ttd_final = uploaded_signature.getvalue() if uploaded_signature is not None else saved_pi_global.get('ttd_bytes')
@@ -92,7 +118,34 @@ def tampilkan_proforma_invoice(transaksi_list):
                 'locked_at': True,
                 'ttd_bytes': ttd_final
             }
-            st.success(f"✅ Proforma Invoice untuk nomor PI [{selected_pi}] beserta tanda tangan berhasil disimpan permanen!")
+
+            # --- PROSES SIMPAN OTOMATIS KE FILE EXCEL HISTORI ---
+            existing_excel_records = muat_database_pi_excel()
+            filtered_existing = [r for r in existing_excel_records if str(r.get('PI No.', '')).strip() != pi_storage_key]
+            
+            waktu_simpan_str = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+            for m in mutasi_terpilih:
+                rekaman_baris = {
+                    "Waktu Simpan": waktu_simpan_str,
+                    "Nomor Kontrak": str(t_data_utama.get('Nomor Kontrak', '')),
+                    "PI No.": pi_storage_key,
+                    "Tanggal PI": str(t_data_utama.get('Tanggal PI', '')),
+                    "Nomor PO": str(t_data_utama.get('Nomor PO', '')),
+                    "Ditujukan Kepada": str(t_data_utama.get('Ditujukan Kepada', '')),
+                    "Kategori": m.get('Kategori', ''),
+                    "Uraian Pekerjaan": m.get('Deskripsi Pekerjaan', ''),
+                    "Qty": float(m.get('Qty', 0.0)),
+                    "Satuan": m.get('Unit', ''),
+                    "Harga Satuan (IDR)": float(m.get('Harga Satuan', 0.0)),
+                    "Percent (%)": float(m.get('Percent', 100.0)),
+                    "Keterangan": m.get('Keterangan', '-')
+                }
+                filtered_existing.append(rekaman_baris)
+
+            if simpan_database_pi_excel(filtered_existing):
+                st.success(f"✅ Proforma Invoice untuk nomor PI [{selected_pi}] berhasil disimpan permanen ke file Excel (`database_proforma_invoice_tersimpan.xlsx`)!")
+            else:
+                st.warning("⚠️ Dokumen terkunci di sesi, tetapi gagal menulis ke file Excel.")
 
     ttd_bytes_active = saved_pi_global.get('ttd_bytes')
     if ttd_bytes_active:
@@ -142,7 +195,6 @@ def tampilkan_proforma_invoice(transaksi_list):
         elif "estimated" in kategori_str or "estimasi" in kategori_str:
             total_item = (qty_val * unit_price * 0.9) * (percent_val / 100.0)
             harga_diskon_val = unit_price * 0.9
-            # Tambahkan catatan diskon tepat di bawah kategori
             kategori_display = f"{kategori_awal}<br><span style='font-size: 8.5px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {unit_price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
         else:
             total_item = (qty_val * unit_price) * (percent_val / 100.0)
