@@ -4,12 +4,56 @@ import os
 import base64
 from datetime import datetime, date
 
-# --- IMPOR FUNGSI DATABASE PERSISTEN ---
-try:
-    from db_connection import simpan_parameter_dokumen_to_db, muat_parameter_dokumen_from_db
-except ImportError:
-    def simpan_parameter_dokumen_to_db(doc_key, data_dict): return False
-    def muat_parameter_dokumen_from_db(doc_key): return None
+# --- PENGATURAN PENYIMPANAN LOKAL EXCEL (OFFLINE MODE) ---
+DIR_DB_LOKAL = os.path.join("database_penyimpanan_aman")
+if not os.path.exists(DIR_DB_LOKAL):
+    os.makedirs(DIR_DB_LOKAL)
+
+PATH_EXCEL_OPNAME = os.path.join(DIR_DB_LOKAL, "database_opname_parameter.xlsx")
+
+def muat_parameter_dokumen_from_db(doc_key):
+    if os.path.exists(PATH_EXCEL_OPNAME):
+        try:
+            df = pd.read_excel(PATH_EXCEL_OPNAME)
+            if "doc_key" in df.columns and "payload" in df.columns:
+                matched = df[df["doc_key"].astype(str).str.strip() == str(doc_key).strip()]
+                if not matched.empty:
+                    import json
+                    val_str = matched.iloc[0]["payload"]
+                    return json.loads(val_str)
+        except Exception as e:
+            return None
+    return None
+
+def simpan_parameter_dokumen_to_db(doc_key, data_dict):
+    try:
+        import json
+        payload_str = json.dumps(data_dict, default=str)
+        
+        if os.path.exists(PATH_EXCEL_OPNAME):
+            df = pd.read_excel(PATH_EXCEL_OPNAME)
+        else:
+            df = pd.DataFrame(columns=["doc_key", "payload", "Update Terakhir"])
+            
+        waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Update atau Append data berdasarkan doc_key
+        if "doc_key" in df.columns:
+            df["doc_key"] = df["doc_key"].astype(str)
+            mask = df["doc_key"] == str(doc_key).strip()
+            if mask.any():
+                df.loc[mask, "payload"] = payload_str
+                df.loc[mask, "Update Terakhir"] = waktu_sekarang
+            else:
+                new_row = pd.DataFrame([{"doc_key": str(doc_key).strip(), "payload": payload_str, "Update Terakhir": waktu_sekarang}])
+                df = pd.concat([df, new_row], ignore_index=True)
+        else:
+            df = pd.DataFrame([{"doc_key": str(doc_key).strip(), "payload": payload_str, "Update Terakhir": waktu_sekarang}])
+            
+        df.to_excel(PATH_EXCEL_OPNAME, index=False)
+        return True
+    except Exception as e:
+        return False
 
 def terbilang(n):
     n = float(n)
@@ -85,15 +129,13 @@ def tampilkan_opname(transaksi_list):
     po_sekarang = str(selected_po).strip()
     opname_storage_key = f"opname_{pi_sekarang}_{po_sekarang}".replace("/", "_")
 
-    # --- INISIALISASI & SINKRONISASI KE MENGAMBIL DARI DATABASE MYSQL ---
+    # --- INISIALISASI & SINKRONISASI KE EXCEL LOKAL ---
     if "opname_saved_data" not in st.session_state:
         st.session_state.opname_saved_data = {}
 
     if opname_storage_key not in st.session_state.opname_saved_data:
-        # Coba muat data permanen dari database MySQL
         db_saved_payload = muat_parameter_dokumen_from_db(opname_storage_key)
         if db_saved_payload:
-            # Konversi string tanggal kembali menjadi objek datetime.date
             if 'tanggal_opname' in db_saved_payload and isinstance(db_saved_payload['tanggal_opname'], str):
                 try:
                     db_saved_payload['tanggal_opname'] = datetime.strptime(db_saved_payload['tanggal_opname'], "%Y-%m-%d").date()
@@ -150,9 +192,8 @@ def tampilkan_opname(transaksi_list):
 
     st.markdown("---")
     
-    # Form interaktif untuk parameter utama dan rincian per baris opname
     with st.form(key=f"form_opname_params_{opname_storage_key}"):
-        st.markdown("#### ⚙️ Pengaturan Parameter & Rincian Baris Opname (Terkunci & Persisten)")
+        st.markdown("#### ⚙️ Pengaturan Parameter & Rincian Baris Opname (Terkunci & Persisten Lokal)")
         
         c_head1, c_head2 = st.columns(2)
         with c_head1:
@@ -216,7 +257,6 @@ def tampilkan_opname(transaksi_list):
                 'ttd_2': saved_global.get('ttd_2')
             }
             
-            # Simpan ke Session State
             st.session_state.opname_saved_data[opname_storage_key] = {
                 'lokasi_office': lokasi_office,
                 'tanggal_opname': selected_date_obj,
@@ -227,9 +267,9 @@ def tampilkan_opname(transaksi_list):
                 'ttd_2': saved_global.get('ttd_2')
             }
             
-            # Simpan secara permanen ke Cloud MySQL
+            # Simpan permanen ke file Excel lokal
             simpan_parameter_dokumen_to_db(opname_storage_key, payload_to_save)
-            st.success("✅ Parameter opname berhasil disimpan dan dikunci secara permanen ke Cloud MySQL!")
+            st.success("✅ Parameter opname berhasil disimpan dan dikunci secara permanen ke file Excel lokal!")
 
     # --- PENGATURAN LOGO ---
     st.markdown("---")
