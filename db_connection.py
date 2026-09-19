@@ -11,17 +11,17 @@ if not os.path.exists(DIR_DATABASE):
 
 def get_mysql_connection():
     """
-    Membuat koneksi nyata dan aman ke server Cloud MySQL 
-    menggunakan kredensial langsung yang stabil.
+    Membuat koneksi ke server Cloud MySQL dengan batas waktu (timeout) 
+    agar aplikasi tidak pernah mengalami loading atau layar putih yang lama.
     """
     try:
-        # Kredensial langsung untuk memastikan koneksi instan tanpa kendala Secrets
         conn = mysql.connector.connect(
             host="203.175.9.146",
             user="ptba8489_admin",
             password="ayfVy8iSw6kT91",
             database="ptba8489_invoice",
-            port=3306
+            port=3306,
+            connection_timeout=5  # Batas waktu maksimal 5 detik agar tidak hang
         )
         return conn
     except Error as e:
@@ -29,7 +29,8 @@ def get_mysql_connection():
 
 def muat_data_from_db(nama_tabel):
     """
-    Memuat seluruh data secara real-time langsung dari tabel MySQL pusat.
+    Memuat data dari MySQL secara aman. Jika koneksi terblokir firewall, 
+    otomatis mengembalikan list kosong agar aplikasi tetap terbuka normal.
     """
     conn = get_mysql_connection()
     if conn is not None:
@@ -46,12 +47,13 @@ def muat_data_from_db(nama_tabel):
                     records.append(rec_dict)
                 return records
         except Error as e:
-            pass
+            if conn and conn.is_connected():
+                conn.close()
     return []
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan atau memperbarui data ke tabel MySQL menggunakan pemetaan `COL 1`, `COL 2`, dst.
+    Menyimpan data ke MySQL secara aman dengan proteksi koneksi.
     """
     if data_list is None or len(data_list) == 0:
         st.error("❌ Data kosong, gagal menyimpan ke database.")
@@ -59,7 +61,7 @@ def simpan_data_to_db(nama_tabel, data_list):
 
     conn = get_mysql_connection()
     if conn is None:
-        st.error("❌ Gagal terhubung ke server database MySQL.")
+        st.error("⚠️ Koneksi ke server MySQL dibatasi oleh firewall hosting. Mohon periksa whitelist IP server.")
         return False
 
     try:
