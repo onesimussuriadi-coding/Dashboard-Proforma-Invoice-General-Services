@@ -236,6 +236,7 @@ def tampilkan_modul_2_rincian(
     for i in range(st.session_state.num_rows):
         default_item_data = loaded_tx_items[i] if loaded_tx_items and i < len(loaded_tx_items) else {}
         
+        # PERBAIKAN KATEGORI & URAIAN DARI DATA TERSIMPAN JIKA ADA
         def_kat_item = str(default_item_data.get("Kategori", "")).strip().upper()
         list_kat = list(base_list_kat)
         if def_kat_item and def_kat_item not in list_kat:
@@ -247,9 +248,10 @@ def tampilkan_modul_2_rincian(
         c_k1, c_k2 = st.columns(2)
         with c_k1:
             idx_kat = 0 if list_kat else 0
+            if def_kat_item in list_kat:
+                idx_kat = list_kat.index(def_kat_item)
             kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}", disabled=is_management)
         
-        # PERBAIKAN UTAMA: Deteksi presisi kata provisional / professional untuk provisional sum
         kat_lower = str(kat_pilih).lower()
         is_provisional = "provisional" in kat_lower or "professional" in kat_lower
         is_estimated_sum = "estimated" in kat_lower or "estimasi" in kat_lower
@@ -331,24 +333,37 @@ def tampilkan_modul_2_rincian(
             existing_u_from_master = df_ref["Unit"].dropna().astype(str).unique().tolist() if "Unit" in df_ref.columns else []
             u_opts = sorted(list(set(default_u_opts + existing_u_from_master)))
             
-            def_unit = unit_otomatis if not is_provisional and str(default_item_data.get("Kategori", "")).strip().upper() != str(kat_pilih).strip().upper() else str(default_item_data.get("Unit", "AU" if is_provisional else unit_otomatis))
+            def_unit = str(default_item_data.get("Unit", unit_otomatis if not is_provisional else "AU"))
             if def_unit not in u_opts and def_unit:
                 u_opts.insert(0, def_unit)
             idx_u = u_opts.index(def_unit) if def_unit in u_opts else 0
             u_val = st.selectbox(f"Unit {i+1}", u_opts, index=idx_u, key=f"unit_{i}", disabled=is_management)
+
         with c_item3:
+            # PULL TANGGAL MULAI TERSIMPAN (TIDAK MERESET KE HARI INI)
             def_tm_str = str(default_item_data.get("Tanggal Mulai", ""))
             try:
-                def_tm = datetime.strptime(def_tm_str, "%d %b %Y").date()
+                # Coba parse berbagai format tanggal (mendukung string bersih atau format lama dengan waktu)
+                clean_tm_str = def_tm_str.split()[0] if def_tm_str else ""
+                def_tm = datetime.strptime(clean_tm_str, "%Y-%m-%d").date()
             except:
-                def_tm = date.today()
+                try:
+                    def_tm = datetime.strptime(clean_tm_str, "%d %b %Y").date()
+                except:
+                    def_tm = date.today()
             tm_val = st.date_input(f"Tanggal Mulai {i+1}", value=def_tm, key=f"tm_{i}", disabled=is_management)
+
         with c_item4:
+            # PULL TANGGAL SELESAI TERSIMPAN (TIDAK MERESET KE HARI INI)
             def_ts_str = str(default_item_data.get("Tanggal Selesai", ""))
             try:
-                def_ts = datetime.strptime(def_ts_str, "%d %b %Y").date()
+                clean_ts_str = def_ts_str.split()[0] if def_ts_str else ""
+                def_ts = datetime.strptime(clean_ts_str, "%Y-%m-%d").date()
             except:
-                def_ts = date.today()
+                try:
+                    def_ts = datetime.strptime(clean_ts_str, "%d %b %Y").date()
+                except:
+                    def_ts = date.today()
             ts_val = st.date_input(f"Tanggal Selesai {i+1}", value=def_ts, key=f"ts_{i}", disabled=is_management)
 
         if is_provisional:
@@ -359,11 +374,19 @@ def tampilkan_modul_2_rincian(
             hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i+1} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}", disabled=is_management)
             hs_final = hs_manual
         else:
-            hs_final = hs_otomatis
+            # AMBIL HARGA DARI DATA TERSIMPAN JIKA KATEGORI & SPESIFIKASI SAMA, ATAU DARI MASTER
+            try:
+                def_saved_hs = float(default_item_data.get("Harga Satuan", 0.0) or 0.0)
+            except:
+                def_saved_hs = 0.0
+            
+            if def_saved_hs > 0 and str(default_item_data.get("Deskripsi Pekerjaan", "")).strip() == str(spek_pilih).strip():
+                hs_final = def_saved_hs
+            else:
+                hs_final = hs_otomatis
 
         formatted_hs = f"Rp {hs_final:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
-        # RUMUS KALKULASI: Provisional Sum (+15% fee), Estimated Sum (-10% diskon)
         if is_provisional:
             calc_total = (q_val * hs_final * 1.15) * (persen_val / 100.0)
         elif is_estimated_sum:
@@ -396,8 +419,9 @@ def tampilkan_modul_2_rincian(
             "deskripsi": spek_pilih,
             "qty": q_val,
             "unit": u_val,
-            "tgl_mulai": tm_val.strftime("%d %b %Y"),
-            "tgl_selesai": ts_val.strftime("%d %b %Y"),
+            # FORMAT TANGGAL DISIMPAN MURNI TANPA JAM (YYYY-MM-DD)
+            "tgl_mulai": tm_val.strftime("%Y-%m-%d"),
+            "tgl_selesai": ts_val.strftime("%Y-%m-%d"),
             "harga_satuan": hs_final,
             "keterangan": ket_val,
             "is_provisional": is_provisional,
