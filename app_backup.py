@@ -177,7 +177,6 @@ def muat_data_invoice():
             normalized_records.append(new_rec)
         st.session_state["db_tersimpan"] = normalized_records
         return normalized_records
-    # PENGAMAN (FALLBACK): Jika DB kosong/timeout sesaat, kembalikan data yang sudah ada di session state agar tidak tertimpa kosong
     return st.session_state.get("db_tersimpan", [])
 
 def simpan_data_invoice(data_list):
@@ -204,7 +203,6 @@ def muat_data_transaksi():
     if db_data:
         st.session_state["db_transaksi"] = db_data
         return db_data
-    # PENGAMAN (FALLBACK)
     return st.session_state.get("db_transaksi", [])
 
 def simpan_data_transaksi(data_list):
@@ -230,7 +228,6 @@ def muat_master_referensi():
     if db_data:
         st.session_state["db_master_ref"] = db_data
         return db_data
-    # PENGAMAN (FALLBACK)
     return st.session_state.get("db_master_ref", [])
 
 def simpan_master_referensi(data_list):
@@ -253,7 +250,6 @@ def muat_master_bank():
     if db_data:
         st.session_state["db_master_bank"] = db_data
         return db_data
-    # PENGAMAN (FALLBACK)
     return st.session_state.get("db_master_bank", default_banks)
 
 def simpan_master_bank(data_list):
@@ -277,7 +273,6 @@ if form_login_sistem():
 
     user_role = str(st.session_state.get('current_role', 'Staff')).strip().lower()
     
-    # Penanda khusus hak akses
     is_management = user_role in ["management", "direksi"]
     is_finance_tax = user_role in ["finance & tax", "finance", "tax"]
     is_project_manager = user_role in ["project manager", "pm"]
@@ -285,11 +280,9 @@ if form_login_sistem():
     is_admin_support = user_role in ["admin support"]
     is_super_admin = user_role in ["super admin", "admin"]
 
-    # Injeksi session state global untuk izin modul privat arsip dokumen
     is_privileged_role = is_super_admin or is_finance_tax or is_project_manager or is_management
     st.session_state["is_privileged_role"] = is_privileged_role
 
-    # Styling CSS UI Rapi & Tegas
     st.markdown("""
         <style>
         .stApp { background-color: #f8fafc; color: #0f172a; font-size: 15px !important; }
@@ -309,7 +302,6 @@ if form_login_sistem():
         </div>
     """, unsafe_allow_html=True)
 
-    # --- SIDEBAR NAVIGASI BERDASARKAN ROLE KREDENSIAL ---
     st.sidebar.markdown("### 🗂️ Navigasi Dashboard Utama")
     st.sidebar.markdown(f"🕒 **Waktu Sistem (WITA):**<br>`{(datetime.utcnow() + timedelta(hours=8)).strftime('%d %b %Y, %H:%M:%S')}`", unsafe_allow_html=True)
     st.sidebar.markdown("---")
@@ -347,7 +339,6 @@ if form_login_sistem():
     if is_super_admin:
         daftar_modul_tersedia.append("⚙️ Manajemen Akun & Hak Akses")
 
-    # --- SINKRONISASI URL QUERY PARAMS UNTUK MODUL UTAMA ---
     url_modul = st.query_params.get("modul", None)
     if url_modul and url_modul in daftar_modul_tersedia:
         default_modul_idx = daftar_modul_tersedia.index(url_modul)
@@ -362,7 +353,6 @@ if form_login_sistem():
 
     st.sidebar.markdown("---")
 
-    # --- SINKRONISASI URL QUERY PARAMS UNTUK SUB-MENU ---
     if is_admin_support and modul_pilihan == "Timesheet Peralatan": 
         menu = "Timesheet"
     elif modul_pilihan == "⚙️ Manajemen Akun & Hak Akses":
@@ -478,7 +468,6 @@ if form_login_sistem():
         st.query_params.clear()
         st.rerun()
 
-    # --- BANNER NOTIFIKASI POSISI / PERAN AKTIF ---
     if is_management:
         st.markdown("""
             <div style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
@@ -607,7 +596,6 @@ if form_login_sistem():
                 sel_pi = st.selectbox("Pilih PI:", pi_list)
                 target_tx = [t for t in tx_data if t.get("Nomor Kontrak") == sel_k and t.get("PI No.") == sel_pi]
                 
-                # --- PENYARINGAN DINAMIS OPSI DOKUMEN BERDASARKAN KATEGORI ITEM ---
                 ada_item_jasa = False
                 ada_item_barang = False
 
@@ -619,7 +607,6 @@ if form_login_sistem():
                     else:
                         ada_item_jasa = True
 
-                # Buat daftar dokumen secara dinamis (menyembunyikan BAMP, BASP, WCC jika murni barang)
                 daftar_dokumen_tersedia = ["Rincian Pekerjaan", "Proforma Invoice"]
                 
                 if ada_item_jasa:
