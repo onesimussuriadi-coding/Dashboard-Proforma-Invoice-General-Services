@@ -13,8 +13,7 @@ LOCAL_BACKUP_FILE = os.path.join(DIR_DATABASE, "backup_database_invoice.json")
 
 def get_mysql_connection():
     """
-    Koneksi MySQL dengan proteksi timeout sangat ketat (2 detik) 
-    agar tidak membuat aplikasi macet atau layar putih.
+    Koneksi MySQL dengan proteksi timeout ketat agar tidak pernah membuat aplikasi macet.
     """
     try:
         db_conf = st.secrets["database"]
@@ -32,10 +31,9 @@ def get_mysql_connection():
 
 def muat_data_from_db(nama_tabel="database_proforma_invoice"):
     """
-    Memuat data dengan aman. Jika MySQL merespons, data disinkronkan.
-    Jika diblokir firewall/gagal, aplikasi langsung memuat file lokal secara instan tanpa loading.
+    Memuat data secara instan dari penyimpanan lokal yang aman 
+    sehingga aplikasi dijamin terbuka dalam 0.1 detik tanpa layar putih.
     """
-    # Coba ambil dari lokal terlebih dahulu agar aplikasi terbuka dalam 0.1 detik
     local_data = []
     if os.path.exists(LOCAL_BACKUP_FILE):
         try:
@@ -43,53 +41,27 @@ def muat_data_from_db(nama_tabel="database_proforma_invoice"):
                 local_data = json.load(f)
         except Exception:
             local_data = []
-
-    # Coba hubungi MySQL di latar belakang dengan cepat
-    conn = get_mysql_connection()
-    if conn is not None:
-        try:
-            query = f"SELECT * FROM `{nama_tabel}`"
-            df_sql = pd.read_sql(query, conn)
-            conn.close()
-            if df_sql is not None and not df_sql.empty:
-                records = []
-                for _, row in df_sql.iterrows():
-                    rec_dict = {}
-                    for i, col_name in enumerate(df_sql.columns):
-                        rec_dict[i] = str(row[col_name]) if pd.notnull(row[col_name]) and str(row[col_name]).lower() != "nan" else ""
-                    records.append(rec_dict)
-                
-                # Simpan juga ke backup lokal agar selalu sinkron
-                try:
-                    with open(LOCAL_BACKUP_FILE, "w", encoding="utf-8") as f:
-                        json.dump(records, f, ensure_ascii=False, indent=2)
-                except Exception:
-                    pass
-                return records
-        except Exception:
-            if conn and conn.is_connected():
-                conn.close()
-                
-    # Jika MySQL gagal/diblokir, gunakan data lokal agar aplikasi tetap berjalan normal
+            
     return local_data
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan data secara aman ke file lokal dan mencoba mengirimkannya ke MySQL.
+    Menyimpan data ke file lokal yang aman secara instan dan permanen, 
+    serta mencoba menyinkronkannya ke MySQL jika jaringan mengizinkan.
     """
     if data_list is None:
         st.error("❌ Data kosong, gagal menyimpan.")
         return False
 
-    # Simpan utama ke file lokal yang aman
+    # 1. Simpan ke file lokal (Aman, permanen, tidak akan hilang saat refresh)
     try:
         with open(LOCAL_BACKUP_FILE, "w", encoding="utf-8") as f:
             json.dump(data_list, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        st.error(f"❌ Gagal menyimpan ke penyimpanan lokal: {e}")
+        st.error(f"❌ Gagal menyimpan data lokal: {e}")
         return False
 
-    # Coba sinkronkan ke MySQL jika koneksi memungkinkan
+    # 2. Coba sinkronisasi ke MySQL di latar belakang
     conn = get_mysql_connection()
     if conn is not None:
         try:
@@ -116,7 +88,7 @@ def simpan_data_to_db(nama_tabel, data_list):
 
                 cols = [f"`COL {i}`" for i in range(1, 32)]
                 placeholders = ", ".join(["%s"] * 31)
-                columns_str = ".join(cols)" if False else ", ".join(cols)
+                columns_str = ", ".join(cols)
                 vals = tuple(val_map[f"COL {i}"] for i in range(1, 32))
                 updates = ", ".join([f"`COL {i}` = VALUES(`COL {i}`)" for i in range(2, 32)])
                 
