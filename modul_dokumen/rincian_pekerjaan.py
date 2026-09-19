@@ -141,7 +141,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
             matching_mutasi_to_save = [item for item in transaksi_list if str(item.get('PI No.', '')).strip() == current_pi_no]
             existing_excel_records = muat_database_rincian_excel()
             
-            # Hapus data lama dengan PI yang sama agar tidak duplikat
             filtered_existing = [r for r in existing_excel_records if str(r.get('PI No.', '')).strip() != current_pi_no]
             
             waktu_simpan_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -207,7 +206,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         saved_db_induk = muat_data_invoice()
     except:
         try:
-            import os
             df_induk = pd.read_excel(os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx"))
             saved_db_induk = df_induk.to_dict(orient="records")
         except:
