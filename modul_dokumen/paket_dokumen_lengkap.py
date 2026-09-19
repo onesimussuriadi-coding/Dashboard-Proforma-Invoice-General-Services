@@ -61,7 +61,7 @@ def terbilang(n):
             return helper(num // 1000000000) + " Miliar" + helper(num % 1000000000)
         else:
             return " Angka terlalu besar"
-        
+            
     return helper(n_bulat).strip() + " Rupiah"
 
 def tampilkan_paket_lengkap(transaksi_list):
@@ -125,7 +125,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI) untuk Paket Dokumen:", unique_pi_list, key="bundle_pi_select")
     current_pi_no = str(selected_pi).strip()
     
-    # Ambil PO list untuk sinkronisasi key opname
     transaksi_by_pi = [t for t in transaksi_list if str(t.get('PI No.')).strip() == current_pi_no]
     unique_po_list = []
     for t in transaksi_by_pi:
@@ -137,6 +136,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     
     selected_po_bundle = unique_po_list[0] if unique_po_list else "-"
     opname_storage_key = f"opname_{current_pi_no}_{selected_po_bundle}".replace("/", "_")
+    pi_storage_key = f"pi_{current_pi_no}".replace("/", "_")
 
     file_saved_path = os.path.join(DIR_PAKET_SAVED, f"paket_{current_pi_no.replace('/', '_')}.html")
     
@@ -455,7 +455,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         bastb_th_desc = "SPESIFIKASI BARANG / MATERIAL"
         bastb_th_cond = "KONDISI / KETERANGAN"
 
-    # --- AMBIL DATA PERSIS SAMA DARI OPNAME PEKERJAAN (`opname_saved_data`) ---
+    # --- AMBIL DATA DARI OPNAME PEKERJAAN & SESUAIKAN DENGAN VOLUME AKTUAL BULAN INI ---
     opname_saved_dict = st.session_state.get("opname_saved_data", {}).get(opname_storage_key, {})
     saved_opname_items = opname_saved_dict.get('items', {})
 
@@ -472,7 +472,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         
         active_item_data = saved_opname_items.get(idx, {})
         
-        # MENGGUNAKAN KEY 'po_vol' DAN 'unit_price' PERSIS SEPERTI DI OPNAME PEKERJAAN
         default_contract_qty = float(m.get('Qty', 1.0))
         is_prov_sum = "provisional" in kategori_m.lower() or "professional" in kategori_m.lower()
         is_est_sum = "estimated" in kategori_m.lower() or "estimasi" in kategori_m.lower()
@@ -480,13 +479,17 @@ def tampilkan_paket_lengkap(transaksi_list):
         raw_hs = float(m.get('Harga Satuan', 0.0))
         default_price = raw_hs * 1.15 if is_prov_sum else raw_hs
 
-        po_vol = float(active_item_data.get('po_vol', default_contract_qty))
         unit_price = float(active_item_data.get('unit_price', default_price))
         
+        # PERBAIKAN: Mengambil Volume Aktual Bulan Ini (current_vol) sebagai Qty utama tagihan Master Bundle
+        current_vol = float(active_item_data.get('current_vol', default_contract_qty))
+        if current_vol <= 0:
+            current_vol = default_contract_qty
+
         if is_est_sum:
-            tot = (po_vol * unit_price * 0.9) * (percent_val / 100.0)
+            tot = (current_vol * unit_price * 0.9) * (percent_val / 100.0)
         else:
-            tot = po_vol * unit_price * (percent_val / 100.0)
+            tot = current_vol * unit_price * (percent_val / 100.0)
             
         grand_total += tot
 
@@ -506,7 +509,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: center; width: 4%;">{idx}</td>
                 <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 14%;">{kat_display}</td>
                 <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 23%;">{deskripsi_m}</td>
-                <td style="text-align: center; width: 6%;">{po_vol:,.2f}</td>
+                <td style="text-align: center; width: 6%;">{current_vol:,.2f}</td>
                 <td style="text-align: center; width: 4%;">{unit}</td>
                 <td style="text-align: center; width: 6%;">{tgl_mulai_item}</td>
                 <td style="text-align: center; width: 6%;">{tgl_selesai_item}</td>
@@ -529,14 +532,14 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: center; width: 6%;">{idx}</td>
                 <td style="text-align: left; padding-left: 6px; width: 46%;">{desc_full_pi}</td>
-                <td style="text-align: center; width: 7%;">{po_vol:,.2f}</td>
+                <td style="text-align: center; width: 7%;">{current_vol:,.2f}</td>
                 <td style="text-align: center; width: 8%;">{unit}</td>
                 <td style="text-align: right; padding-right: 6px; width: 16%;">{unit_price:,.2f}</td>
                 <td style="text-align: right; padding-right: 6px; width: 17%;">{tot:,.0f}</td>
             </tr>
         """
 
-    # --- OPNAME PEKERJAAN DI MASTER BUNDLE (DISAMAKAN PERSIS 100%) ---
+    # --- OPNAME PEKERJAAN DI MASTER BUNDLE ---
     sum_po_vol_tot = 0.0
     sum_base_price = 0.0
     sum_prev_vol_tot = 0.0
@@ -565,9 +568,13 @@ def tampilkan_paket_lengkap(transaksi_list):
         default_price = raw_hs * 1.15 if is_prov_sum else raw_hs
 
         po_vol = float(active_item_data.get('po_vol', default_contract_qty))
+        if po_vol <= 0: po_vol = default_contract_qty
+
         unit_price = float(active_item_data.get('unit_price', default_price))
         prev_vol = float(active_item_data.get('prev_vol', 0.0))
+        
         current_vol = float(active_item_data.get('current_vol', default_contract_qty))
+        if current_vol <= 0: current_vol = default_contract_qty
 
         if is_est_sum:
             base_price = (po_vol * unit_price * 0.9) * (percent_val / 100.0)
@@ -1329,17 +1336,17 @@ def tampilkan_paket_lengkap(transaksi_list):
                 {opname_rows_html}
                 <tr style="font-weight: bold; background: #f9fafb;">
                     <td colspan="3" style="text-align: right; padding-right: 6px;">TOTAL :</td>
-                    <td style="text-align: center; white-space: nowrap;">{sum_po_vol_tot:,.2f}</td>
-                    <td style="white-space: nowrap;">-</td>
-                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{sum_base_price:,.2f}</td>
-                    <td style="text-align: center; white-space: nowrap;">{sum_prev_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{sum_prev_tot:,.2f}</td>
-                    <td style="text-align: center; white-space: nowrap;">{sum_curr_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{sum_curr_tot:,.2f}</td>
-                    <td style="text-align: center; white-space: nowrap;">{sum_cum_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{sum_cum_tot:,.2f}</td>
-                    <td style="text-align: center; white-space: nowrap;">{sum_sisa_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{sum_sisa_tot:,.2f}</td>
+                    <td>{sum_po_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 6px;">-</td>
+                    <td style="text-align: right; padding-right: 6px;">{sum_base_price:,.2f}</td>
+                    <td>{sum_prev_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 6px;">{sum_prev_tot:,.2f}</td>
+                    <td>{sum_curr_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 6px;">{sum_curr_tot:,.2f}</td>
+                    <td>{sum_cum_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 6px;">{sum_cum_tot:,.2f}</td>
+                    <td>{sum_sisa_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 6px;">{sum_sisa_tot:,.2f}</td>
                 </tr>
             </tbody>
         </table>
