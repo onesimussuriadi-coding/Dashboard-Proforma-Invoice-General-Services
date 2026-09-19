@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import mysql.connector
+from mysql.connector import Error
 import os
 import json
 import io
@@ -10,13 +12,28 @@ if not os.path.exists(DIR_DATABASE):
 LOCAL_BACKUP_FILE = os.path.join(DIR_DATABASE, "backup_database_invoice.json")
 
 def get_mysql_connection():
-    """Dinonaktifkan sementara agar aplikasi berjalan instan tanpa kendala jaringan luar."""
-    return None
+    """
+    Membuat koneksi nyata ke server Cloud MySQL menggunakan konfigurasi 
+    secrets Streamlit dengan proteksi timeout ketat agar aplikasi tidak pernah hang/layar putih.
+    """
+    try:
+        db_conf = st.secrets["database"]
+        conn = mysql.connector.connect(
+            host=db_conf["host"],
+            user=db_conf["user"],
+            password=db_conf["password"],
+            database=db_conf["database"],
+            port=db_conf.get("port", 3306),
+            connection_timeout=3
+        )
+        return conn
+    except Exception as e:
+        return None
 
 def muat_data_from_db(nama_tabel="database_proforma_invoice"):
     """
-    Memuat data dari file lokal dengan pemetaan ganda (indeks angka & nama kolom teks)
-    agar kompatibel penuh dengan seluruh pemanggilan di app.py tanpa ada yang hilang.
+    Memuat data secara real-time dari MySQL jika jaringan memungkinkan, 
+    atau memuat dari backup lokal secara instan agar aplikasi selalu responsif.
     """
     local_data = []
     if os.path.exists(LOCAL_BACKUP_FILE):
@@ -26,7 +43,33 @@ def muat_data_from_db(nama_tabel="database_proforma_invoice"):
         except Exception:
             local_data = []
 
-    # Daftar nama kolom teks sesuai header standar tabel
+    # Coba sinkronisasi ringan dengan MySQL di latar belakang
+    conn = get_mysql_connection()
+    if conn is not None:
+        try:
+            query = f"SELECT * FROM `{nama_tabel}`"
+            df_sql = pd.read_sql(query, conn)
+            conn.close()
+            if df_sql is not None and not df_sql.empty:
+                records = []
+                for _, row in df_sql.iterrows():
+                    rec_dict = {}
+                    for i, col_name in enumerate(df_sql.columns):
+                        rec_dict[i] = str(row[col_name]) if pd.notnull(row[col_name]) and str(row[col_name]).lower() != "nan" else ""
+                    records.append(rec_dict)
+                
+                # Simpan update terbaru ke backup lokal
+                try:
+                    with open(LOCAL_BACKUP_FILE, "w", encoding="utf-8") as f:
+                        json.dump(records, f, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
+                local_data = records
+        except Exception:
+            if conn and conn.is_connected():
+                conn.close()
+
+    # Pemetaan ganda (dual-mapping) agar kompatibel penuh dengan pemanggilan teks & indeks di app.py
     mapping_keys = [
         "Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Lingkup Pekerjaan",
         "Tanggal Kontrak", "Jangka Waktu Kontrak", "Tanggal Performa Invoice", "Judul Kontrak",
@@ -37,15 +80,12 @@ def muat_data_from_db(nama_tabel="database_proforma_invoice"):
         "Prepared by Title", "Approved by 1", "Approved by Title 1", "Approved by 2", "Approved by Title 2"
     ]
 
-    # Lakukan normalisasi agar setiap baris memiliki kunci ganda (indeks & nama teks)
     formatted_data = []
     for item in local_data:
         new_item = {}
         if isinstance(item, dict):
             for i, key_name in enumerate(mapping_keys):
-                # Ambil nilai dari berbagai kemungkinan format key yang lama
                 val = item.get(i, item.get(str(i), item.get(key_name, "")))
-                # Simpan dalam semua format agar app.py pasti menemukannya
                 new_item[i] = val
                 new_item[str(i)] = val
                 new_item[key_name] = val
@@ -55,19 +95,97 @@ def muat_data_from_db(nama_tabel="database_proforma_invoice"):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan data secara permanen dan aman ke penyimpanan lokal aplikasi.
+    Menyimpan atau memperbarui data secara permanen ke file lokal dan server MySQL.
     """
     if data_list is None:
         st.error("❌ Data kosong, gagal menyimpan.")
         return False
 
+    # 1. Simpan ke penyimpanan lokal yang aman
     try:
         with open(LOCAL_BACKUP_FILE, "w", encoding="utf-8") as f:
             json.dump(data_list, f, ensure_ascii=False, indent=2)
-        return True
     except Exception as e:
-        st.error(f"❌ Gagal menyimpan data: {e}")
+        st.error(f"❌ Gagal menyimpan file lokal: {e}")
         return False
+
+    # 2. Sinkronisasi ke MySQL pusat
+    conn = get_mysql_connection()
+    if conn is not None:
+        try:
+            cursor = conn.cursor()
+            for item in data_list:
+                val_map = {}
+                for idx in range(1, 32):
+                    val = ""
+                    if isinstance(item, dict):
+                        val = item.get(idx - 1, item.get(str(idx - 1), ""))
+                        if not val:
+                            mapping_keys = [
+                                "Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Lingkup Pekerjaan",
+                                "Tanggal Kontrak", "Jangka Waktu Kontrak", "Tanggal Performa Invoice", "Judul Kontrak",
+                                "Nomor Purchase Order", "Tanggal Purchase Order", "Pihak Pertama", "Alamat Pihak Pertama",
+                                "Diwakili Oleh", "Selaku", "Pihak Kedua", "Alamat Pihak Kedua", "Diwakili Oleh (P2)",
+                                "Selaku (P2)", "Periode Pekerjaan", "Nomor WCC", "Tanggal WCC", "Nomor WO",
+                                "Keterangan WO", "Nomor CTR", "Progress Pekerjaan", "Prepared by Name",
+                                "Prepared by Title", "Approved by 1", "Approved by Title 1", "Approved by 2", "Approved by Title 2"
+                            ]
+                            if (idx - 1) < len(mapping_keys):
+                                val = item.get(mapping_keys[idx - 1], "")
+                    val_map[f"COL {idx}"] = str(val) if val is not None and str(val).strip().lower() != "nan" else ""
+
+                cols = [f"`COL {i}`" for i in range(1, 32)]
+                placeholders = ", ".join(["%s"] * 31)
+                columns_str = ", ".join(cols)
+                vals = tuple(val_map[f"COL {i}"] for i in range(1, 32))
+                updates = ", ".join([f"`COL {i}` = VALUES(`COL {i}`)" for i in range(2, 32)])
+                
+                query = f"""
+                    INSERT INTO `{nama_tabel}` ({columns_str}) 
+                    VALUES ({placeholders})
+                    ON DUPLICATE KEY UPDATE {updates}
+                """
+                cursor.execute(query, vals)
+            conn.commit()
+            cursor.close()
+            conn.close()
+        except Exception:
+            if conn and conn.is_connected():
+                conn.close()
+
+    return True
+
+def render_pilihan_panggil_ulang(nama_tabel="database_proforma_invoice"):
+    """
+    Merender widget interaktif untuk fitur panggil ulang berdasarkan 
+    Nomor Kontrak dan Nomor Proforma Invoice di antarmuka aplikasi.
+    """
+    data = muat_data_from_db(nama_tabel)
+    if not data:
+        st.info("📌 Belum ada data database tersimpan di folder aman.")
+        return None
+
+    st.markdown("### 🔍 Panggil Ulang Berdasarkan Nomor Kontrak & Nomor PI")
+    
+    # Ambil daftar unik Nomor Kontrak dan Nomor Proforma Invoice
+    list_kontrak = sorted(list(set([str(item.get("Nomor Kontrak", item.get(1, ""))) for item in data if item.get("Nomor Kontrak", item.get(1, "")) ])))
+    
+    selected_kontrak = st.selectbox("Pilih Nomor Kontrak:", ["-- Pilih Nomor Kontrak --"] + list_kontrak, key="select_panggil_kontrak")
+    
+    selected_record = None
+    if selected_kontrak != "-- Pilih Nomor Kontrak --":
+        filtered_data = [item for item in data if str(item.get("Nomor Kontrak", item.get(1, ""))) == selected_kontrak]
+        list_pi = [str(item.get("Proforma Invoice No.", item.get(0, ""))) for item in filtered_data]
+        
+        selected_pi = st.selectbox("Pilih Proforma Invoice (PI) No.:", ["-- Pilih Nomor PI --"] + list_pi, key="select_panggil_pi")
+        
+        if selected_pi != "-- Pilih Nomor PI --":
+            match_list = [item for item in filtered_data if str(item.get("Proforma Invoice No.", item.get(0, ""))) == selected_pi]
+            if match_list:
+                selected_record = match_list[0]
+                st.success(f"✅ Data berhasil dipanggil ulang untuk Kontrak: {selected_kontrak} | PI: {selected_pi}")
+
+    return selected_record
 
 def render_download_button_excel(nama_tabel="database_proforma_invoice"):
     data = muat_data_from_db(nama_tabel)
