@@ -9,12 +9,11 @@ import io
 DIR_DATABASE = "database_penyimpanan_aman"
 if not os.path.exists(DIR_DATABASE):
     os.makedirs(DIR_DATABASE)
-LOCAL_BACKUP_FILE = os.path.join(DIR_DATABASE, "backup_database_invoice.json")
 
 def get_mysql_connection():
     """
     Membuat koneksi nyata ke server Cloud MySQL menggunakan konfigurasi 
-    secrets Streamlit dengan proteksi timeout ketat agar aplikasi tidak pernah hang/layar putih.
+    secrets Streamlit dengan proteksi timeout ketat.
     """
     try:
         db_conf = st.secrets["database"]
@@ -32,13 +31,22 @@ def get_mysql_connection():
 
 def muat_data_from_db(nama_tabel="database_proforma_invoice"):
     """
-    Memuat data secara real-time dari MySQL jika jaringan memungkinkan, 
-    atau memuat dari backup lokal secara instan agar aplikasi selalu responsif.
+    Memuat data dari penyimpanan lokal berdasarkan nama tabel yang diminta,
+    dengan fallback otomatis ke file cadangan umum agar data tidak pernah kosong.
     """
+    local_backup_file = os.path.join(DIR_DATABASE, f"backup_{nama_tabel}.json")
+    general_backup_file = os.path.join(DIR_DATABASE, "backup_database_invoice.json")
+    
     local_data = []
-    if os.path.exists(LOCAL_BACKUP_FILE):
+    if os.path.exists(local_backup_file):
         try:
-            with open(LOCAL_BACKUP_FILE, "r", encoding="utf-8") as f:
+            with open(local_backup_file, "r", encoding="utf-8") as f:
+                local_data = json.load(f)
+        except Exception:
+            local_data = []
+    elif os.path.exists(general_backup_file):
+        try:
+            with open(general_backup_file, "r", encoding="utf-8") as f:
                 local_data = json.load(f)
         except Exception:
             local_data = []
@@ -58,9 +66,8 @@ def muat_data_from_db(nama_tabel="database_proforma_invoice"):
                         rec_dict[i] = str(row[col_name]) if pd.notnull(row[col_name]) and str(row[col_name]).lower() != "nan" else ""
                     records.append(rec_dict)
                 
-                # Simpan update terbaru ke backup lokal
                 try:
-                    with open(LOCAL_BACKUP_FILE, "w", encoding="utf-8") as f:
+                    with open(local_backup_file, "w", encoding="utf-8") as f:
                         json.dump(records, f, ensure_ascii=False, indent=2)
                 except Exception:
                     pass
@@ -69,7 +76,6 @@ def muat_data_from_db(nama_tabel="database_proforma_invoice"):
             if conn and conn.is_connected():
                 conn.close()
 
-    # Pemetaan ganda (dual-mapping) agar kompatibel penuh dengan pemanggilan teks & indeks di app.py
     mapping_keys = [
         "Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Lingkup Pekerjaan",
         "Tanggal Kontrak", "Jangka Waktu Kontrak", "Tanggal Performa Invoice", "Judul Kontrak",
@@ -95,15 +101,20 @@ def muat_data_from_db(nama_tabel="database_proforma_invoice"):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan atau memperbarui data secara permanen ke file lokal dan server MySQL.
+    Menyimpan atau memperbarui data secara permanen ke file lokal spesifik tabel dan server MySQL.
     """
     if data_list is None:
         st.error("❌ Data kosong, gagal menyimpan.")
         return False
 
-    # 1. Simpan ke penyimpanan lokal yang aman
+    local_backup_file = os.path.join(DIR_DATABASE, f"backup_{nama_tabel}.json")
+    general_backup_file = os.path.join(DIR_DATABASE, "backup_database_invoice.json")
+
+    # 1. Simpan ke penyimpanan lokal
     try:
-        with open(LOCAL_BACKUP_FILE, "w", encoding="utf-8") as f:
+        with open(local_backup_file, "w", encoding="utf-8") as f:
+            json.dump(data_list, f, ensure_ascii=False, indent=2)
+        with open(general_backup_file, "w", encoding="utf-8") as f:
             json.dump(data_list, f, ensure_ascii=False, indent=2)
     except Exception as e:
         st.error(f"❌ Gagal menyimpan file lokal: {e}")
@@ -167,7 +178,6 @@ def render_pilihan_panggil_ulang(nama_tabel="database_proforma_invoice"):
 
     st.markdown("### 🔍 Panggil Ulang Berdasarkan Nomor Kontrak & Nomor PI")
     
-    # Ambil daftar unik Nomor Kontrak dan Nomor Proforma Invoice
     list_kontrak = sorted(list(set([str(item.get("Nomor Kontrak", item.get(1, ""))) for item in data if item.get("Nomor Kontrak", item.get(1, "")) ])))
     
     selected_kontrak = st.selectbox("Pilih Nomor Kontrak:", ["-- Pilih Nomor Kontrak --"] + list_kontrak, key="select_panggil_kontrak")
