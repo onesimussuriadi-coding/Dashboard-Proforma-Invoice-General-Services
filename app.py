@@ -12,9 +12,11 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 # --- IMPORT KONEKSI DATABASE MYSQL ---
 try:
-    from db_connection import muat_data_from_db, simpan_data_to_db
+    from db_connection import muat_data_from_db, simpan_data_to_db, render_download_button_excel
 except ImportError as e:
     st.error(f"Gagal memuat db_connection: {e}")
+    def render_download_button_excel(nama_tabel="database_proforma_invoice"):
+        pass
 
 # --- IMPORT MODUL INPUT TERPISAH (MODULAR) ---
 try:
@@ -572,6 +574,12 @@ if form_login_sistem():
                 simpan_data_invoice_func=simpan_data_invoice,
                 muat_data_invoice_func=muat_data_invoice
             )
+        
+        # =========================================================================
+        # TAMBAHAN MURNI DI app.py: Render Tombol Download Arsip Excel di Bawah Tabel
+        # =========================================================================
+        if menu == "Lihat Database Tersimpan":
+            render_download_button_excel("database_proforma_invoice")
 
     elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
         if menu == "Input & Proses Rincian Pekerjaan" and (is_management or is_project_manager):
