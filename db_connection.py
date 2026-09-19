@@ -1,107 +1,116 @@
 import streamlit as st
 import pandas as pd
-import os
-import json
+import mysql.connector
+from mysql.connector import Error
 
-DIR_DATABASE = "database_penyimpanan_aman"
-if not os.path.exists(DIR_DATABASE):
-    os.makedirs(DIR_DATABASE)
+def get_mysql_connection():
+    """
+    Membuat koneksi nyata dan aman ke server Cloud MySQL 
+    menggunakan konfigurasi secrets dari Streamlit Cloud.
+    """
+    try:
+        conn = mysql.connector.connect(
+            host=st.secrets["database"]["host"],
+            user=st.secrets["database"]["user"],
+            password=st.secrets["database"]["password"],
+            database=st.secrets["database"]["database"],
+            port=st.secrets["database"].get("port", 3306)
+        )
+        return conn
+    except Error as e:
+        st.error(f"❌ Gagal terhubung ke Database MySQL: {e}")
+        return None
 
 def muat_data_from_db(nama_tabel):
     """
-    Memuat data secara instan dan aman dari file Excel lokal server.
+    Memuat seluruh data secara real-time langsung dari tabel MySQL pusat.
     """
-    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
-    if os.path.exists(file_path):
+    conn = get_mysql_connection()
+    if conn is not None:
         try:
-            df_local = pd.read_excel(file_path, engine='openpyxl')
-            if df_local is not None and not df_local.empty:
-                # Pastikan kolom kunci tidak hilang
-                return df_local.to_dict(orient="records")
-        except Exception:
-            pass
+            query = f"SELECT * FROM `{nama_tabel}`"
+            df_sql = pd.read_sql(query, conn)
+            conn.close()
+            if df_sql is not None and not df_sql.empty:
+                return df_sql.to_dict(orient="records")
+        except Error as e:
+            st.error(f"❌ Gagal membaca tabel {nama_tabel} dari MySQL: {e}")
+        finally:
+            if conn.is_connected():
+                conn.close()
     return []
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan data dengan aman. Menggabungkan data lama dan memperbarui 
-    berdasarkan nomor Proforma Invoice secara akurat tanpa merusak struktur kolom.
+    Menyimpan atau memperbarui data ke tabel MySQL secara permanen dan real-time.
     """
     if data_list is None or len(data_list) == 0:
-        st.error("❌ Data kosong, gagal menyimpan.")
+        st.error("❌ Data kosong, gagal menyimpan ke database.")
         return False
 
-    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
-    
+    conn = get_mysql_connection()
+    if conn is None:
+        return False
+
     try:
+        cursor = conn.cursor()
         df_new = pd.DataFrame(data_list)
+        
         if df_new.empty:
+            conn.close()
             return False
 
-        # Jika file lama ada, lakukan penggabungan/pembaruan baris yang aman
-        if os.path.exists(file_path):
-            try:
-                df_old = pd.read_excel(file_path, engine='openpyxl')
-                if not df_old.empty:
-                    # Ambil kolom pertama sebagai referensi utama (Nomor Proforma Invoice)
-                    key_col = df_old.columns[0]
-                    if key_col in df_new.columns:
-                        # Ubah ke string agar pencocokan akurat
-                        df_old[key_col] = df_old[key_col].astype(str).str.strip()
-                        df_new[key_col] = df_new[key_col].astype(str).str.strip()
-                        
-                        # Buat kamus data baru untuk penggantian
-                        new_dict = {str(row[key_col]): row for _, row in df_new.iterrows()}
-                        
-                        updated_rows = []
-                        existing_keys = set()
-                        
-                        # Timpa baris lama jika kodenya sama
-                        for _, row in df_old.iterrows():
-                            k = str(row[key_col])
-                            if k in new_dict:
-                                updated_rows.append(new_dict[k])
-                                existing_keys.add(k)
-                            else:
-                                updated_rows.append(row)
-                                
-                        # Tambahkan baris baru yang belum ada di data lama
-                        for _, row in df_new.iterrows():
-                            k = str(row[key_col])
-                            if k not in existing_keys:
-                                updated_rows.append(row)
-                                
-                        df_new = pd.DataFrame(updated_rows)
-            except Exception as e:
-                st.warning(f"Catatan penyesuaian: {e}")
+        # Ambil kolom pertama sebagai kunci utama (Primary Key pencocokan, misal: Proforma Invoice No.)
+        key_col = df_new.columns[0]
 
-        # Simpan mutlak ke file Excel lokal
-        df_new.to_excel(file_path, index=False, engine='openpyxl')
+        for _, row in df_new.iterrows():
+            # Konversi semua nilai row menjadi format yang aman untuk SQL
+            cols = [f"`{str(c)}`" for c in df_new.columns]
+            vals = [None if pd.isnull(val) or str(val).strip().lower() == "nan" else str(val) for val in row.values]
+            
+            placeholders = ", ".join(["%s"] * len(vals))
+            columns_str = ", ".join(cols)
+            
+            # Buat klausa ON DUPLICATE KEY UPDATE agar data ter-update otomatis jika sudah ada
+            updates = ", ".join([f"`{col}` = VALUES(`{col}`)" for col in df_new.columns[1:]])
+            
+            query = f"""
+                INSERT INTO `{nama_tabel}` ({columns_str}) 
+                VALUES ({placeholders})
+                ON DUPLICATE KEY UPDATE {updates}
+            """
+            
+            cursor.execute(query, tuple(vals))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
         return True
-    except Exception as e:
-        st.error(f"❌ Gagal menyimpan data: {e}")
+
+    except Error as e:
+        st.error(f"❌ Gagal menyimpan data ke MySQL: {e}")
+        if conn.is_connected():
+            conn.close()
         return False
 
 def render_download_button_excel(nama_tabel="database_proforma_invoice"):
     """
-    Menampilkan tombol unduh file Excel secara jelas di antarmuka web
-    agar Bapak bisa mendownload file arsip terbaru kapan saja.
+    Mengunduh data langsung dalam bentuk file Excel dari data MySQL aktif.
     """
-    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
-    
-    st.markdown("---")
-    st.markdown("### 📥 Unduh File Excel Server Terbaru")
-    st.info("Klik tombol di bawah ini untuk mendownload file Excel berisi data paling update langsung dari server.")
-    
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            excel_bytes = f.read()
+    data = muat_data_from_db(nama_tabel)
+    if data:
+        df_export = pd.DataFrame(data)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_export.to_excel(writer, index=False, sheet_name=nama_tabel)
+        excel_bytes = output.getvalue()
+
+        st.markdown("---")
+        st.markdown("### 📥 Unduh Data Tabel MySQL Terbaru")
         st.download_button(
-            label=f"📥 Download {nama_tabel}.xlsx Sekarang",
+            label=f"📥 Download {nama_tabel}.xlsx",
             data=excel_bytes,
-            file_name=f"{nama_tabel}_terbaru.xlsx",
+            file_name=f"{nama_tabel}_mysql_terbaru.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"download_btn_fixed_{nama_tabel}"
+            key=f"download_btn_mysql_{nama_tabel}"
         )
-    else:
-        st.warning(f"⚠️ File data untuk tabel '{nama_tabel}' belum tersedia.")
