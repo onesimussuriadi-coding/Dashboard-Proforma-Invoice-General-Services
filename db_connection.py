@@ -12,15 +12,16 @@ if not os.path.exists(DIR_DATABASE):
 def get_mysql_connection():
     """
     Membuat koneksi nyata dan aman ke server Cloud MySQL 
-    menggunakan konfigurasi secrets dari Streamlit Cloud.
+    menggunakan kredensial langsung yang stabil.
     """
     try:
+        # Kredensial langsung untuk memastikan koneksi instan tanpa kendala Secrets
         conn = mysql.connector.connect(
-            host=st.secrets["database"]["host"],
-            user=st.secrets["database"]["user"],
-            password=st.secrets["database"]["password"],
-            database=st.secrets["database"]["database"],
-            port=st.secrets["database"].get("port", 3306)
+            host="203.175.9.146",
+            user="ptba8489_admin",
+            password="ayfVy8iSw6kT91",
+            database="ptba8489_invoice",
+            port=3306
         )
         return conn
     except Error as e:
@@ -29,7 +30,6 @@ def get_mysql_connection():
 def muat_data_from_db(nama_tabel):
     """
     Memuat seluruh data secara real-time langsung dari tabel MySQL pusat.
-    Melewati baris pertama jika itu adalah teks header (COL 1, COL 2, dll berisi judul).
     """
     conn = get_mysql_connection()
     if conn is not None:
@@ -38,7 +38,6 @@ def muat_data_from_db(nama_tabel):
             df_sql = pd.read_sql(query, conn)
             conn.close()
             if df_sql is not None and not df_sql.empty:
-                # Konversi kolom menjadi format dictionary berbasis indeks kolom fisik (COL 1, COL 2, dst)
                 records = []
                 for _, row in df_sql.iterrows():
                     rec_dict = {}
@@ -60,6 +59,7 @@ def simpan_data_to_db(nama_tabel, data_list):
 
     conn = get_mysql_connection()
     if conn is None:
+        st.error("❌ Gagal terhubung ke server database MySQL.")
         return False
 
     try:
