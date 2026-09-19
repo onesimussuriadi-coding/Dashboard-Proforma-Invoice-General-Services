@@ -447,7 +447,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         bastb_th_desc = "SPESIFIKASI BARANG / MATERIAL"
         bastb_th_cond = "KONDISI / KETERANGAN"
 
-    # --- AMBIL DATA OPNAME MANDIRI TERLEBIH DAHULU UNTUK DIGUNAKAN DI SEMUA TABEL ---
+    # --- AMBIL DATA OPNAME MANDIRI TERLEBIH DAHULU ---
     opname_saved_dict = st.session_state.get("opname_saved_data", {}).get(pi_storage_key, {})
     saved_opname_items = opname_saved_dict.get('items', {})
 
@@ -460,15 +460,15 @@ def tampilkan_paket_lengkap(transaksi_list):
         desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
         ket = str(m.get('Keterangan', '')).strip()
         
-        # Ambil inputan mandiri opname jika ada
         row_mandiri_op = {}
         if isinstance(saved_opname_items, dict):
             row_mandiri_op = saved_opname_items.get(idx, saved_opname_items.get(str(idx), {}))
         elif isinstance(saved_opname_items, list) and (idx - 1) < len(saved_opname_items):
             row_mandiri_op = saved_opname_items[idx - 1]
 
-        # Prioritaskan volume PO dan Harga Satuan dari inputan mandiri opname
-        qty = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', m.get('Qty PO', m.get('Total Qty Kontrak', m.get('Qty', 1.0))))))
+        # Prioritas mengambil qty dan harga dari inputan mandiri opname
+        default_qty_m = float(m.get('Qty PO', m.get('Total Qty Kontrak', m.get('Qty', 1.0))))
+        qty = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', default_qty_m)))
         price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', m.get('Harga Satuan', 0.0))))
         
         unit = str(m.get('Unit', 'AU'))
@@ -520,7 +520,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
-    # --- PENGAMBILAN DATA OPNAME PEKERJAAN ---
+    # --- TABEL OPNAME PEKERJAAN (BERDASARKAN INPUTAN MANDIRI) ---
     total_vol_po = 0.0
     total_price_po = 0.0
     total_vol_prev = 0.0
@@ -545,10 +545,10 @@ def tampilkan_paket_lengkap(transaksi_list):
         elif isinstance(saved_opname_items, list) and (idx - 1) < len(saved_opname_items):
             row_mandiri_op = saved_opname_items[idx - 1]
 
-        # Wajib mengambil dari inputan mandiri opname terlebih dahulu
         default_qty_m = float(m.get('Qty PO', m.get('Total Qty Kontrak', m.get('Qty', 1.0))))
-        qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', default_qty_m)))
         
+        # Wajib mengambil dari inputan mandiri opname
+        qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', default_qty_m)))
         price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', m.get('Harga Satuan', 0.0))))
         tot_po = qty_po * price
 
@@ -615,12 +615,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         if pk in all_bamp_store and all_bamp_store[pk]:
             bamp_saved_container = all_bamp_store[pk]
             break
-            
-    if not bamp_saved_container and all_bamp_store:
-        for k_store, v_store in all_bamp_store.items():
-            if current_pi_no.lower() in str(k_store).lower() or (no_po and no_po.lower() in str(k_store).lower()):
-                bamp_saved_container = v_store
-                break
 
     saved_bamp_items_map = {}
     if isinstance(bamp_saved_container, dict):
@@ -629,9 +623,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         saved_bamp_items_map = {idx + 1: item for idx, item in enumerate(bamp_saved_container)}
 
     bamp_rows_html = ""
-    target_bamp_items = mutasi_jasa
-
-    for idx, m in enumerate(target_bamp_items, start=1):
+    for idx, m in enumerate(mutasi_jasa, start=1):
         saved_bamp_row = {}
         if isinstance(saved_bamp_items_map, dict):
             saved_bamp_row = saved_bamp_items_map.get(idx, saved_bamp_items_map.get(str(idx), {}))
@@ -707,8 +699,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         
         default_cat = ket_mentah if ket_mentah else "Sesuai dan lengkap diterima."
         row_catatan = str(saved_row.get('catatan', default_cat)).strip()
-        if not row_catatan:
-            row_catatan = "Sesuai dan lengkap diterima."
 
         desc_final_m = f"<b>{kategori_m}</b><br>{deskripsi_m}" if kategori_m else deskripsi_m
 
