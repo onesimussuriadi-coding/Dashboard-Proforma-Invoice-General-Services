@@ -41,6 +41,32 @@ def tampilkan_wcc(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi yang diproses.")
         return
 
+    # --- DIREKTORI PENYIMPANAN AMAN WCC (JSON & EXCEL REKAPITULASI) ---
+    DIR_WCC_SAVED = os.path.join("database_penyimpanan_aman", "wcc_tersimpan")
+    if not os.path.exists(DIR_WCC_SAVED):
+        os.makedirs(DIR_WCC_SAVED)
+    
+    EXCEL_FILE_WCC_REKAP = os.path.join("database_penyimpanan_aman", "database_wcc_tersimpan.xlsx")
+
+    def muat_rekap_excel_wcc():
+        if os.path.exists(EXCEL_FILE_WCC_REKAP):
+            try:
+                df = pd.read_excel(EXCEL_FILE_WCC_REKAP)
+                if df is not None and not df.empty:
+                    return df.to_dict(orient="records")
+            except:
+                pass
+        return []
+
+    def simpan_rekap_excel_wcc(list_data_rekaman):
+        try:
+            df_save = pd.DataFrame(list_data_rekaman)
+            df_save.to_excel(EXCEL_FILE_WCC_REKAP, index=False)
+            return True
+        except Exception as e:
+            st.error(f"Gagal menyimpan rekap WCC ke Excel: {e}")
+            return False
+
     seen_pi_dd = set()
     unique_pi_list = []
     for t in transaksi_list:
@@ -57,6 +83,17 @@ def tampilkan_wcc(transaksi_list):
         selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list, key="wcc_sel_pi")
 
     pi_storage_key = str(selected_pi).strip()
+    wcc_json_path = os.path.join(DIR_WCC_SAVED, f"wcc_{pi_storage_key.replace('/', '_')}.json")
+
+    # --- INISIALISASI & MUAT DATA PERMANEN DARI DISK ---
+    if pi_storage_key not in st.session_state.wcc_saved_data:
+        if os.path.exists(wcc_json_path):
+            try:
+                import json
+                with open(wcc_json_path, "r", encoding="utf-8") as f:
+                    st.session_state.wcc_saved_data[pi_storage_key] = json.load(f)
+            except:
+                pass
 
     if pi_storage_key not in st.session_state.wcc_saved_data:
         st.session_state.wcc_saved_data[pi_storage_key] = {
@@ -114,7 +151,7 @@ def tampilkan_wcc(transaksi_list):
                 st.success("✅ TTD Pihak 3 berhasil dihapus!")
                 st.rerun()
 
-    # Filter mutasi murni berdasarkan PI yang dipilih terlebih dahulu agar variabel data utama siap
+    # Filter mutasi murni berdasarkan PI yang dipilih
     mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.')).strip() == str(selected_pi).strip()]
     if not mutasi_terpilih:
         st.warning("⚠️ Tidak ada item mutasi ditemukan untuk PI ini.")
@@ -192,7 +229,7 @@ def tampilkan_wcc(transaksi_list):
     with st.form(key=f"form_wcc_save_{pi_storage_key}"):
         st.markdown("---")
         lokasi_office = st.text_input("📍 Lokasi Office (Tempat WCC):", value=str(saved_wcc.get('lokasi', "Luwuk")), key=f"wcc_lok_office_{pi_storage_key}")
-        st.markdown(f"**Konfirmasi Dokumen WCC (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi dan menyimpannya agar otomatis terhubung ke Master Bundle.")
+        st.markdown(f"**Konfirmasi Dokumen WCC (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi dan menyimpannya secara permanen.")
         submit_save_wcc = st.form_submit_button("💾 Simpan & Kunci Dokumen WCC Ini", type="primary")
         
         if submit_save_wcc:
@@ -202,7 +239,7 @@ def tampilkan_wcc(transaksi_list):
             t2_final = uploaded_ttd_2.getvalue() if uploaded_ttd_2 is not None else saved_wcc.get('ttd_2')
             t3_final = uploaded_ttd_3.getvalue() if uploaded_ttd_3 is not None else saved_wcc.get('ttd_3')
 
-            # --- SIMPAN SELURUH ATRIBUT WCC SECARA LENGKAP UTK MASTER BUNDLE ---
+            # --- SIMPAN DATA KE SESSION STATE ---
             st.session_state.wcc_saved_data[pi_storage_key] = {
                 'lokasi': lokasi_office,
                 'logo_1': l1_final,
@@ -225,7 +262,41 @@ def tampilkan_wcc(transaksi_list):
                 'final_app_title': final_app_title,
                 'is_same_person': is_same_person
             }
-            st.success(f"✅ Sukses! Dokumen WCC untuk nomor PI [{selected_pi}] berhasil disimpan, dikunci, dan siap ditarik ke dalam Master Bundle.")
+
+            try:
+                import json
+                # Simpan backup JSON individual
+                export_dict = st.session_state.wcc_saved_data[pi_storage_key].copy()
+                # Hapus binary bytes untuk JSON export
+                for k in ['logo_1', 'logo_2', 'ttd_1', 'ttd_2', 'ttd_3']:
+                    export_dict[k] = "EXISTS" if export_dict[k] is not None else None
+                
+                with open(wcc_json_path, "w", encoding="utf-8") as f_json:
+                    json.dump(export_dict, f_json, ensure_ascii=False, indent=4)
+
+                # --- PROSES REKAPITULASI KE EXCEL ---
+                existing_rekap_wcc = muat_rekap_excel_wcc()
+                filtered_rekap_wcc = [r for r in existing_rekap_wcc if str(r.get('PI No.', '')).strip() != pi_storage_key]
+
+                rekaman_wcc_baru = {
+                    "Timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "PI No.": pi_storage_key,
+                    "Nomor Kontrak": nomor_kontrak_str,
+                    "Nomor WCC": wcc_no,
+                    "Nomor WO": wo_no,
+                    "Nomor CTR": ctr_no,
+                    "Judul Pekerjaan": wo_title,
+                    "Tanggal WCC": wcc_date,
+                    "Total Tagihan": grand_total_wcc,
+                    "Terbilang": terbilang_str,
+                    "Lokasi Office": lokasi_office
+                }
+                filtered_rekap_wcc.append(rekaman_wcc_baru)
+                simpan_rekap_excel_wcc(filtered_rekap_wcc)
+
+                st.success(f"✅ Sukses! Dokumen WCC untuk nomor PI [{selected_pi}] berhasil disimpan, dikunci, dan dicadangkan ke database Excel secara permanen.")
+            except Exception as e:
+                st.error(f"Gagal menyimpan permanen WCC: {e}")
 
     active_lokasi = st.session_state.wcc_saved_data[pi_storage_key].get('lokasi', 'Luwuk')
     l1_bytes = st.session_state.wcc_saved_data[pi_storage_key].get('logo_1')
