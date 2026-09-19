@@ -61,7 +61,7 @@ def terbilang(n):
             return helper(num // 1000000000) + " Miliar" + helper(num % 1000000000)
         else:
             return " Angka terlalu besar"
-            
+        
     return helper(n_bulat).strip() + " Rupiah"
 
 def tampilkan_paket_lengkap(transaksi_list):
@@ -534,15 +534,17 @@ def tampilkan_paket_lengkap(transaksi_list):
         elif isinstance(saved_opname_items, list) and (idx - 1) < len(saved_opname_items):
             row_mandiri_op = saved_opname_items[idx - 1]
 
-        # PENGAMBILAN STRICT: Sesuai struktur data form opname mandiri (qty_po / volume_po)
-        qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', float(m.get('Qty PO', m.get('Total Qty Kontrak', 4.0))))))
+        # PERBAIKAN: Mengambil nilai dinamis dari transaksi rincian utama (m.get('Qty')) alih-alih angka statis 4.0
+        default_qty_m = float(m.get('Qty', 1.0))
+
+        qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', float(m.get('Qty PO', m.get('Total Qty Kontrak', default_qty_m))))))
         price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', float(m.get('Harga Satuan', 0.0)))))
         tot_po = qty_po * price
 
         qty_prev = float(row_mandiri_op.get('qty_prev', row_mandiri_op.get('volume_prev', 0.0)))
         tot_prev = qty_prev * price
 
-        qty_curr = float(row_mandiri_op.get('qty_curr', row_mandiri_op.get('volume_curr', float(m.get('Qty', 1.0)))))
+        qty_curr = float(row_mandiri_op.get('qty_curr', row_mandiri_op.get('volume_curr', default_qty_m)))
         tot_curr = qty_curr * price
 
         qty_cum = qty_prev + qty_curr
@@ -1164,7 +1166,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     </table>
     """
 
-    # --- KONTROL FILTER WCC: HANYA TAMPILKAN JIKA NOMOR KONTRAK 7207250142 ---
     wcc_html = ""
     if str(nomor_kontrak).strip() == "7207250142":
         wcc_html = f"""
