@@ -3,21 +3,18 @@ import pandas as pd
 import os
 import json
 
-# --- DIREKTORI ABSOLUT SESUAI GOOGLE DRIVE G ---
-DIR_DATABASE = r"G:/My Drive/PROFORMA INVOICE/Dashboard Proforma Invoice General Services/database_penyimpanan_aman"
+# --- DIREKTORI PENYIMPANAN AMAN DI SERVER HOSTING ---
+DIR_DATABASE = "database_penyimpanan_aman"
 
 if not os.path.exists(DIR_DATABASE):
     try:
         os.makedirs(DIR_DATABASE)
     except Exception:
-        DIR_DATABASE = "database_penyimpanan_aman"
-        if not os.path.exists(DIR_DATABASE):
-            os.makedirs(DIR_DATABASE)
+        pass
 
 def muat_data_from_db(nama_tabel):
     """
-    Memuat data secara instan dan aman dari file Excel lokal server 
-    yang menjamin data tidak hilang saat refresh.
+    Memuat data secara instan dan aman dari file Excel lokal server hosting.
     """
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     if os.path.exists(file_path):
@@ -31,8 +28,8 @@ def muat_data_from_db(nama_tabel):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    [PERMANEN & AMAN] Menyimpan data secara mutlak ke file Excel di folder 
-    penyimpanan aman server. Menggabungkan data lama dan memperbarui baris 
+    [PERMANEN & AMAN DI HOSTING] Menyimpan data secara mutlak ke file Excel di folder 
+    penyimpanan aman server hosting. Menggabungkan data lama dan memperbarui baris 
     berdasarkan Proforma Invoice secara akurat agar data tidak pernah hilang.
     """
     if data_list is None or len(data_list) == 0:
@@ -79,35 +76,37 @@ def simpan_data_to_db(nama_tabel, data_list):
             except Exception as e:
                 st.warning(f"Catatan penyesuaian: {e}")
 
-        # Simpan secara permanen ke file Excel di folder penyimpanan aman Google Drive
+        # Simpan secara fisik dan permanen ke file Excel di server hosting
         df_new.to_excel(file_path, index=False, engine='openpyxl')
         return True
     except Exception as e:
-        st.error(f"❌ Gagal menyimpan data secara permanen: {e}")
+        st.error(f"❌ Gagal menyimpan data ke server hosting: {e}")
         return False
 
 def render_download_button_excel(nama_tabel="database_proforma_invoice"):
     """
-    Menampilkan tombol unduh file Excel dari folder penyimpanan aman 
-    sebagai bukti fisik bahwa data tersimpan permanen di server.
+    Menampilkan tombol unduh file Excel dari folder penyimpanan aman server hosting.
     """
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     
     st.markdown("---")
-    st.markdown("### 📥 Unduh File Excel Server Terbaru (Penyimpanan Aman)")
+    st.markdown("### 📥 Unduh File Excel Server Hosting Terbaru")
     
     if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            excel_bytes = f.read()
-        st.download_button(
-            label=f"📥 Download {nama_tabel}.xlsx Sekarang",
-            data=excel_bytes,
-            file_name=f"{nama_tabel}_terbaru.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"download_btn_fixed_{nama_tabel}"
-        )
+        try:
+            with open(file_path, "rb") as f:
+                excel_bytes = f.read()
+            st.download_button(
+                label=f"📥 Download {nama_tabel}.xlsx Sekarang",
+                data=excel_bytes,
+                file_name=f"{nama_tabel}_terbaru.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"download_btn_hosting_{nama_tabel}"
+            )
+        except Exception as e:
+            st.error(f"❌ Gagal membaca file: {e}")
     else:
-        st.warning(f"⚠️ File data untuk tabel '{nama_tabel}' belum tersedia di folder aman.")
+        st.warning(f"⚠️ File data untuk tabel '{nama_tabel}' belum tersedia di server hosting.")
 
 def render_pilihan_panggil_ulang(nama_tabel="database_proforma_invoice"):
     """
@@ -116,7 +115,7 @@ def render_pilihan_panggil_ulang(nama_tabel="database_proforma_invoice"):
     """
     data = muat_data_from_db(nama_tabel)
     if not data:
-        st.info("📌 Belum ada data database tersimpan di folder aman. Silakan impor atau masukkan data terlebih dahulu.")
+        st.info("📌 Belum ada data database tersimpan di server hosting. Silakan impor atau masukkan data terlebih dahulu.")
         return None
 
     st.markdown("### 🔍 Panggil Ulang Berdasarkan Nomor Kontrak & Nomor PI")
