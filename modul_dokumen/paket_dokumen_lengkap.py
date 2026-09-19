@@ -1306,7 +1306,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         """
 
-    # --- 2. OPNAME PEKERJAAN (LANDSCAPE) DENGAN PERBAIKAN LEBAR KOLOM & RATA KANAN ---
+    # --- 2. OPNAME PEKERJAAN (LANDSCAPE) DENGAN PENAMBAHAN LEBAR TOTAL PRICE (+3 SPASI) & PENGURANGAN VOLUME (-2) / UNIT PRICE (-1) ---
     opname_html = f"""
     <div class="page-break landscape-page">
         {kop_bss_html}
@@ -1325,8 +1325,8 @@ def tampilkan_paket_lengkap(transaksi_list):
             <thead>
                 <tr>
                     <th rowspan="2" style="width: 3.5%;">NO</th>
-                    <th rowspan="2" style="width: 16.5%;">ITEM - DESCRIPTION</th>
-                    <th rowspan="2" style="width: 3.5%;">UOM</th>
+                    <th rowspan="2" style="width: 15.5%;">ITEM - DESCRIPTION</th>
+                    <th rowspan="2" style="width: 3.0%;">UOM</th>
                     <th colspan="3">BASE ON CTR / PO</th>
                     <th colspan="2">PREVIOUS OPNAME (IDR)</th>
                     <th colspan="2">AKTUAL OPNAME (BULAN INI) (IDR)</th>
@@ -1334,17 +1334,17 @@ def tampilkan_paket_lengkap(transaksi_list):
                     <th colspan="2">SISA ANGGARAN (DEVIASI) (IDR)</th>
                 </tr>
                 <tr>
-                    <th style="width: 4%;">VOLUME</th>
-                    <th style="width: 7.5%;">UNIT PRICE</th>
-                    <th style="width: 10.5%;">TOTAL PRICE</th>
-                    <th style="width: 4%;">VOLUME</th>
-                    <th style="width: 10.5%;">TOTAL PRICE</th>
-                    <th style="width: 4%;">VOLUME</th>
-                    <th style="width: 10.5%;">TOTAL PRICE</th>
-                    <th style="width: 4%;">VOLUME</th>
-                    <th style="width: 10.5%;">TOTAL PRICE</th>
-                    <th style="width: 4%;">VOLUME</th>
-                    <th style="width: 10.5%;">TOTAL PRICE</th>
+                    <th style="width: 3.0%;">VOLUME</th>
+                    <th style="width: 6.5%;">UNIT PRICE</th>
+                    <th style="width: 12.5%;">TOTAL PRICE</th>
+                    <th style="width: 3.0%;">VOLUME</th>
+                    <th style="width: 12.5%;">TOTAL PRICE</th>
+                    <th style="width: 3.0%;">VOLUME</th>
+                    <th style="width: 12.5%;">TOTAL PRICE</th>
+                    <th style="width: 3.0%;">VOLUME</th>
+                    <th style="width: 12.5%;">TOTAL PRICE</th>
+                    <th style="width: 3.0%;">VOLUME</th>
+                    <th style="width: 12.5%;">TOTAL PRICE</th>
                 </tr>
             </thead>
             <tbody>
