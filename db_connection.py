@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import mysql.connector
 from mysql.connector import Error
+import os
 import io
 
 DIR_DATABASE = "database_penyimpanan_aman"
@@ -65,15 +66,12 @@ def simpan_data_to_db(nama_tabel, data_list):
         cursor = conn.cursor()
         
         for item in data_list:
-            # Petakan data aplikasi ke format COL 1 s.d COL 31
             val_map = {}
             for idx in range(1, 32):
-                # Ambil data berdasarkan indeks angka atau mapping teks
                 val = ""
                 if isinstance(item, dict):
                     val = item.get(idx - 1, item.get(str(idx - 1), ""))
                     if not val:
-                        # Coba mapping teks jika indeks tidak ditemukan
                         mapping_keys = [
                             "Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Lingkup Pekerjaan",
                             "Tanggal Kontrak", "Jangka Waktu Kontrak", "Tanggal Performa Invoice", "Judul Kontrak",
@@ -93,7 +91,6 @@ def simpan_data_to_db(nama_tabel, data_list):
             columns_str = ", ".join(cols)
             vals = tuple(val_map[f"COL {i}"] for i in range(1, 32))
 
-            # Query Insert / Update berdasarkan COL 1 (Proforma Invoice No.)
             updates = ", ".join([f"`COL {i}` = VALUES(`COL {i}`)" for i in range(2, 32)])
             
             query = f"""
