@@ -124,11 +124,19 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI) untuk Paket Dokumen:", unique_pi_list, key="bundle_pi_select")
     current_pi_no = str(selected_pi).strip()
-    pi_storage_key = f"bundle_{current_pi_no}".replace("/", "_")
-
-    db_bundle_payload = muat_parameter_dokumen_from_db(pi_storage_key)
-    if db_bundle_payload and f"db_loaded_{current_pi_no}" not in st.session_state:
-        st.session_state[f"db_loaded_{current_pi_no}"] = True
+    
+    # Ambil PO list untuk sinkronisasi key opname
+    transaksi_by_pi = [t for t in transaksi_list if str(t.get('PI No.')).strip() == current_pi_no]
+    unique_po_list = []
+    for t in transaksi_by_pi:
+        po_key = str(t.get('Nomor PO', t.get('No PO', ''))).strip()
+        if po_key and po_key not in unique_po_list:
+            unique_po_list.append(po_key)
+    if not unique_po_list:
+        unique_po_list = ["-"]
+    
+    selected_po_bundle = unique_po_list[0] if unique_po_list else "-"
+    opname_storage_key = f"opname_{current_pi_no}_{selected_po_bundle}".replace("/", "_")
 
     file_saved_path = os.path.join(DIR_PAKET_SAVED, f"paket_{current_pi_no.replace('/', '_')}.html")
     
@@ -447,158 +455,166 @@ def tampilkan_paket_lengkap(transaksi_list):
         bastb_th_desc = "SPESIFIKASI BARANG / MATERIAL"
         bastb_th_cond = "KONDISI / KETERANGAN"
 
-    # --- AMBIL DATA OPNAME MANDIRI UNTUK DISAMAKAN PERSIS ---
-    opname_saved_dict = st.session_state.get("opname_saved_data", {}).get(pi_storage_key, {})
+    # --- AMBIL DATA PERSIS SAMA DARI OPNAME PEKERJAAN (`opname_saved_data`) ---
+    opname_saved_dict = st.session_state.get("opname_saved_data", {}).get(opname_storage_key, {})
     saved_opname_items = opname_saved_dict.get('items', {})
 
     grand_total = 0.0
     rincian_rows_html = ""
     pi_rows_html = ""
 
-    for idx, m in enumerate(mutasi_terpilih, start=1):
-        kat = str(m.get('Kategori', '')).strip()
-        desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
-        ket = str(m.get('Keterangan', '')).strip()
-        
-        row_mandiri_op = {}
-        if isinstance(saved_opname_items, dict):
-            row_mandiri_op = saved_opname_items.get(idx, saved_opname_items.get(str(idx), {}))
-        elif isinstance(saved_opname_items, list) and (idx - 1) < len(saved_opname_items):
-            row_mandiri_op = saved_opname_items[idx - 1]
+    percent_val = float(t_data_utama.get('Percent', 100.0))
 
-        # Prioritas mutlak membaca inputan mandiri opname, jika kosong baru pakai data master awal
-        default_qty_m = float(m.get('Qty PO', m.get('Total Qty Kontrak', m.get('Qty', 1.0))))
-        qty = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', row_mandiri_op.get('qty', default_qty_m))))
+    for idx, m in enumerate(mutasi_terpilih, start=1):
+        kategori_m = str(m.get('Kategori', '')).strip()
+        deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
+        ket_m = str(m.get('Keterangan', '')).strip()
         
-        default_price_m = float(m.get('Harga Satuan', 0.0))
-        price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', default_price_m)))
+        active_item_data = saved_opname_items.get(idx, {})
         
-        unit = str(m.get('Unit', 'AU'))
-        tot = qty * price
+        # MENGGUNAKAN KEY 'po_vol' DAN 'unit_price' PERSIS SEPERTI DI OPNAME PEKERJAAN
+        default_contract_qty = float(m.get('Qty', 1.0))
+        is_prov_sum = "provisional" in kategori_m.lower() or "professional" in kategori_m.lower()
+        is_est_sum = "estimated" in kategori_m.lower() or "estimasi" in kategori_m.lower()
+        
+        raw_hs = float(m.get('Harga Satuan', 0.0))
+        default_price = raw_hs * 1.15 if is_prov_sum else raw_hs
+
+        po_vol = float(active_item_data.get('po_vol', default_contract_qty))
+        unit_price = float(active_item_data.get('unit_price', default_price))
+        
+        if is_est_sum:
+            tot = (po_vol * unit_price * 0.9) * (percent_val / 100.0)
+        else:
+            tot = po_vol * unit_price * (percent_val / 100.0)
+            
         grand_total += tot
 
+        unit = str(m.get('Unit', 'AU' if is_prov_sum else 'Day'))
         tgl_mulai_item = str(m.get('Tanggal Mulai', tgl_pi))
         tgl_selesai_item = str(m.get('Tanggal Selesai', tgl_pi))
 
-        kat_lower = kat.lower()
+        kat_lower = kategori_m.lower()
         if "estimated" in kat_lower or "estimasi" in kat_lower:
-            harga_diskon_val = price * 0.9
-            kat_display = f"{kat}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
+            harga_diskon_val = unit_price * 0.9
+            kat_display = f"{kategori_m}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {unit_price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
         else:
-            kat_display = kat
+            kat_display = kategori_m
 
         rincian_rows_html += f"""
             <tr>
                 <td style="text-align: center; width: 4%;">{idx}</td>
                 <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 14%;">{kat_display}</td>
-                <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 23%;">{desc}</td>
-                <td style="text-align: center; width: 6%;">{qty:,.2f}</td>
+                <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 23%;">{deskripsi_m}</td>
+                <td style="text-align: center; width: 6%;">{po_vol:,.2f}</td>
                 <td style="text-align: center; width: 4%;">{unit}</td>
                 <td style="text-align: center; width: 6%;">{tgl_mulai_item}</td>
                 <td style="text-align: center; width: 6%;">{tgl_selesai_item}</td>
-                <td style="text-align: right; padding-right: 6px; width: 8%;">{price:,.0f}</td>
+                <td style="text-align: right; padding-right: 6px; width: 8%;">{unit_price:,.2f}</td>
                 <td style="text-align: right; padding-right: 6px; width: 9%;">{tot:,.0f}</td>
-                <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 20%;">{ket}</td>
+                <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 20%;">{ket_m}</td>
             </tr>
         """
 
         if "estimated" in kat_lower or "estimasi" in kat_lower:
-            harga_diskon_val = price * 0.9
-            desc_full_pi = f"<b>{kat}</b><br><span style='font-size: 8.5px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 2px;'>(Diskon 10% dari harga penawaran Rp {price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span><br>{desc}"
+            harga_diskon_val = unit_price * 0.9
+            desc_full_pi = f"<b>{kategori_m}</b><br><span style='font-size: 8.5px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 2px;'>(Diskon 10% dari harga penawaran Rp {unit_price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span><br>{deskripsi_m}"
         else:
-            desc_full_pi = f"<b>{kat}</b><br>{desc}"
+            desc_full_pi = f"<b>{kategori_m}</b><br>{deskripsi_m}"
             
-        if ket:
-            desc_full_pi += f"<br>{ket}"
+        if ket_m:
+            desc_full_pi += f"<br>{ket_m}"
             
         pi_rows_html += f"""
             <tr>
                 <td style="text-align: center; width: 6%;">{idx}</td>
                 <td style="text-align: left; padding-left: 6px; width: 46%;">{desc_full_pi}</td>
-                <td style="text-align: center; width: 7%;">{qty:,.2f}</td>
+                <td style="text-align: center; width: 7%;">{po_vol:,.2f}</td>
                 <td style="text-align: center; width: 8%;">{unit}</td>
-                <td style="text-align: right; padding-right: 6px; width: 16%;">{price:,.0f}</td>
+                <td style="text-align: right; padding-right: 6px; width: 16%;">{unit_price:,.2f}</td>
                 <td style="text-align: right; padding-right: 6px; width: 17%;">{tot:,.0f}</td>
             </tr>
         """
 
-    # --- PENGAMBILAN DATA OPNAME PEKERJAAN (YANG DITAMPILKAN DI MASTER BUNDLE) ---
-    total_vol_po = 0.0
-    total_price_po = 0.0
-    total_vol_prev = 0.0
-    total_price_prev = 0.0
-    total_vol_curr = 0.0
-    total_price_curr = 0.0
-    total_vol_cum = 0.0
-    total_price_cum = 0.0
-    total_vol_dev = 0.0
-    total_price_dev = 0.0
+    # --- OPNAME PEKERJAAN DI MASTER BUNDLE (DISAMAKAN PERSIS 100%) ---
+    sum_po_vol_tot = 0.0
+    sum_base_price = 0.0
+    sum_prev_vol_tot = 0.0
+    sum_prev_tot = 0.0
+    sum_curr_vol_tot = 0.0
+    sum_curr_tot = 0.0
+    sum_cum_vol_tot = 0.0
+    sum_cum_tot = 0.0
+    sum_sisa_vol_tot = 0.0
+    sum_sisa_tot = 0.0
 
     opname_rows_html = ""
 
     for idx, m in enumerate(mutasi_terpilih, start=1):
-        kat = str(m.get('Kategori', '')).strip()
-        desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
-        ket = str(m.get('Keterangan', '')).strip()
+        kategori_m = str(m.get('Kategori', '')).strip()
+        deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
+        ket_m = str(m.get('Keterangan', '')).strip()
         
-        row_mandiri_op = {}
-        if isinstance(saved_opname_items, dict):
-            row_mandiri_op = saved_opname_items.get(idx, saved_opname_items.get(str(idx), {}))
-        elif isinstance(saved_opname_items, list) and (idx - 1) < len(saved_opname_items):
-            row_mandiri_op = saved_opname_items[idx - 1]
-
-        default_qty_m = float(m.get('Qty PO', m.get('Total Qty Kontrak', m.get('Qty', 1.0))))
+        active_item_data = saved_opname_items.get(idx, {})
         
-        # Wajib mengambil persis sama dengan inputan opname mandiri
-        qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', row_mandiri_op.get('qty', default_qty_m))))
+        default_contract_qty = float(m.get('Qty', 1.0))
+        is_prov_sum = "provisional" in kategori_m.lower() or "professional" in kategori_m.lower()
+        is_est_sum = "estimated" in kategori_m.lower() or "estimasi" in kategori_m.lower()
         
-        default_price_m = float(m.get('Harga Satuan', 0.0))
-        price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', default_price_m)))
-        tot_po = qty_po * price
+        raw_hs = float(m.get('Harga Satuan', 0.0))
+        default_price = raw_hs * 1.15 if is_prov_sum else raw_hs
 
-        qty_prev = float(row_mandiri_op.get('qty_prev', row_mandiri_op.get('volume_prev', 0.0)))
-        tot_prev = qty_prev * price
+        po_vol = float(active_item_data.get('po_vol', default_contract_qty))
+        unit_price = float(active_item_data.get('unit_price', default_price))
+        prev_vol = float(active_item_data.get('prev_vol', 0.0))
+        current_vol = float(active_item_data.get('current_vol', default_contract_qty))
 
-        qty_curr = float(row_mandiri_op.get('qty_curr', row_mandiri_op.get('volume_curr', m.get('Qty', 1.0))))
-        tot_curr = qty_curr * price
+        if is_est_sum:
+            base_price = (po_vol * unit_price * 0.9) * (percent_val / 100.0)
+            prev_tot = (prev_vol * unit_price * 0.9) * (percent_val / 100.0)
+            curr_tot = (current_vol * unit_price * 0.9) * (percent_val / 100.0)
+        else:
+            base_price = po_vol * unit_price * (percent_val / 100.0)
+            prev_tot = prev_vol * unit_price * (percent_val / 100.0)
+            curr_tot = current_vol * unit_price * (percent_val / 100.0)
 
-        qty_cum = qty_prev + qty_curr
-        tot_cum = tot_prev + tot_curr
+        cum_vol = prev_vol + current_vol
+        cum_tot = prev_tot + curr_tot
+        sisa_vol = po_vol - cum_vol
+        sisa_tot = base_price - cum_tot
 
-        qty_dev = qty_po - qty_cum
-        tot_dev = tot_po - tot_cum
+        sum_po_vol_tot += po_vol
+        sum_base_price += base_price
+        sum_prev_vol_tot += prev_vol
+        sum_prev_tot += prev_tot
+        sum_curr_vol_tot += current_vol
+        sum_curr_tot += curr_tot
+        sum_cum_vol_tot += cum_vol
+        sum_cum_tot += cum_tot
+        sum_sisa_vol_tot += sisa_vol
+        sum_sisa_tot += sisa_tot
 
-        total_vol_po += qty_po
-        total_price_po += tot_po
-        total_vol_prev += qty_prev
-        total_price_prev += tot_prev
-        total_vol_curr += qty_curr
-        total_price_curr += tot_curr
-        total_vol_cum += qty_cum
-        total_price_cum += tot_cum
-        total_vol_dev += qty_dev
-        total_price_dev += tot_dev
-
-        desc_full_opname = f"<b>{kat}</b><br>{desc}"
-        if ket:
-            desc_full_opname += f"<br>{ket}"
+        actual_unit = str(m.get('Unit', 'AU' if is_prov_sum else 'Day'))
+        desc_full_opname = f"<b>{kategori_m}</b><br>{deskripsi_m}"
+        if ket_m:
+            desc_full_opname += f"<br><span style='font-size: 8.5px; color: #334155;'>{ket_m}</span>"
         
         opname_rows_html += f"""
             <tr>
-                <td style="text-align: center; padding: 6px 4px;">1.{idx}</td>
-                <td style="text-align: left; padding-left: 6px; padding-top: 6px; padding-bottom: 6px;">{desc_full_opname}</td>
-                <td style="text-align: center;">{str(m.get('Unit', 'AU'))}</td>
-                <td style="text-align: center; white-space: nowrap;">{qty_po:,.2f}</td>
-                <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{price:,.0f}</td>
-                <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{tot_po:,.0f}</td>
-                <td style="text-align: center; white-space: nowrap;">{qty_prev:,.2f}</td>
-                <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{tot_prev:,.0f}</td>
-                <td style="text-align: center; white-space: nowrap;">{qty_curr:,.2f}</td>
-                <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{tot_curr:,.0f}</td>
-                <td style="text-align: center; white-space: nowrap;">{qty_cum:,.2f}</td>
-                <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{tot_cum:,.0f}</td>
-                <td style="text-align: center; white-space: nowrap;">{qty_dev:,.2f}</td>
-                <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{tot_dev:,.0f}</td>
+                <td>1.{idx}</td>
+                <td style="text-align: left; padding-left: 6px;">{desc_full_opname}</td>
+                <td>{actual_unit}</td>
+                <td>{po_vol:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px;">{unit_price:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px;">{base_price:,.2f}</td>
+                <td>{prev_vol:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px;">{prev_tot:,.2f}</td>
+                <td>{current_vol:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px;">{curr_tot:,.2f}</td>
+                <td>{cum_vol:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px;">{cum_tot:,.2f}</td>
+                <td>{sisa_vol:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px;">{sisa_tot:,.2f}</td>
             </tr>
         """
 
@@ -670,7 +686,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
-    bastb_saved_container = st.session_state.get("bastb_saved_data", {}).get(pi_storage_key, {})
+    bastb_saved_container = st.session_state.get("bastb_saved_data", {}).get(opname_storage_key, {})
     saved_items_map = bastb_saved_container.get('items', {})
 
     bastb_rows_html = ""
@@ -1313,24 +1329,24 @@ def tampilkan_paket_lengkap(transaksi_list):
                 {opname_rows_html}
                 <tr style="font-weight: bold; background: #f9fafb;">
                     <td colspan="3" style="text-align: right; padding-right: 6px;">TOTAL :</td>
-                    <td style="text-align: center; white-space: nowrap;">{total_vol_po:,.2f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{sum_po_vol_tot:,.2f}</td>
                     <td style="white-space: nowrap;">-</td>
-                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{total_price_po:,.0f}</td>
-                    <td style="text-align: center; white-space: nowrap;">{total_vol_prev:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{total_price_prev:,.0f}</td>
-                    <td style="text-align: center; white-space: nowrap;">{total_vol_curr:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{total_price_curr:,.0f}</td>
-                    <td style="text-align: center; white-space: nowrap;">{total_vol_cum:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{total_price_cum:,.0f}</td>
-                    <td style="text-align: center; white-space: nowrap;">{total_vol_dev:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{total_price_dev:,.0f}</td>
+                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{sum_base_price:,.2f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{sum_prev_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{sum_prev_tot:,.2f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{sum_curr_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{sum_curr_tot:,.2f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{sum_cum_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{sum_cum_tot:,.2f}</td>
+                    <td style="text-align: center; white-space: nowrap;">{sum_sisa_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 6px; white-space: nowrap;">{sum_sisa_tot:,.2f}</td>
                 </tr>
             </tbody>
         </table>
 
         <div style="font-size: 11px; font-weight: bold; margin-bottom: 20px;">
-            Total Akumulasi Penyerapan (Cumulative Opname): Rp {grand_total:,.0f}<br>
-            Sisa Nilai Anggaran PO (Deviasi): Rp {total_price_dev:,.0f}
+            Total Akumulasi Penyerapan (Cumulative Opname): Rp {sum_cum_tot:,.2f}<br>
+            Sisa Nilai Anggaran PO (Deviasi): Rp {sum_sisa_tot:,.2f}
         </div>
 
         {opname_sig_table_html}
