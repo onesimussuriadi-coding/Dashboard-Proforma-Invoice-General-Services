@@ -61,8 +61,25 @@ def terbilang(n):
             return helper(num // 1000000000) + " Miliar" + helper(num % 1000000000)
         else:
             return " Angka terlalu besar"
-            
+          
     return helper(n_bulat).strip() + " Rupiah"
+
+# FUNGSI KONSISTEN FORMAT TANGGAL INDONESIA (DD MMM YYYY)
+def format_tanggal_indo_konsisten(tanggal_val):
+    if not tanggal_val or str(tanggal_val).strip() in ["-", "nan", "None", ""]:
+        return "-"
+    clean_str = str(tanggal_val).strip().split()[0]
+    bulan_indo_map = {
+        1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr", 5: "Mei", 6: "Jun",
+        7: "Jul", 8: "Aug", 9: "Sep", 10: "Okt", 11: "Nov", 12: "Des"
+    }
+    for fmt in ("%Y-%m-%d", "%d %b %Y", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"):
+        try:
+            dt_obj = datetime.strptime(clean_str, fmt)
+            return f"{dt_obj.day:02d} {bulan_indo_map[dt_obj.month]} {dt_obj.year}"
+        except:
+            continue
+    return str(tanggal_val)
 
 def tampilkan_paket_lengkap(transaksi_list):
     st.markdown("""
@@ -162,7 +179,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         if st.session_state.get(f"loaded_saved_{current_pi_no}", False):
             with open(file_saved_path, "r", encoding="utf-8") as f:
                 master_html = f.read()
-            
+          
             st.info("📌 Menampilkan dokumen dalam mode **Final Tersimpan (Fotokopi Identik)**.")
             st.markdown('<div class="document-preview">', unsafe_allow_html=True)
             st.components.v1.html(master_html, height=750, scrolling=True)
@@ -340,12 +357,12 @@ def tampilkan_paket_lengkap(transaksi_list):
     nomor_kontrak = get_induk(1, 'Nomor Kontrak', t_data_utama.get('Nomor Kontrak', ''))
     nama_kontrak = get_induk(7, 'Nama Kontrak', t_data_utama.get('Nama Kontrak', '-'))
     nomor_tender = get_induk(2, 'Nomor Tender', '-')
-    tgl_kontrak = get_induk(4, 'Tanggal Kontrak', '-')
+    tgl_kontrak = format_tanggal_indo_konsisten(get_induk(4, 'Tanggal Kontrak', '-'))
     
     raw_jangka_waktu = get_induk(5, 'Jangka Waktu Kontrak', '2 tahun')
     jangka_waktu = bersihkan_karakter_aneh(raw_jangka_waktu)
     
-    tgl_pi = get_induk(6, 'Tanggal Performa Invoice', format_tgl_indo(datetime.now()))
+    tgl_pi = format_tanggal_indo_konsisten(get_induk(6, 'Tanggal Performa Invoice', format_tgl_indo(datetime.now())))
     lingkup_pekerjaan = get_induk(3, 'Lingkup Pekerjaan', t_data_utama.get('Deskripsi PO', t_data_utama.get('Kategori', '-')))
     
     raw_po = str(get_induk(8, 'Nomor Purchase Order', t_data_utama.get('Nomor PO', current_pi_no)))
@@ -356,7 +373,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     else:
         no_po = raw_po
 
-    tgl_po = get_induk(9, 'Tanggal Purchase Order', t_data_utama.get('Tanggal PO', '-'))
+    tgl_po = format_tanggal_indo_konsisten(get_induk(9, 'Tanggal Purchase Order', t_data_utama.get('Tanggal PO', '-')))
 
     raw_po_date = tgl_po
     if raw_po_date and str(raw_po_date).strip() not in ["-", "", "nan", "None"]:
@@ -455,7 +472,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         bastb_th_desc = "SPESIFIKASI BARANG / MATERIAL"
         bastb_th_cond = "KONDISI / KETERANGAN"
 
-    # --- AMBIL DATA DARI OPNAME PEKERJAAN & SESUAIKAN DENGAN VOLUME AKTUAL BULAN INI ---
     opname_saved_dict = st.session_state.get("opname_saved_data", {}).get(opname_storage_key, {})
     saved_opname_items = opname_saved_dict.get('items', {})
 
@@ -481,7 +497,6 @@ def tampilkan_paket_lengkap(transaksi_list):
 
         unit_price = float(active_item_data.get('unit_price', default_price))
         
-        # PERBAIKAN: Mengambil Volume Aktual Bulan Ini (current_vol) sebagai Qty utama tagihan Master Bundle
         current_vol = float(active_item_data.get('current_vol', default_contract_qty))
         if current_vol <= 0:
             current_vol = default_contract_qty
@@ -494,8 +509,10 @@ def tampilkan_paket_lengkap(transaksi_list):
         grand_total += tot
 
         unit = str(m.get('Unit', 'AU' if is_prov_sum else 'Day'))
-        tgl_mulai_item = str(m.get('Tanggal Mulai', tgl_pi))
-        tgl_selesai_item = str(m.get('Tanggal Selesai', tgl_pi))
+        
+        # KONSISTEN FORMAT TANGGAL DI RINCIAN PEKERJAAN
+        tgl_mulai_item = format_tanggal_indo_konsisten(m.get('Tanggal Mulai', tgl_pi))
+        tgl_selesai_item = format_tanggal_indo_konsisten(m.get('Tanggal Selesai', tgl_pi))
 
         kat_lower = kategori_m.lower()
         if "estimated" in kat_lower or "estimasi" in kat_lower:
@@ -539,7 +556,6 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
-    # --- OPNAME PEKERJAAN DI MASTER BUNDLE ---
     sum_po_vol_tot = 0.0
     sum_base_price = 0.0
     sum_prev_vol_tot = 0.0
