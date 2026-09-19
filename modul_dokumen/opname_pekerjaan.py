@@ -257,19 +257,21 @@ def tampilkan_opname(transaksi_list):
             else:
                 default_price = raw_hs
 
-            # AMBIL DARI DATA TERSIMPAN ATAU GUNAKAN DEFAULT TRANSAKSI JIKA KOSONG
             saved_item_opn = saved_global.get('items', {}).get(idx, {})
             
+            # MEMASTIKAN KONSISTENSI NILAI DEFAULT UNTUK SETIAP ITEM
             val_po_vol = float(saved_item_opn.get('po_vol', 0.0) or 0.0)
-            if val_po_vol <= 0: val_po_vol = default_contract_qty
+            if val_po_vol <= 0: 
+                val_po_vol = default_contract_qty
 
             val_unit_price = float(saved_item_opn.get('unit_price', 0.0) or 0.0)
-            if val_unit_price <= 0: val_unit_price = default_price
+            if val_unit_price <= 0: 
+                val_unit_price = default_price
 
             val_prev_vol = float(saved_item_opn.get('prev_vol', 0.0) or 0.0)
 
             val_curr_vol = float(saved_item_opn.get('current_vol', 0.0) or 0.0)
-            if val_curr_vol <= 0 and saved_item_opn.get('current_vol') is None: 
+            if val_curr_vol <= 0: 
                 val_curr_vol = default_contract_qty
 
             with c_p1:
@@ -409,7 +411,7 @@ def tampilkan_opname(transaksi_list):
         prev_vol = float(active_item_data.get('prev_vol', 0.0) or 0.0)
 
         current_vol = float(active_item_data.get('current_vol', 0.0) or 0.0)
-        if current_vol <= 0 and active_item_data.get('current_vol') is None:
+        if current_vol <= 0: 
             current_vol = default_contract_qty
 
         if is_est_sum:
