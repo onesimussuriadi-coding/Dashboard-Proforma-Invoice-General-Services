@@ -455,7 +455,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         kat = str(m.get('Kategori', '')).strip()
         desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
         ket = str(m.get('Keterangan', '')).strip()
-        qty = float(m.get('Qty', 1.0))
+        qty = float(m.get('Qty', m.get('Qty PO', m.get('Total Qty Kontrak', 1.0))))
         unit = str(m.get('Unit', 'AU'))
         price = float(m.get('Harga Satuan', 0.0))
         tot = float(m.get('Total Harga', qty * price))
@@ -534,17 +534,18 @@ def tampilkan_paket_lengkap(transaksi_list):
         elif isinstance(saved_opname_items, list) and (idx - 1) < len(saved_opname_items):
             row_mandiri_op = saved_opname_items[idx - 1]
 
-        # PERBAIKAN: Mengambil nilai dinamis dari transaksi rincian utama (m.get('Qty')) alih-alih angka statis 4.0
-        default_qty_m = float(m.get('Qty', 1.0))
+        # FIX UTAMA: Ambil kuantitas dinamis dari 'Qty PO', 'Total Qty Kontrak', atau 'Qty' asli item
+        default_qty_m = float(m.get('Qty PO', m.get('Total Qty Kontrak', m.get('Qty', 1.0))))
 
-        qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', float(m.get('Qty PO', m.get('Total Qty Kontrak', default_qty_m))))))
+        qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', default_qty_m)))
         price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', float(m.get('Harga Satuan', 0.0)))))
         tot_po = qty_po * price
 
         qty_prev = float(row_mandiri_op.get('qty_prev', row_mandiri_op.get('volume_prev', 0.0)))
         tot_prev = qty_prev * price
 
-        qty_curr = float(row_mandiri_op.get('qty_curr', row_mandiri_op.get('volume_curr', default_qty_m)))
+        # Jika di form opname mandiri tidak diisi qty_curr, gunakan default qty_m atau 0
+        qty_curr = float(row_mandiri_op.get('qty_curr', row_mandiri_op.get('volume_curr', float(m.get('Qty', 1.0)))))
         tot_curr = qty_curr * price
 
         qty_cum = qty_prev + qty_curr
@@ -632,7 +633,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         elif 'jumlah' in saved_bamp_row and saved_bamp_row['jumlah'] is not None:
             row_qty_bamp = float(saved_bamp_row['jumlah'])
         else:
-            row_qty_bamp = float(m.get('Qty', 1.0))
+            row_qty_bamp = float(m.get('Qty', m.get('Qty PO', 1.0)))
 
         row_uom_bamp = str(saved_bamp_row.get('uom', saved_bamp_row.get('satuan', m.get('Unit', 'AU')))).strip()
 
@@ -660,7 +661,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         kat = str(m.get('Kategori', '')).strip()
         desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
         ket = str(m.get('Keterangan', '')).strip()
-        qty = float(m.get('Qty', 1.0))
+        qty = float(m.get('Qty', m.get('Qty PO', 1.0)))
         unit = str(m.get('Unit', 'AU'))
 
         catatan_basp = f"Selesai Pelaksanaan Pekerjaan Tanggal {basp_date_str}"
@@ -687,7 +688,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         if isinstance(saved_items_map, dict):
             saved_row = saved_items_map.get(idx, saved_items_map.get(str(idx), {}))
 
-        row_qty = float(saved_row.get('qty', m.get('Qty', 1.0)))
+        row_qty = float(saved_row.get('qty', m.get('Qty', m.get('Qty PO', 1.0))))
         row_uom = str(saved_row.get('uom', m.get('Unit', 'Unit'))).strip()
         
         kategori_m = str(m.get('Kategori', '')).strip()
