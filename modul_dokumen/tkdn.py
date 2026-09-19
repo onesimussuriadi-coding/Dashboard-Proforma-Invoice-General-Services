@@ -16,10 +16,31 @@ def tampilkan_tkdn(transaksi_list):
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
 
-    # Inisialisasi direktori penyimpanan permanen
+    # --- DIREKTORI PENYIMPANAN AMAN TKDN (JSON & EXCEL REKAPITULASI) ---
     DIR_TKDN_SAVED = os.path.join("database_penyimpanan_aman", "tkdn_tersimpan")
     if not os.path.exists(DIR_TKDN_SAVED):
         os.makedirs(DIR_TKDN_SAVED)
+    
+    EXCEL_FILE_TKDN_REKAP = os.path.join("database_penyimpanan_aman", "database_tkdn_tersimpan.xlsx")
+
+    def muat_rekap_excel_tkdn():
+        if os.path.exists(EXCEL_FILE_TKDN_REKAP):
+            try:
+                df = pd.read_excel(EXCEL_FILE_TKDN_REKAP)
+                if df is not None and not df.empty:
+                    return df.to_dict(orient="records")
+            except:
+                pass
+        return []
+
+    def simpan_rekap_excel_tkdn(list_data_rekaman):
+        try:
+            df_save = pd.DataFrame(list_data_rekaman)
+            df_save.to_excel(EXCEL_FILE_TKDN_REKAP, index=False)
+            return True
+        except Exception as e:
+            st.error(f"Gagal menyimpan rekap ke Excel: {e}")
+            return False
 
     # Saring transaksi berdasarkan PI No. yang unik agar grand total per PI akurat
     pi_dict_map = {}
@@ -200,6 +221,7 @@ def tampilkan_tkdn(transaksi_list):
             })
             
             try:
+                # Simpan file JSON individual per PI
                 data_to_export = st.session_state.tkdn_saved_data[selected_pi_key].copy()
                 data_to_export['tanggal_dokumen'] = str(selected_date_tkdn)
                 data_to_export.pop('ttd_direktur', None)
@@ -207,9 +229,72 @@ def tampilkan_tkdn(transaksi_list):
                 with open(tkdn_file_path, "w", encoding="utf-8") as f_json:
                     json.dump(data_to_export, f_json, ensure_ascii=False, indent=4)
                 
-                st.success(f"✅ Dokumen TKDN untuk PI [{selected_pi_key}] beserta rincian bobot persentasenya berhasil disimpan secara permanen & dikunci!")
+                # --- PROSES REKAPITULASI KE FILE EXCEL (BESERTA PERSENTASE BOBOT KOMPONEN) ---
+                existing_rekap = muat_rekap_excel_tkdn()
+                filtered_rekap = [r for r in existing_rekap if str(r.get('PI No.', '')).strip() != selected_pi_key]
+                
+                nomor_kontrak_val = str(t_data.get('Nomor Kontrak', matched_db_row.get('Nomor Kontrak', ''))).strip()
+                nomor_po_val = str(t_data.get('Nomor PO', matched_db_row.get('Nomor PO', ''))).strip()
+                judul_kontrak_val = str(t_data.get('Nama Kontrak', matched_db_row.get('Nama Kontrak', ''))).strip()
+                
+                # Hitung nilai nominal untuk rekap
+                kdn_1_val = (p_kdn_1 / 100.0) * total_tagihan_rujukan
+                kln_1_val = (p_kln_1 / 100.0) * total_tagihan_rujukan
+                kdn_2_val = (p_kdn_2 / 100.0) * total_tagihan_rujukan
+                kln_2_val = (p_kln_2 / 100.0) * total_tagihan_rujukan
+                kdn_3_val = (p_kdn_3 / 100.0) * total_tagihan_rujukan
+                kln_3_val = (p_kln_3 / 100.0) * total_tagihan_rujukan
+                kdn_4_val = (p_kdn_4 / 100.0) * total_tagihan_rujukan
+                kln_4_val = (p_kln_4 / 100.0) * total_tagihan_rujukan
+                non_cost_val = (p_non_cost / 100.0) * total_tagihan_rujukan
+                
+                tot_kdn_b = kdn_1_val + kdn_2_val + kdn_3_val + kdn_4_val
+                tot_kln_b = kln_1_val + kln_2_val + kln_3_val + kln_4_val
+                jml_biaya_t = tot_kdn_b + tot_kln_b
+                jml_nilai_t = jml_biaya_t + non_cost_val
+                persen_akhir = (tot_kdn_b / jml_nilai_t * 100) if jml_nilai_t > 0 else 0
+
+                rekaman_baru = {
+                    "Timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "PI No.": selected_pi_key,
+                    "Nomor Kontrak": nomor_kontrak_val,
+                    "Nomor PO": nomor_po_val,
+                    "Judul Kontrak": judul_kontrak_val,
+                    "Tanggal Dokumen": str(selected_date_tkdn),
+                    "Total Tagihan": total_tagihan_rujukan,
+                    # --- Bobot Persentase Komponen (%) ---
+                    "% KDN Bahan": p_kdn_1,
+                    "% KLN Bahan": p_kln_1,
+                    "% KDN Tenaga Kerja": p_kdn_2,
+                    "% KLN Tenaga Kerja": p_kln_2,
+                    "% KDN Alat Kerja": p_kdn_3,
+                    "% KLN Alat Kerja": p_kln_3,
+                    "% KDN Jasa Umum": p_kdn_4,
+                    "% KLN Jasa Umum": p_kln_4,
+                    "% Komponen Bukan Biaya": p_non_cost,
+                    # --- Nilai Nominal Rupiah ---
+                    "Nilai KDN Bahan": kdn_1_val,
+                    "Nilai KLN Bahan": kln_1_val,
+                    "Nilai KDN Tenaga Kerja": kdn_2_val,
+                    "Nilai KLN Tenaga Kerja": kln_2_val,
+                    "Nilai KDN Alat Kerja": kdn_3_val,
+                    "Nilai KLN Alat Kerja": kln_3_val,
+                    "Nilai KDN Jasa Umum": kdn_4_val,
+                    "Nilai KLN Jasa Umum": kln_4_val,
+                    "Total KDN Biaya": tot_kdn_b,
+                    "Total KLN Biaya": tot_kln_b,
+                    "Jumlah Biaya Total": jml_biaya_t,
+                    "Komponen Bukan Biaya": non_cost_val,
+                    "Jumlah Nilai Total": jml_nilai_t,
+                    "Capaian TKDN Akhir (%)": round(persen_akhir, 2)
+                }
+                
+                filtered_rekap.append(rekaman_baru)
+                simpan_rekap_excel_tkdn(filtered_rekap)
+                
+                st.success(f"✅ Dokumen TKDN untuk PI [{selected_pi_key}] beserta persentase bobot & nilai nominalnya berhasil disimpan ke Excel rekapitulasi!")
             except Exception as e:
-                st.error(f"Gagal menyimpan permanen ke disk: {e}")
+                st.error(f"Gagal menyimpan rekap permanen: {e}")
 
     # Tanda tangan digital
     st.markdown("---")
