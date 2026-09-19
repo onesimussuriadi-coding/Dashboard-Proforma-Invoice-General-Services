@@ -447,6 +447,10 @@ def tampilkan_paket_lengkap(transaksi_list):
         bastb_th_desc = "SPESIFIKASI BARANG / MATERIAL"
         bastb_th_cond = "KONDISI / KETERANGAN"
 
+    # --- AMBIL DATA OPNAME MANDIRI TERLEBIH DAHULU UNTUK DIGUNAKAN DI SEMUA TABEL ---
+    opname_saved_dict = st.session_state.get("opname_saved_data", {}).get(pi_storage_key, {})
+    saved_opname_items = opname_saved_dict.get('items', {})
+
     grand_total = 0.0
     rincian_rows_html = ""
     pi_rows_html = ""
@@ -455,10 +459,20 @@ def tampilkan_paket_lengkap(transaksi_list):
         kat = str(m.get('Kategori', '')).strip()
         desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
         ket = str(m.get('Keterangan', '')).strip()
-        qty = float(m.get('Qty', m.get('Qty PO', m.get('Total Qty Kontrak', 1.0))))
+        
+        # Ambil inputan mandiri opname jika ada
+        row_mandiri_op = {}
+        if isinstance(saved_opname_items, dict):
+            row_mandiri_op = saved_opname_items.get(idx, saved_opname_items.get(str(idx), {}))
+        elif isinstance(saved_opname_items, list) and (idx - 1) < len(saved_opname_items):
+            row_mandiri_op = saved_opname_items[idx - 1]
+
+        # Prioritaskan volume PO dan Harga Satuan dari inputan mandiri opname
+        qty = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', m.get('Qty PO', m.get('Total Qty Kontrak', m.get('Qty', 1.0))))))
+        price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', m.get('Harga Satuan', 0.0))))
+        
         unit = str(m.get('Unit', 'AU'))
-        price = float(m.get('Harga Satuan', 0.0))
-        tot = float(m.get('Total Harga', qty * price))
+        tot = qty * price
         grand_total += tot
 
         tgl_mulai_item = str(m.get('Tanggal Mulai', tgl_pi))
@@ -506,10 +520,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
-    # --- PENGAMBILAN DATA OPNAME SECARA LIVE DARI FORMAT MANDIRI OPNAME (SESSION STATE) ---
-    opname_saved_dict = st.session_state.get("opname_saved_data", {}).get(pi_storage_key, {})
-    saved_opname_items = opname_saved_dict.get('items', {})
-
+    # --- PENGAMBILAN DATA OPNAME PEKERJAAN ---
     total_vol_po = 0.0
     total_price_po = 0.0
     total_vol_prev = 0.0
@@ -534,18 +545,17 @@ def tampilkan_paket_lengkap(transaksi_list):
         elif isinstance(saved_opname_items, list) and (idx - 1) < len(saved_opname_items):
             row_mandiri_op = saved_opname_items[idx - 1]
 
-        # FIX UTAMA: Ambil kuantitas dinamis dari 'Qty PO', 'Total Qty Kontrak', atau 'Qty' asli item
+        # Wajib mengambil dari inputan mandiri opname terlebih dahulu
         default_qty_m = float(m.get('Qty PO', m.get('Total Qty Kontrak', m.get('Qty', 1.0))))
-
         qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', default_qty_m)))
-        price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', float(m.get('Harga Satuan', 0.0)))))
+        
+        price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', m.get('Harga Satuan', 0.0))))
         tot_po = qty_po * price
 
         qty_prev = float(row_mandiri_op.get('qty_prev', row_mandiri_op.get('volume_prev', 0.0)))
         tot_prev = qty_prev * price
 
-        # Jika di form opname mandiri tidak diisi qty_curr, gunakan default qty_m atau 0
-        qty_curr = float(row_mandiri_op.get('qty_curr', row_mandiri_op.get('volume_curr', float(m.get('Qty', 1.0)))))
+        qty_curr = float(row_mandiri_op.get('qty_curr', row_mandiri_op.get('volume_curr', m.get('Qty', 1.0))))
         tot_curr = qty_curr * price
 
         qty_cum = qty_prev + qty_curr
