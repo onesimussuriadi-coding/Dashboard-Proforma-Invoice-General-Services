@@ -1,209 +1,107 @@
 import streamlit as st
 import pandas as pd
-import mysql.connector
-from mysql.connector import Error
 import os
 import json
-import io
 
 DIR_DATABASE = "database_penyimpanan_aman"
 if not os.path.exists(DIR_DATABASE):
     os.makedirs(DIR_DATABASE)
-LOCAL_BACKUP_FILE = os.path.join(DIR_DATABASE, "backup_database_invoice.json")
 
-def get_mysql_connection():
+def muat_data_from_db(nama_tabel):
     """
-    Membuat koneksi ke server Cloud MySQL dengan batas waktu ketat (2 detik)
-    agar aplikasi tidak pernah mengalami loading panjang atau berputar-putar.
+    Memuat data secara instan dan aman dari file Excel lokal server.
     """
-    try:
-        db_conf = st.secrets["database"]
-        conn = mysql.connector.connect(
-            host=db_conf["host"],
-            user=db_conf["user"],
-            password=db_conf["password"],
-            database=db_conf["database"],
-            port=db_conf.get("port", 3306),
-            connection_timeout=2
-        )
-        return conn
-    except Exception as e:
-        return None
-
-def muat_data_from_db(nama_tabel="database_proforma_invoice"):
-    """
-    Memuat data secara instan dari file lokal agar modul langsung terbuka normal,
-    serta mencoba menyinkronkan data terbaru dari MySQL di latar belakang.
-    """
-    local_data = []
-    if os.path.exists(LOCAL_BACKUP_FILE):
+    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
+    if os.path.exists(file_path):
         try:
-            with open(LOCAL_BACKUP_FILE, "r", encoding="utf-8") as f:
-                local_data = json.load(f)
+            df_local = pd.read_excel(file_path, engine='openpyxl')
+            if df_local is not None and not df_local.empty:
+                # Pastikan kolom kunci tidak hilang
+                return df_local.to_dict(orient="records")
         except Exception:
-            local_data = []
-
-    # Coba tarik data dari MySQL dengan timeout cepat di latar belakang
-    conn = get_mysql_connection()
-    if conn is not None:
-        try:
-            query = f"SELECT * FROM `{nama_tabel}`"
-            df_sql = pd.read_sql(query, conn)
-            conn.close()
-            if df_sql is not None and not df_sql.empty:
-                records = []
-                for _, row in df_sql.iterrows():
-                    rec_dict = {}
-                    for i, col_name in enumerate(df_sql.columns):
-                        val = str(row[col_name]) if pd.notnull(row[col_name]) and str(row[col_name]).lower() != "nan" else ""
-                        rec_dict[i] = val
-                        rec_dict[str(i)] = val
-                        rec_dict[col_name] = val
-                    records.append(rec_dict)
-                
-                # Perbarui file lokal agar selalu sinkron
-                try:
-                    with open(LOCAL_BACKUP_FILE, "w", encoding="utf-8") as f:
-                        json.dump(records, f, ensure_ascii=False, indent=2)
-                except Exception:
-                    pass
-                local_data = records
-        except Exception:
-            if conn and conn.is_connected():
-                conn.close()
-
-    # Normalisasi format dual-mapping agar kompatibel penuh dengan Modul 1 & Modul 2
-    mapping_keys = [
-        "Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Lingkup Pekerjaan",
-        "Tanggal Kontrak", "Jangka Waktu Kontrak", "Tanggal Performa Invoice", "Judul Kontrak",
-        "Nomor Purchase Order", "Tanggal Purchase Order", "Pihak Pertama", "Alamat Pihak Pertama",
-        "Diwakili Oleh", "Selaku", "Pihak Kedua", "Alamat Pihak Kedua", "Diwakili Oleh (P2)",
-        "Selaku (P2)", "Periode Pekerjaan", "Nomor WCC", "Tanggal WCC", "Nomor WO",
-        "Keterangan WO", "Nomor CTR", "Progress Pekerjaan", "Prepared by Name",
-        "Prepared by Title", "Approved by 1", "Approved by Title 1", "Approved by 2", "Approved by Title 2"
-    ]
-
-    formatted_data = []
-    for item in local_data:
-        new_item = {}
-        if isinstance(item, dict):
-            for i, key_name in enumerate(mapping_keys):
-                val = item.get(i, item.get(str(i), item.get(key_name, "")))
-                new_item[i] = val
-                new_item[str(i)] = val
-                new_item[key_name] = val
-        formatted_data.append(new_item)
-
-    return formatted_data
+            pass
+    return []
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan data secara aman dan permanen ke penyimpanan lokal dan server MySQL.
+    Menyimpan data dengan aman. Menggabungkan data lama dan memperbarui 
+    berdasarkan nomor Proforma Invoice secara akurat tanpa merusak struktur kolom.
     """
-    if data_list is None:
+    if data_list is None or len(data_list) == 0:
         st.error("❌ Data kosong, gagal menyimpan.")
         return False
 
-    # 1. Simpan utama ke file lokal agar data langsung aman & tidak hilang
+    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
+    
     try:
-        with open(LOCAL_BACKUP_FILE, "w", encoding="utf-8") as f:
-            json.dump(data_list, f, ensure_ascii=False, indent=2)
+        df_new = pd.DataFrame(data_list)
+        if df_new.empty:
+            return False
+
+        # Jika file lama ada, lakukan penggabungan/pembaruan baris yang aman
+        if os.path.exists(file_path):
+            try:
+                df_old = pd.read_excel(file_path, engine='openpyxl')
+                if not df_old.empty:
+                    # Ambil kolom pertama sebagai referensi utama (Nomor Proforma Invoice)
+                    key_col = df_old.columns[0]
+                    if key_col in df_new.columns:
+                        # Ubah ke string agar pencocokan akurat
+                        df_old[key_col] = df_old[key_col].astype(str).str.strip()
+                        df_new[key_col] = df_new[key_col].astype(str).str.strip()
+                        
+                        # Buat kamus data baru untuk penggantian
+                        new_dict = {str(row[key_col]): row for _, row in df_new.iterrows()}
+                        
+                        updated_rows = []
+                        existing_keys = set()
+                        
+                        # Timpa baris lama jika kodenya sama
+                        for _, row in df_old.iterrows():
+                            k = str(row[key_col])
+                            if k in new_dict:
+                                updated_rows.append(new_dict[k])
+                                existing_keys.add(k)
+                            else:
+                                updated_rows.append(row)
+                                
+                        # Tambahkan baris baru yang belum ada di data lama
+                        for _, row in df_new.iterrows():
+                            k = str(row[key_col])
+                            if k not in existing_keys:
+                                updated_rows.append(row)
+                                
+                        df_new = pd.DataFrame(updated_rows)
+            except Exception as e:
+                st.warning(f"Catatan penyesuaian: {e}")
+
+        # Simpan mutlak ke file Excel lokal
+        df_new.to_excel(file_path, index=False, engine='openpyxl')
+        return True
     except Exception as e:
-        st.error(f"❌ Gagal menyimpan file lokal: {e}")
+        st.error(f"❌ Gagal menyimpan data: {e}")
         return False
 
-    # 2. Sinkronisasi ke MySQL pusat
-    conn = get_mysql_connection()
-    if conn is not None:
-        try:
-            cursor = conn.cursor()
-            for item in data_list:
-                val_map = {}
-                for idx in range(1, 32):
-                    val = ""
-                    if isinstance(item, dict):
-                        val = item.get(idx - 1, item.get(str(idx - 1), ""))
-                        if not val:
-                            mapping_keys = [
-                                "Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Lingkup Pekerjaan",
-                                "Tanggal Kontrak", "Jangka Waktu Kontrak", "Tanggal Performa Invoice", "Judul Kontrak",
-                                "Nomor Purchase Order", "Tanggal Purchase Order", "Pihak Pertama", "Alamat Pihak Pertama",
-                                "Diwakili Oleh", "Selaku", "Pihak Kedua", "Alamat Pihak Kedua", "Diwakili Oleh (P2)",
-                                "Selaku (P2)", "Periode Pekerjaan", "Nomor WCC", "Tanggal WCC", "Nomor WO",
-                                "Keterangan WO", "Nomor CTR", "Progress Pekerjaan", "Prepared by Name",
-                                "Prepared by Title", "Approved by 1", "Approved by Title 1", "Approved by 2", "Approved by Title 2"
-                            ]
-                            if (idx - 1) < len(mapping_keys):
-                                val = item.get(mapping_keys[idx - 1], "")
-                    val_map[f"COL {idx}"] = str(val) if val is not None and str(val).strip().lower() != "nan" else ""
-
-                cols = [f"`COL {i}`" for i in range(1, 32)]
-                placeholders = ", ".join(["%s"] * 31)
-                columns_str = ", ".join(cols)
-                vals = tuple(val_map[f"COL {i}"] for i in range(1, 32))
-                updates = ", ".join([f"`COL {i}` = VALUES(`COL {i}`)" for i in range(2, 32)])
-                
-                query = f"""
-                    INSERT INTO `{nama_tabel}` ({columns_str}) 
-                    VALUES ({placeholders})
-                    ON DUPLICATE KEY UPDATE {updates}
-                """
-                cursor.execute(query, vals)
-            conn.commit()
-            cursor.close()
-            conn.close()
-        except Exception:
-            if conn and conn.is_connected():
-                conn.close()
-
-    return True
-
-def render_pilihan_panggil_ulang(nama_tabel="database_proforma_invoice"):
-    """
-    Merender widget interaktif untuk fitur panggil ulang berdasarkan 
-    Nomor Kontrak dan Nomor Proforma Invoice di antarmuka aplikasi.
-    """
-    data = muat_data_from_db(nama_tabel)
-    if not data:
-        st.info("📌 Belum ada data database tersimpan di folder aman.")
-        return None
-
-    st.markdown("### 🔍 Panggil Ulang Berdasarkan Nomor Kontrak & Nomor PI")
-    
-    list_kontrak = sorted(list(set([str(item.get("Nomor Kontrak", item.get(1, ""))) for item in data if item.get("Nomor Kontrak", item.get(1, "")) ])))
-    
-    selected_kontrak = st.selectbox("Pilih Nomor Kontrak:", ["-- Pilih Nomor Kontrak --"] + list_kontrak, key="select_panggil_kontrak")
-    
-    selected_record = None
-    if selected_kontrak != "-- Pilih Nomor Kontrak --":
-        filtered_data = [item for item in data if str(item.get("Nomor Kontrak", item.get(1, ""))) == selected_kontrak]
-        list_pi = [str(item.get("Proforma Invoice No.", item.get(0, ""))) for item in filtered_data]
-        
-        selected_pi = st.selectbox("Pilih Proforma Invoice (PI) No.:", ["-- Pilih Nomor PI --"] + list_pi, key="select_panggil_pi")
-        
-        if selected_pi != "-- Pilih Nomor PI --":
-            match_list = [item for item in filtered_data if str(item.get("Proforma Invoice No.", item.get(0, ""))) == selected_pi]
-            if match_list:
-                selected_record = match_list[0]
-                st.success(f"✅ Data berhasil dipanggil ulang untuk Kontrak: {selected_kontrak} | PI: {selected_pi}")
-
-    return selected_record
-
 def render_download_button_excel(nama_tabel="database_proforma_invoice"):
-    data = muat_data_from_db(nama_tabel)
-    if data:
-        df_export = pd.DataFrame(data)
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_export.to_excel(writer, index=False, header=False)
-        excel_bytes = output.getvalue()
-
-        st.markdown("---")
-        st.markdown("### 📥 Unduh Data Tabel Terbaru")
+    """
+    Menampilkan tombol unduh file Excel secara jelas di antarmuka web
+    agar Bapak bisa mendownload file arsip terbaru kapan saja.
+    """
+    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
+    
+    st.markdown("---")
+    st.markdown("### 📥 Unduh File Excel Server Terbaru")
+    st.info("Klik tombol di bawah ini untuk mendownload file Excel berisi data paling update langsung dari server.")
+    
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            excel_bytes = f.read()
         st.download_button(
-            label=f"📥 Download {nama_tabel}.xlsx",
+            label=f"📥 Download {nama_tabel}.xlsx Sekarang",
             data=excel_bytes,
             file_name=f"{nama_tabel}_terbaru.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"download_btn_local_{nama_tabel}"
+            key=f"download_btn_fixed_{nama_tabel}"
         )
+    else:
+        st.warning(f"⚠️ File data untuk tabel '{nama_tabel}' belum tersedia.")
