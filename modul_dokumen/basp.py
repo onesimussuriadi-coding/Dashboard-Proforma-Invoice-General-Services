@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import base64
+import os
 from datetime import datetime, date
 
 def tampilkan_basp(transaksi_list):
@@ -13,6 +14,38 @@ def tampilkan_basp(transaksi_list):
     if not transaksi_list:
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
+
+    # --- DIREKTORI PENYIMPANAN EXCEL BASP AMAN ---
+    DIR_DATABASE_BASP = os.path.join("database_penyimpanan_aman")
+    if not os.path.exists(DIR_DATABASE_BASP):
+        os.makedirs(DIR_DATABASE_BASP)
+    EXCEL_FILE_BASP = os.path.join(DIR_DATABASE_BASP, "database_basp_tersimpan.xlsx")
+
+    def muat_database_basp_excel():
+        if os.path.exists(EXCEL_FILE_BASP):
+            try:
+                df = pd.read_excel(EXCEL_FILE_BASP)
+                if df is not None and not df.empty:
+                    return df.to_dict(orient="records")
+            except:
+                pass
+        return []
+
+    def simpan_database_basp_excel(list_data_rekaman):
+        try:
+            df_save = pd.DataFrame(list_data_rekaman)
+            df_save.to_excel(EXCEL_FILE_BASP, index=False)
+            return True
+        except Exception as e:
+            st.error(f"Gagal menyimpan ke Excel: {e}")
+            return False
+
+    # --- IMPORT FUNGSI DATABASE MYSQL UNTUK PARAMETER DOKUMEN BASP ---
+    try:
+        from db_connection import simpan_parameter_dokumen_to_db, muat_parameter_dokumen_from_db
+    except ImportError:
+        simpan_parameter_dokumen_to_db = lambda k, v: True
+        muat_parameter_dokumen_from_db = lambda k: None
 
     # --- FILTER CERDAS BASP (HANYA AMBIL ITEM JASA / GABUNGAN) ---
     transaksi_list = [
@@ -44,6 +77,31 @@ def tampilkan_basp(transaksi_list):
     selected_pi = st.selectbox("Pilih Nomor Proforma Invoice (PI):", unique_pi_list, key="basp_pi_select")
     
     pi_storage_key = str(selected_pi).strip()
+    doc_db_key = f"basp_payload_{pi_storage_key}".replace("/", "_")
+
+    # Muat data dari Database MySQL hosting atau file Excel jika belum ada di session state lokal
+    if pi_storage_key not in st.session_state.basp_saved_data:
+        db_loaded_payload = muat_parameter_dokumen_from_db(doc_db_key)
+        if db_loaded_payload:
+            st.session_state.basp_saved_data[pi_storage_key] = db_loaded_payload
+        else:
+            excel_records = muat_database_basp_excel()
+            matching_excel = [r for r in excel_records if str(r.get('PI No.', '')).strip() == pi_storage_key]
+            if matching_excel:
+                items_dict = {}
+                for idx, row in enumerate(matching_excel, start=1):
+                    items_dict[idx] = {
+                        'date': pd.to_datetime(row.get('Tanggal Selesai Item', date.today())).date(),
+                        'qty': float(row.get('Jumlah', 1.0)),
+                        'uom': str(row.get('Satuan', 'Day')),
+                        'catatan': str(row.get('Catatan', ''))
+                    }
+                st.session_state.basp_saved_data[pi_storage_key] = {
+                    'lokasi': str(matching_excel[0].get('Lokasi Office', 'Luwuk')),
+                    'main_date': pd.to_datetime(matching_excel[0].get('Tanggal Utama', date.today())).date(),
+                    'items': items_dict,
+                    'logo_1': None, 'logo_2': None, 'ttd_1': None, 'ttd_2': None
+                }
 
     # Hanya ambil mutasi yang spesifik untuk PI ini dan merupakan kategori Jasa
     mutasi_terpilih = [
@@ -84,8 +142,12 @@ def tampilkan_basp(transaksi_list):
     else:
         if 'main_date' not in st.session_state.basp_saved_data[pi_storage_key]:
             st.session_state.basp_saved_data[pi_storage_key]['main_date'] = max_date_default
+        if 'items' not in st.session_state.basp_saved_data[pi_storage_key]:
+            st.session_state.basp_saved_data[pi_storage_key]['items'] = {}
 
     saved_global = st.session_state.basp_saved_data[pi_storage_key]
+    saved_items_cache = saved_global.get('items', {})
+
     t_data_utama = mutasi_terpilih[0]
     current_pi_no = pi_storage_key.lower()
 
@@ -118,8 +180,8 @@ def tampilkan_basp(transaksi_list):
         except:
             default_row_date = date.today()
 
+        saved_item_data = saved_items_cache.get(idx, {})
         keterangan_m1 = str(m.get('Keterangan', '')).strip()
-        saved_item_data = saved_global.get('items', {}).get(idx, {})
 
         with c_b1:
             row_date = st.date_input(f"Tanggal Selesai (Item {idx})", value=saved_item_data.get('date', default_row_date), key=f"basp_date_{pi_storage_key}_{idx}")
@@ -205,7 +267,7 @@ def tampilkan_basp(transaksi_list):
 
     # --- FORM TOMBOL SIMPAN & KUNCI ---
     with st.form(key=f"form_basp_save_{pi_storage_key}"):
-        st.markdown(f"**Konfirmasi Dokumen BASP (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi.")
+        st.markdown(f"**Konfirmasi Dokumen BASP (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi dan menyimpannya secara permanen ke Database MySQL & file Excel arsip.")
         submit_save_basp = st.form_submit_button("💾 Simpan & Kunci Dokumen BASP Ini", type="primary")
         
         if submit_save_basp:
@@ -214,7 +276,7 @@ def tampilkan_basp(transaksi_list):
             t1_final = uploaded_ttd_1.getvalue() if uploaded_ttd_1 is not None else saved_global.get('ttd_1')
             t2_final = uploaded_ttd_2.getvalue() if uploaded_ttd_2 is not None else saved_global.get('ttd_2')
 
-            st.session_state.basp_saved_data[pi_storage_key] = {
+            new_payload = {
                 'lokasi': lokasi_office,
                 'main_date': selected_date,
                 'items': temp_items_storage,
@@ -223,7 +285,49 @@ def tampilkan_basp(transaksi_list):
                 'ttd_1': t1_final,
                 'ttd_2': t2_final
             }
-            st.success(f"✅ Dokumen BASP untuk PI [{selected_pi}] beserta logo dan tanda tangan berhasil disimpan permanen!")
+
+            st.session_state.basp_saved_data[pi_storage_key] = new_payload
+            simpan_parameter_dokumen_to_db(doc_db_key, new_payload)
+
+            # --- PROSES SIMPAN KE FILE EXCEL HISTORI LOKAL ---
+            existing_basp_excel = muat_database_basp_excel()
+            filtered_basp_excel = [r for r in existing_basp_excel if str(r.get('PI No.', '')).strip() != pi_storage_key]
+            
+            waktu_simpan_str = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+            nomor_kontrak_val = str(t_data_utama.get('Nomor Kontrak', ''))
+            
+            for idx, m in enumerate(mutasi_terpilih, start=1):
+                item_info = temp_items_storage.get(idx, {})
+                row_d = item_info.get('date', selected_date)
+                row_q = item_info.get('qty', 1.0)
+                row_u = item_info.get('uom', 'Day')
+                row_c = item_info.get('catatan', '')
+
+                rekaman_basp = {
+                    "Waktu Simpan": waktu_simpan_str,
+                    "Nomor Kontrak": nomor_kontrak_val,
+                    "PI No.": pi_storage_key,
+                    "Lokasi Office": lokasi_office,
+                    "Tanggal Utama": str(selected_date),
+                    "Item ke-": idx,
+                    "Kategori": m.get('Kategori', ''),
+                    "Uraian Pekerjaan": m.get('Deskripsi Pekerjaan', ''),
+                    "Jumlah": row_q,
+                    "Satuan": row_u,
+                    "Tanggal Selesai Item": str(row_d),
+                    "Catatan": row_c
+                }
+                filtered_basp_excel.append(rekaman_basp)
+
+            if simpan_database_basp_excel(filtered_basp_excel):
+                st.toast("✅ Data BASP berhasil disimpan permanen ke Excel & MySQL!", icon="💾")
+                st.success(f"✅ Dokumen BASP untuk PI [{selected_pi}] berhasil disimpan permanen ke file Excel (`database_basp_tersimpan.xlsx`) dan Database MySQL!")
+            else:
+                st.warning("⚠️ Dokumen terkunci di sesi, tetapi gagal menulis ke file Excel.")
+
+            import time
+            time.sleep(0.8)
+            st.rerun()
 
     # Render HTML Logo & Tanda Tangan dari Data yang Tersimpan di Session State
     l1_bytes = saved_global.get('logo_1')
@@ -243,7 +347,6 @@ def tampilkan_basp(transaksi_list):
         saved_db_induk = muat_data_invoice()
     except:
         try:
-            import os
             df_induk = pd.read_excel(os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx"))
             saved_db_induk = df_induk.to_dict(orient="records")
         except:
@@ -426,6 +529,7 @@ def tampilkan_basp(transaksi_list):
             <script>
                 function printDoc() {{
                     var win = window.open('', '_blank');
+                    win.document.open();
                     win.document.write(atob("{b64_html}"));
                     win.document.close();
                     win.focus();
