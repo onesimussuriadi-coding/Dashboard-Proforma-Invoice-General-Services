@@ -81,26 +81,30 @@ def simpan_data_to_db(nama_tabel, data_list):
 
 def render_download_button_excel(nama_tabel="database_proforma_invoice"):
     """
-    Menampilkan tombol unduh file Excel dari folder penyimpanan aman 
-    sebagai bukti fisik bahwa data tersimpan permanen di server.
+    [DISEMPURNAKAN] Menampilkan tombol unduh file Excel langsung dari folder 
+    penyimpanan aman dengan penanganan data dan path yang presisi agar 
+    siap mendownload file arsip terbaru kapan saja.
     """
     file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
     
     st.markdown("---")
-    st.markdown("### 📥 Unduh File Excel Server Terbaru (Penyimpanan Aman)")
+    st.markdown("### 📥 Unduh Arsip File Excel (Penyimpanan Aman)")
     
     if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            excel_bytes = f.read()
-        st.download_button(
-            label=f"📥 Download {nama_tabel}.xlsx Sekarang",
-            data=excel_bytes,
-            file_name=f"{nama_tabel}_terbaru.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"download_btn_fixed_{nama_tabel}"
-        )
+        try:
+            with open(file_path, "rb") as f:
+                excel_bytes = f.read()
+            st.download_button(
+                label=f"📥 Download File {nama_tabel}.xlsx Sekarang",
+                data=excel_bytes,
+                file_name=f"{nama_tabel}_terbaru.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"download_btn_secure_folder_{nama_tabel}"
+            )
+        except Exception as e:
+            st.error(f"❌ Gagal membaca file untuk diunduh: {e}")
     else:
-        st.warning(f"⚠️ File data untuk tabel '{nama_tabel}' belum tersedia di folder aman.")
+        st.warning(f"⚠️ File data untuk tabel '{nama_tabel}' belum tersedia di folder penyimpanan aman.")
 
 def render_pilihan_panggil_ulang(nama_tabel="database_proforma_invoice"):
     """
