@@ -447,7 +447,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         bastb_th_desc = "SPESIFIKASI BARANG / MATERIAL"
         bastb_th_cond = "KONDISI / KETERANGAN"
 
-    # --- AMBIL DATA OPNAME MANDIRI TERLEBIH DAHULU ---
+    # --- AMBIL DATA OPNAME MANDIRI UNTUK DISAMAKAN PERSIS ---
     opname_saved_dict = st.session_state.get("opname_saved_data", {}).get(pi_storage_key, {})
     saved_opname_items = opname_saved_dict.get('items', {})
 
@@ -466,10 +466,12 @@ def tampilkan_paket_lengkap(transaksi_list):
         elif isinstance(saved_opname_items, list) and (idx - 1) < len(saved_opname_items):
             row_mandiri_op = saved_opname_items[idx - 1]
 
-        # Prioritas mengambil qty dan harga dari inputan mandiri opname
+        # Prioritas mutlak membaca inputan mandiri opname, jika kosong baru pakai data master awal
         default_qty_m = float(m.get('Qty PO', m.get('Total Qty Kontrak', m.get('Qty', 1.0))))
-        qty = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', default_qty_m)))
-        price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', m.get('Harga Satuan', 0.0))))
+        qty = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', row_mandiri_op.get('qty', default_qty_m))))
+        
+        default_price_m = float(m.get('Harga Satuan', 0.0))
+        price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', default_price_m)))
         
         unit = str(m.get('Unit', 'AU'))
         tot = qty * price
@@ -520,7 +522,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
-    # --- TABEL OPNAME PEKERJAAN (BERDASARKAN INPUTAN MANDIRI) ---
+    # --- PENGAMBILAN DATA OPNAME PEKERJAAN (YANG DITAMPILKAN DI MASTER BUNDLE) ---
     total_vol_po = 0.0
     total_price_po = 0.0
     total_vol_prev = 0.0
@@ -547,9 +549,11 @@ def tampilkan_paket_lengkap(transaksi_list):
 
         default_qty_m = float(m.get('Qty PO', m.get('Total Qty Kontrak', m.get('Qty', 1.0))))
         
-        # Wajib mengambil dari inputan mandiri opname
-        qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', default_qty_m)))
-        price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', m.get('Harga Satuan', 0.0))))
+        # Wajib mengambil persis sama dengan inputan opname mandiri
+        qty_po = float(row_mandiri_op.get('qty_po', row_mandiri_op.get('volume_po', row_mandiri_op.get('qty', default_qty_m))))
+        
+        default_price_m = float(m.get('Harga Satuan', 0.0))
+        price = float(row_mandiri_op.get('unit_price', row_mandiri_op.get('harga_satuan', default_price_m)))
         tot_po = qty_po * price
 
         qty_prev = float(row_mandiri_op.get('qty_prev', row_mandiri_op.get('volume_prev', 0.0)))
@@ -601,20 +605,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     mutasi_jasa = mutasi_terpilih
     
     all_bamp_store = st.session_state.get("bamp_saved_data", {})
-    bamp_saved_container = {}
-    possible_keys = [
-        current_pi_no,
-        str(current_pi_no).strip(),
-        no_po,
-        nomor_kontrak,
-        f"{current_pi_no}_{no_po}",
-        f"{no_po}_{current_pi_no}"
-    ]
-    
-    for pk in possible_keys:
-        if pk in all_bamp_store and all_bamp_store[pk]:
-            bamp_saved_container = all_bamp_store[pk]
-            break
+    bamp_saved_container = all_bamp_store.get(current_pi_no, {})
 
     saved_bamp_items_map = {}
     if isinstance(bamp_saved_container, dict):
