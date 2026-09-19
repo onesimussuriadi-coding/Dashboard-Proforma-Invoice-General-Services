@@ -29,6 +29,20 @@ def terbilang(n):
     else:
         return " Angka terlalu besar"
 
+# FUNGSI BANTUAN FORMAT TANGGAL KONSISTEN VERSI INDONESIA (DD MMM YYYY)
+def format_tanggal_indo(tanggal_str):
+    if not tanggal_str or str(tanggal_str).strip() in ["-", "nan", "None"]:
+        return "-"
+    # Bersihkan jika ada tambahan waktu di belakangnya (seperti 00:00:00)
+    clean_str = str(tanggal_str).strip().split()[0]
+    for fmt in ("%Y-%m-%d", "%d %b %Y", "%d-%m-%Y", "%d/%m/%Y"):
+        try:
+            dt_obj = datetime.strptime(clean_str, fmt)
+            return dt_obj.strftime("%d %b %Y")
+        except:
+            continue
+    return str(tanggal_str)  # Kembalikan aslinya jika gagal parsing
+
 def tampilkan_rincian_pekerjaan(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
@@ -118,7 +132,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
 
     matching_mutasi_list = [item for item in transaksi_list if str(item.get('PI No.', '')).strip() == current_pi_no]
 
-    # Hitung ulang grand total secara konsisten per baris mandiri
     grand_total = 0.0
     for m in matching_mutasi_list:
         kategori_str = str(m.get('Kategori', '')).lower()
@@ -171,16 +184,17 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     for idx, m in enumerate(matching_mutasi_list, start=1):
         kategori_str = str(m.get('Kategori', '')).lower()
         qty_val = float(m.get('Qty', 0))
-        harga_satuan_val = float(m.get('Harga Satuan', 0))  # Harga satuan tetap murni sesuai kontrak
+        harga_satuan_val = float(m.get('Harga Satuan', 0))
         percent_val = float(m.get('Percent', 100.0))
         kategori_awal = str(m.get('Kategori', '-'))
-        keterangan_murni = str(m.get('Keterangan', '-'))  # Keterangan dibiarkan murni sesuai modul 1/2
+        keterangan_murni = str(m.get('Keterangan', '-'))
 
-        # Penyesuaian khusus Estimated Sum: Tambahkan catatan diskon 10% di bawah teks Kategori
+        # FORMAT TANGGAL DIAPLIKASIKAN KONSISTEN DI SINI
+        tgl_mulai_formatted = format_tanggal_indo(m.get('Tanggal Mulai', '-'))
+        tgl_selesai_formatted = format_tanggal_indo(m.get('Tanggal Selesai', '-'))
+
         if "estimated" in kategori_str or "estimasi" in kategori_str:
             total_harga_val = (qty_val * harga_satuan_val * 0.9) * (percent_val / 100.0)
-            
-            # Harga satuan efektif setelah diskon untuk referensi di kategori
             harga_diskon_val = harga_satuan_val * 0.9
             kategori_display = f"{kategori_awal}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {harga_satuan_val:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
         elif "provisional" in kategori_str or "professional" in kategori_str:
@@ -197,8 +211,8 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <td>{m.get('Deskripsi Pekerjaan', '-')}</td>
                 <td style="text-align: center;">{qty_val:,.2f}</td>
                 <td style="text-align: center;">{m.get('Unit', '-')}</td>
-                <td style="text-align: center; white-space: nowrap;">{m.get('Tanggal Mulai', '-')}</td>
-                <td style="text-align: center; white-space: nowrap;">{m.get('Tanggal Selesai', '-')}</td>
+                <td style="text-align: center; white-space: nowrap;">{tgl_mulai_formatted}</td>
+                <td style="text-align: center; white-space: nowrap;">{tgl_selesai_formatted}</td>
                 <td style="text-align: right;">{harga_satuan_val:,.2f}</td>
                 <td style="text-align: right;">{total_harga_val:,.2f}</td>
                 <td>{keterangan_murni}</td>
@@ -304,12 +318,12 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <td>{t_data_ref.get('Nomor Tender', '')}</td>
                 <td class="label-col">Tanggal Purchase Order</td>
                 <td class="colon-col">:</td>
-                <td>{t_data_ref.get('Tanggal PO', '')}</td>
+                <td>{format_tanggal_indo(t_data_ref.get('Tanggal PO', ''))}</td>
             </tr>
             <tr>
                 <td class="label-col">Tanggal Proforma</td>
                 <td class="colon-col">:</td>
-                <td>{t_data_ref.get('Tanggal PI', '')}</td>
+                <td>{format_tanggal_indo(t_data_ref.get('Tanggal PI', ''))}</td>
                 <td class="label-col">Mata Uang</td>
                 <td class="colon-col">:</td>
                 <td>{t_data_ref.get('Mata Uang', 'IDR')}</td>
