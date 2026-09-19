@@ -2,6 +2,11 @@ import streamlit as st
 import pandas as pd
 import mysql.connector
 from mysql.connector import Error
+import io
+
+DIR_DATABASE = "database_penyimpanan_aman"
+if not os.path.exists(DIR_DATABASE):
+    os.makedirs(DIR_DATABASE)
 
 def get_mysql_connection():
     """
@@ -18,12 +23,12 @@ def get_mysql_connection():
         )
         return conn
     except Error as e:
-        st.error(f"❌ Gagal terhubung ke Database MySQL: {e}")
         return None
 
 def muat_data_from_db(nama_tabel):
     """
     Memuat seluruh data secara real-time langsung dari tabel MySQL pusat.
+    Melewati baris pertama jika itu adalah teks header (COL 1, COL 2, dll berisi judul).
     """
     conn = get_mysql_connection()
     if conn is not None:
@@ -32,17 +37,21 @@ def muat_data_from_db(nama_tabel):
             df_sql = pd.read_sql(query, conn)
             conn.close()
             if df_sql is not None and not df_sql.empty:
-                return df_sql.to_dict(orient="records")
+                # Konversi kolom menjadi format dictionary berbasis indeks kolom fisik (COL 1, COL 2, dst)
+                records = []
+                for _, row in df_sql.iterrows():
+                    rec_dict = {}
+                    for i, col_name in enumerate(df_sql.columns):
+                        rec_dict[i] = str(row[col_name]) if pd.notnull(row[col_name]) and str(row[col_name]).lower() != "nan" else ""
+                    records.append(rec_dict)
+                return records
         except Error as e:
-            st.error(f"❌ Gagal membaca tabel {nama_tabel} dari MySQL: {e}")
-        finally:
-            if conn.is_connected():
-                conn.close()
+            pass
     return []
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan atau memperbarui data ke tabel MySQL secara permanen dan real-time.
+    Menyimpan atau memperbarui data ke tabel MySQL menggunakan pemetaan `COL 1`, `COL 2`, dst.
     """
     if data_list is None or len(data_list) == 0:
         st.error("❌ Data kosong, gagal menyimpan ke database.")
@@ -54,25 +63,38 @@ def simpan_data_to_db(nama_tabel, data_list):
 
     try:
         cursor = conn.cursor()
-        df_new = pd.DataFrame(data_list)
         
-        if df_new.empty:
-            conn.close()
-            return False
+        for item in data_list:
+            # Petakan data aplikasi ke format COL 1 s.d COL 31
+            val_map = {}
+            for idx in range(1, 32):
+                # Ambil data berdasarkan indeks angka atau mapping teks
+                val = ""
+                if isinstance(item, dict):
+                    val = item.get(idx - 1, item.get(str(idx - 1), ""))
+                    if not val:
+                        # Coba mapping teks jika indeks tidak ditemukan
+                        mapping_keys = [
+                            "Proforma Invoice No.", "Nomor Kontrak", "Nomor Tender", "Lingkup Pekerjaan",
+                            "Tanggal Kontrak", "Jangka Waktu Kontrak", "Tanggal Performa Invoice", "Judul Kontrak",
+                            "Nomor Purchase Order", "Tanggal Purchase Order", "Pihak Pertama", "Alamat Pihak Pertama",
+                            "Diwakili Oleh", "Selaku", "Pihak Kedua", "Alamat Pihak Kedua", "Diwakili Oleh (P2)",
+                            "Selaku (P2)", "Periode Pekerjaan", "Nomor WCC", "Tanggal WCC", "Nomor WO",
+                            "Keterangan WO", "Nomor CTR", "Progress Pekerjaan", "Prepared by Name",
+                            "Prepared by Title", "Approved by 1", "Approved by Title 1", "Approved by 2", "Approved by Title 2"
+                        ]
+                        if (idx - 1) < len(mapping_keys):
+                            val = item.get(mapping_keys[idx - 1], "")
+                
+                val_map[f"COL {idx}"] = str(val) if val is not None and str(val).strip().lower() != "nan" else ""
 
-        # Ambil kolom pertama sebagai kunci utama (Primary Key pencocokan, misal: Proforma Invoice No.)
-        key_col = df_new.columns[0]
-
-        for _, row in df_new.iterrows():
-            # Konversi semua nilai row menjadi format yang aman untuk SQL
-            cols = [f"`{str(c)}`" for c in df_new.columns]
-            vals = [None if pd.isnull(val) or str(val).strip().lower() == "nan" else str(val) for val in row.values]
-            
-            placeholders = ", ".join(["%s"] * len(vals))
+            cols = [f"`COL {i}`" for i in range(1, 32)]
+            placeholders = ", ".join(["%s"] * 31)
             columns_str = ", ".join(cols)
-            
-            # Buat klausa ON DUPLICATE KEY UPDATE agar data ter-update otomatis jika sudah ada
-            updates = ", ".join([f"`{col}` = VALUES(`{col}`)" for col in df_new.columns[1:]])
+            vals = tuple(val_map[f"COL {i}"] for i in range(1, 32))
+
+            # Query Insert / Update berdasarkan COL 1 (Proforma Invoice No.)
+            updates = ", ".join([f"`COL {i}` = VALUES(`COL {i}`)" for i in range(2, 32)])
             
             query = f"""
                 INSERT INTO `{nama_tabel}` ({columns_str}) 
@@ -80,7 +102,7 @@ def simpan_data_to_db(nama_tabel, data_list):
                 ON DUPLICATE KEY UPDATE {updates}
             """
             
-            cursor.execute(query, tuple(vals))
+            cursor.execute(query, vals)
 
         conn.commit()
         cursor.close()
@@ -94,15 +116,12 @@ def simpan_data_to_db(nama_tabel, data_list):
         return False
 
 def render_download_button_excel(nama_tabel="database_proforma_invoice"):
-    """
-    Mengunduh data langsung dalam bentuk file Excel dari data MySQL aktif.
-    """
     data = muat_data_from_db(nama_tabel)
     if data:
         df_export = pd.DataFrame(data)
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_export.to_excel(writer, index=False, sheet_name=nama_tabel)
+            df_export.to_excel(writer, index=False, header=False)
         excel_bytes = output.getvalue()
 
         st.markdown("---")
