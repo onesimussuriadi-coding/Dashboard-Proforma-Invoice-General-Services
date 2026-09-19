@@ -110,7 +110,9 @@ def tampilkan_rekap_transaksi(transaksi_list):
     col_f1, col_f2, col_f3 = st.columns(3)
     
     with col_f1:
-        unique_contracts = ["Semua Kontrak"] + sorted(list(df_rekap["Nomor Kontrak"].unique()))
+        # Gabungkan kontrak dari data transaksi DAN kontrak yang sudah tersimpan di database plafon (agar kontrak tambahan langsung muncul di filter)
+        all_known_contracts = sorted(list(set(list(df_rekap["Nomor Kontrak"].unique()) + list(st.session_state["db_plafon"].keys()))))
+        unique_contracts = ["Semua Kontrak"] + [c for c in all_known_contracts if c != "-"]
         selected_contract_filter = st.selectbox("📌 Filter Nomor Kontrak:", unique_contracts)
     
     with col_f2:
@@ -146,32 +148,51 @@ def tampilkan_rekap_transaksi(transaksi_list):
         if idx_mulai <= idx_selesai:
             df_filtered = df_filtered[(df_filtered["Bulan_Idx"] >= idx_mulai) & (df_filtered["Bulan_Idx"] <= idx_selesai)]
 
-    # --- PANEL PENGATURAN PLAFON KONTRAK ---
+    # --- PANEL PENGATURAN PLAFON KONTRAK (DENGAN OPSIONAL TAMBAH KONTRAK BARU) ---
     st.markdown("---")
     st.markdown("#### ⚙️ Pengaturan Total Nilai Plafon (Kontrak)")
 
     db_plafon = st.session_state["db_plafon"]
 
-    with st.expander("📝 Input / Update Total Nilai Plafon Masing-Masing Kontrak", expanded=False):
+    with st.expander("📝 Input / Update Total Nilai Plafon Masing-Masing Kontrak (Termasuk Kontrak Baru)", expanded=False):
         with st.form("form_atur_plafon"):
-            st.markdown("Masukkan atau perbarui Total Nilai Plafon untuk setiap Nomor Kontrak:")
+            st.markdown("Masukkan atau perbarui Total Nilai Plafon untuk setiap Nomor Kontrak yang terdaftar:")
             form_plafon_inputs = {}
-            for k_num in [c for c in unique_contracts if c != "Semua Kontrak"]:
+            
+            # Tampilkan input untuk kontrak yang sudah ada
+            active_contract_list = [c for c in unique_contracts if c != "Semua Kontrak"]
+            for k_num in active_contract_list:
                 val_existing = float(db_plafon.get(k_num, 0.0))
                 form_plafon_inputs[k_num] = st.number_input(f"Total Nilai Kontrak [{k_num}] (Rp)", min_value=0.0, value=val_existing, step=1000000.0, format="%.2f")
             
+            st.markdown("---")
+            st.markdown("##### ➕ Tambah Kontrak Baru Opsional (Jika ada kontrak tambahan di tengah jalan):")
+            col_tk1, col_tk2 = st.columns(2)
+            with col_tk1:
+                input_kontrak_baru = st.text_input("Nomor Kontrak Baru:", placeholder="Contoh: 7208250199")
+            with col_tk2:
+                input_plafon_baru = st.number_input("Total Plafon Kontrak Baru (Rp):", min_value=0.0, value=0.0, step=1000000.0, format="%.2f")
+
             submit_plafon = st.form_submit_button("💾 Simpan Nilai Plafon Kontrak")
             if submit_plafon:
+                # Simpan update nilai plafon yang ada
                 for k_num, v_val in form_plafon_inputs.items():
                     db_plafon[k_num] = v_val
+                
+                # Jika user mengisi kontrak baru, tambahkan ke dictionary plafon
+                kontrak_baru_clean = str(input_kontrak_baru).strip()
+                if kontrak_baru_clean and kontrak_baru_clean != "-" and kontrak_baru_clean.lower() != "nan":
+                    db_plafon[kontrak_baru_clean] = float(input_plafon_baru)
+                    st.success(f"✅ Kontrak baru [{kontrak_baru_clean}] berhasil ditambahkan beserta plafonnya!")
+
                 simpan_database_plafon(db_plafon)
-                st.success("✅ Nilai Plafon Kontrak berhasil disimpan secara permanen!")
+                st.success("✅ Nilai Plafon Kontrak berhasil disimpan secara permanen ke database!")
                 st.rerun()
 
     # --- TABEL RINGKASAN & STATISTIK PENYERAPAN PER KONTRAK (DENGAN BARIS GRAND TOTAL) ---
     st.markdown("#### 📋 Tabel Ringkasan Statistik & Penyerapan Kontrak")
     
-    kontrak_tabel_list = [selected_contract_filter] if selected_contract_filter != "Semua Kontrak" else [c for c in unique_contracts if c != "Semua Kontrak"]
+    kontrak_tabel_list = [selected_contract_filter] if selected_contract_filter != "Semua Kontrak" else active_contract_list
     
     summary_rows = []
     for k_num in kontrak_tabel_list:
