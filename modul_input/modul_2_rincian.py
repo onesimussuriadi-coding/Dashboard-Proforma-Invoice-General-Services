@@ -237,7 +237,6 @@ def tampilkan_modul_2_rincian(
         for i in range(st.session_state.num_rows):
             default_item_data = loaded_tx_items[i] if loaded_tx_items and i < len(loaded_tx_items) else {}
             
-            # KOREKSI PRESISI KATEGORI: Pastikan kategori tersimpan ditarik dan diletakkan di urutan teratas selectbox agar tidak melompat
             def_kat_item = str(default_item_data.get("Kategori", "")).strip().upper()
             list_kat = list(base_list_kat)
             if def_kat_item and def_kat_item not in list_kat:
@@ -257,7 +256,7 @@ def tampilkan_modul_2_rincian(
             with c_k2:
                 if is_provisional:
                     current_desc_val = str(default_item_data.get("Deskripsi Pekerjaan", default_item_data.get("Uraian Pekerjaan", "")))
-                    if not current_desc_val or "fogging" in current_desc_val.lower() or "provisional sum (" in current_desc_val.lower():
+                    if not current_desc_val or "fogging" in current_desc_val.lower() or "provisional sum (" in current_desc_val.lower() or "add cost" in current_desc_val.lower():
                         default_desc_final = "At Cost + Fee 15%"
                     else:
                         default_desc_final = current_desc_val
@@ -275,7 +274,6 @@ def tampilkan_modul_2_rincian(
                     spek_display_map = {}
                     spek_options_formatted = []
                     
-                    # Pastikan deskripsi tersimpan ditarik ke urutan teratas agar index-nya selalu 0
                     if def_spek_item and def_spek_item not in raw_list_spek:
                         raw_list_spek.insert(0, def_spek_item)
                     elif def_spek_item in raw_list_spek:
@@ -361,7 +359,12 @@ def tampilkan_modul_2_rincian(
                     def_hs_saved = float(default_item_data.get("Harga Satuan", 0.0) or 0.0)
                 except:
                     def_hs_saved = 0.0
-                hs_final = def_hs_saved if def_hs_saved > 0 else hs_otomatis
+                
+                # SINKRONISASI AKTIF: Jika item baru dipilih atau berubah, ambil harga dari Master (hs_otomatis) jika saved kosong atau tidak cocok
+                if hs_otomatis > 0 and (def_hs_saved <= 0 or default_item_data.get("Deskripsi Pekerjaan") != spek_pilih):
+                    hs_final = hs_otomatis
+                else:
+                    hs_final = def_hs_saved if def_hs_saved > 0 else hs_otomatis
 
             formatted_hs = f"Rp {hs_final:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             
