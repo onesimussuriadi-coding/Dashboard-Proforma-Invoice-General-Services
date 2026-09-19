@@ -16,17 +16,8 @@ def muat_data_from_db(nama_tabel):
         try:
             df_local = pd.read_excel(file_path, engine='openpyxl')
             if df_local is not None and not df_local.empty:
-                # Konversi DataFrame ke format list of dict agar kompatibel dengan modul
-                records = []
-                for _, row in df_local.iterrows():
-                    rec_dict = {}
-                    for i, col_name in enumerate(df_local.columns):
-                        val = str(row[col_name]) if pd.notnull(row[col_name]) and str(row[col_name]).lower() != "nan" else ""
-                        rec_dict[i] = val
-                        rec_dict[str(i)] = val
-                        rec_dict[col_name] = val
-                    records.append(rec_dict)
-                return records
+                # Pastikan kolom kunci tidak hilang
+                return df_local.to_dict(orient="records")
         except Exception:
             pass
     return []
@@ -52,15 +43,20 @@ def simpan_data_to_db(nama_tabel, data_list):
             try:
                 df_old = pd.read_excel(file_path, engine='openpyxl')
                 if not df_old.empty:
+                    # Ambil kolom pertama sebagai referensi utama (Nomor Proforma Invoice)
                     key_col = df_old.columns[0]
                     if key_col in df_new.columns:
+                        # Ubah ke string agar pencocokan akurat
                         df_old[key_col] = df_old[key_col].astype(str).str.strip()
                         df_new[key_col] = df_new[key_col].astype(str).str.strip()
                         
+                        # Buat kamus data baru untuk penggantian
                         new_dict = {str(row[key_col]): row for _, row in df_new.iterrows()}
+                        
                         updated_rows = []
                         existing_keys = set()
                         
+                        # Timpa baris lama jika kodenya sama
                         for _, row in df_old.iterrows():
                             k = str(row[key_col])
                             if k in new_dict:
@@ -69,6 +65,7 @@ def simpan_data_to_db(nama_tabel, data_list):
                             else:
                                 updated_rows.append(row)
                                 
+                        # Tambahkan baris baru yang belum ada di data lama
                         for _, row in df_new.iterrows():
                             k = str(row[key_col])
                             if k not in existing_keys:
@@ -84,6 +81,30 @@ def simpan_data_to_db(nama_tabel, data_list):
     except Exception as e:
         st.error(f"❌ Gagal menyimpan data: {e}")
         return False
+
+def render_download_button_excel(nama_tabel="database_proforma_invoice"):
+    """
+    Menampilkan tombol unduh file Excel secara jelas di antarmuka web
+    agar Bapak bisa mendownload file arsip terbaru kapan saja.
+    """
+    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
+    
+    st.markdown("---")
+    st.markdown("### 📥 Unduh File Excel Server Terbaru")
+    st.info("Klik tombol di bawah ini untuk mendownload file Excel berisi data paling update langsung dari server.")
+    
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            excel_bytes = f.read()
+        st.download_button(
+            label=f"📥 Download {nama_tabel}.xlsx Sekarang",
+            data=excel_bytes,
+            file_name=f"{nama_tabel}_terbaru.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"download_btn_fixed_{nama_tabel}"
+        )
+    else:
+        st.warning(f"⚠️ File data untuk tabel '{nama_tabel}' belum tersedia.")
 
 def render_pilihan_panggil_ulang(nama_tabel="database_proforma_invoice"):
     """
@@ -115,27 +136,3 @@ def render_pilihan_panggil_ulang(nama_tabel="database_proforma_invoice"):
                 st.success(f"✅ Data berhasil dipanggil ulang untuk Kontrak: {selected_kontrak} | PI: {selected_pi}")
 
     return selected_record
-
-def render_download_button_excel(nama_tabel="database_proforma_invoice"):
-    """
-    Menampilkan tombol unduh file Excel secara jelas di antarmuka web
-    agar Bapak bisa mendownload file arsip terbaru kapan saja.
-    """
-    file_path = os.path.join(DIR_DATABASE, f"{nama_tabel}.xlsx")
-    
-    st.markdown("---")
-    st.markdown("### 📥 Unduh File Excel Server Terbaru")
-    st.info("Klik tombol di bawah ini untuk mendownload file Excel berisi data paling update langsung dari server.")
-    
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            excel_bytes = f.read()
-        st.download_button(
-            label=f"📥 Download {nama_tabel}.xlsx Sekarang",
-            data=excel_bytes,
-            file_name=f"{nama_tabel}_terbaru.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"download_btn_fixed_{nama_tabel}"
-        )
-    else:
-        st.warning(f"⚠️ File data untuk tabel '{nama_tabel}' belum tersedia.")
