@@ -82,7 +82,6 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                             target_pi_val = pi_mapping[selected_pi_label]
                             st.session_state["active_pi_key"] = target_pi_val
                             
-                            # --- PEMBERSIHAN CACHE LAMA (MEMAKSA MEMUAT DATA TERBARU DARI DB) ---
                             target_storage_key = f"form_cache_{target_pi_val}".replace("/", "_")
                             if target_storage_key in st.session_state:
                                 del st.session_state[target_storage_key]
@@ -93,7 +92,6 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
         else:
             st.info("📌 Belum ada data database tersimpan di folder aman.")
 
-        # --- MEKANISME PENGUNCIAN DATA BERBASIS STATE & NOMOR PI ---
         def_data = {}
         edit_idx = st.session_state.get("edit_index")
         
@@ -234,16 +232,43 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
             
             if submit_baru or submit_save_as or submit_update:
                 waktu_aksi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Kamus data disesuaikan menggunakan Key Teks Kolom Resmi
                 data_terinput = {
-                    0: bersih_angka_func(val_6), 1: bersih_angka_func(val_1), 2: bersih_angka_func(val_2), 3: val_10, 4: val_4, 5: val_5, 6: val_7, 7: val_3, 
-                    8: bersih_angka_func(val_8), 9: val_9, 10: val_11, 11: val_12, 12: val_13, 13: val_14, 14: val_15, 
-                    15: val_16, 16: val_17, 17: val_18, 18: val_19, 19: bersih_angka_func(val_20), 20: val_21, 21: bersih_angka_func(val_22), 
-                    22: val_23, 23: bersih_angka_func(val_24), 24: val_25, 25: val_26, 26: val_27, 27: val_28, 28: val_29,
-                    29: val_30, 30: val_31,
+                    "Proforma Invoice No.": bersih_angka_func(val_6),
+                    "Nomor Kontrak": bersih_angka_func(val_1),
+                    "Nomor Tender": bersih_angka_func(val_2),
+                    "Lingkup Pekerjaan": val_10,
+                    "Tanggal Kontrak": val_4,
+                    "Jangka Waktu Kontrak": val_5,
+                    "Tanggal Performa Invoice": val_7,
+                    "Judul Kontrak": val_3,
+                    "Nomor Purchase Order": bersih_angka_func(val_8),
+                    "Tanggal Purchase Order": val_9,
+                    "Pihak Pertama": val_11,
+                    "Alamat Pihak Pertama": val_12,
+                    "Diwakili Oleh": val_13,
+                    "Selaku": val_14,
+                    "Pihak Kedua": val_15,
+                    "Alamat Pihak Kedua": val_16,
+                    "Diwakili Oleh (P2)": val_17,
+                    "Selaku (P2)": val_18,
+                    "Periode Pekerjaan": val_19,
+                    "Nomor WCC": bersih_angka_func(val_20),
+                    "Tanggal WCC": val_21,
+                    "Nomor WO": bersih_angka_func(val_22),
+                    "Keterangan WO": val_23,
+                    "Nomor CTR": bersih_angka_func(val_24),
+                    "Progress Pekerjaan": val_25,
+                    "Prepared by Name": val_26,
+                    "Prepared by Title": val_27,
+                    "Approved by 1": val_28,
+                    "Approved by Title 1": val_29,
+                    "Approved by 2": val_30,
+                    "Approved by Title 2": val_31,
                     "Update Terakhir": waktu_aksi
                 }
                 
-                # Perbarui cache session agar data langsung sinkron
                 st.session_state[storage_state_key] = data_terinput
                 
                 current_data = muat_data_invoice_func()
@@ -251,7 +276,6 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                     if st.session_state.get("edit_index") is not None and st.session_state["edit_index"] < len(current_data):
                         current_data[st.session_state["edit_index"]] = data_terinput
                         if simpan_data_invoice_func(current_data):
-                            # Notifikasi pop-up toast & success yang jelas & permanen
                             st.toast("✅ Data berhasil diperbarui secara permanen ke Database MySQL!", icon="✨")
                             st.success("✨ Data berhasil diperbarui secara permanen ke file lokal & database!")
                 elif submit_save_as or submit_baru:
@@ -262,7 +286,6 @@ def tampilkan_modul_1_database(menu, saved_db_list, bersih_angka_func, parse_dat
                         st.session_state["edit_index"] = None
                         st.session_state["active_pi_key"] = None
                 
-                # Beri jeda sejenak agar notifikasi sukses sempat terbaca sebelum halaman merender ulang
                 import time
                 time.sleep(0.8)
                 st.rerun()
