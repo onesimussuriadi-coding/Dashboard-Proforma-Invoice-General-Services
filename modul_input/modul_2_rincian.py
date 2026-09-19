@@ -247,11 +247,12 @@ def tampilkan_modul_2_rincian(
         c_k1, c_k2 = st.columns(2)
         with c_k1:
             idx_kat = 0 if list_kat else 0
-            # Gunakan on_change / deteksi perubahan untuk membersihkan cache pilihan spek jika kategori berubah
             kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}", disabled=is_management)
         
-        is_provisional = "provisional" in str(kat_pilih).lower() or "professional" in str(kat_pilih).lower()
-        is_estimated_sum = "estimated" in str(kat_pilih).lower() or "estimasi" in str(kat_pilih).lower()
+        # PERBAIKAN UTAMA: Deteksi presisi kata provisional / professional untuk provisional sum
+        kat_lower = str(kat_pilih).lower()
+        is_provisional = "provisional" in kat_lower or "professional" in kat_lower
+        is_estimated_sum = "estimated" in kat_lower or "estimasi" in kat_lower
 
         with c_k2:
             if is_provisional:
@@ -263,14 +264,12 @@ def tampilkan_modul_2_rincian(
 
                 spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_desc_final, key=f"spek_manual_{i}", disabled=is_management)
             else:
-                # FILTER DINAMIS MURNI BERDASARKAN KATEGORI YANG DIPILIH SAAT INI
                 df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip().upper()]
                 if df_f_kat.empty:
                     df_f_kat = df_ref[df_ref["Kategori Clean"] == str(kat_pilih).strip().upper()]
                     
                 raw_list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
                 
-                # Cek apakah item tersimpan sebelumnya cocok dengan kategori ini
                 def_spek_item = str(default_item_data.get("Deskripsi Pekerjaan", default_item_data.get("Uraian Pekerjaan", "")))
                 
                 spek_display_map = {}
@@ -287,10 +286,8 @@ def tampilkan_modul_2_rincian(
                     spek_display_map[display_text] = orig_text
                     spek_options_formatted.append(display_text)
 
-                # Tentukan index default: jika kategori sama dengan data tersimpan, pilih index-nya. Jika kategori baru diganti, reset ke 0 (pilihan pertama kategori baru).
                 idx_spek = 0
                 if def_spek_item in raw_list_spek and str(default_item_data.get("Kategori", "")).strip().upper() == str(kat_pilih).strip().upper():
-                    # Cari format display yang sesuai
                     for disp, orig in spek_display_map.items():
                         if orig == def_spek_item:
                             try:
@@ -302,7 +299,6 @@ def tampilkan_modul_2_rincian(
                 selected_display_spek = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", spek_options_formatted if spek_options_formatted else ["-"], index=idx_spek, key=f"spek_{i}", disabled=is_management)
                 spek_pilih = spek_display_map.get(selected_display_spek, selected_display_spek)
 
-        # PENCARIAN HARGA SATUAN OTOMATIS BERDASARKAN KATEGORI & URAIAN YANG BENAR-BENAR AKTIF TERpILIH
         hs_otomatis = 0.0
         unit_otomatis = "Month"
         if not is_provisional:
@@ -335,8 +331,7 @@ def tampilkan_modul_2_rincian(
             existing_u_from_master = df_ref["Unit"].dropna().astype(str).unique().tolist() if "Unit" in df_ref.columns else []
             u_opts = sorted(list(set(default_u_opts + existing_u_from_master)))
             
-            # Gunakan unit otomatis dari master jika kategori berganti
-            def_unit = unit_otomatis if str(default_item_data.get("Kategori", "")).strip().upper() != str(kat_pilih).strip().upper() else str(default_item_data.get("Unit", unit_otomatis))
+            def_unit = unit_otomatis if not is_provisional and str(default_item_data.get("Kategori", "")).strip().upper() != str(kat_pilih).strip().upper() else str(default_item_data.get("Unit", "AU" if is_provisional else unit_otomatis))
             if def_unit not in u_opts and def_unit:
                 u_opts.insert(0, def_unit)
             idx_u = u_opts.index(def_unit) if def_unit in u_opts else 0
@@ -364,11 +359,11 @@ def tampilkan_modul_2_rincian(
             hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i+1} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}", disabled=is_management)
             hs_final = hs_manual
         else:
-            # HARGA FIX DIKUNCI KE HARGA MASTER BERDASARKAN SPESIFIKASI AKTIF
             hs_final = hs_otomatis
 
         formatted_hs = f"Rp {hs_final:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
+        # RUMUS KALKULASI: Provisional Sum (+15% fee), Estimated Sum (-10% diskon)
         if is_provisional:
             calc_total = (q_val * hs_final * 1.15) * (persen_val / 100.0)
         elif is_estimated_sum:
@@ -380,10 +375,15 @@ def tampilkan_modul_2_rincian(
 
         col_info1, col_info2 = st.columns(2)
         with col_info1:
-            st.markdown(f"💰 **Harga Satuan (Modul 0):** `{formatted_hs}`")
+            if is_provisional:
+                st.markdown(f"💰 **Nilai Dasar At Cost:** `{formatted_hs}`")
+            else:
+                st.markdown(f"💰 **Harga Satuan (Modul 0):** `{formatted_hs}`")
         with col_info2:
             if is_estimated_sum:
                 st.markdown(f"📊 **Estimasi Total Harga (Diskon 10%):** `{formatted_total}`")
+            elif is_provisional:
+                st.markdown(f"📊 **Estimasi Total (At Cost + Fee 15%):** `{formatted_total}`")
             else:
                 st.markdown(f"📊 **Estimasi Total Harga:** `{formatted_total}`")
 
