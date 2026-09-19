@@ -107,7 +107,7 @@ def tampilkan_tkdn(transaksi_list):
     if default_rujukan_tagihan <= 3200000.0:
         default_rujukan_tagihan = aktual_total_tagihan
 
-    # Form parameter & rujukan
+    # Form parameter & rujukan bobot persentase
     with st.form(key=f"form_tkdn_save_{selected_pi_key}"):
         st.markdown("#### ⚙️ Pengaturan Parameter & Rujukan Perhitungan TKDN")
         
@@ -122,17 +122,17 @@ def tampilkan_tkdn(transaksi_list):
             nama_direktur = st.text_input("Nama Direktur:", value=str(saved_tkdn.get('nama_direktur', 'Ir. Ferry Tatimu')), key=f"tkdn_dir_{selected_pi_key}")
 
         st.markdown("---")
-        st.markdown("#### 🧮 Rincian Komponen Biaya & Non-Biaya (Berbasis Persentase)")
-        st.info("💡 Masukkan persentase (%) untuk setiap komponen. Nilai nominal dihitung otomatis dari Rujukan Total Tagihan.")
+        st.markdown("#### 🧮 Rincian Komponen Bobot Persentase (%) Biaya & Non-Biaya")
+        st.info("💡 Masukkan persentase bobot (%) untuk setiap komponen. Nilai nominal dihitung otomatis dari Rujukan Total Tagihan.")
 
         st.markdown("**I. Biaya Bahan (Material)**")
         c_b1, c_b2 = st.columns(2)
         with c_b1:
-            p_kdn_1 = st.number_input("Persentase KDN Bahan (%):", value=float(saved_tkdn.get('p_kdn_1', 15.09)), step=0.01, format="%.2f", key=f"input_p_kdn_1_{selected_pi_key}")
+            p_kdn_1 = st.number_input("Persentase Bobot KDN Bahan (%):", value=float(saved_tkdn.get('p_kdn_1', 15.09)), step=0.01, format="%.2f", key=f"input_p_kdn_1_{selected_pi_key}")
             temp_kdn_1 = (p_kdn_1 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KDN: Rp {temp_kdn_1:,.2f}")
         with c_b2:
-            p_kln_1 = st.number_input("Persentase KLN Bahan (%):", value=float(saved_tkdn.get('p_kln_1', 1.51)), step=0.01, format="%.2f", key=f"input_p_kln_1_{selected_pi_key}")
+            p_kln_1 = st.number_input("Persentase Bobot KLN Bahan (%):", value=float(saved_tkdn.get('p_kln_1', 1.51)), step=0.01, format="%.2f", key=f"input_p_kln_1_{selected_pi_key}")
             temp_kln_1 = (p_kln_1 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KLN: Rp {temp_kln_1:,.2f}")
 
@@ -140,11 +140,11 @@ def tampilkan_tkdn(transaksi_list):
         st.markdown("**II. Biaya Tenaga Kerja & Konsultan**")
         c_t1, c_t2 = st.columns(2)
         with c_t1:
-            p_kdn_2 = st.number_input("Persentase KDN Tenaga Kerja (%):", value=float(saved_tkdn.get('p_kdn_2', 28.26)), step=0.01, format="%.2f", key=f"input_p_kdn_2_{selected_pi_key}")
+            p_kdn_2 = st.number_input("Persentase Bobot KDN Tenaga Kerja (%):", value=float(saved_tkdn.get('p_kdn_2', 28.26)), step=0.01, format="%.2f", key=f"input_p_kdn_2_{selected_pi_key}")
             temp_kdn_2 = (p_kdn_2 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KDN: Rp {temp_kdn_2:,.2f}")
         with c_t2:
-            p_kln_2 = st.number_input("Persentase KLN Tenaga Kerja (%):", value=float(saved_tkdn.get('p_kln_2', 0.0)), step=0.01, format="%.2f", key=f"input_p_kln_2_{selected_pi_key}")
+            p_kln_2 = st.number_input("Persentase Bobot KLN Tenaga Kerja (%):", value=float(saved_tkdn.get('p_kln_2', 0.0)), step=0.01, format="%.2f", key=f"input_p_kln_2_{selected_pi_key}")
             temp_kln_2 = (p_kln_2 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KLN: Rp {temp_kln_2:,.2f}")
 
@@ -152,11 +152,11 @@ def tampilkan_tkdn(transaksi_list):
         st.markdown("**III. Biaya Alat Kerja / Fasilitas Kerja**")
         c_a1, c_a2 = st.columns(2)
         with c_a1:
-            p_kdn_3 = st.number_input("Persentase KDN Alat Kerja (%):", value=float(saved_tkdn.get('p_kdn_3', 47.18)), step=0.01, format="%.2f", key=f"input_p_kdn_3_{selected_pi_key}")
+            p_kdn_3 = st.number_input("Persentase Bobot KDN Alat Kerja (%):", value=float(saved_tkdn.get('p_kdn_3', 47.18)), step=0.01, format="%.2f", key=f"input_p_kdn_3_{selected_pi_key}")
             temp_kdn_3 = (p_kdn_3 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KDN: Rp {temp_kdn_3:,.2f}")
         with c_a2:
-            p_kln_3 = st.number_input("Persentase KLN Alat Kerja (%):", value=float(saved_tkdn.get('p_kln_3', 1.51)), step=0.01, format="%.2f", key=f"input_p_kln_3_{selected_pi_key}")
+            p_kln_3 = st.number_input("Persentase Bobot KLN Alat Kerja (%):", value=float(saved_tkdn.get('p_kln_3', 1.51)), step=0.01, format="%.2f", key=f"input_p_kln_3_{selected_pi_key}")
             temp_kln_3 = (p_kln_3 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KLN: Rp {temp_kln_3:,.2f}")
 
@@ -164,26 +164,26 @@ def tampilkan_tkdn(transaksi_list):
         c_j1, c_j2 = st.columns(2)
         with c_j1:
             st.markdown("**IV. Biaya Jasa Umum**")
-            p_kdn_4 = st.number_input("Persentase KDN Jasa Umum (%):", value=float(saved_tkdn.get('p_kdn_4', 1.55)), step=0.01, format="%.2f", key=f"input_p_kdn_4_{selected_pi_key}")
+            p_kdn_4 = st.number_input("Persentase Bobot KDN Jasa Umum (%):", value=float(saved_tkdn.get('p_kdn_4', 1.55)), step=0.01, format="%.2f", key=f"input_p_kdn_4_{selected_pi_key}")
             temp_kdn_4 = (p_kdn_4 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KDN: Rp {temp_kdn_4:,.2f}")
             
-            p_kln_4 = st.number_input("Persentase KLN Jasa Umum (%):", value=float(saved_tkdn.get('p_kln_4', 0.0)), step=0.01, format="%.2f", key=f"input_p_kln_4_{selected_pi_key}")
+            p_kln_4 = st.number_input("Persentase Bobot KLN Jasa Umum (%):", value=float(saved_tkdn.get('p_kln_4', 0.0)), step=0.01, format="%.2f", key=f"input_p_kln_4_{selected_pi_key}")
             temp_kln_4 = (p_kln_4 / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai KLN: Rp {temp_kln_4:,.2f}")
 
         with c_j2:
             st.markdown("**B. Komponen Bukan Biaya**")
-            p_non_cost = st.number_input("Persentase Komponen Bukan Biaya (%):", value=float(saved_tkdn.get('p_non_cost', 4.89)), step=0.01, format="%.2f", key=f"input_p_non_cost_{selected_pi_key}")
+            p_non_cost = st.number_input("Persentase Bobot Komponen Bukan Biaya (%):", value=float(saved_tkdn.get('p_non_cost', 4.89)), step=0.01, format="%.2f", key=f"input_p_non_cost_{selected_pi_key}")
             temp_non_cost = (p_non_cost / 100.0) * total_tagihan_rujukan
             st.caption(f"-> Nilai Bukan Biaya: Rp {temp_non_cost:,.2f}")
 
         total_persen_akumulasi = p_kdn_1 + p_kln_1 + p_kdn_2 + p_kln_2 + p_kdn_3 + p_kln_3 + p_kdn_4 + p_kln_4 + p_non_cost
-        st.markdown(f"**📊 Total Akumulasi Persentase Terdistribusi:** `{total_persen_akumulasi:.2f}%`")
+        st.markdown(f"**📊 Total Akumulasi Bobot Persentase Terdistribusi:** `{total_persen_akumulasi:.2f}%`")
         if abs(total_persen_akumulasi - 100.0) > 0.01:
-            st.warning(f"⚠️ Total persentase saat ini adalah {total_persen_akumulasi:.2f}%. Pastikan total distribusi mendekati atau tepat 100%.")
+            st.warning(f"⚠️ Total akumulasi bobot persentase saat ini adalah {total_persen_akumulasi:.2f}%. Pastikan total distribusi tepat mendekati 100%.")
         else:
-            st.success("✅ Total akumulasi persentase sudah tepat 100%.")
+            st.success("✅ Total akumulasi bobot persentase sudah tepat 100%.")
 
         submit_save_tkdn = st.form_submit_button("💾 Simpan & Kunci Dokumen TKDN Ini", type="primary")
         if submit_save_tkdn:
@@ -207,7 +207,7 @@ def tampilkan_tkdn(transaksi_list):
                 with open(tkdn_file_path, "w", encoding="utf-8") as f_json:
                     json.dump(data_to_export, f_json, ensure_ascii=False, indent=4)
                 
-                st.success(f"✅ Dokumen TKDN untuk PI [{selected_pi_key}] berhasil disimpan secara permanen & dikunci!")
+                st.success(f"✅ Dokumen TKDN untuk PI [{selected_pi_key}] beserta rincian bobot persentasenya berhasil disimpan secara permanen & dikunci!")
             except Exception as e:
                 st.error(f"Gagal menyimpan permanen ke disk: {e}")
 
@@ -253,7 +253,7 @@ def tampilkan_tkdn(transaksi_list):
         except:
             tgl_po_dokumen = str(raw_po_date).strip()
     else:
-        tgl_po_dokumen = tgl_dokumen  # Fallback jika Tanggal PO belum diisi
+        tgl_po_dokumen = tgl_dokumen 
 
     kdn_1 = (saved_tkdn.get('p_kdn_1', 15.09) / 100.0) * active_tagihan
     kln_1 = (saved_tkdn.get('p_kln_1', 1.51) / 100.0) * active_tagihan
@@ -482,7 +482,7 @@ def tampilkan_tkdn(transaksi_list):
         <div class="footer-notes">
             <b>Catatan:</b><br>
             &bull; Isi hanya pada kolom yang berwarna kuning pastel.<br>
-            &bull; Formulasi perhitungan mengacu pada Permen ESDM No. 15 Tahun 2013.
+            &bull; Formulasi perhitungan mengacu pada Permen ESDM No. 15 Tahun 2013[cite: 11].
         </div>
 
         <table class="sign-section">
