@@ -258,7 +258,7 @@ def tampilkan_modul_2_rincian(
                 if is_provisional:
                     current_desc_val = str(default_item_data.get("Deskripsi Pekerjaan", default_item_data.get("Uraian Pekerjaan", "")))
                     if not current_desc_val or "fogging" in current_desc_val.lower() or "provisional sum (" in current_desc_val.lower():
-                        default_desc_final = "Add Cost + Fee 15%"
+                        default_desc_final = "At Cost + Fee 15%"
                     else:
                         default_desc_final = current_desc_val
 
