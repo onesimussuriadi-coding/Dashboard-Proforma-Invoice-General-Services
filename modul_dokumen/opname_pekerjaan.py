@@ -15,42 +15,76 @@ def muat_parameter_dokumen_from_db(doc_key):
     if os.path.exists(PATH_EXCEL_OPNAME):
         try:
             df = pd.read_excel(PATH_EXCEL_OPNAME)
-            if "doc_key" in df.columns and "payload" in df.columns:
+            if "doc_key" in df.columns:
                 matched = df[df["doc_key"].astype(str).str.strip() == str(doc_key).strip()]
                 if not matched.empty:
-                    import json
-                    val_str = matched.iloc[0]["payload"]
-                    return json.loads(val_str)
+                    # Rekonstruksi kembali struktur payload dari baris-baris tabel terurai
+                    first_row = matched.iloc[0]
+                    items_dict = {}
+                    for _, row in matched.iterrows():
+                        try:
+                            idx_item = int(row.get("Item Index", 1))
+                        except:
+                            idx_item = 1
+                        items_dict[idx_item] = {
+                            'po_vol': float(row.get("Volume PO", 0.0)),
+                            'unit_price': float(row.get("Unit Price", 0.0)),
+                            'prev_vol': float(row.get("Volume Previous", 0.0)),
+                            'current_vol': float(row.get("Volume Aktual", 0.0))
+                        }
+                    
+                    payload = {
+                        'lokasi_office': str(first_row.get("Lokasi Office", "Luwuk")),
+                        'tanggal_opname': str(first_row.get("Tanggal Opname", date.today())),
+                        'items': items_dict,
+                        'logo_1': None,
+                        'logo_2': None,
+                        'ttd_1': None,
+                        'ttd_2': None
+                    }
+                    return payload
         except Exception as e:
             return None
     return None
 
 def simpan_parameter_dokumen_to_db(doc_key, data_dict):
     try:
-        import json
-        payload_str = json.dumps(data_dict, default=str)
-        
-        if os.path.exists(PATH_EXCEL_OPNAME):
-            df = pd.read_excel(PATH_EXCEL_OPNAME)
-        else:
-            df = pd.DataFrame(columns=["doc_key", "payload", "Update Terakhir"])
-            
         waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Update atau Append data berdasarkan doc_key
-        if "doc_key" in df.columns:
-            df["doc_key"] = df["doc_key"].astype(str)
-            mask = df["doc_key"] == str(doc_key).strip()
-            if mask.any():
-                df.loc[mask, "payload"] = payload_str
-                df.loc[mask, "Update Terakhir"] = waktu_sekarang
+        lokasi = data_dict.get('lokasi_office', 'Luwuk')
+        tgl_opn = data_dict.get('tanggal_opname', str(date.today()))
+        items = data_dict.get('items', {})
+
+        # Buat daftar baris (rows) agar tersimpan terurai per item pekerjaan di Excel
+        new_rows = []
+        for idx_item, item_val in items.items():
+            row_data = {
+                "doc_key": str(doc_key).strip(),
+                "Item Index": idx_item,
+                "Lokasi Office": lokasi,
+                "Tanggal Opname": tgl_opn,
+                "Volume PO": item_val.get('po_vol', 0.0),
+                "Unit Price": item_val.get('unit_price', 0.0),
+                "Volume Previous": item_val.get('prev_vol', 0.0),
+                "Volume Aktual": item_val.get('current_vol', 0.0),
+                "Update Terakhir": waktu_sekarang
+            }
+            new_rows.append(row_data)
+
+        df_new = pd.DataFrame(new_rows)
+
+        if os.path.exists(PATH_EXCEL_OPNAME):
+            df_existing = pd.read_excel(PATH_EXCEL_OPNAME)
+            if "doc_key" in df_existing.columns:
+                # Hapus data lama untuk doc_key yang sama agar tidak duplikat
+                df_existing["doc_key"] = df_existing["doc_key"].astype(str)
+                df_filtered = df_existing[df_existing["doc_key"] != str(doc_key).strip()]
+                df_final = pd.concat([df_filtered, df_new], ignore_index=True)
             else:
-                new_row = pd.DataFrame([{"doc_key": str(doc_key).strip(), "payload": payload_str, "Update Terakhir": waktu_sekarang}])
-                df = pd.concat([df, new_row], ignore_index=True)
+                df_final = df_new
         else:
-            df = pd.DataFrame([{"doc_key": str(doc_key).strip(), "payload": payload_str, "Update Terakhir": waktu_sekarang}])
-            
-        df.to_excel(PATH_EXCEL_OPNAME, index=False)
+            df_final = df_new
+
+        df_final.to_excel(PATH_EXCEL_OPNAME, index=False)
         return True
     except Exception as e:
         return False
@@ -193,7 +227,7 @@ def tampilkan_opname(transaksi_list):
     st.markdown("---")
     
     with st.form(key=f"form_opname_params_{opname_storage_key}"):
-        st.markdown("#### ⚙️ Pengaturan Parameter & Rincian Baris Opname (Terkunci & Persisten Lokal)")
+        st.markdown("#### ⚙️ Pengaturan Parameter & Rincian Baris Opname (Terkunci & Persisten Terurai)")
         
         c_head1, c_head2 = st.columns(2)
         with c_head1:
@@ -267,9 +301,9 @@ def tampilkan_opname(transaksi_list):
                 'ttd_2': saved_global.get('ttd_2')
             }
             
-            # Simpan permanen ke file Excel lokal
+            # Simpan permanen ke file Excel lokal dengan format tabel terurai kolom
             simpan_parameter_dokumen_to_db(opname_storage_key, payload_to_save)
-            st.success("✅ Parameter opname berhasil disimpan dan dikunci secara permanen ke file Excel lokal!")
+            st.success("✅ Parameter opname berhasil disimpan ke tabel Excel lokal secara terurai (kolom lengkap)!")
 
     # --- PENGATURAN LOGO ---
     st.markdown("---")
