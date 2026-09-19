@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import base64
+import os
 from datetime import datetime
 
 def terbilang(n):
@@ -33,7 +34,6 @@ def terbilang(n):
 def format_tanggal_indo(tanggal_str):
     if not tanggal_str or str(tanggal_str).strip() in ["-", "nan", "None"]:
         return "-"
-    # Bersihkan jika ada tambahan waktu di belakangnya (seperti 00:00:00)
     clean_str = str(tanggal_str).strip().split()[0]
     for fmt in ("%Y-%m-%d", "%d %b %Y", "%d-%m-%Y", "%d/%m/%Y"):
         try:
@@ -41,7 +41,7 @@ def format_tanggal_indo(tanggal_str):
             return dt_obj.strftime("%d %b %Y")
         except:
             continue
-    return str(tanggal_str)  # Kembalikan aslinya jika gagal parsing
+    return str(tanggal_str)
 
 def tampilkan_rincian_pekerjaan(transaksi_list):
     st.markdown("""
@@ -53,6 +53,31 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     if not transaksi_list:
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
+
+    # --- DIREKTORI PENYIMPANAN EXCEL RINCIAN PEKERJAAN ---
+    DIR_DATABASE_RINCIAN = os.path.join("database_penyimpanan_aman")
+    if not os.path.exists(DIR_DATABASE_RINCIAN):
+        os.makedirs(DIR_DATABASE_RINCIAN)
+    EXCEL_FILE_RINCIAN = os.path.join(DIR_DATABASE_RINCIAN, "database_rincian_pekerjaan_tersimpan.xlsx")
+
+    def muat_database_rincian_excel():
+        if os.path.exists(EXCEL_FILE_RINCIAN):
+            try:
+                df = pd.read_excel(EXCEL_FILE_RINCIAN)
+                if df is not None and not df.empty:
+                    return df.to_dict(orient="records")
+            except:
+                pass
+        return []
+
+    def simpan_database_rincian_excel(list_data_rekaman):
+        try:
+            df_save = pd.DataFrame(list_data_rekaman)
+            df_save.to_excel(EXCEL_FILE_RINCIAN, index=False)
+            return True
+        except Exception as e:
+            st.error(f"Gagal menyimpan ke Excel: {e}")
+            return False
 
     seen_pi_dd = set()
     unique_pi_list = []
@@ -100,7 +125,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 st.rerun()
 
     with st.form(key=f"form_rincian_sig_{current_pi_no}"):
-        st.markdown(f"**Konfirmasi Rincian Pekerjaan (PI: {current_pi_no}):** Klik tombol di bawah untuk mengunci konfigurasi.")
+        st.markdown(f"**Konfirmasi Rincian Pekerjaan (PI: {current_pi_no}):** Klik tombol di bawah untuk mengunci konfigurasi dan menyimpan ke database Excel.")
         submit_save_rincian = st.form_submit_button("💾 Simpan & Kunci Dokumen Rincian Pekerjaan Ini", type="primary")
         
         if submit_save_rincian:
@@ -111,7 +136,37 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 'sig_dibuat': sig1_final,
                 'sig_diperiksa': sig2_final
             }
-            st.success(f"✅ Sukses! Data rincian pekerjaan untuk PI [{current_pi_no}] berhasil disimpan dan dikunci secara permanen!")
+
+            # --- PROSES SIMPAN OTOMATIS KE FILE EXCEL HISTORI ---
+            matching_mutasi_to_save = [item for item in transaksi_list if str(item.get('PI No.', '')).strip() == current_pi_no]
+            existing_excel_records = muat_database_rincian_excel()
+            
+            # Hapus data lama dengan PI yang sama agar tidak duplikat
+            filtered_existing = [r for r in existing_excel_records if str(r.get('PI No.', '')).strip() != current_pi_no]
+            
+            waktu_simpan_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            for m in matching_mutasi_to_save:
+                rekaman_baris = {
+                    "Waktu Simpan": waktu_simpan_str,
+                    "Nomor Kontrak": str(t_data_ref.get('Nomor Kontrak', '')),
+                    "PI No.": current_pi_no,
+                    "Nomor PO": str(t_data_ref.get('Nomor PO', '')),
+                    "Kategori": m.get('Kategori', ''),
+                    "Uraian Pekerjaan": m.get('Deskripsi Pekerjaan', ''),
+                    "Qty": float(m.get('Qty', 0.0)),
+                    "Satuan": m.get('Unit', ''),
+                    "Tanggal Mulai": format_tanggal_indo(m.get('Tanggal Mulai', '')),
+                    "Tanggal Selesai": format_tanggal_indo(m.get('Tanggal Selesai', '')),
+                    "Harga Satuan (IDR)": float(m.get('Harga Satuan', 0.0)),
+                    "Percent (%)": float(m.get('Percent', 100.0)),
+                    "Keterangan": m.get('Keterangan', '-')
+                }
+                filtered_existing.append(rekaman_baris)
+
+            if simpan_database_rincian_excel(filtered_existing):
+                st.success(f"✅ Sukses! Data rincian pekerjaan untuk PI [{current_pi_no}] berhasil disimpan ke file Excel histori (`database_rincian_pekerjaan_tersimpan.xlsx`) dan dikunci secara permanen!")
+            else:
+                st.warning("⚠️ Konfigurasi terkunci di sesi, tetapi gagal menulis ke file Excel.")
 
     sig_dibuat_bytes = saved_rincian_item.get('sig_dibuat', None)
     sig_diperiksa_bytes = saved_rincian_item.get('sig_diperiksa', None)
@@ -189,7 +244,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         kategori_awal = str(m.get('Kategori', '-'))
         keterangan_murni = str(m.get('Keterangan', '-'))
 
-        # FORMAT TANGGAL DIAPLIKASIKAN KONSISTEN DI SINI
         tgl_mulai_formatted = format_tanggal_indo(m.get('Tanggal Mulai', '-'))
         tgl_selesai_formatted = format_tanggal_indo(m.get('Tanggal Selesai', '-'))
 
