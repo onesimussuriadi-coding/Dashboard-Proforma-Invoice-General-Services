@@ -11,26 +11,26 @@ if not os.path.exists(DIR_DATABASE):
 
 def get_mysql_connection():
     """
-    Membuat koneksi ke server Cloud MySQL dengan batas waktu (timeout) 
-    agar aplikasi tidak pernah mengalami loading atau layar putih yang lama.
+    Membuat koneksi ke server Cloud MySQL menggunakan data Secrets Streamlit
+    dengan proteksi timeout agar aplikasi tidak pernah hang atau loading panjang.
     """
     try:
+        db_conf = st.secrets["database"]
         conn = mysql.connector.connect(
-            host="203.175.9.146",
-            user="ptba8489_admin",
-            password="ayfVy8iSw6kT91",
-            database="ptba8489_invoice",
-            port=3306,
-            connection_timeout=5  # Batas waktu maksimal 5 detik agar tidak hang
+            host=db_conf["host"],
+            user=db_conf["user"],
+            password=db_conf["password"],
+            database=db_conf["database"],
+            port=db_conf.get("port", 3306),
+            connection_timeout=5
         )
         return conn
-    except Error as e:
+    except Exception as e:
         return None
 
 def muat_data_from_db(nama_tabel):
     """
-    Memuat data dari MySQL secara aman. Jika koneksi terblokir firewall, 
-    otomatis mengembalikan list kosong agar aplikasi tetap terbuka normal.
+    Memuat data dari MySQL secara real-time.
     """
     conn = get_mysql_connection()
     if conn is not None:
@@ -53,7 +53,7 @@ def muat_data_from_db(nama_tabel):
 
 def simpan_data_to_db(nama_tabel, data_list):
     """
-    Menyimpan data ke MySQL secara aman dengan proteksi koneksi.
+    Menyimpan atau memperbarui data ke tabel MySQL menggunakan pemetaan `COL 1`, `COL 2`, dst.
     """
     if data_list is None or len(data_list) == 0:
         st.error("❌ Data kosong, gagal menyimpan ke database.")
@@ -61,7 +61,7 @@ def simpan_data_to_db(nama_tabel, data_list):
 
     conn = get_mysql_connection()
     if conn is None:
-        st.error("⚠️ Koneksi ke server MySQL dibatasi oleh firewall hosting. Mohon periksa whitelist IP server.")
+        st.error("❌ Gagal terhubung ke server database MySQL. Periksa kembali konfigurasi Secrets atau jaringan.")
         return False
 
     try:
