@@ -18,7 +18,6 @@ def muat_parameter_dokumen_from_db(doc_key):
             if "doc_key" in df.columns:
                 matched = df[df["doc_key"].astype(str).str.strip() == str(doc_key).strip()]
                 if not matched.empty:
-                    # Rekonstruksi kembali struktur payload dari baris-baris tabel terurai
                     first_row = matched.iloc[0]
                     items_dict = {}
                     for _, row in matched.iterrows():
@@ -54,7 +53,6 @@ def simpan_parameter_dokumen_to_db(doc_key, data_dict):
         tgl_opn = data_dict.get('tanggal_opname', str(date.today()))
         items = data_dict.get('items', {})
 
-        # Buat daftar baris (rows) agar tersimpan terurai per item pekerjaan di Excel
         new_rows = []
         for idx_item, item_val in items.items():
             row_data = {
@@ -75,7 +73,6 @@ def simpan_parameter_dokumen_to_db(doc_key, data_dict):
         if os.path.exists(PATH_EXCEL_OPNAME):
             df_existing = pd.read_excel(PATH_EXCEL_OPNAME)
             if "doc_key" in df_existing.columns:
-                # Hapus data lama untuk doc_key yang sama agar tidak duplikat
                 df_existing["doc_key"] = df_existing["doc_key"].astype(str)
                 df_filtered = df_existing[df_existing["doc_key"] != str(doc_key).strip()]
                 df_final = pd.concat([df_filtered, df_new], ignore_index=True)
@@ -227,7 +224,7 @@ def tampilkan_opname(transaksi_list):
     st.markdown("---")
     
     with st.form(key=f"form_opname_params_{opname_storage_key}"):
-        st.markdown("#### ⚙️ Pengaturan Parameter & Rincian Baris Opname (Terkunci & Persisten Terurai)")
+        st.markdown("#### ⚙️ Pengaturan Parameter & Rincian Baris Opname (Konsisten & Terurai)")
         
         c_head1, c_head2 = st.columns(2)
         with c_head1:
@@ -250,26 +247,39 @@ def tampilkan_opname(transaksi_list):
             st.markdown(f"**Item {idx}: {item_label}**")
             c_p1, c_p2, c_p3, c_p4 = st.columns(4)
             
-            default_contract_qty = float(m.get('Qty', 1.0))
+            default_contract_qty = float(m.get('Qty', 1.0) or 1.0)
             is_prov_sum = "provisional" in kategori_m.lower() or "professional" in kategori_m.lower()
             is_est_sum = "estimated" in kategori_m.lower() or "estimasi" in kategori_m.lower()
             
-            raw_hs = float(m.get('Harga Satuan', 0.0))
+            raw_hs = float(m.get('Harga Satuan', 0.0) or 0.0)
             if is_prov_sum:
                 default_price = raw_hs * 1.15
             else:
                 default_price = raw_hs
 
+            # AMBIL DARI DATA TERSIMPAN ATAU GUNAKAN DEFAULT TRANSAKSI JIKA KOSONG
             saved_item_opn = saved_global.get('items', {}).get(idx, {})
+            
+            val_po_vol = float(saved_item_opn.get('po_vol', 0.0) or 0.0)
+            if val_po_vol <= 0: val_po_vol = default_contract_qty
+
+            val_unit_price = float(saved_item_opn.get('unit_price', 0.0) or 0.0)
+            if val_unit_price <= 0: val_unit_price = default_price
+
+            val_prev_vol = float(saved_item_opn.get('prev_vol', 0.0) or 0.0)
+
+            val_curr_vol = float(saved_item_opn.get('current_vol', 0.0) or 0.0)
+            if val_curr_vol <= 0 and saved_item_opn.get('current_vol') is None: 
+                val_curr_vol = default_contract_qty
 
             with c_p1:
-                po_vol = st.number_input(f"📦 Volume PO / Kontrak (Item {idx})", value=float(saved_item_opn.get('po_vol', default_contract_qty)), step=0.1, format="%.2f", key=f"opn_po_vol_{opname_storage_key}_{idx}")
+                po_vol = st.number_input(f"📦 Volume PO / Kontrak (Item {idx})", value=val_po_vol, step=0.1, format="%.2f", key=f"opn_po_vol_{opname_storage_key}_{idx}")
             with c_p2:
-                unit_price = st.number_input(f"💵 Unit Price / Harga Satuan (Item {idx})", value=float(saved_item_opn.get('unit_price', default_price)), step=1000.0, format="%.2f", key=f"opn_unit_price_{opname_storage_key}_{idx}")
+                unit_price = st.number_input(f"💵 Unit Price / Harga Satuan (Item {idx})", value=val_unit_price, step=1000.0, format="%.2f", key=f"opn_unit_price_{opname_storage_key}_{idx}")
             with c_p3:
-                prev_vol = st.number_input(f"📉 Volume Lalu / Previous (Item {idx})", value=float(saved_item_opn.get('prev_vol', 0.0)), step=0.1, format="%.2f", key=f"opn_prev_vol_{opname_storage_key}_{idx}")
+                prev_vol = st.number_input(f"📉 Volume Lalu / Previous (Item {idx})", value=val_prev_vol, step=0.1, format="%.2f", key=f"opn_prev_vol_{opname_storage_key}_{idx}")
             with c_p4:
-                current_vol = st.number_input(f"📈 Volume Aktual Bulan Ini (Item {idx})", value=float(saved_item_opn.get('current_vol', default_contract_qty)), step=0.1, format="%.2f", key=f"opn_curr_vol_{opname_storage_key}_{idx}")
+                current_vol = st.number_input(f"📈 Volume Aktual Bulan Ini (Item {idx})", value=val_curr_vol, step=0.1, format="%.2f", key=f"opn_curr_vol_{opname_storage_key}_{idx}")
 
             temp_items_storage[idx] = {
                 'po_vol': po_vol,
@@ -301,9 +311,8 @@ def tampilkan_opname(transaksi_list):
                 'ttd_2': saved_global.get('ttd_2')
             }
             
-            # Simpan permanen ke file Excel lokal dengan format tabel terurai kolom
             simpan_parameter_dokumen_to_db(opname_storage_key, payload_to_save)
-            st.success("✅ Parameter opname berhasil disimpan ke tabel Excel lokal secara terurai (kolom lengkap)!")
+            st.success("✅ Parameter opname berhasil disimpan secara konsisten dan terurai ke Excel lokal!")
 
     # --- PENGATURAN LOGO ---
     st.markdown("---")
@@ -382,17 +391,26 @@ def tampilkan_opname(transaksi_list):
 
         is_prov_sum = "provisional" in kategori_m.lower() or "professional" in kategori_m.lower()
         is_est_sum = "estimated" in kategori_m.lower() or "estimasi" in kategori_m.lower()
-        raw_hs = float(m.get('Harga Satuan', 0.0))
+        raw_hs = float(m.get('Harga Satuan', 0.0) or 0.0)
         if is_prov_sum:
             default_price_calc = raw_hs * 1.15
         else:
             default_price_calc = raw_hs
 
         active_item_data = saved_global.get('items', {}).get(idx, {})
-        po_vol = float(active_item_data.get('po_vol', float(m.get('Qty', 1.0))))
-        unit_price = float(active_item_data.get('unit_price', default_price_calc))
-        prev_vol = float(active_item_data.get('prev_vol', 0.0))
-        current_vol = float(active_item_data.get('current_vol', float(m.get('Qty', 1.0))))
+        default_contract_qty = float(m.get('Qty', 1.0) or 1.0)
+
+        po_vol = float(active_item_data.get('po_vol', 0.0) or 0.0)
+        if po_vol <= 0: po_vol = default_contract_qty
+
+        unit_price = float(active_item_data.get('unit_price', 0.0) or 0.0)
+        if unit_price <= 0: unit_price = default_price_calc
+
+        prev_vol = float(active_item_data.get('prev_vol', 0.0) or 0.0)
+
+        current_vol = float(active_item_data.get('current_vol', 0.0) or 0.0)
+        if current_vol <= 0 and active_item_data.get('current_vol') is None:
+            current_vol = default_contract_qty
 
         if is_est_sum:
             base_price = (po_vol * unit_price * 0.9) * (percent_val / 100.0)
