@@ -11,7 +11,6 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 # --- PENGATURAN DATABASE LOKAL (OFFLINE MODE) ---
-# Menggunakan file excel/json lokal di folder penyimpanan aman sebagai database offline
 DIR_DB_LOKAL = os.path.join("database_penyimpanan_aman")
 if not os.path.exists(DIR_DB_LOKAL):
     os.makedirs(DIR_DB_LOKAL)
@@ -20,14 +19,13 @@ PATH_EXCEL_INVOICE = os.path.join(DIR_DB_LOKAL, "database_proforma_invoice.xlsx"
 PATH_EXCEL_TRANSAKSI = os.path.join(DIR_DB_LOKAL, "database_transaksi_rincian.xlsx")
 PATH_EXCEL_MASTER_REF = os.path.join(DIR_DB_LOKAL, "database_master_referensi.xlsx")
 PATH_EXCEL_BANK = os.path.join(DIR_DB_LOKAL, "database_master_bank.xlsx")
+PATH_EXCEL_OPNAME = os.path.join(DIR_DB_LOKAL, "database_opname_parameter.xlsx")
 
 def muat_data_from_db_lokal(filepath):
     if os.path.exists(filepath):
         try:
             df = pd.read_excel(filepath)
-            # Konversi dataframe ke list of dictionaries
-            records = df.to_dict(orient="records")
-            return records
+            return df.to_dict(orient="records")
         except Exception as e:
             return []
     return []
@@ -50,6 +48,8 @@ def muat_data_from_db(tabel_nama):
         return muat_data_from_db_lokal(PATH_EXCEL_MASTER_REF)
     elif "bank" in tabel_nama:
         return muat_data_from_db_lokal(PATH_EXCEL_BANK)
+    elif "opname" in tabel_nama:
+        return muat_data_from_db_lokal(PATH_EXCEL_OPNAME)
     return []
 
 def simpan_data_to_db(tabel_nama, data_list):
@@ -61,7 +61,27 @@ def simpan_data_to_db(tabel_nama, data_list):
         return simpan_data_to_db_lokal(PATH_EXCEL_MASTER_REF, data_list)
     elif "bank" in tabel_nama:
         return simpan_data_to_db_lokal(PATH_EXCEL_BANK, data_list)
+    elif "opname" in tabel_nama:
+        return simpan_data_to_db_lokal(PATH_EXCEL_OPNAME, data_list)
     return False
+
+# --- FUNGSI KHUSUS OPNAME LOKAL ---
+def muat_data_opname_lokal():
+    if os.path.exists(PATH_EXCEL_OPNAME):
+        try:
+            df = pd.read_excel(PATH_EXCEL_OPNAME)
+            return df.to_dict(orient="records")
+        except:
+            return []
+    return []
+
+def simpan_data_opname_lokal(data_list):
+    try:
+        df = pd.DataFrame(data_list)
+        df.to_excel(PATH_EXCEL_OPNAME, index=False)
+        return True
+    except Exception as e:
+        return False
 
 def render_download_button_excel(nama_tabel="database_proforma_invoice"):
     path_file = os.path.join(DIR_DB_LOKAL, f"{nama_tabel}.xlsx")
@@ -205,6 +225,7 @@ TABEL_DB_INVOICE = "database_proforma_invoice"
 TABEL_DB_TRANSAKSI = "database_transaksi_rincian"
 TABEL_DB_MASTER_REF = "database_master_referensi"
 TABEL_DB_BANK = "database_master_bank"
+TABEL_DB_OPNAME = "database_opname_parameter"
 
 def muat_data_invoice():
     db_data = muat_data_from_db(TABEL_DB_INVOICE)
@@ -252,13 +273,9 @@ def muat_data_transaksi():
 def simpan_data_transaksi(data_list):
     waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    # AMAN: Ambil data eksisting agar data dari PI lain tidak tertimpa/hilang
     existing_all_tx = muat_data_from_db(TABEL_DB_TRANSAKSI) or []
-    
-    # Identifikasi PI berapa saja yang sedang diperbarui di data_list baru
     pi_sedang_diedit = set(str(item.get("PI No.")).strip() for item in data_list if item.get("PI No."))
     
-    # Pertahankan transaksi dari PI LAIN yang tidak sedang diedit
     transaksi_pi_lain = [
         t for t in existing_all_tx 
         if str(t.get("PI No.") or t.get("PI No. ") or "").strip() not in pi_sedang_diedit
@@ -275,7 +292,6 @@ def simpan_data_transaksi(data_list):
                         item_copy[k] = ""
             processed_tx.append(item_copy)
             
-    # Gabungkan transaksi PI lain dengan data transaksi baru yang diperbarui
     combined_tx = transaksi_pi_lain + processed_tx
 
     success = simpan_data_to_db(TABEL_DB_TRANSAKSI, combined_tx)
