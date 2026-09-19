@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import base64
+import os
 from datetime import datetime, date
 
 def tampilkan_bamp(transaksi_list):
@@ -13,6 +14,31 @@ def tampilkan_bamp(transaksi_list):
     if not transaksi_list:
         st.warning("⚠️ Belum ada data transaksi rincian pekerjaan yang diproses.")
         return
+
+    # --- DIREKTORI PENYIMPANAN EXCEL BAMP AMAN ---
+    DIR_DATABASE_BAMP = os.path.join("database_penyimpanan_aman")
+    if not os.path.exists(DIR_DATABASE_BAMP):
+        os.makedirs(DIR_DATABASE_BAMP)
+    EXCEL_FILE_BAMP = os.path.join(DIR_DATABASE_BAMP, "database_bamp_tersimpan.xlsx")
+
+    def muat_database_bamp_excel():
+        if os.path.exists(EXCEL_FILE_BAMP):
+            try:
+                df = pd.read_excel(EXCEL_FILE_BAMP)
+                if df is not None and not df.empty:
+                    return df.to_dict(orient="records")
+            except:
+                pass
+        return []
+
+    def simpan_database_bamp_excel(list_data_rekaman):
+        try:
+            df_save = pd.DataFrame(list_data_rekaman)
+            df_save.to_excel(EXCEL_FILE_BAMP, index=False)
+            return True
+        except Exception as e:
+            st.error(f"Gagal menyimpan ke Excel: {e}")
+            return False
 
     # --- IMPORT FUNGSI DATABASE MYSQL UNTUK PARAMETER DOKUMEN BAMP ---
     try:
@@ -57,11 +83,31 @@ def tampilkan_bamp(transaksi_list):
     pi_storage_key = str(selected_pi).strip()
     doc_db_key = f"bamp_payload_{pi_storage_key}".replace("/", "_")
 
-    # Muat data dari Database MySQL hosting jika belum ada di session state lokal
+    # Muat data dari Database MySQL hosting atau file Excel jika belum ada di session state lokal
     if pi_storage_key not in st.session_state.bamp_saved_data:
         db_loaded_payload = muat_parameter_dokumen_from_db(doc_db_key)
         if db_loaded_payload:
             st.session_state.bamp_saved_data[pi_storage_key] = db_loaded_payload
+        else:
+            # Cek cadangan dari Excel lokal
+            excel_records = muat_database_bamp_excel()
+            matching_excel = [r for r in excel_records if str(r.get('PI No.', '')).strip() == pi_storage_key]
+            if matching_excel:
+                # Rekonstruksi payload dari excel jika tersedia
+                items_dict = {}
+                for idx, row in enumerate(matching_excel, start=1):
+                    items_dict[idx] = {
+                        'date': pd.to_datetime(row.get('Tanggal Efektif', date.today())).date(),
+                        'qty': float(row.get('Jumlah', 1.0)),
+                        'uom': str(row.get('Satuan', 'Day')),
+                        'catatan': str(row.get('Catatan', ''))
+                    }
+                st.session_state.bamp_saved_data[pi_storage_key] = {
+                    'lokasi': str(matching_excel[0].get('Lokasi Office', 'Luwuk')),
+                    'main_date': pd.to_datetime(matching_excel[0].get('Tanggal Utama', date.today())).date(),
+                    'items': items_dict,
+                    'logo_1': None, 'logo_2': None, 'ttd_1': None, 'ttd_2': None
+                }
 
     # Validasi ganda: Pastikan PI yang dipilih benar-benar memiliki mutasi jasa
     mutasi_terpilih = []
@@ -143,12 +189,10 @@ def tampilkan_bamp(transaksi_list):
         except:
             default_row_date = date.today()
 
-        # Ambil data spesifik baris dari cache session state jika sudah pernah disimpan
         saved_item_data = saved_items_cache.get(idx, {})
 
         default_row_date_val = saved_item_data.get('date', default_row_date)
         
-        # Pengecekan aman untuk qty agar angka 0 (nol) tidak tertimpa nilai default master
         raw_saved_qty = saved_item_data.get('qty', None)
         if raw_saved_qty is not None:
             default_row_qty_val = float(raw_saved_qty)
@@ -241,9 +285,9 @@ def tampilkan_bamp(transaksi_list):
                 st.success("✅ TTD Pihak Kedua berhasil dihapus!")
                 st.rerun()
 
-    # --- FORM TOMBOL SIMPAN & KUNCI (DISINKRONKAN KE DATABASE MYSQL) ---
+    # --- FORM TOMBOL SIMPAN & KUNCI (DISINKRONKAN KE DATABASE MYSQL & EXCEL) ---
     with st.form(key=f"form_bamp_save_{pi_storage_key}"):
-        st.markdown(f"**Konfirmasi Dokumen BAMP (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi dan menyimpannya secara permanen ke Database MySQL hosting.")
+        st.markdown(f"**Konfirmasi Dokumen BAMP (PI: {selected_pi}):** Klik tombol di bawah untuk mengunci konfigurasi dan menyimpannya secara permanen ke Database MySQL & file Excel arsip.")
         submit_save_bamp = st.form_submit_button("💾 Simpan & Kunci Dokumen BAMP Ini", type="primary")
         
         if submit_save_bamp:
@@ -264,11 +308,43 @@ def tampilkan_bamp(transaksi_list):
 
             # Simpan ke session state dan sinkronkan ke database MySQL hosting secara permanen
             st.session_state.bamp_saved_data[pi_storage_key] = new_payload
-            if simpan_parameter_dokumen_to_db(doc_db_key, new_payload):
-                st.toast("✅ Data BAMP berhasil disimpan permanen ke Database MySQL!", icon="💾")
-                st.success(f"✅ Dokumen BAMP untuk PI [{selected_pi}] beserta konfigurasi qty, logo, dan tanda tangan berhasil disimpan permanen!")
+            simpan_parameter_dokumen_to_db(doc_db_key, new_payload)
+
+            # --- PROSES SIMPAN KE FILE EXCEL HISTORI LOKAL ---
+            existing_bamp_excel = muat_database_bamp_excel()
+            filtered_bamp_excel = [r for r in existing_bamp_excel if str(r.get('PI No.', '')).strip() != pi_storage_key]
+            
+            waktu_simpan_str = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+            nomor_kontrak_val = str(t_data_utama.get('Nomor Kontrak', ''))
+            
+            for idx, m in enumerate(mutasi_terpilih, start=1):
+                item_info = temp_items_storage.get(idx, {})
+                row_d = item_info.get('date', selected_date)
+                row_q = item_info.get('qty', 1.0)
+                row_u = item_info.get('uom', 'Day')
+                row_c = item_info.get('catatan', '')
+
+                rekaman_bamp = {
+                    "Waktu Simpan": waktu_simpan_str,
+                    "Nomor Kontrak": nomor_kontrak_val,
+                    "PI No.": pi_storage_key,
+                    "Lokasi Office": lokasi_office,
+                    "Tanggal Utama": str(selected_date),
+                    "Item ke-": idx,
+                    "Kategori": m.get('Kategori', ''),
+                    "Uraian Pekerjaan": m.get('Deskripsi Pekerjaan', ''),
+                    "Jumlah": row_q,
+                    "Satuan": row_u,
+                    "Tanggal Efektif": str(row_d),
+                    "Catatan": row_c
+                }
+                filtered_bamp_excel.append(rekaman_bamp)
+
+            if simpan_database_bamp_excel(filtered_bamp_excel):
+                st.toast("✅ Data BAMP berhasil disimpan permanen ke Excel & MySQL!", icon="💾")
+                st.success(f"✅ Dokumen BAMP untuk PI [{selected_pi}] berhasil disimpan permanen ke file Excel (`database_bamp_tersimpan.xlsx`) dan Database MySQL!")
             else:
-                st.error("❌ Gagal menyimpan ke Database MySQL hosting.")
+                st.warning("⚠️ Dokumen terkunci di sesi, tetapi gagal menulis ke file Excel.")
             
             import time
             time.sleep(0.8)
@@ -292,7 +368,6 @@ def tampilkan_bamp(transaksi_list):
         saved_db_induk = muat_data_invoice()
     except:
         try:
-            import os
             df_induk = pd.read_excel(os.path.join("database_penyimpanan_aman", "database_proforma_invoice.xlsx"))
             saved_db_induk = df_induk.to_dict(orient="records")
         except:
@@ -475,6 +550,7 @@ def tampilkan_bamp(transaksi_list):
             <script>
                 function printDoc() {{
                     var win = window.open('', '_blank');
+                    win.document.open();
                     win.document.write(atob("{b64_html}"));
                     win.document.close();
                     win.focus();
