@@ -628,15 +628,15 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: center;">{actual_unit}</td>
                 <td style="text-align: right; padding-right: 4px;">{po_vol:,.2f}</td>
                 <td style="text-align: right; padding-right: 4px;">{unit_price:,.2f}</td>
-                <td style="text-align: right; padding-right: 4px;">{base_price:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{base_price:,.0f}</td>
                 <td style="text-align: right; padding-right: 4px;">{prev_vol:,.2f}</td>
-                <td style="text-align: right; padding-right: 4px;">{prev_tot:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{prev_tot:,.0f}</td>
                 <td style="text-align: right; padding-right: 4px;">{current_vol:,.2f}</td>
-                <td style="text-align: right; padding-right: 4px;">{curr_tot:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{curr_tot:,.0f}</td>
                 <td style="text-align: right; padding-right: 4px;">{cum_vol:,.2f}</td>
-                <td style="text-align: right; padding-right: 4px;">{cum_tot:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{cum_tot:,.0f}</td>
                 <td style="text-align: right; padding-right: 4px;">{sisa_vol:,.2f}</td>
-                <td style="text-align: right; padding-right: 4px;">{sisa_tot:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{sisa_tot:,.0f}</td>
             </tr>
         """
 
@@ -1306,7 +1306,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         """
 
-    # --- 2. OPNAME PEKERJAAN (LANDSCAPE) DENGAN PENAMBAHAN LEBAR TOTAL PRICE (+3 SPASI) & PENGURANGAN VOLUME (-2) / UNIT PRICE (-1) ---
+    # --- 2. OPNAME PEKERJAAN (LANDSCAPE) DENGAN TOTAL PRICE TANPA DESIMAL (:, .0f) ---
     opname_html = f"""
     <div class="page-break landscape-page">
         {kop_bss_html}
@@ -1353,22 +1353,22 @@ def tampilkan_paket_lengkap(transaksi_list):
                     <td colspan="3" style="text-align: right; padding-right: 6px;">TOTAL :</td>
                     <td style="text-align: right; padding-right: 4px;">{sum_po_vol_tot:,.2f}</td>
                     <td style="text-align: right; padding-right: 4px;">-</td>
-                    <td style="text-align: right; padding-right: 4px;">{sum_base_price:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_base_price:,.0f}</td>
                     <td style="text-align: right; padding-right: 4px;">{sum_prev_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 4px;">{sum_prev_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_prev_tot:,.0f}</td>
                     <td style="text-align: right; padding-right: 4px;">{sum_curr_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 4px;">{sum_curr_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_curr_tot:,.0f}</td>
                     <td style="text-align: right; padding-right: 4px;">{sum_cum_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 4px;">{sum_cum_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_cum_tot:,.0f}</td>
                     <td style="text-align: right; padding-right: 4px;">{sum_sisa_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 4px;">{sum_sisa_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_sisa_tot:,.0f}</td>
                 </tr>
             </tbody>
         </table>
 
         <div style="font-size: 11px; font-weight: bold; margin-bottom: 20px;">
-            Total Akumulasi Penyerapan (Cumulative Opname): Rp {sum_cum_tot:,.2f}<br>
-            Sisa Nilai Anggaran PO (Deviasi): Rp {sum_sisa_tot:,.2f}
+            Total Akumulasi Penyerapan (Cumulative Opname): Rp {sum_cum_tot:,.0f}<br>
+            Sisa Nilai Anggaran PO (Deviasi): Rp {sum_sisa_tot:,.0f}
         </div>
 
         {opname_sig_table_html}
