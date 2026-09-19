@@ -510,7 +510,6 @@ def tampilkan_paket_lengkap(transaksi_list):
 
         unit = str(m.get('Unit', 'AU' if is_prov_sum else 'Day'))
         
-        # KONSISTEN FORMAT TANGGAL DI RINCIAN PEKERJAAN
         tgl_mulai_item = format_tanggal_indo_konsisten(m.get('Tanggal Mulai', tgl_pi))
         tgl_selesai_item = format_tanggal_indo_konsisten(m.get('Tanggal Selesai', tgl_pi))
 
@@ -526,7 +525,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: center; width: 4%;">{idx}</td>
                 <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 14%;">{kat_display}</td>
                 <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 23%;">{deskripsi_m}</td>
-                <td style="text-align: center; width: 6%;">{current_vol:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px; width: 6%;">{current_vol:,.2f}</td>
                 <td style="text-align: center; width: 4%;">{unit}</td>
                 <td style="text-align: center; width: 6%;">{tgl_mulai_item}</td>
                 <td style="text-align: center; width: 6%;">{tgl_selesai_item}</td>
@@ -549,7 +548,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: center; width: 6%;">{idx}</td>
                 <td style="text-align: left; padding-left: 6px; width: 46%;">{desc_full_pi}</td>
-                <td style="text-align: center; width: 7%;">{current_vol:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px; width: 7%;">{current_vol:,.2f}</td>
                 <td style="text-align: center; width: 8%;">{unit}</td>
                 <td style="text-align: right; padding-right: 6px; width: 16%;">{unit_price:,.2f}</td>
                 <td style="text-align: right; padding-right: 6px; width: 17%;">{tot:,.0f}</td>
@@ -620,24 +619,24 @@ def tampilkan_paket_lengkap(transaksi_list):
         actual_unit = str(m.get('Unit', 'AU' if is_prov_sum else 'Day'))
         desc_full_opname = f"<b>{kategori_m}</b><br>{deskripsi_m}"
         if ket_m:
-            desc_full_opname += f"<br><span style='font-size: 8.5px; color: #334155;'>{ket_m}</span>"
+            desc_full_opname += f"<br><span style='font-size: 8px; color: #334155;'>{ket_m}</span>"
         
         opname_rows_html += f"""
             <tr>
-                <td>1.{idx}</td>
-                <td style="text-align: left; padding-left: 6px;">{desc_full_opname}</td>
-                <td>{actual_unit}</td>
-                <td>{po_vol:,.2f}</td>
-                <td style="text-align: right; padding-right: 6px;">{unit_price:,.2f}</td>
-                <td style="text-align: right; padding-right: 6px;">{base_price:,.2f}</td>
-                <td>{prev_vol:,.2f}</td>
-                <td style="text-align: right; padding-right: 6px;">{prev_tot:,.2f}</td>
-                <td>{current_vol:,.2f}</td>
-                <td style="text-align: right; padding-right: 6px;">{curr_tot:,.2f}</td>
-                <td>{cum_vol:,.2f}</td>
-                <td style="text-align: right; padding-right: 6px;">{cum_tot:,.2f}</td>
-                <td>{sisa_vol:,.2f}</td>
-                <td style="text-align: right; padding-right: 6px;">{sisa_tot:,.2f}</td>
+                <td style="text-align: center;">1.{idx}</td>
+                <td style="text-align: left; padding-left: 5px;">{desc_full_opname}</td>
+                <td style="text-align: center;">{actual_unit}</td>
+                <td style="text-align: right; padding-right: 4px;">{po_vol:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{unit_price:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{base_price:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{prev_vol:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{prev_tot:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{current_vol:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{curr_tot:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{cum_vol:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{cum_tot:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{sisa_vol:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{sisa_tot:,.2f}</td>
             </tr>
         """
 
@@ -682,7 +681,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: center; width: 6%;">{idx}</td>
                 <td style="text-align: left; padding-left: 6px; width: 42%;">{desc_full_bamp}</td>
-                <td style="text-align: center; width: 8%;">{row_qty_bamp:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px; width: 8%;">{row_qty_bamp:,.2f}</td>
                 <td style="text-align: center; width: 10%;">{row_uom_bamp}</td>
                 <td style="text-align: left; padding-left: 6px; width: 34%;">{row_catatan_bamp}</td>
             </tr>
@@ -703,7 +702,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: center; width: 6%;">{idx}</td>
                 <td style="text-align: left; padding-left: 5px; width: 42%;"><b>{kat}</b><br>{desc}</td>
-                <td style="text-align: center; width: 8%;">{qty:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px; width: 8%;">{qty:,.2f}</td>
                 <td style="text-align: center; width: 10%;">{unit}</td>
                 <td style="text-align: left; padding-left: 5px; width: 34%;">{catatan_basp}</td>
             </tr>
@@ -736,7 +735,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: center; width: 6%;">{idx}</td>
                 <td style="text-align: left; padding-left: 6px; width: 42%;">{desc_final_m}</td>
-                <td style="text-align: center; width: 8%;">{row_qty:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px; width: 8%;">{row_qty:,.2f}</td>
                 <td style="text-align: center; width: 10%;">{row_uom}</td>
                 <td style="text-align: left; padding-left: 6px; width: 34%;"><b>{row_catatan}</b></td>
             </tr>
@@ -1307,7 +1306,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         """
 
-    # --- 2. OPNAME PEKERJAAN (LANDSCAPE) ---
+    # --- 2. OPNAME PEKERJAAN (LANDSCAPE) DENGAN PERBAIKAN LEBAR KOLOM & RATA KANAN ---
     opname_html = f"""
     <div class="page-break landscape-page">
         {kop_bss_html}
@@ -1322,12 +1321,12 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr><td style="font-weight: bold; color: #065f46;">PROFORMA INVOICE No.</td><td>: <b>{current_pi_no}</b></td></tr>
         </table>
 
-        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 9.5px; table-layout: fixed;">
+        <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 10px; font-size: 9px; table-layout: fixed;">
             <thead>
                 <tr>
-                    <th rowspan="2" style="width: 4%;">NO</th>
-                    <th rowspan="2" style="width: 20%;">ITEM - DESCRIPTION</th>
-                    <th rowspan="2" style="width: 4%;">UOM</th>
+                    <th rowspan="2" style="width: 3.5%;">NO</th>
+                    <th rowspan="2" style="width: 16.5%;">ITEM - DESCRIPTION</th>
+                    <th rowspan="2" style="width: 3.5%;">UOM</th>
                     <th colspan="3">BASE ON CTR / PO</th>
                     <th colspan="2">PREVIOUS OPNAME (IDR)</th>
                     <th colspan="2">AKTUAL OPNAME (BULAN INI) (IDR)</th>
@@ -1335,34 +1334,34 @@ def tampilkan_paket_lengkap(transaksi_list):
                     <th colspan="2">SISA ANGGARAN (DEVIASI) (IDR)</th>
                 </tr>
                 <tr>
-                    <th style="width: 5%;">VOLUME</th>
-                    <th style="width: 8%;">UNIT PRICE</th>
-                    <th style="width: 9%;">TOTAL PRICE</th>
-                    <th style="width: 5%;">VOLUME</th>
-                    <th style="width: 9%;">TOTAL PRICE</th>
-                    <th style="width: 5%;">VOLUME</th>
-                    <th style="width: 9%;">TOTAL PRICE</th>
-                    <th style="width: 5%;">VOLUME</th>
-                    <th style="width: 9%;">TOTAL PRICE</th>
-                    <th style="width: 5%;">VOLUME</th>
-                    <th style="width: 9%;">TOTAL PRICE</th>
+                    <th style="width: 4%;">VOLUME</th>
+                    <th style="width: 7.5%;">UNIT PRICE</th>
+                    <th style="width: 10.5%;">TOTAL PRICE</th>
+                    <th style="width: 4%;">VOLUME</th>
+                    <th style="width: 10.5%;">TOTAL PRICE</th>
+                    <th style="width: 4%;">VOLUME</th>
+                    <th style="width: 10.5%;">TOTAL PRICE</th>
+                    <th style="width: 4%;">VOLUME</th>
+                    <th style="width: 10.5%;">TOTAL PRICE</th>
+                    <th style="width: 4%;">VOLUME</th>
+                    <th style="width: 10.5%;">TOTAL PRICE</th>
                 </tr>
             </thead>
             <tbody>
                 {opname_rows_html}
                 <tr style="font-weight: bold; background: #f9fafb;">
                     <td colspan="3" style="text-align: right; padding-right: 6px;">TOTAL :</td>
-                    <td>{sum_po_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px;">-</td>
-                    <td style="text-align: right; padding-right: 6px;">{sum_base_price:,.2f}</td>
-                    <td>{sum_prev_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px;">{sum_prev_tot:,.2f}</td>
-                    <td>{sum_curr_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px;">{sum_curr_tot:,.2f}</td>
-                    <td>{sum_cum_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px;">{sum_cum_tot:,.2f}</td>
-                    <td>{sum_sisa_vol_tot:,.2f}</td>
-                    <td style="text-align: right; padding-right: 6px;">{sum_sisa_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_po_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">-</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_base_price:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_prev_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_prev_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_curr_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_curr_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_cum_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_cum_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_sisa_vol_tot:,.2f}</td>
+                    <td style="text-align: right; padding-right: 4px;">{sum_sisa_tot:,.2f}</td>
                 </tr>
             </tbody>
         </table>
