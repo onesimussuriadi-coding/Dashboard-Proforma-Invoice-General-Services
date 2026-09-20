@@ -11,60 +11,77 @@ if not os.path.exists(DIR_DB_LOKAL):
 
 PATH_EXCEL_OPNAME = os.path.join(DIR_DB_LOKAL, "database_opname_parameter.xlsx")
 
-def muat_parameter_dokumen_from_db(doc_key):
+def muat_parameter_dokumen_from_db(pi_no, po_no):
     if os.path.exists(PATH_EXCEL_OPNAME):
         try:
             df = pd.read_excel(PATH_EXCEL_OPNAME)
-            if "doc_key" in df.columns:
+            # Mendukung pemisahan kolom Nomor PI dan Nomor PO secara akurat
+            if "Nomor PI" in df.columns and "Nomor PO" in df.columns:
+                matched = df[
+                    (df["Nomor PI"].astype(str).str.strip() == str(pi_no).strip()) & 
+                    (df["Nomor PO"].astype(str).str.strip() == str(po_no).strip())
+                ]
+            elif "doc_key" in df.columns:
+                doc_key = f"opname_{pi_no}_{po_no}".replace("/", "_")
                 matched = df[df["doc_key"].astype(str).str.strip() == str(doc_key).strip()]
-                if not matched.empty:
-                    first_row = matched.iloc[0]
-                    items_dict = {}
-                    for _, row in matched.iterrows():
-                        try:
-                            idx_item = int(row.get("Item Index", 1))
-                        except:
-                            idx_item = 1
-                        items_dict[idx_item] = {
-                            'po_vol': float(row.get("Volume PO", 0.0)),
-                            'unit_price': float(row.get("Unit Price", 0.0)),
-                            'prev_vol': float(row.get("Volume Previous", 0.0)),
-                            'current_vol': float(row.get("Volume Aktual", 0.0))
-                        }
-                    
-                    payload = {
-                        'lokasi_office': str(first_row.get("Lokasi Office", "Luwuk")),
-                        'tanggal_opname': str(first_row.get("Tanggal Opname", date.today())),
-                        'items': items_dict,
-                        'logo_1': None,
-                        'logo_2': None,
-                        'ttd_1': None,
-                        'ttd_2': None
+            else:
+                matched = pd.DataFrame()
+
+            if not matched.empty:
+                first_row = matched.iloc[0]
+                items_dict = {}
+                for _, row in matched.iterrows():
+                    try:
+                        idx_item = int(row.get("Item Index", 1))
+                    except:
+                        idx_item = 1
+                    items_dict[idx_item] = {
+                        'po_vol': float(row.get("Volume PO", 0.0)),
+                        'unit_price': float(row.get("Unit Price", 0.0)),
+                        'prev_vol': float(row.get("Volume Previous", 0.0)),
+                        'current_vol': float(row.get("Volume Aktual", 0.0))
                     }
-                    return payload
+                
+                payload = {
+                    'lokasi_office': str(first_row.get("Lokasi Office", "Luwuk")),
+                    'tanggal_opname': str(first_row.get("Tanggal Opname", date.today())),
+                    'items': items_dict,
+                    'logo_1': None,
+                    'logo_2': None,
+                    'ttd_1': None,
+                    'ttd_2': None
+                }
+                return payload
         except Exception as e:
             return None
     return None
 
-def simpan_parameter_dokumen_to_db(doc_key, data_dict):
+def simpan_parameter_dokumen_to_db(pi_no, po_no, data_dict):
     try:
-        waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Format tanggal bersih tanpa jam (YYYY-MM-DD)
+        tgl_raw = data_dict.get('tanggal_opname', str(date.today()))
+        if isinstance(tgl_raw, (datetime, date)):
+            tgl_opn = tgl_raw.strftime("%Y-%m-%d")
+        else:
+            tgl_opn = str(tgl_raw).split()[0]
+
         lokasi = data_dict.get('lokasi_office', 'Luwuk')
-        tgl_opn = data_dict.get('tanggal_opname', str(date.today()))
         items = data_dict.get('items', {})
+        doc_key_legacy = f"opname_{pi_no}_{po_no}".replace("/", "_")
 
         new_rows = []
         for idx_item, item_val in items.items():
             row_data = {
-                "doc_key": str(doc_key).strip(),
+                "doc_key": str(doc_key_legacy).strip(),
+                "Nomor PI": str(pi_no).strip(),
+                "Nomor PO": str(po_no).strip(),
                 "Item Index": idx_item,
                 "Lokasi Office": lokasi,
                 "Tanggal Opname": tgl_opn,
                 "Volume PO": item_val.get('po_vol', 0.0),
                 "Unit Price": item_val.get('unit_price', 0.0),
                 "Volume Previous": item_val.get('prev_vol', 0.0),
-                "Volume Aktual": item_val.get('current_vol', 0.0),
-                "Update Terakhir": waktu_sekarang
+                "Volume Aktual": item_val.get('current_vol', 0.0)
             }
             new_rows.append(row_data)
 
@@ -72,9 +89,17 @@ def simpan_parameter_dokumen_to_db(doc_key, data_dict):
 
         if os.path.exists(PATH_EXCEL_OPNAME):
             df_existing = pd.read_excel(PATH_EXCEL_OPNAME)
-            if "doc_key" in df_existing.columns:
+            if "Nomor PI" in df_existing.columns and "Nomor PO" in df_existing.columns:
+                df_existing["Nomor PI"] = df_existing["Nomor PI"].astype(str)
+                df_existing["Nomor PO"] = df_existing["Nomor PO"].astype(str)
+                df_filtered = df_existing[
+                    ~((df_existing["Nomor PI"] == str(pi_no).strip()) & 
+                      (df_existing["Nomor PO"] == str(po_no).strip()))
+                ]
+                df_final = pd.concat([df_filtered, df_new], ignore_index=True)
+            elif "doc_key" in df_existing.columns:
                 df_existing["doc_key"] = df_existing["doc_key"].astype(str)
-                df_filtered = df_existing[df_existing["doc_key"] != str(doc_key).strip()]
+                df_filtered = df_existing[df_existing["doc_key"] != str(doc_key_legacy).strip()]
                 df_final = pd.concat([df_filtered, df_new], ignore_index=True)
             else:
                 df_final = df_new
@@ -122,7 +147,7 @@ def terbilang(n):
 def tampilkan_opname(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📋 Pratinjau, Cetak & Download Berita Acara Opname Pekerjaan (PI & PO Dual-Logic)</h3>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📋 Pratinjau, Cetak & Download Berita Acara Opname Pekerjaan (PI & PO Terpisah)</h3>
         </div>
     """, unsafe_allow_html=True)
 
@@ -165,11 +190,11 @@ def tampilkan_opname(transaksi_list):
         st.session_state.opname_saved_data = {}
 
     if opname_storage_key not in st.session_state.opname_saved_data:
-        db_saved_payload = muat_parameter_dokumen_from_db(opname_storage_key)
+        db_saved_payload = muat_parameter_dokumen_from_db(pi_sekarang, po_sekarang)
         if db_saved_payload:
             if 'tanggal_opname' in db_saved_payload and isinstance(db_saved_payload['tanggal_opname'], str):
                 try:
-                    db_saved_payload['tanggal_opname'] = datetime.strptime(db_saved_payload['tanggal_opname'], "%Y-%m-%d").date()
+                    db_saved_payload['tanggal_opname'] = datetime.strptime(db_saved_payload['tanggal_opname'].split()[0], "%Y-%m-%d").date()
                 except:
                     db_saved_payload['tanggal_opname'] = date.today()
             st.session_state.opname_saved_data[opname_storage_key] = db_saved_payload
@@ -224,7 +249,7 @@ def tampilkan_opname(transaksi_list):
     st.markdown("---")
     
     with st.form(key=f"form_opname_params_{opname_storage_key}"):
-        st.markdown("#### ⚙️ Pengaturan Parameter & Rincian Baris Opname (Konsisten & Terurai)")
+        st.markdown("#### ⚙️ Pengaturan Parameter & Rincian Baris Opname (Nomor PI & PO Terpisah)")
         
         c_head1, c_head2 = st.columns(2)
         with c_head1:
@@ -259,7 +284,6 @@ def tampilkan_opname(transaksi_list):
 
             saved_item_opn = saved_global.get('items', {}).get(idx, {})
             
-            # MEMASTIKAN KONSISTENSI NILAI DEFAULT UNTUK SETIAP ITEM
             val_po_vol = float(saved_item_opn.get('po_vol', 0.0) or 0.0)
             if val_po_vol <= 0: 
                 val_po_vol = default_contract_qty
@@ -293,9 +317,10 @@ def tampilkan_opname(transaksi_list):
 
         submit_save_opname = st.form_submit_button("💾 Simpan / Kunci Parameter Opname Ini", type="primary")
         if submit_save_opname:
+            tgl_str_bersih = selected_date_obj.strftime("%Y-%m-%d")
             payload_to_save = {
                 'lokasi_office': lokasi_office,
-                'tanggal_opname': selected_date_obj.strftime("%Y-%m-%d"),
+                'tanggal_opname': tgl_str_bersih,
                 'items': temp_items_storage,
                 'logo_1': saved_global.get('logo_1'),
                 'logo_2': saved_global.get('logo_2'),
@@ -313,8 +338,8 @@ def tampilkan_opname(transaksi_list):
                 'ttd_2': saved_global.get('ttd_2')
             }
             
-            simpan_parameter_dokumen_to_db(opname_storage_key, payload_to_save)
-            st.success("✅ Parameter opname berhasil disimpan secara konsisten dan terurai ke Excel lokal!")
+            simpan_parameter_dokumen_to_db(pi_sekarang, po_sekarang, payload_to_save)
+            st.success("✅ Parameter opname berhasil disimpan dengan pemisahan kolom Nomor PI & PO serta format tanggal bersih ke Excel!")
 
     # --- PENGATURAN LOGO ---
     st.markdown("---")
