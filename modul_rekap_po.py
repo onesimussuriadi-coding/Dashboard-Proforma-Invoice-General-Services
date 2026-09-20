@@ -10,7 +10,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Mutasi Purchase Order (PO)</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Analisis berjenjang (Kontrak &rarr; PO), tabel kontrol anggaran, rekapitulasi total, dan grafik diagram lingkaran persentase penyerapan.</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Analisis berjenjang (Kontrak &rarr; PO), tabel kontrol anggaran, rekapitulasi global, dan grafik proporsi penyerapan.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -66,6 +66,64 @@ def tampilkan_rekap_penyerapan_po(
         df_filtered = df_filtered_kontrak
 
     st.markdown("---")
+
+    # KONDISI KHUSUS: Jika SEMUA KONTRAK dan SEMUA PO dipilih secara bersamaan
+    is_all_kontrak = (selected_kontrak == "-- SEMUA KONTRAK --")
+    is_all_po = (selected_po == "-- SEMUA PO DALAM KONTRAK INI --")
+
+    if is_all_kontrak and is_all_po:
+        st.markdown("### 📑 Tabel Rekapitulasi Global Seluruh Kontrak & Purchase Order (PO)")
+        st.info("ℹ️ Menampilkan rangkuman total nilai plafon, penyerapan, dan sisa anggaran secara global karena mode **Semua Kontrak & Semua PO** dipilih.")
+
+        global_summary_rows = []
+        for po_item in df_tx["PO Clean"].unique():
+            df_sub = df_tx[df_tx["PO Clean"] == po_item]
+            k_info = df_sub.get("Kontrak Clean", pd.Series([""])).iloc[0]
+            lingkup_info = df_sub.get("Deskripsi PO", pd.Series([""])).iloc[0]
+
+            df_opname_sub = pd.DataFrame()
+            if not df_opname.empty and "doc_key" in df_opname.columns:
+                df_opname_sub = df_opname[df_opname["doc_key"].astype(str).str.contains(str(po_item))]
+
+            grouped = df_sub.groupby(["Kategori", "Deskripsi Pekerjaan", "Unit"]).agg(
+                Volume_Aktual=('Qty', 'sum'),
+                Total_Aktual=('Total Harga', 'sum'),
+                Harga_Satuan=('Harga Satuan', 'mean')
+            ).reset_index()
+
+            p_po, t_serap = 0.0, 0.0
+            for idx, r in grouped.iterrows():
+                v_akt = r["Volume_Aktual"]
+                t_akt = r["Total_Aktual"]
+                u_prc = r["Harga_Satuan"]
+                v_po = v_akt * 2
+                if not df_opname_sub.empty and idx < len(df_opname_sub):
+                    try:
+                        v_po = float(df_opname_sub.iloc[idx].get("Volume PO", v_akt))
+                        u_prc = float(df_opname_sub.iloc[idx].get("Unit Price", u_prc))
+                    except:
+                        pass
+                p_po += v_po * u_prc
+                t_serap += t_akt
+
+            sisa_val = p_po - t_serap
+            rasio = (t_serap / p_po * 100) if p_po > 0 else 0.0
+
+            global_summary_rows.append({
+                "Nomor Kontrak": k_info,
+                "Nomor PO": po_item,
+                "Lingkup Pekerjaan": lingkup_info,
+                "Total Plafon PO (IDR)": f"Rp {p_po:,.2f}",
+                "Total Terserap (IDR)": f"Rp {t_serap:,.2f}",
+                "Sisa Anggaran (IDR)": f"Rp {sisa_val:,.2f}",
+                "Rasio (%)": f"{rasio:.2f}%"
+            })
+
+        df_global = pd.DataFrame(global_summary_rows)
+        st.dataframe(df_global, use_container_width=True)
+        return
+
+    # TAMPILAN DETAIL KONTROL (Jika Kontrak / PO spesifik dipilih)
     st.markdown("### 📋 Tabel Kontrol Anggaran & Penyerapan PO (Base vs Realisasi)")
 
     target_po_list = df_filtered["PO Clean"].unique().tolist()
