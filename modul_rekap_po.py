@@ -11,7 +11,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Purchase Order (PO) - Master Plafon & Multi-PI Tracking</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat dengan dropdown berjenjang (Kontrak -> PO -> Kategori -> Spesifikasi) & input Qty manual.</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat (Sinkronisasi presisi mutlak dengan Modul 0 Master Referensi Kontrak).</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -39,11 +39,10 @@ def tampilkan_rekap_penyerapan_po(
 
     df_master = muat_master_po()
 
-    # --- AMBIL DATA DARI MODUL 1 / TRANSAKSI & MASTER REFERENSI ---
+    # --- AMBIL DATA DARI MODUL 1 & MASTER REFERENSI (MODUL 0) ---
     transaksi_list = muat_data_transaksi_func()
     df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
 
-    # Ambil daftar Kontrak dan PO yang valid dari database tersimpan
     list_kontrak_ref = []
     list_po_ref = []
 
@@ -53,13 +52,12 @@ def tampilkan_rekap_penyerapan_po(
         if "Nomor PO" in df_tx.columns:
             list_po_ref = sorted(df_tx["Nomor PO"].dropna().astype(str).str.strip().unique().tolist())
 
-    # Fallback jika kosong
     if not list_kontrak_ref:
         list_kontrak_ref = ["7201250141"]
     if not list_po_ref:
         list_po_ref = ["4500011739"]
 
-    # Ambil referensi harga/kategori
+    # Ambil data master referensi (Modul 0) secara presisi
     if not master_ref_data:
         path_kontrak_excel = os.path.join("database_penyimpanan_aman", "database_kontrak.xlsx")
         if os.path.exists(path_kontrak_excel):
@@ -83,52 +81,69 @@ def tampilkan_rekap_penyerapan_po(
             df_ref["Uraian Clean"] = df_ref["Deskripsi Pekerjaan"].astype(str).str.strip()
         else:
             df_ref["Uraian Clean"] = ""
+            
+        if "Unit" in df_ref.columns:
+            df_ref["Unit Clean"] = df_ref["Unit"].astype(str).str.strip()
+        else:
+            df_ref["Unit Clean"] = "Day"
+            
+        if "Harga Satuan" in df_ref.columns:
+            df_ref["Harga Clean"] = pd.to_numeric(df_ref["Harga Satuan"], errors='coerce').fillna(0.0)
+        else:
+            df_ref["Harga Clean"] = 0.0
     else:
         df_ref = pd.DataFrame([
-            {"Kategori Clean": "ADDITIONAL CAMP SERVICES", "Uraian Clean": "Food & beverage, main course", "Unit": "Day", "Harga Satuan": 65000},
-            {"Kategori Clean": "ADDITIONAL CAMP SERVICES", "Uraian Clean": "Food & beverage, snack coffee/ tea & desert", "Unit": "Day", "Harga Satuan": 33000},
-            {"Kategori Clean": "HEAVY TRANSPORTATION & EQUIPMENT", "Uraian Clean": "Add Cost + Fee 15%", "Unit": "AU", "Harga Satuan": 10000},
-            {"Kategori Clean": "HEAVY TRANSPORTATION & EQUIPMENT", "Uraian Clean": "Portacamp - Living camp, ukuran 40FT", "Unit": "Month", "Harga Satuan": 15000000}
+            {"Nomor Kontrak Clean": "7201250141", "Kategori Clean": "ADDITIONAL CAMP SERVICES", "Uraian Clean": "Food & beverage, main course", "Unit Clean": "Day", "Harga Clean": 65000.0},
+            {"Nomor Kontrak Clean": "7201250141", "Kategori Clean": "ADDITIONAL CAMP SERVICES", "Uraian Clean": "Food & beverage, snack coffee/ tea & desert", "Unit Clean": "Day", "Harga Clean": 33000.0},
+            {"Nomor Kontrak Clean": "7201250141", "Kategori Clean": "HEAVY TRANSPORTATION & EQUIPMENT", "Uraian Clean": "Add Cost + Fee 15%", "Unit Clean": "AU", "Harga Clean": 10000.0},
+            {"Nomor Kontrak Clean": "7201250141", "Kategori Clean": "HEAVY TRANSPORTATION & EQUIPMENT", "Uraian Clean": "Portacamp - Living camp, ukuran 40FT", "Unit Clean": "Month", "Harga Clean": 15000000.0}
         ])
-
-    base_list_kat = sorted(df_ref["Kategori Clean"].dropna().unique().tolist()) if "Kategori Clean" in df_ref.columns else ["ADDITIONAL CAMP SERVICES", "HEAVY TRANSPORTATION & EQUIPMENT"]
-    if "PROFESSIONAL SUM" not in base_list_kat and "PROVISIONAL SUM" not in base_list_kat:
-        base_list_kat.append("PROVISIONAL SUM")
-    if "ESTIMATED SUM" not in base_list_kat:
-        base_list_kat.append("ESTIMATED SUM")
 
     # --- TAB / SUB-MENU ---
     tab_pilih, tab_input = st.tabs(["📊 Lihat Rekapitulasi & Kontrol PO", "➕ Input / Kelola Master Plafon PO"])
 
     with tab_input:
-        st.markdown("#### 📝 Form Input Master Plafon PO (Dropdown Terintegrasi)")
-        st.info("ℹ️ Pilih Nomor Kontrak, Nomor PO, dan Kategori dari dropdown resmi sistem. Unit Price membaca otomatis dari referensi kontrak, Anda cukup mengisi Quantity.")
+        st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Mutlak Modul 0)")
+        st.info("ℹ️ Pilih Kontrak & PO dari sistem. Kategori dan Uraian Pekerjaan akan menyaring data secara presisi murni dari referensi kontrak terpilih.")
 
         with st.form(key="form_input_master_po"):
             c_m1, c_m2 = st.columns(2)
             with c_m1:
-                in_kontrak = st.selectbox("📂 Pilih Nomor Kontrak (Modul Master):", list_kontrak_ref, key="input_master_kontrak")
+                in_kontrak = st.selectbox("📂 Pilih Nomor Kontrak:", list_kontrak_ref, key="input_master_kontrak")
             with c_m2:
-                in_po = st.selectbox("🔍 Pilih Nomor PO (Modul 1):", list_po_ref, key="input_master_po")
+                in_po = st.selectbox("🔍 Pilih Nomor PO:", list_po_ref, key="input_master_po")
+
+            # --- FILTER PRESISI BERJENJANG BERDASARKAN KONTRAK TERpilih ---
+            df_ref_kontrak = df_ref[df_ref["Nomor Kontrak Clean"] == str(in_kontrak).strip()]
+            if df_ref_kontrak.empty:
+                df_ref_kontrak = df_ref # Fallback jika filter kontrak kosong
+
+            base_list_kat = sorted(df_ref_kontrak["Kategori Clean"].dropna().unique().tolist()) if "Kategori Clean" in df_ref_kontrak.columns else []
+            if "PROFESSIONAL SUM" not in base_list_kat and "PROVISIONAL SUM" not in base_list_kat:
+                base_list_kat.append("PROVISIONAL SUM")
+            if "ESTIMATED SUM" not in base_list_kat:
+                base_list_kat.append("ESTIMATED SUM")
 
             c_m3, c_m4, c_m5 = st.columns(3)
             with c_m3:
-                in_kategori = st.selectbox("🏷️ Kategori Pekerjaan:", base_list_kat, key="input_master_kategori")
+                in_kategori = st.selectbox("🏷️ Kategori Pekerjaan:", base_list_kat if base_list_kat else ["-"], key="input_master_kategori")
 
-            # Pemfilteran presisi berjenjang
+            # Filter Uraian Pekerjaan STRICTLY berdasarkan Kategori yang sedang diklik
             kat_lower = str(in_kategori).lower()
             is_provisional = "provisional" in kat_lower or "professional" in kat_lower
 
             if is_provisional:
                 ref_deskripsi_list = ["At Cost + Fee 15%"]
             else:
-                df_f_kat = df_ref[df_ref["Kategori Clean"] == str(in_kategori).strip().upper()] if "Kategori Clean" in df_ref.columns else pd.DataFrame()
+                df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(in_kategori).strip().upper()]
+                if df_f_kat.empty:
+                    df_f_kat = df_ref[df_ref["Kategori Clean"] == str(in_kategori).strip().upper()]
                 ref_deskripsi_list = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
 
             with c_m4:
                 in_deskripsi = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", ref_deskripsi_list, key="input_master_deskripsi")
 
-            # Harga Satuan & Unit otomatis membaca dari referensi
+            # Ambil Unit (UOM) dan Harga Satuan mutlak dari baris referensi kontrak yang terpilih
             hs_otomatis = 0.0
             unit_otomatis = "Month"
             if not is_provisional and not df_f_kat.empty:
@@ -138,19 +153,19 @@ def tampilkan_rekap_penyerapan_po(
                 if not m_row.empty:
                     row_m = m_row.iloc[0]
                     try:
-                        hs_otomatis = float(row_m.get("Harga Satuan", 0.0) or 0.0)
+                        hs_otomatis = float(row_m.get("Harga Clean", row_m.get("Harga Satuan", 0.0)) or 0.0)
                     except:
                         hs_otomatis = 0.0
-                    unit_otomatis = str(row_m.get("Unit", "Month"))
+                    unit_otomatis = str(row_m.get("Unit Clean", row_m.get("Unit", "Month")))
 
             with c_m5:
-                in_uom = st.text_input("📏 Satuan / UOM (Otomatis):", value=unit_otomatis if not is_provisional else "AU", disabled=True)
+                in_uom = st.text_input("📏 Satuan / UOM (Otomatis Modul 1/0):", value=unit_otomatis if not is_provisional else "AU", disabled=True)
 
             c_m6, c_m7 = st.columns(2)
             with c_m6:
                 in_vol = st.number_input("📦 Quantity / Volume PO (Isi Manual):", value=0.0, step=1.0, format="%.2f")
             with c_m7:
-                in_price = st.number_input("💵 Unit Price / Harga Satuan (IDR - Otomatis dari Referensi Kontrak):", value=hs_otomatis, step=1000.0, format="%.2f")
+                in_price = st.number_input("💵 Unit Price / Harga Satuan (IDR - Otomatis dari Kontrak):", value=hs_otomatis, step=1000.0, format="%.2f")
 
             submit_master = st.form_submit_button("💾 Simpan Item ke Master Plafon PO", type="primary")
             if submit_master:
@@ -168,7 +183,7 @@ def tampilkan_rekap_penyerapan_po(
                 
                 df_master = pd.concat([df_master, pd.DataFrame([new_row])], ignore_index=True)
                 if simpan_master_po(df_master):
-                    st.success(f"✅ Master Plafon untuk PO `{in_po}` berhasil disimpan dengan referensi valid!")
+                    st.success(f"✅ Master Plafon untuk PO `{in_po}` berhasil disimpan secara presisi!")
                     st.rerun()
                 else:
                     st.error("⚠️ Gagal menyimpan ke file master PO.")
