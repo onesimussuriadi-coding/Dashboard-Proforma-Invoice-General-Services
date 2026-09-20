@@ -11,9 +11,9 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Purchase Order (PO) - Master Plafon & Multi-PI Tracking</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat (Pembacaan langsung dari file Excel Master Kontrak Modul 0).</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat (Sinkronisasi mutlak presisi merujuk Excel Master Referensi Kontrak).</p>
         </div>
-    """, unsafe_allow_html=True, help=None)
+    """, unsafe_allow_html=True)
 
     # --- PENGATURAN PENYIMPANAN MASTER PO LOKAL ---
     DIR_DB_LOKAL = os.path.join("database_penyimpanan_aman")
@@ -38,23 +38,20 @@ def tampilkan_rekap_penyerapan_po(
 
     df_master = muat_master_po()
 
-    # --- 1. AMBIL DATA MASTER REFERENSI LANGSUNG DARI FILE EXCEL (MODUL 0) ---
+    # --- AMBIL DATA MASTER REFERENSI LANGSUNG DARI FILE EXCEL (MODUL 0) ---
     path_kontrak_excel = os.path.join("database_penyimpanan_aman", "database_kontrak.xlsx")
     df_ref = pd.DataFrame()
 
     if os.path.exists(path_kontrak_excel):
         try:
             df_ref = pd.read_excel(path_kontrak_excel)
-        except Exception as e:
-            st.error(f"⚠️ Gagal membaca database kontrak: {e}")
+        except:
+            pass
 
-    # Jika df_ref kosong dari file, coba gunakan master_ref_data jika ada
     if df_ref.empty and master_ref_data:
         df_ref = pd.DataFrame(master_ref_data)
 
-    # Pembersihan kolom secara presisi sesuai struktur Excel Anda
     if not df_ref.empty:
-        # Normalisasi nama kolom jika ada variasi
         col_mapping = {}
         for c in df_ref.columns:
             c_lower = str(c).strip().lower()
@@ -89,12 +86,10 @@ def tampilkan_rekap_penyerapan_po(
         else:
             df_ref["Harga Clean"] = 0.0
     else:
-        # Fallback dummy jika file excel belum ada sama sekali
         df_ref = pd.DataFrame([
             {"Nomor Kontrak Clean": "7207250142", "Kategori Clean": "MONTHLY BASIS", "Uraian Clean": "Jasa Sewa Alat Berat Monthly Basis", "Unit Clean": "Month", "Harga Clean": 131224000.0}
         ])
 
-    # --- 2. AMBIL LIST NOMOR KONTRAK & PO ---
     transaksi_list = muat_data_transaksi_func()
     df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
 
@@ -104,11 +99,8 @@ def tampilkan_rekap_penyerapan_po(
     if not df_ref.empty and "Nomor Kontrak Clean" in df_ref.columns:
         list_kontrak_ref = sorted(df_ref["Nomor Kontrak Clean"].dropna().unique().tolist())
 
-    if not list_kontrak_ref and not df_tx.empty and "Nomor Kontrak" in df_tx.columns:
-        list_kontrak_ref = sorted(df_tx["Nomor Kontrak"].dropna().astype(str).str.strip().unique().tolist())
-
     if not list_kontrak_ref:
-        list_kontrak_ref = ["7207250142", "7203250036", "7201250141"]
+        list_kontrak_ref = ["7207250142", "7201250141"]
 
     if not df_tx.empty and "Nomor PO" in df_tx.columns:
         list_po_ref = sorted(df_tx["Nomor PO"].dropna().astype(str).str.strip().unique().tolist())
@@ -120,8 +112,8 @@ def tampilkan_rekap_penyerapan_po(
     tab_pilih, tab_input = st.tabs(["📊 Lihat Rekapitulasi & Kontrol PO", "➕ Input / Kelola Master Plafon PO"])
 
     with tab_input:
-        st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Langsung Master Excel Modul 0)")
-        st.info("ℹ️ Pilih Nomor Kontrak. Kategori dan Uraian Pekerjaan akan membaca secara penuh dan presisi langsung dari file database master kontrak.")
+        st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Mutlak Excel Master)")
+        st.info("ℹ️ Pilih Nomor Kontrak, Kategori, dan Uraian. Satuan (UOM) dan Harga Satuan membaca mutlak secara otomatis dari baris file Excel master.")
 
         with st.form(key="form_input_master_po"):
             c_m1, c_m2 = st.columns(2)
@@ -130,10 +122,10 @@ def tampilkan_rekap_penyerapan_po(
             with c_m2:
                 in_po = st.selectbox("🔍 Pilih Nomor PO:", list_po_ref, key="input_master_po")
 
-            # --- FILTER KETAT BERDASARKAN NOMOR KONTRAK TERPILIH ---
+            # --- 1. FILTER KONTRAK ---
             df_ref_kontrak = df_ref[df_ref["Nomor Kontrak Clean"] == str(in_kontrak).strip()]
             if df_ref_kontrak.empty:
-                df_ref_kontrak = df_ref # Fallback jika kontrak tidak persis
+                df_ref_kontrak = df_ref
 
             base_list_kat = sorted(df_ref_kontrak["Kategori Clean"].dropna().unique().tolist())
             if not base_list_kat:
@@ -148,7 +140,7 @@ def tampilkan_rekap_penyerapan_po(
             with c_m3:
                 in_kategori = st.selectbox("🏷️ Kategori Pekerjaan:", base_list_kat if base_list_kat else ["-"], key="input_master_kategori")
 
-            # --- FILTER URAIAN PEKERJAAN MURNI BERDASARKAN KATEGORI YANG DIKLIK ---
+            # --- 2. FILTER URAIAN PEKERJAAN BERDASARKAN KATEGORI ---
             kat_lower = str(in_kategori).lower()
             is_provisional = "provisional" in kat_lower or "professional" in kat_lower
 
@@ -169,9 +161,10 @@ def tampilkan_rekap_penyerapan_po(
                     selected_display_spek = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", spek_options_formatted if spek_options_formatted else ["-"], key="input_master_deskripsi")
                     in_deskripsi = spek_display_map.get(selected_display_spek, selected_display_spek)
 
-            # --- AMBIL HARGA SATUAN & UNIT OTOMATIS DARI BARIS EXCEL ---
+            # --- 3. AMBIL UNIT (UOM) & HARGA SATUAN MUTLAK DARI BARIS EXCEL ---
             hs_otomatis = 0.0
             unit_otomatis = "Month"
+            
             if not is_provisional and not df_f_kat.empty and in_deskripsi != "- (Tidak ada data uraian)":
                 m_row = df_f_kat[df_f_kat["Uraian Clean"] == str(in_deskripsi).strip()]
                 if m_row.empty:
@@ -185,14 +178,9 @@ def tampilkan_rekap_penyerapan_po(
                     unit_otomatis = str(row_m.get("Unit Clean", row_m.get("Unit", "Month")))
 
             with c_m5:
-                default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg", "Pallet", "Ltr"]
-                existing_u_from_master = df_ref["Unit Clean"].dropna().astype(str).unique().tolist() if "Unit Clean" in df_ref.columns else []
-                u_opts = sorted(list(set(default_u_opts + existing_u_from_master)))
-                
-                def_unit_val = unit_otomatis if not is_provisional else "AU"
-                if def_unit_val not in u_opts:
-                    u_opts.insert(0, def_unit_val)
-                idx_u = u_opts.index(def_unit_val) if def_unit_val in u_opts else 0
+                # Satuan kini diatur otomatis persis membaca kolom Unit dari Excel Master Kontrak
+                u_opts = [unit_otomatis] if is_provisional else sorted(list(set([unit_otomatis, "Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg"])))
+                idx_u = u_opts.index(unit_otomatis) if unit_otomatis in u_opts else 0
                 
                 in_uom = st.selectbox("📏 Satuan / UOM (Otomatis Excel):", u_opts, index=idx_u, key="input_master_uom")
 
