@@ -11,7 +11,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Purchase Order (PO) - Master Plafon & Multi-PI Tracking</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat (berelasi dependent dropdown presisi standar Modul 2) vs penyerapan kumulatif.</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat dengan dropdown berjenjang (Kontrak -> PO -> Kategori -> Spesifikasi) & input Qty manual.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -39,9 +39,28 @@ def tampilkan_rekap_penyerapan_po(
 
     df_master = muat_master_po()
 
-    # --- STANDAR PENGAMBILAN REFERENSI SAMA PERSIS DENGAN MODUL 2 ---
+    # --- AMBIL DATA DARI MODUL 1 / TRANSAKSI & MASTER REFERENSI ---
+    transaksi_list = muat_data_transaksi_func()
+    df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
+
+    # Ambil daftar Kontrak dan PO yang valid dari database tersimpan
+    list_kontrak_ref = []
+    list_po_ref = []
+
+    if not df_tx.empty:
+        if "Nomor Kontrak" in df_tx.columns:
+            list_kontrak_ref = sorted(df_tx["Nomor Kontrak"].dropna().astype(str).str.strip().unique().tolist())
+        if "Nomor PO" in df_tx.columns:
+            list_po_ref = sorted(df_tx["Nomor PO"].dropna().astype(str).str.strip().unique().tolist())
+
+    # Fallback jika kosong
+    if not list_kontrak_ref:
+        list_kontrak_ref = ["7201250141"]
+    if not list_po_ref:
+        list_po_ref = ["4500011739"]
+
+    # Ambil referensi harga/kategori
     if not master_ref_data:
-        # Fallback jika master_ref_data kosong, coba muat file kontrak
         path_kontrak_excel = os.path.join("database_penyimpanan_aman", "database_kontrak.xlsx")
         if os.path.exists(path_kontrak_excel):
             try:
@@ -65,7 +84,6 @@ def tampilkan_rekap_penyerapan_po(
         else:
             df_ref["Uraian Clean"] = ""
     else:
-        # Fallback standar jika data referensi belum ada
         df_ref = pd.DataFrame([
             {"Kategori Clean": "ADDITIONAL CAMP SERVICES", "Uraian Clean": "Food & beverage, main course", "Unit": "Day", "Harga Satuan": 65000},
             {"Kategori Clean": "ADDITIONAL CAMP SERVICES", "Uraian Clean": "Food & beverage, snack coffee/ tea & desert", "Unit": "Day", "Harga Satuan": 33000},
@@ -83,21 +101,21 @@ def tampilkan_rekap_penyerapan_po(
     tab_pilih, tab_input = st.tabs(["📊 Lihat Rekapitulasi & Kontrol PO", "➕ Input / Kelola Master Plafon PO"])
 
     with tab_input:
-        st.markdown("#### 📝 Form Input Master Plafon PO (Standar Sesuai Modul 2)")
-        st.info("ℹ️ Pilih Kategori terlebih dahulu; Uraian Pekerjaan akan memfilter secara presisi sesuai kategori yang diklik, kuantitas diisi manual, dan Harga Satuan membaca otomatis.")
+        st.markdown("#### 📝 Form Input Master Plafon PO (Dropdown Terintegrasi)")
+        st.info("ℹ️ Pilih Nomor Kontrak, Nomor PO, dan Kategori dari dropdown resmi sistem. Unit Price membaca otomatis dari referensi kontrak, Anda cukup mengisi Quantity.")
 
         with st.form(key="form_input_master_po"):
             c_m1, c_m2 = st.columns(2)
             with c_m1:
-                in_kontrak = st.text_input("📂 Nomor Kontrak:", value="7201250141")
+                in_kontrak = st.selectbox("📂 Pilih Nomor Kontrak (Modul Master):", list_kontrak_ref, key="input_master_kontrak")
             with c_m2:
-                in_po = st.text_input("🔍 Nomor PO:", value="4500011739")
+                in_po = st.selectbox("🔍 Pilih Nomor PO (Modul 1):", list_po_ref, key="input_master_po")
 
             c_m3, c_m4, c_m5 = st.columns(3)
             with c_m3:
                 in_kategori = st.selectbox("🏷️ Kategori Pekerjaan:", base_list_kat, key="input_master_kategori")
 
-            # --- PEMFILTERAN PRESISI BERJENJANG SAMA PERSIS MODUL 2 ---
+            # Pemfilteran presisi berjenjang
             kat_lower = str(in_kategori).lower()
             is_provisional = "provisional" in kat_lower or "professional" in kat_lower
 
@@ -110,7 +128,7 @@ def tampilkan_rekap_penyerapan_po(
             with c_m4:
                 in_deskripsi = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", ref_deskripsi_list, key="input_master_deskripsi")
 
-            # Ambil Harga Satuan & Unit otomatis dari referensi berdasarkan deskripsi terpilih
+            # Harga Satuan & Unit otomatis membaca dari referensi
             hs_otomatis = 0.0
             unit_otomatis = "Month"
             if not is_provisional and not df_f_kat.empty:
@@ -132,7 +150,7 @@ def tampilkan_rekap_penyerapan_po(
             with c_m6:
                 in_vol = st.number_input("📦 Quantity / Volume PO (Isi Manual):", value=0.0, step=1.0, format="%.2f")
             with c_m7:
-                in_price = st.number_input("💵 Unit Price / Harga Satuan (IDR - Otomatis dari Kolom Deskripsi):", value=hs_otomatis, step=1000.0, format="%.2f")
+                in_price = st.number_input("💵 Unit Price / Harga Satuan (IDR - Otomatis dari Referensi Kontrak):", value=hs_otomatis, step=1000.0, format="%.2f")
 
             submit_master = st.form_submit_button("💾 Simpan Item ke Master Plafon PO", type="primary")
             if submit_master:
@@ -150,7 +168,7 @@ def tampilkan_rekap_penyerapan_po(
                 
                 df_master = pd.concat([df_master, pd.DataFrame([new_row])], ignore_index=True)
                 if simpan_master_po(df_master):
-                    st.success(f"✅ Master Plafon untuk PO `{in_po}` berhasil disimpan secara presisi!")
+                    st.success(f"✅ Master Plafon untuk PO `{in_po}` berhasil disimpan dengan referensi valid!")
                     st.rerun()
                 else:
                     st.error("⚠️ Gagal menyimpan ke file master PO.")
