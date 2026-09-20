@@ -67,7 +67,13 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("---")
     st.markdown("### 📋 Tabel Kontrol Anggaran & Penyerapan PO (Base vs Realisasi)")
 
-    for po_item in df_filtered["PO Clean"].unique():
+    # PERBAIKAN LOGIKA: Ambil daftar PO yang sesuai dengan hasil filter (bisa satu PO atau banyak PO sekaligus)
+    target_po_list = df_filtered["PO Clean"].unique().tolist()
+    if not target_po_list:
+        st.info("ℹ️ Tidak ada data PO yang sesuai dengan filter yang dipilih.")
+        return
+
+    for po_item in target_po_list:
         df_sub_po = df_filtered[df_filtered["PO Clean"] == po_item]
         
         kontrak_info = df_sub_po.get("Kontrak Clean", pd.Series([""])).iloc[0]
@@ -135,13 +141,12 @@ def tampilkan_rekap_penyerapan_po(
         df_laporan = pd.DataFrame(tabel_rows)
         st.dataframe(df_laporan, use_container_width=True)
 
-        # --- KOTAK REKAPITULASI TOTAL PER PO (DENGAN FONT ANGKA DIPERKECIL AGAR UTUH) ---
+        # --- KOTAK REKAPITULASI TOTAL PER PO ---
         st.markdown(f"#### 📌 Ringkasan Rekapitulasi Total untuk PO: `{po_item}`")
         
         pct_serap = (tot_val_serap / tot_val_po * 100) if tot_val_po > 0 else 0.0
         pct_sisa = (tot_val_sisa / tot_val_po * 100) if tot_val_po > 0 else 0.0
 
-        # Custom CSS styling agar font angka metrik sedikit lebih kecil & tidak terpotong
         st.markdown("""
             <style>
             div[data-testid="metric-container"] label { font-size: 13px !important; color: #475569 !important; }
@@ -159,7 +164,7 @@ def tampilkan_rekap_penyerapan_po(
         with c4:
             st.metric("Rasio Penyerapan", f"{pct_serap:.2f}%")
 
-        # --- DIAGRAM LINGKARAN (PIE CHART) DENGAN WARNA SESUAI LEGENDA ---
+        # --- DIAGRAM LINGKARAN (PIE CHART) ---
         st.markdown(f"##### 📉 Grafik Proporsi Penyerapan Anggaran PO `{po_item}`")
         
         chart_data = pd.DataFrame({
@@ -167,10 +172,9 @@ def tampilkan_rekap_penyerapan_po(
             'Nilai': [max(0.0, tot_val_sisa), max(0.0, tot_val_serap)]
         }).set_index('Kategori')
 
-        # Warna disesuaikan: Hijau/Toska (#10b981) untuk Sisa Anggaran, Abu-abu (#cbd5e1) untuk Sudah Terserap
         st.altair_chart(
             __import__('altair').Chart(chart_data.reset_index()).mark_arc(innerRadius=50).encode(
-                theta=__import__('altair').Theta(field="Nilai", type="quantitative"),
+                theta=__import__('altair'].Theta(field="Nilai", type="quantitative"),
                 color=__import__('altair').Color(
                     field="Kategori", 
                     type="nominal", 
