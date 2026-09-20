@@ -37,9 +37,8 @@ def tampilkan_rekap_penyerapan_po(
 
     df_master = muat_master_po()
 
-    # --- 2. LOADER MANDIRI MODUL 0 (DIPERBAIKI: PRIORITAS PARAMETER UTAMA) ---
+    # --- 2. LOADER MANDIRI MODUL 0 (AMAN & ANTI-ERROR) ---
     def muat_data_modul_0():
-        # Prioritas utama: Gunakan data dari parameter master_ref_data yang dikirim aplikasi
         if master_ref_data:
             try:
                 df_param = pd.DataFrame(master_ref_data)
@@ -48,7 +47,6 @@ def tampilkan_rekap_penyerapan_po(
             except:
                 pass
         
-        # Cek beberapa alternatif path file fisik
         paths_to_check = [
             os.path.join("database_penyimpanan_aman", "database_kontrak.xlsx"),
             "database_kontrak.xlsx",
@@ -69,14 +67,13 @@ def tampilkan_rekap_penyerapan_po(
     df_raw = muat_data_modul_0()
 
     if df_raw.empty:
-        # Fallback data uji darurat agar form tetap terbuka dan tidak terblokir
         df_raw = pd.DataFrame([
             {"Nomor Kontrak": "7207250142", "Kategori": "MONTHLY BASIS", "Uraian Pekerjaan": "Jasa Sewa Alat Berat Monthly Basis", "Unit": "Month", "Harga Satuan": 131224000.0},
             {"Nomor Kontrak": "7203250036", "Kategori": "MONTHLY BASIS", "Uraian Pekerjaan": "Daily Rate", "Unit": "Day", "Harga Satuan": 1197000.0},
             {"Nomor Kontrak": "7201250141", "Kategori": "ADDITIONAL CAMP SERVICES", "Uraian Pekerjaan": "Food & beverage, main course", "Unit": "Day", "Harga Satuan": 65000.0}
         ])
 
-    # Normalisasi Kolom Universal
+    # Normalisasi Kolom Universal yang Aman
     col_map = {}
     for col in df_raw.columns:
         c_low = str(col).strip().lower()
@@ -93,18 +90,27 @@ def tampilkan_rekap_penyerapan_po(
 
     df_clean = df_raw.rename(columns=col_map)
 
-    # Pastikan kolom esensial terbentuk
+    # Pastikan kolom esensial terbentuk sebagai Series tunggal
     required_cols = ["Nomor Kontrak", "Kategori", "Uraian Pekerjaan", "Unit", "Harga Satuan"]
     for rc in required_cols:
-        if rc not in df_clean.columns:
+        if rc not in df_clean.columns or isinstance(df_clean[rc], pd.DataFrame):
             df_clean[rc] = "-"
 
-    # Pembersihan tipe data string & numerik
-    df_clean["Nomor Kontrak"] = df_clean["Nomor Kontrak"].astype(str).str.strip()
-    df_clean["Kategori"] = df_clean["Kategori"].astype(str).str.strip().str.upper()
-    df_clean["Uraian Pekerjaan"] = df_clean["Uraian Pekerjaan"].astype(str).str.strip()
-    df_clean["Unit"] = df_clean["Unit"].astype(str).str.strip()
-    df_clean["Harga Satuan Numeric"] = pd.to_numeric(df_clean["Harga Satuan"], errors='coerce').fillna(0.0)
+    # Pembersihan Tipe Data Aman (Menghindari AttributeError Series vs DataFrame)
+    def safe_series_str(s):
+        if isinstance(s, pd.DataFrame):
+            s = s.iloc[:, 0]
+        return s.astype(str).str.strip()
+
+    df_clean["Nomor Kontrak"] = safe_series_str(df_clean["Nomor Kontrak"])
+    df_clean["Kategori"] = safe_series_str(df_clean["Kategori"]).str.upper()
+    df_clean["Uraian Pekerjaan"] = safe_series_str(df_clean["Uraian Pekerjaan"])
+    df_clean["Unit"] = safe_series_str(df_clean["Unit"])
+    
+    hs_col = df_clean["Harga Satuan"]
+    if isinstance(hs_col, pd.DataFrame):
+        hs_col = hs_col.iloc[:, 0]
+    df_clean["Harga Satuan Numeric"] = pd.to_numeric(hs_col, errors='coerce').fillna(0.0)
 
     # Ambil list Nomor Kontrak unik secara bersih
     list_kontrak_bersih = sorted([k for k in df_clean["Nomor Kontrak"].unique() if k and k != "nan" and k != "-"])
@@ -149,7 +155,6 @@ def tampilkan_rekap_penyerapan_po(
                 in_deskripsi = st.text_input("📋 Uraian Pekerjaan / Spesifikasi (Manual):", value="At Cost + Fee 15%", key=f"mod_desc_manual_{in_kontrak}")
                 df_u = pd.DataFrame()
             else:
-                # Filter baris berdasarkan Kategori yang aktif
                 df_u = df_k[df_k["Kategori"] == in_kategori]
                 if df_u.empty:
                     df_u = df_clean[df_clean["Kategori"] == in_kategori]
@@ -160,7 +165,6 @@ def tampilkan_rekap_penyerapan_po(
 
                 in_deskripsi = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", list_uraian, key=f"mod_uraian_{in_kontrak}_{in_kategori}")
 
-        # Ambil Harga Satuan & Unit secara presisi mengacu pada Uraian Pekerjaan yang dipilih
         harga_otomatis = 0.0
         unit_otomatis = "Month"
 
