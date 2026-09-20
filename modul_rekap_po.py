@@ -38,66 +38,69 @@ def tampilkan_rekap_penyerapan_po(
 
     df_master = muat_master_po()
 
-    # --- 1. AMBIL MASTER REFERENSI FISIK DARI FILE EXCEL (MODUL 0) ---
+    # --- 1. PEMBACAAN FISIK MASTER REFERENSI KONTRAK (MODUL 0) SECARA UTUH ---
     path_kontrak_excel = os.path.join("database_penyimpanan_aman", "database_kontrak.xlsx")
     df_ref = pd.DataFrame()
 
     if os.path.exists(path_kontrak_excel):
         try:
             df_ref = pd.read_excel(path_kontrak_excel)
-        except:
-            pass
+        except Exception as e:
+            st.warning(f"Catatan baca Excel Kontrak: {e}")
 
+    # Jika df_ref masih kosong, gunakan master_ref_data dari parameter
     if df_ref.empty and master_ref_data:
         df_ref = pd.DataFrame(master_ref_data)
 
-    if not df_ref.empty:
-        col_mapping = {}
-        for c in df_ref.columns:
-            c_lower = str(c).strip().lower()
-            if "kontrak" in c_lower:
-                col_mapping[c] = "Nomor Kontrak"
-            elif "kategori" in c_lower:
-                col_mapping[c] = "Kategori"
-            elif "uraian" in c_lower or "deskripsi" in c_lower:
-                col_mapping[c] = "Uraian Pekerjaan"
-            elif c_lower in ["unit", "uom"]:
-                col_mapping[c] = "Unit"
-            elif "harga" in c_lower:
-                col_mapping[c] = "Harga Satuan"
-        
-        df_ref = df_ref.rename(columns=col_mapping)
-
-        df_ref["Nomor Kontrak Clean"] = df_ref["Nomor Kontrak"].astype(str).str.strip() if "Nomor Kontrak" in df_ref.columns else ""
-        df_ref["Kategori Clean"] = df_ref["Kategori"].astype(str).str.strip().str.upper() if "Kategori" in df_ref.columns else ""
-        
-        if "Uraian Pekerjaan" in df_ref.columns:
-            df_ref["Uraian Clean"] = df_ref["Uraian Pekerjaan"].astype(str).str.strip()
-        else:
-            df_ref["Uraian Clean"] = ""
-            
-        if "Unit" in df_ref.columns:
-            df_ref["Unit Clean"] = df_ref["Unit"].astype(str).str.strip()
-        else:
-            df_ref["Unit Clean"] = "Month"
-            
-        if "Harga Satuan" in df_ref.columns:
-            df_ref["Harga Clean"] = pd.to_numeric(df_ref["Harga Satuan"], errors='coerce').fillna(0.0)
-        else:
-            df_ref["Harga Clean"] = 0.0
-    else:
+    # Jika masih kosong juga, buat fallback data uji agar tidak error
+    if df_ref.empty:
         df_ref = pd.DataFrame([
-            {"Nomor Kontrak Clean": "7207250142", "Kategori Clean": "MONTHLY BASIS", "Uraian Clean": "Jasa Sewa Alat Berat Monthly Basis", "Unit Clean": "Month", "Harga Clean": 131224000.0}
+            {"Nomor Kontrak": "7207250142", "Kategori": "MONTHLY BASIS", "Uraian Pekerjaan": "Jasa Sewa Alat Berat Monthly Basis", "Unit": "Month", "Harga Satuan": 131224000.0},
+            {"Nomor Kontrak": "7203250036", "Kategori": "MONTHLY BASIS", "Uraian Pekerjaan": "Daily Rate", "Unit": "Day", "Harga Satuan": 1197000.0},
+            {"Nomor Kontrak": "7201250141", "Kategori": "ADDITIONAL CAMP SERVICES", "Uraian Pekerjaan": "Food & beverage, main course", "Unit": "Day", "Harga Satuan": 65000.0}
         ])
 
-    # --- 2. AMBIL LIST NOMOR KONTRAK SECARA LENGKAP DARI MASTER EXCEL ---
-    list_kontrak_ref = sorted(df_ref["Nomor Kontrak Clean"].dropna().unique().tolist()) if not df_ref.empty else []
-    if not list_kontrak_ref:
-        list_kontrak_ref = ["7207250142", "7203250036", "7201250141"]
+    # Normalisasi Kolom secara Presisi
+    col_mapping = {}
+    for c in df_ref.columns:
+        c_lower = str(c).strip().lower()
+        if "kontrak" in c_lower:
+            col_mapping[c] = "Nomor Kontrak"
+        elif "kategori" in c_lower:
+            col_mapping[c] = "Kategori"
+        elif "uraian" in c_lower or "deskripsi" in c_lower:
+            col_mapping[c] = "Uraian Pekerjaan"
+        elif c_lower in ["unit", "uom"]:
+            col_mapping[c] = "Unit"
+        elif "harga" in c_lower:
+            col_mapping[c] = "Harga Satuan"
 
-    # Ambil list Nomor PO dari transaksi atau default
+    df_ref = df_ref.rename(columns=col_mapping)
+
+    df_ref["Nomor Kontrak Clean"] = df_ref["Nomor Kontrak"].astype(str).str.strip() if "Nomor Kontrak" in df_ref.columns else ""
+    df_ref["Kategori Clean"] = df_ref["Kategori"].astype(str).str.strip().str.upper() if "Kategori" in df_ref.columns else ""
+    
+    if "Uraian Pekerjaan" in df_ref.columns:
+        df_ref["Uraian Clean"] = df_ref["Uraian Pekerjaan"].astype(str).str.strip()
+    else:
+        df_ref["Uraian Clean"] = ""
+        
+    if "Unit" in df_ref.columns:
+        df_ref["Unit Clean"] = df_ref["Unit"].astype(str).str.strip()
+    else:
+        df_ref["Unit Clean"] = "Month"
+        
+    if "Harga Satuan" in df_ref.columns:
+        df_ref["Harga Clean"] = pd.to_numeric(df_ref["Harga Satuan"], errors='coerce').fillna(0.0)
+    else:
+        df_ref["Harga Clean"] = 0.0
+
+    # --- 2. LIST NOMOR KONTRAK & PO SECARA LENGKAP ---
+    list_kontrak_ref = sorted(df_ref["Nomor Kontrak Clean"].dropna().unique().tolist())
+
     transaksi_list = muat_data_transaksi_func()
     df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
+    
     list_po_ref = sorted(df_tx["Nomor PO"].dropna().astype(str).str.strip().unique().tolist()) if not df_tx.empty and "Nomor PO" in df_tx.columns else ["4500011739", "4500011740"]
 
     # --- TAB / SUB-MENU ---
@@ -105,24 +108,21 @@ def tampilkan_rekap_penyerapan_po(
 
     with tab_input:
         st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Penuh Master Excel)")
-        st.info("ℹ️ Pilih Nomor Kontrak, Kategori, dan Uraian Pekerjaan. Seluruh data membaca langsung secara lengkap dari Master Kontrak Modul 0.")
+        st.info("ℹ️ Pilih Nomor Kontrak dari daftar di bawah. Kategori dan Uraian Pekerjaan akan memuat seluruh rincian secara lengkap sesuai kontrak tersebut.")
 
         with st.form(key="form_input_master_po"):
             c_m1, c_m2 = st.columns(2)
             with c_m1:
-                in_kontrak = st.selectbox("📂 Pilih Nomor Kontrak:", list_kontrak_ref, key="input_master_kontrak")
+                in_kontrak = st.selectbox("📂 Pilih Nomor Kontrak:", list_kontrak_ref if list_kontrak_ref else [""], key="input_master_kontrak")
             with c_m2:
-                in_po = st.selectbox("🔍 Pilih Nomor PO:", list_po_ref, key="input_master_po")
+                in_po = st.selectbox("🔍 Pilih Nomor PO:", list_po_ref if list_po_ref else [""], key="input_master_po")
 
-            # --- 3. FILTER KATEGORI SECARA LENGKAP BERDASARKAN KONTRAK TERPILIH ---
+            # --- 3. FILTER KATEGORI BERDASARKAN KONTRAK TERPILIH ---
             df_ref_kontrak = df_ref[df_ref["Nomor Kontrak Clean"] == str(in_kontrak).strip()]
             if df_ref_kontrak.empty:
                 df_ref_kontrak = df_ref
 
             base_list_kat = sorted(df_ref_kontrak["Kategori Clean"].dropna().unique().tolist())
-            if not base_list_kat:
-                base_list_kat = sorted(df_ref["Kategori Clean"].dropna().unique().tolist())
-
             if "PROFESSIONAL SUM" not in base_list_kat and "PROVISIONAL SUM" not in base_list_kat:
                 base_list_kat.append("PROVISIONAL SUM")
             if "ESTIMATED SUM" not in base_list_kat:
@@ -132,7 +132,7 @@ def tampilkan_rekap_penyerapan_po(
             with c_m3:
                 in_kategori = st.selectbox("🏷️ Kategori Pekerjaan:", base_list_kat if base_list_kat else ["-"], key="input_master_kategori")
 
-            # --- 4. FILTER URAIAN PEKERJAAN SECARA LENGKAP BERDASARKAN KATEGORI ---
+            # --- 4. FILTER URAIAN PEKERJAAN BERDASARKAN KATEGORI YANG DIPILIH ---
             kat_lower = str(in_kategori).lower()
             is_provisional = "provisional" in kat_lower or "professional" in kat_lower
 
@@ -153,7 +153,7 @@ def tampilkan_rekap_penyerapan_po(
                     selected_display_spek = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", spek_options_formatted if spek_options_formatted else ["-"], key="input_master_deskripsi")
                     in_deskripsi = spek_display_map.get(selected_display_spek, selected_display_spek)
 
-            # --- 5. AMBIL UNIT (UOM) & HARGA SATUAN MUTLAK DARI BARIS EXCEL ---
+            # --- 5. AMBIL UNIT (UOM) & HARGA SATUAN OTOMATIS DARI EXCEL ---
             hs_otomatis = 0.0
             unit_otomatis = "Month"
             
@@ -444,7 +444,7 @@ def tampilkan_rekap_penyerapan_po(
             }).set_index('Kategori')
 
             st.altair_chart(
-                alt.Chart(chart_data.reset_index()).mark_arc(innerRadius=50).encode(
+                alt.Chart(chart_global.reset_index()).mark_arc(innerRadius=50).encode(
                     theta=alt.Theta(field="Nilai", type="quantitative"),
                     color=alt.Color(
                         field="Kategori", 
