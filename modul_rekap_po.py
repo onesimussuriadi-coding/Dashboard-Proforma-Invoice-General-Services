@@ -135,11 +135,19 @@ def tampilkan_rekap_penyerapan_po(
         df_laporan = pd.DataFrame(tabel_rows)
         st.dataframe(df_laporan, use_container_width=True)
 
-        # --- KOTAK REKAPITULASI TOTAL PER PO ---
+        # --- KOTAK REKAPITULASI TOTAL PER PO (DENGAN FONT ANGKA DIPERKECIL AGAR UTUH) ---
         st.markdown(f"#### 📌 Ringkasan Rekapitulasi Total untuk PO: `{po_item}`")
         
         pct_serap = (tot_val_serap / tot_val_po * 100) if tot_val_po > 0 else 0.0
         pct_sisa = (tot_val_sisa / tot_val_po * 100) if tot_val_po > 0 else 0.0
+
+        # Custom CSS styling agar font angka metrik sedikit lebih kecil & tidak terpotong
+        st.markdown("""
+            <style>
+            div[data-testid="metric-container"] label { font-size: 13px !important; color: #475569 !important; }
+            div[data-testid="metric-container"] div[data-testid="stMetricValue"] { font-size: 20px !important; font-weight: 700 !important; color: #0f172a !important; }
+            </style>
+        """, unsafe_allow_html=True)
 
         c1, c2, c3, c4 = st.columns(4)
         with c1:
@@ -151,19 +159,23 @@ def tampilkan_rekap_penyerapan_po(
         with c4:
             st.metric("Rasio Penyerapan", f"{pct_serap:.2f}%")
 
-        # --- DIAGRAM LINGKARAN (PIE CHART) PERSENTASE PENYERAPAN ---
+        # --- DIAGRAM LINGKARAN (PIE CHART) DENGAN WARNA SESUAI LEGENDA ---
         st.markdown(f"##### 📉 Grafik Proporsi Penyerapan Anggaran PO `{po_item}`")
         
         chart_data = pd.DataFrame({
-            'Kategori': ['Sudah Terserap', 'Sisa Anggaran'],
-            'Nilai': [max(0.0, tot_val_serap), max(0.0, tot_val_sisa)]
+            'Kategori': ['Sisa Anggaran', 'Sudah Terserap'],
+            'Nilai': [max(0.0, tot_val_sisa), max(0.0, tot_val_serap)]
         }).set_index('Kategori')
 
-        # Menampilkan bar chart / chart bawaan Streamlit (atau pie chart via altair/streamlit native)
+        # Warna disesuaikan: Hijau/Toska (#10b981) untuk Sisa Anggaran, Abu-abu (#cbd5e1) untuk Sudah Terserap
         st.altair_chart(
             __import__('altair').Chart(chart_data.reset_index()).mark_arc(innerRadius=50).encode(
                 theta=__import__('altair').Theta(field="Nilai", type="quantitative"),
-                color=__import__('altair').Color(field="Kategori", type="nominal", scale=__import__('altair').Scale(range=["#10b981", "#cbd5e1"])),
+                color=__import__('altair').Color(
+                    field="Kategori", 
+                    type="nominal", 
+                    scale=__import__('altair').Scale(domain=['Sisa Anggaran', 'Sudah Terserap'], range=["#10b981", "#cbd5e1"])
+                ),
                 tooltip=['Kategori', __import__('altair').Tooltip('Nilai:Q', format=',.2f')]
             ).properties(width=400, height=300),
             use_container_width=True
