@@ -9,11 +9,11 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Mutasi Purchase Order (PO)</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Modul mandiri untuk memantau akumulasi penyerapan (usage), sisa anggaran, dan deviasi kuota PO lintas periode tagihan/PI.</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran dan penyerapan per item (Kategori & Uraian Pekerjaan) berdasarkan Nomor PO.</p>
         </div>
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True, help=None)
 
-    # 1. Muat data transaksi dari Modul 2 / database tersimpan
+    # 1. Muat data transaksi dari Modul 2
     transaksi_list = muat_data_transaksi_func()
     if not transaksi_list:
         st.warning("⚠️ Belum ada data transaksi tersimpan untuk dianalisis penyerapan PO-nya.")
@@ -26,8 +26,6 @@ def tampilkan_rekap_penyerapan_po(
 
     # Bersihkan spasi & format Nomor PO
     df_tx["PO Clean"] = df_tx["Nomor PO"].astype(str).str.strip()
-    
-    # PERBAIKAN: Menggunakan tanda kurung di setiap kondisi boolean agar operator & berjalan benar di Pandas
     df_tx = df_tx[(df_tx["PO Clean"] != "") & (df_tx["PO Clean"] != "-") & (df_tx["PO Clean"] != "nan")]
 
     if df_tx.empty:
@@ -43,60 +41,52 @@ def tampilkan_rekap_penyerapan_po(
     else:
         df_filtered = df_tx
 
-    # 2. Ambil data acuan plafon awal dari data opname / transaksi tersimpan
     st.markdown("---")
-    st.markdown("### 📈 Ringkasan Akumulasi Penyerapan per Nomor PO")
+    st.markdown("### 📋 Rincian Penyerapan Anggaran per Item Pekerjaan (Kategori & Uraian)")
 
-    # Grouping berdasarkan Nomor PO untuk melihat Total Qty dan Total Nilai Terserap
-    summary_po = df_filtered.groupby("PO Clean").agg(
-        Jumlah_PI=('PI No.', lambda x: len(x.unique())),
-        Total_Qty_Terserap=('Qty', 'sum'),
-        Total_Nilai_Terserap=('Total Harga', 'sum'),
-        Nomor_Kontrak=('Nomor Kontrak', 'first'),
-        Lingkup_Pekerjaan=('Deskripsi PO', 'first')
-    ).reset_index()
+    # Iterasi per Nomor PO untuk menampilkan tabel detail per item
+    for po_item in df_filtered["PO Clean"].unique():
+        df_sub_po = df_filtered[df_filtered["PO Clean"] == po_item]
+        
+        kontrak_info = df_sub_po.get("Nomor Kontrak", pd.Series([""])).iloc[0]
+        lingkup_info = df_sub_po.get("Deskripsi PO", pd.Series([""])).iloc[0]
 
-    # Tampilkan tabel rekap utama
-    summary_table_display = []
-    for _, row in summary_po.iterrows():
-        po_num = row["PO Clean"]
-        kontrak = row["Nomor_Kontrak"]
-        lingkup = row["Lingkup_Pekerjaan"]
-        jml_pi = row["Jumlah_PI"]
-        qty_serap = row["Total_Qty_Terserap"]
-        nilai_serap = row["Total_Nilai_Terserap"]
+        st.markdown(f"#### 📁 Nomor PO: `{po_item}` (Kontrak: `{kontrak_info}`)")
+        if lingkup_info and lingkup_info != "-":
+            st.caption(f"Lingkup Pekerjaan: {lingkup_info}")
 
-        summary_table_display.append({
-            "Nomor PO": po_num,
-            "Nomor Kontrak": kontrak,
-            "Lingkup Pekerjaan": lingkup,
-            "Jumlah PI / Tagihan": jml_pi,
-            "Akumulasi Qty Terserap": qty_serap,
-            "Total Nilai Terserap (IDR)": f"Rp {nilai_serap:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        })
+        # Grouping berdasarkan Kategori & Uraian Pekerjaan (Deskripsi Pekerjaan) untuk melihat akumulasi penyerapan
+        # Asumsi: Plafon / Volume PO diambil dari total yang diinput atau dihitung dari akumulasi transaksi, 
+        # atau kita kelompokkan per kombinasi Kategori & Uraian Pekerjaan.
+        grouped_item = df_sub_po.groupby(["Kategori", "Deskripsi Pekerjaan", "Unit"]).agg(
+            Qty_Terserap=('Qty', 'sum'),
+            Total_Nilai_Terserap=('Total Harga', 'sum'),
+            Harga_Satuan_Rata=('Harga Satuan', 'mean'),
+            Jumlah_PI=('PI No.', lambda x: len(x.unique()))
+        ).reset_index()
 
-    df_summary_view = pd.DataFrame(summary_table_display)
-    st.dataframe(df_summary_view, use_container_width=True)
+        tabel_detail_rows = []
+        for idx, row in grouped_item.iterrows():
+            kat = row["Kategori"]
+            uraian = row["Deskripsi Pekerjaan"]
+            unit = row["Unit"]
+            qty_serap = row["Qty_Terserap"]
+            harga_satuan = row["Harga_Satuan_Rata"]
+            nilai_serap = row["Total_Nilai_Terserap"]
 
-    st.markdown("---")
-    st.markdown("### 📋 Rincian Mutasi Transaksi Berdasarkan PO Terpilih")
+            # Catatan: Jika data kuota awal PO tersimpan di modul opname atau referensi, bisa disandingkan di sini.
+            # Sementara ditampilkan secara jelas berdasarkan realisasi akumulasi penyerapan dari Modul 2 per item.
+            tabel_detail_rows.append({
+                "No.": idx + 1,
+                "Kategori Pekerjaan": kat,
+                "Uraian Pekerjaan / Spesifikasi": uraian,
+                "Unit": unit,
+                "Harga Satuan (IDR)": f"Rp {harga_satuan:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                "Qty Terserap": f"{qty_serap:,.2f}",
+                "Total Nilai Terserap (IDR)": f"Rp {nilai_serap:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                "Jml PI": row["Jumlah_PI"]
+            })
 
-    # Tampilkan detail baris transaksi di bawahnya
-    for po_item in summary_po["PO Clean"].tolist():
-        with st.expander(f"📁 Detail Mutasi untuk Nomor PO: {po_item}", expanded=(selected_po != "-- SEMUA PO --")):
-            df_sub = df_filtered[df_filtered["PO Clean"] == po_item]
-            
-            detail_rows = []
-            for idx, r in df_sub.iterrows():
-                detail_rows.append({
-                    "PI No.": r.get("PI No.", "-"),
-                    "Tanggal PI": r.get("Tanggal PI", "-"),
-                    "Kategori": r.get("Kategori", "-"),
-                    "Uraian Pekerjaan": r.get("Deskripsi Pekerjaan", "-"),
-                    "Qty": r.get("Qty", 0),
-                    "Unit": r.get("Unit", "-"),
-                    "Harga Satuan": f"Rp {float(r.get('Harga Satuan', 0)):,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-                    "Total Harga": f"Rp {float(r.get('Total Harga', 0)):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                })
-            
-            st.dataframe(pd.DataFrame(detail_rows), use_container_width=True)
+        df_view = pd.DataFrame(tabel_detail_rows)
+        st.dataframe(df_view, use_container_width=True)
+        st.markdown("---")
