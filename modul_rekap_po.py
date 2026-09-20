@@ -37,14 +37,16 @@ def tampilkan_rekap_penyerapan_po(
         st.warning("⚠️ Tidak ada data transaksi dengan Nomor Kontrak dan PO yang valid.")
         return
 
-    # 2. Muat data parameter opname untuk mengambil Volume PO & Unit Price awal
+    # 2. SUMBER TUNGGAL PARAMETER: Muat data murni dari database_opname_parameter.xlsx
     path_opname_excel = os.path.join("database_penyimpanan_aman", "database_opname_parameter.xlsx")
     df_opname = pd.DataFrame()
     if os.path.exists(path_opname_excel):
         try:
             df_opname = pd.read_excel(path_opname_excel)
-        except:
-            pass
+        except Exception as e:
+            st.error(f"⚠️ Gagal membaca file database opname parameter: {e}")
+    else:
+        st.warning(f"⚠️ File database opname parameter tidak ditemukan di: {path_opname_excel}")
 
     st.markdown("---")
     
@@ -52,17 +54,14 @@ def tampilkan_rekap_penyerapan_po(
     list_kontrak_unik = sorted(df_tx["Kontrak Clean"].unique().tolist())
     selected_kontrak = st.selectbox("📂 Pilih Nomor Kontrak:", ["-- SEMUA KONTRAK --"] + list_kontrak_unik, key="rekap_kontrak_select")
 
-    # Filter berdasarkan kontrak terlebih dahulu
     if selected_kontrak != "-- SEMUA KONTRAK --":
         df_filtered_kontrak = df_tx[df_tx["Kontrak Clean"] == selected_kontrak]
     else:
         df_filtered_kontrak = df_tx
 
-    # Daftar PO yang tersedia sesuai kontrak yang dipilih
     list_po_unik = sorted(df_filtered_kontrak["PO Clean"].unique().tolist())
     selected_po = st.selectbox("🔍 Pilih Nomor PO:", ["-- SEMUA PO DALAM KONTRAK INI --"] + list_po_unik, key="rekap_po_select")
 
-    # Filter berdasarkan PO jika dipilih spesifik
     if selected_po != "-- SEMUA PO DALAM KONTRAK INI --":
         df_filtered = df_filtered_kontrak[df_filtered_kontrak["PO Clean"] == selected_po]
     else:
@@ -76,7 +75,7 @@ def tampilkan_rekap_penyerapan_po(
 
     if is_all_kontrak and is_all_po:
         st.markdown("### 📑 Tabel Rekapitulasi Global Seluruh Kontrak & Purchase Order (PO)")
-        st.info("ℹ️ Menampilkan rangkuman total nilai plafon, penyerapan, dan sisa anggaran secara global.")
+        st.info("ℹ️ Menampilkan rangkuman total nilai plafon (bersumber murni dari database opname parameter), penyerapan, dan sisa anggaran secara global.")
 
         global_summary_rows = []
         tot_plafon_global, tot_serap_global, tot_sisa_global = 0.0, 0.0, 0.0
@@ -86,30 +85,31 @@ def tampilkan_rekap_penyerapan_po(
             k_info = df_sub.get("Kontrak Clean", pd.Series([""])).iloc[0]
             lingkup_info = df_sub.get("Deskripsi PO", pd.Series([""])).iloc[0]
 
+            # Tarik parameter murni dari database opname parameter berdasarkan Nomor PO
             df_opname_sub = pd.DataFrame()
             if not df_opname.empty and "doc_key" in df_opname.columns:
                 df_opname_sub = df_opname[df_opname["doc_key"].astype(str).str.contains(str(po_item))]
 
             grouped = df_sub.groupby(["Kategori", "Deskripsi Pekerjaan", "Unit"]).agg(
                 Volume_Aktual=('Qty', 'sum'),
-                Total_Aktual=('Total Harga', 'sum'),
-                Harga_Satuan=('Harga Satuan', 'mean')
+                Total_Aktual=('Total Harga', 'sum')
             ).reset_index()
 
-            p_po, t_serap = 0.0, 0.0
-            for idx, r in grouped.iterrows():
-                v_akt = r["Volume_Aktual"]
-                t_akt = r["Total_Aktual"]
-                u_prc = r["Harga_Satuan"]
-                v_po = v_akt * 2
-                if not df_opname_sub.empty and idx < len(df_opname_sub):
+            p_po = 0.0
+            t_serap = grouped["Total_Aktual"].sum()
+
+            # Hitung total plafon PO murni dari database opname parameter
+            if not df_opname_sub.empty:
+                for _, op_row in df_opname_sub.iterrows():
                     try:
-                        v_po = float(df_opname_sub.iloc[idx].get("Volume PO", v_akt))
-                        u_prc = float(df_opname_sub.iloc[idx].get("Unit Price", u_prc))
+                        v_po = float(op_row.get("Volume PO", 0))
+                        u_prc = float(op_row.get("Unit Price", 0))
+                        p_po += v_po * u_prc
                     except:
                         pass
-                p_po += v_po * u_prc
-                t_serap += t_akt
+            else:
+                # Fallback jika key opname belum ter-record sempurna untuk PO tersebut
+                p_po = t_serap
 
             sisa_val = p_po - t_serap
             rasio = (t_serap / p_po * 100) if p_po > 0 else 0.0
@@ -130,7 +130,6 @@ def tampilkan_rekap_penyerapan_po(
 
         df_global = pd.DataFrame(global_summary_rows)
         
-        # Format angka rupiah untuk tampilan tabel
         df_global_display = df_global.copy()
         df_global_display["Total Plafon PO (IDR)"] = df_global_display["Total Plafon PO (IDR)"].apply(lambda x: f"Rp {x:,.2f}")
         df_global_display["Total Terserap (IDR)"] = df_global_display["Total Terserap (IDR)"].apply(lambda x: f"Rp {x:,.2f}")
@@ -138,7 +137,7 @@ def tampilkan_rekap_penyerapan_po(
 
         st.dataframe(df_global_display, use_container_width=True)
 
-        # TAMBAHAN: Baris Jumlah / Total di bawah tabel global
+        # Baris Jumlah / Total Keseluruhan Global
         st.markdown("#### 📌 Total / Jumlah Keseluruhan Global")
         rasio_global = (tot_serap_global / tot_plafon_global * 100) if tot_plafon_global > 0 else 0.0
         
@@ -180,7 +179,7 @@ def tampilkan_rekap_penyerapan_po(
         )
         return
 
-    # KONDISI 2 & 3: Jika Kontrak dipilih (baik semua PO dalam kontrak tersebut, maupun PO spesifik)
+    # KONDISI 2 & 3: Kontrak dipilih (semua PO dalam kontrak atau PO spesifik)
     target_po_list = df_filtered["PO Clean"].unique().tolist()
     if not target_po_list:
         st.info("ℹ️ Tidak ada data PO yang sesuai dengan filter yang dipilih.")
@@ -198,14 +197,14 @@ def tampilkan_rekap_penyerapan_po(
         if lingkup_info and lingkup_info != "-":
             st.caption(f"Lingkup Pekerjaan: {lingkup_info}")
 
+        # Tarik data parameter murni dari database opname parameter
         df_opname_sub = pd.DataFrame()
         if not df_opname.empty and "doc_key" in df_opname.columns:
             df_opname_sub = df_opname[df_opname["doc_key"].astype(str).str.contains(str(po_item))]
 
         grouped_aktual = df_sub_po.groupby(["Kategori", "Deskripsi Pekerjaan", "Unit"]).agg(
             Volume_Aktual=('Qty', 'sum'),
-            Total_Aktual=('Total Harga', 'sum'),
-            Harga_Satuan=('Harga Satuan', 'mean')
+            Total_Aktual=('Total Harga', 'sum')
         ).reset_index()
 
         tabel_rows = []
@@ -219,13 +218,14 @@ def tampilkan_rekap_penyerapan_po(
             unit = row["Unit"]
             vol_aktual = row["Volume_Aktual"]
             val_aktual = row["Total_Aktual"]
-            unit_price = row["Harga_Satuan"]
 
-            vol_po = vol_aktual * 2
+            # Ambil Volume PO dan Unit Price HANYA dari file database_opname_parameter.xlsx
+            vol_po = 0.0
+            unit_price = 0.0
             if not df_opname_sub.empty and idx < len(df_opname_sub):
                 try:
-                    vol_po = float(df_opname_sub.iloc[idx].get("Volume PO", vol_aktual))
-                    unit_price = float(df_opname_sub.iloc[idx].get("Unit Price", unit_price))
+                    vol_po = float(df_opname_sub.iloc[idx].get("Volume PO", 0))
+                    unit_price = float(df_opname_sub.iloc[idx].get("Unit Price", 0))
                 except:
                     pass
 
