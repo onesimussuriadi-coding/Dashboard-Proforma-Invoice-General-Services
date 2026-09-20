@@ -116,6 +116,12 @@ try:
 except ImportError as e:
     st.error(f"Gagal memuat modul_2_akumulasi: {e}")
 
+# --- IMPORT MODUL REKAP PO BARU ---
+try:
+    import modul_rekap_po
+except ImportError:
+    pass
+
 # --- IMPORT MODUL DOKUMEN & KEUANGAN ---
 try: from modul_dokumen.rincian_pekerjaan import tampilkan_rincian_pekerjaan
 except ImportError: pass
@@ -394,14 +400,16 @@ if form_login_sistem():
             "📁 Modul 1: Database & Master Kontrak", 
             "📄 Modul 2: Invoice & Dokumen Turunan", 
             "💰 Modul 3: Invoice & Tax Management",
+            "📊 Rekap Penyerapan PO",
             "📁 Arsip Dokumen Customer & Pendukung"
         ]
     elif is_project_support:
-        daftar_modul_tersedia = ["📁 Modul 1: Database & Master Kontrak", "📄 Modul 2: Invoice & Dokumen Turunan", "📁 Arsip Dokumen Customer & Pendukung"]
+        daftar_modul_tersedia = ["📁 Modul 1: Database & Master Kontrak", "📄 Modul 2: Invoice & Dokumen Turunan", "📊 Rekap Penyerapan PO", "📁 Arsip Dokumen Customer & Pendukung"]
     elif is_management:
         daftar_modul_tersedia = [
             "💰 Modul 3: Invoice & Tax Management",
             "📄 Modul 2: Invoice & Dokumen Turunan",
+            "📊 Rekap Penyerapan PO",
             "📁 Arsip Dokumen Customer & Pendukung"
         ]
     else: 
@@ -410,6 +418,7 @@ if form_login_sistem():
             "📁 Modul 1: Database & Master Kontrak",
             "📄 Modul 2: Invoice & Dokumen Turunan",
             "💰 Modul 3: Invoice & Tax Management",
+            "📊 Rekap Penyerapan PO",
             "📁 Arsip Dokumen Customer & Pendukung"
         ]
 
@@ -434,6 +443,8 @@ if form_login_sistem():
         menu = "Timesheet"
     elif modul_pilihan == "⚙️ Manajemen Akun & Hak Akses":
         menu = "Manajemen Akun"
+    elif modul_pilihan == "📊 Rekap Penyerapan PO":
+        menu = "Rekap Penyerapan PO"
     elif is_finance_tax:
         if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
             list_menu_fin = [
@@ -547,6 +558,15 @@ if form_login_sistem():
     # --- ROUTER MODUL UTAMA ---
     if modul_pilihan == "⚙️ Manajemen Akun & Hak Akses":
         render_panel_manajemen_akun()
+
+    elif modul_pilihan == "📊 Rekap Penyerapan PO":
+        if 'modul_rekap_po' in globals():
+            modul_rekap_po.tampilkan_rekap_penyerapan_po(
+                muat_data_transaksi_func=muat_data_transaksi,
+                bersih_angka_func=bersih_angka
+            )
+        else:
+            st.error("⚠️ Modul `modul_rekap_po.py` belum ditemukan di direktori proyek.")
 
     elif is_admin_support and modul_pilihan == "Timesheet Peralatan": 
         tampilkan_timesheet(muat_data_transaksi())

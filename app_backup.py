@@ -10,11 +10,90 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 # Menambahkan path folder root dan modul
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-# --- IMPORT KONEKSI DATABASE MYSQL ---
-try:
-    from db_connection import muat_data_from_db, simpan_data_to_db
-except ImportError as e:
-    st.error(f"Gagal memuat db_connection: {e}")
+# --- PENGATURAN DATABASE LOKAL (OFFLINE MODE) ---
+DIR_DB_LOKAL = os.path.join("database_penyimpanan_aman")
+if not os.path.exists(DIR_DB_LOKAL):
+    os.makedirs(DIR_DB_LOKAL)
+
+PATH_EXCEL_INVOICE = os.path.join(DIR_DB_LOKAL, "database_proforma_invoice.xlsx")
+PATH_EXCEL_TRANSAKSI = os.path.join(DIR_DB_LOKAL, "database_transaksi_rincian.xlsx")
+PATH_EXCEL_MASTER_REF = os.path.join(DIR_DB_LOKAL, "database_master_referensi.xlsx")
+PATH_EXCEL_BANK = os.path.join(DIR_DB_LOKAL, "database_master_bank.xlsx")
+PATH_EXCEL_OPNAME = os.path.join(DIR_DB_LOKAL, "database_opname_parameter.xlsx")
+
+def muat_data_from_db_lokal(filepath):
+    if os.path.exists(filepath):
+        try:
+            df = pd.read_excel(filepath)
+            return df.to_dict(orient="records")
+        except Exception as e:
+            return []
+    return []
+
+def simpan_data_to_db_lokal(filepath, data_list):
+    try:
+        df = pd.DataFrame(data_list)
+        df.to_excel(filepath, index=False)
+        return True
+    except Exception as e:
+        return False
+
+# --- KONEKSI DATABASE OFFLINE ADAPTIF ---
+def muat_data_from_db(tabel_nama):
+    if "invoice" in tabel_nama:
+        return muat_data_from_db_lokal(PATH_EXCEL_INVOICE)
+    elif "transaksi" in tabel_nama:
+        return muat_data_from_db_lokal(PATH_EXCEL_TRANSAKSI)
+    elif "referensi" in tabel_nama:
+        return muat_data_from_db_lokal(PATH_EXCEL_MASTER_REF)
+    elif "bank" in tabel_nama:
+        return muat_data_from_db_lokal(PATH_EXCEL_BANK)
+    elif "opname" in tabel_nama:
+        return muat_data_from_db_lokal(PATH_EXCEL_OPNAME)
+    return []
+
+def simpan_data_to_db(tabel_nama, data_list):
+    if "invoice" in tabel_nama:
+        return simpan_data_to_db_lokal(PATH_EXCEL_INVOICE, data_list)
+    elif "transaksi" in tabel_nama:
+        return simpan_data_to_db_lokal(PATH_EXCEL_TRANSAKSI, data_list)
+    elif "referensi" in tabel_nama:
+        return simpan_data_to_db_lokal(PATH_EXCEL_MASTER_REF, data_list)
+    elif "bank" in tabel_nama:
+        return simpan_data_to_db_lokal(PATH_EXCEL_BANK, data_list)
+    elif "opname" in tabel_nama:
+        return simpan_data_to_db_lokal(PATH_EXCEL_OPNAME, data_list)
+    return False
+
+# --- FUNGSI KHUSUS OPNAME LOKAL ---
+def muat_data_opname_lokal():
+    if os.path.exists(PATH_EXCEL_OPNAME):
+        try:
+            df = pd.read_excel(PATH_EXCEL_OPNAME)
+            return df.to_dict(orient="records")
+        except:
+            return []
+    return []
+
+def simpan_data_opname_lokal(data_list):
+    try:
+        df = pd.DataFrame(data_list)
+        df.to_excel(PATH_EXCEL_OPNAME, index=False)
+        return True
+    except Exception as e:
+        return False
+
+def render_download_button_excel(nama_tabel="database_proforma_invoice"):
+    path_file = os.path.join(DIR_DB_LOKAL, f"{nama_tabel}.xlsx")
+    if os.path.exists(path_file):
+        with open(path_file, "rb") as f:
+            bytes_data = f.read()
+        st.download_button(
+            label=f"📥 Download File Excel ({nama_tabel})",
+            data=bytes_data,
+            file_name=f"{nama_tabel}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
 # --- IMPORT MODUL INPUT TERPISAH (MODULAR) ---
 try:
@@ -38,64 +117,49 @@ except ImportError as e:
     st.error(f"Gagal memuat modul_2_akumulasi: {e}")
 
 # --- IMPORT MODUL DOKUMEN & KEUANGAN ---
-try:
-    from modul_dokumen.rincian_pekerjaan import tampilkan_rincian_pekerjaan
+try: from modul_dokumen.rincian_pekerjaan import tampilkan_rincian_pekerjaan
 except ImportError: pass
 
-try:
-    from modul_dokumen.proforma_invoice import tampilkan_proforma_invoice
+try: from modul_dokumen.proforma_invoice import tampilkan_proforma_invoice
 except ImportError: pass
 
-try:
-    from modul_dokumen.bamp import tampilkan_bamp
+try: from modul_dokumen.bamp import tampilkan_bamp
 except ImportError: pass
 
-try:
-    from modul_dokumen.basp import tampilkan_basp
+try: from modul_dokumen.basp import tampilkan_basp
 except ImportError: pass
 
-try:
-    from modul_dokumen.wcc import tampilkan_wcc
+try: from modul_dokumen.wcc import tampilkan_wcc
 except ImportError: pass
 
-try:
-    from modul_dokumen.tkdn import tampilkan_tkdn
+try: from modul_dokumen.tkdn import tampilkan_tkdn
 except ImportError: pass
 
-try:
-    from modul_dokumen.timesheet import tampilkan_timesheet
+try: from modul_dokumen.timesheet import tampilkan_timesheet
 except ImportError: pass
 
-try:
-    from modul_dokumen.opname_pekerjaan import tampilkan_opname
+try: from modul_dokumen.opname_pekerjaan import tampilkan_opname
 except ImportError: pass
 
-try:
-    from modul_dokumen.bastb import tampilkan_bastb
+try: from modul_dokumen.bastb import tampilkan_bastb
 except ImportError: pass
 
-try:
-    from modul_dokumen.arsip_pendukung import tampilkan_arsip_pendukung
+try: from modul_dokumen.arsip_pendukung import tampilkan_arsip_pendukung
 except ImportError: pass
 
-try:
-    from modul_dokumen.paket_dokumen_lengkap import tampilkan_paket_lengkap
+try: from modul_dokumen.paket_dokumen_lengkap import tampilkan_paket_lengkap
 except ImportError: pass
 
-try:
-    from modul_dokumen.rekap_transaksi import tampilkan_rekap_transaksi
+try: from modul_dokumen.rekap_transaksi import tampilkan_rekap_transaksi
 except ImportError: pass
 
-try:
-    from modul_keuangan.faktur_pajak import tampilkan_faktur_pajak
+try: from modul_keuangan.faktur_pajak import tampilkan_faktur_pajak
 except ImportError: pass
 
-try:
-    from modul_keuangan.pemantauan_pembayaran import tampilkan_pemantauan_pembayaran
+try: from modul_keuangan.pemantauan_pembayaran import tampilkan_pemantauan_pembayaran
 except ImportError: pass
 
-try:
-    from modul_keuangan.modul_billing_tax import tampilkan_billing_tax
+try: from modul_keuangan.modul_billing_tax import tampilkan_billing_tax
 except ImportError: pass
 
 # --- IMPORT MODUL KEAMANAN (AUTENTIKASI & PANEL MANAJEMEN) ---
@@ -108,9 +172,9 @@ except ImportError as e:
     st.error(f"Gagal memuat modul autentikasi: {e}")
 
 # --- KONFIGURASI HALAMAN STREAMLIT ---
-st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Dashboard Terintegrasi - PT. BANGGAI SENTRAL SULAWESI (Offline Mode)", layout="wide", initial_sidebar_state="expanded")
 
-# --- PERSISTENT SESSION STATE (MENCEGAH TERLEMPAR KE LOGIN SAAT REFRESH) ---
+# --- PERSISTENT SESSION STATE ---
 query_params = st.query_params
 if query_params.get("session") == "active_bss_corporate" and query_params.get("user"):
     st.session_state["logged_in"] = True
@@ -156,11 +220,12 @@ MAPPING_HEADER_INVOICE = {
 }
 REVERSE_MAPPING_HEADER = {v: k for k, v in MAPPING_HEADER_INVOICE.items()}
 
-# --- TABEL DATABASE MYSQL ---
+# --- TABEL DATABASE LOKAL ---
 TABEL_DB_INVOICE = "database_proforma_invoice"
 TABEL_DB_TRANSAKSI = "database_transaksi_rincian"
 TABEL_DB_MASTER_REF = "database_master_referensi"
 TABEL_DB_BANK = "database_master_bank"
+TABEL_DB_OPNAME = "database_opname_parameter"
 
 def muat_data_invoice():
     db_data = muat_data_from_db(TABEL_DB_INVOICE)
@@ -180,7 +245,7 @@ def muat_data_invoice():
     return st.session_state.get("db_tersimpan", [])
 
 def simpan_data_invoice(data_list):
-    waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
+    waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     processed_data = []
     for item in data_list:
         if isinstance(item, dict):
@@ -206,7 +271,16 @@ def muat_data_transaksi():
     return st.session_state.get("db_transaksi", [])
 
 def simpan_data_transaksi(data_list):
-    waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
+    waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    existing_all_tx = muat_data_from_db(TABEL_DB_TRANSAKSI) or []
+    pi_sedang_diedit = set(str(item.get("PI No.")).strip() for item in data_list if item.get("PI No."))
+    
+    transaksi_pi_lain = [
+        t for t in existing_all_tx 
+        if str(t.get("PI No.") or t.get("PI No. ") or "").strip() not in pi_sedang_diedit
+    ]
+    
     processed_tx = []
     for item in data_list:
         if isinstance(item, dict):
@@ -217,9 +291,12 @@ def simpan_data_transaksi(data_list):
                     if k not in ['Qty', 'Harga Satuan', 'Total Harga', 'Percent']: 
                         item_copy[k] = ""
             processed_tx.append(item_copy)
-    success = simpan_data_to_db(TABEL_DB_TRANSAKSI, processed_tx)
+            
+    combined_tx = transaksi_pi_lain + processed_tx
+
+    success = simpan_data_to_db(TABEL_DB_TRANSAKSI, combined_tx)
     if success:
-        st.session_state["db_transaksi"] = data_list
+        st.session_state["db_transaksi"] = combined_tx
         return True
     return False
 
@@ -231,14 +308,14 @@ def muat_master_referensi():
     return st.session_state.get("db_master_ref", [])
 
 def simpan_master_referensi(data_list):
-    waktu_sekarang = (datetime.utcnow() + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
+    waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     for item in data_list:
         if isinstance(item, dict):
             item["Update Terakhir"] = waktu_sekarang
             for k, v in item.items():
                 if pd.isnull(v) or str(v).strip().lower() == "nan":
                     if k != 'Harga Satuan': item[k] = ""
-    success = simpan_data_from_db(TABEL_DB_MASTER_REF, data_list)
+    success = simpan_data_to_db(TABEL_DB_MASTER_REF, data_list)
     if success:
         st.session_state["db_master_ref"] = data_list
         return True
@@ -298,12 +375,12 @@ if form_login_sistem():
     st.markdown("""
         <div class="company-header-centered">
             <h2 style="margin:0; font-size: 24px; font-weight: 700; color: #ffffff;">PT. BANGGAI SENTRAL SULAWESI</h2>
-            <p style="margin:4px 0 0 0; font-size: 13px; color: #34d399; font-weight: 500;">General Contractor and Suppliers | Dashboard Terintegrasi Utama (Cloud MySQL)</p>
+            <p style="margin:4px 0 0 0; font-size: 13px; color: #34d399; font-weight: 500;">General Contractor and Suppliers | Dashboard Terintegrasi Utama (Offline Localhost Mode)</p>
         </div>
     """, unsafe_allow_html=True)
 
     st.sidebar.markdown("### 🗂️ Navigasi Dashboard Utama")
-    st.sidebar.markdown(f"🕒 **Waktu Sistem (WITA):**<br>`{(datetime.utcnow() + timedelta(hours=8)).strftime('%d %b %Y, %H:%M:%S')}`", unsafe_allow_html=True)
+    st.sidebar.markdown(f"🕒 **Waktu Sistem:**<br>`{datetime.now().strftime('%d %b %Y, %H:%M:%S')}`", unsafe_allow_html=True)
     st.sidebar.markdown("---")
 
     daftar_modul_tersedia = []
@@ -452,64 +529,20 @@ if form_login_sistem():
             def_idx = list_menu_m2_staff.index(url_menu) if url_menu in list_menu_m2_staff else 0
             if "nav_menu_m2_staff" not in st.session_state:
                 st.session_state["nav_menu_m2_staff"] = list_menu_m2_staff[def_idx]
-            
             menu = st.sidebar.radio("Pilih Menu:", list_menu_m2_staff, key="nav_menu_m2_staff")
             st.query_params["menu"] = menu
 
     st.sidebar.markdown("---")
 
-    if st.sidebar.button("🔄 Reload / Refresh Data Cloud MySQL"):
+    if st.sidebar.button("🔄 Reload / Refresh Data Lokal"):
         st.cache_data.clear()
         muat_data_invoice(); muat_data_transaksi(); muat_master_referensi(); muat_master_bank()
-        st.sidebar.success("✅ Data tersinkronisasi dengan Database MySQL.")
+        st.sidebar.success("✅ Data lokal berhasil disinkronkan.")
 
     if st.sidebar.button("🔒 Keluar / Logout Sistem"):
         st.session_state.logged_in = False
         st.query_params.clear()
         st.rerun()
-
-    if is_management:
-        st.markdown("""
-            <div style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
-                <h4 style="margin:0; color: #b45309; font-size: 15px;">🔒 Mode Direksi / Management (Read-Only Aktif)</h4>
-                <p style="margin:4px 0 0 0; font-size: 13px; color: #78350f;">Anda memiliki akses penuh untuk memantau data, menelusuri arsip, dan mengunduh laporan.</p>
-            </div>
-        """, unsafe_allow_html=True)
-    elif is_project_manager:
-        st.markdown("""
-            <div style="background-color: #e0f2fe; border: 1px solid #0284c7; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
-                <h4 style="margin:0; color: #0369a1; font-size: 15px;">📊 Panel Project Manager</h4>
-                <p style="margin:4px 0 0 0; font-size: 13px; color: #0c4a6e;">Akses pengawasan kontrak, progres dokumen turunan, dan pemantauan pembayaran proyek.</p>
-            </div>
-        """, unsafe_allow_html=True)
-    elif is_finance_tax:
-        st.markdown("""
-            <div style="background-color: #ecfdf5; border: 1px solid #10b981; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
-                <h4 style="margin:0; color: #047857; font-size: 15px;">💰 Panel Finance & Tax</h4>
-                <p style="margin:4px 0 0 0; font-size: 13px; color: #065f46;">Akses pengelolaan faktur pajak, billing, pemantauan pembayaran, dan manajemen keuangan.</p>
-            </div>
-        """, unsafe_allow_html=True)
-    elif is_project_support:
-        st.markdown("""
-            <div style="background-color: #f1f5f9; border: 1px solid #64748b; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
-                <h4 style="margin:0; color: #334155; font-size: 15px;">📁 Panel Project Support</h4>
-                <p style="margin:4px 0 0 0; font-size: 13px; color: #475569;">Akses pengelolaan database kontrak, rincian pekerjaan, dan pembuatan dokumen turunan.</p>
-            </div>
-        """, unsafe_allow_html=True)
-    elif is_admin_support:
-        st.markdown("""
-            <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
-                <h4 style="margin:0; color: #475569; font-size: 15px;">📋 Panel Admin Support</h4>
-                <p style="margin:4px 0 0 0; font-size: 13px; color: #64748b;">Akses pengelolaan administrasi pendukung dan timesheet peralatan.</p>
-            </div>
-        """, unsafe_allow_html=True)
-    elif is_super_admin:
-        st.markdown("""
-            <div style="background-color: #f3e8ff; border: 1px solid #a855f7; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px;">
-                <h4 style="margin:0; color: #7e22ce; font-size: 15px;">⚙️ Panel Super Admin</h4>
-                <p style="margin:4px 0 0 0; font-size: 13px; color: #581c87;">Akses penuh sistem, pengelolaan hak akses, dan manajemen kredensial pengguna.</p>
-            </div>
-        """, unsafe_allow_html=True)
 
     # --- ROUTER MODUL UTAMA ---
     if modul_pilihan == "⚙️ Manajemen Akun & Hak Akses":
@@ -572,6 +605,9 @@ if form_login_sistem():
                 simpan_data_invoice_func=simpan_data_invoice,
                 muat_data_invoice_func=muat_data_invoice
             )
+        
+        if menu == "Lihat Database Tersimpan":
+            render_download_button_excel("database_proforma_invoice")
 
     elif modul_pilihan == "📄 Modul 2: Invoice & Dokumen Turunan":
         if menu == "Input & Proses Rincian Pekerjaan" and (is_management or is_project_manager):
@@ -608,13 +644,8 @@ if form_login_sistem():
                         ada_item_jasa = True
 
                 daftar_dokumen_tersedia = ["Rincian Pekerjaan", "Proforma Invoice"]
-                
-                if ada_item_jasa:
-                    daftar_dokumen_tersedia.extend(["BAMP", "BASP", "WCC"])
-                
-                if ada_item_barang:
-                    daftar_dokumen_tersedia.append("BASTB")
-
+                if ada_item_jasa: daftar_dokumen_tersedia.extend(["BAMP", "BASP", "WCC"])
+                if ada_item_barang: daftar_dokumen_tersedia.append("BASTB")
                 daftar_dokumen_tersedia.extend(["TKDN", "Opname", "Master Paket Batch"])
 
                 doc_type = st.selectbox("Jenis Dokumen:", daftar_dokumen_tersedia)
