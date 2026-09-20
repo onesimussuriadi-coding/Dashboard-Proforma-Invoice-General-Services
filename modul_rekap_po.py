@@ -26,7 +26,9 @@ def tampilkan_rekap_penyerapan_po(
 
     # Bersihkan spasi & format Nomor PO
     df_tx["PO Clean"] = df_tx["Nomor PO"].astype(str).str.strip()
-    df_tx = df_tx[df_tx["PO Clean"] != "" & (df_tx["PO Clean"] != "-") & (df_tx["PO Clean"] != "nan")]
+    
+    # PERBAIKAN: Menggunakan tanda kurung di setiap kondisi boolean agar operator & berjalan benar di Pandas
+    df_tx = df_tx[(df_tx["PO Clean"] != "") & (df_tx["PO Clean"] != "-") & (df_tx["PO Clean"] != "nan")]
 
     if df_tx.empty:
         st.warning("⚠️ Tidak ada Nomor PO yang valid pada data transaksi.")
@@ -42,7 +44,6 @@ def tampilkan_rekap_penyerapan_po(
         df_filtered = df_tx
 
     # 2. Ambil data acuan plafon awal dari data opname / transaksi tersimpan
-    # (Mengelompokkan berdasarkan Nomor PO & Uraian Pekerjaan / Kategori)
     st.markdown("---")
     st.markdown("### 📈 Ringkasan Akumulasi Penyerapan per Nomor PO")
 
