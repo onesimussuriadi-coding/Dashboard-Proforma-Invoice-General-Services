@@ -11,7 +11,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Purchase Order (PO) - Master Plafon & Multi-PI Tracking</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat (Sinkronisasi mutlak presisi merujuk Excel Master Referensi Kontrak).</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat (Sinkronisasi mutlak langsung dari Master Kontrak Modul 0).</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -38,7 +38,7 @@ def tampilkan_rekap_penyerapan_po(
 
     df_master = muat_master_po()
 
-    # --- AMBIL DATA MASTER REFERENSI LANGSUNG DARI FILE EXCEL (MODUL 0) ---
+    # --- 1. AMBIL MASTER REFERENSI FISIK DARI FILE EXCEL (MODUL 0) ---
     path_kontrak_excel = os.path.join("database_penyimpanan_aman", "database_kontrak.xlsx")
     df_ref = pd.DataFrame()
 
@@ -90,30 +90,22 @@ def tampilkan_rekap_penyerapan_po(
             {"Nomor Kontrak Clean": "7207250142", "Kategori Clean": "MONTHLY BASIS", "Uraian Clean": "Jasa Sewa Alat Berat Monthly Basis", "Unit Clean": "Month", "Harga Clean": 131224000.0}
         ])
 
+    # --- 2. AMBIL LIST NOMOR KONTRAK SECARA LENGKAP DARI MASTER EXCEL ---
+    list_kontrak_ref = sorted(df_ref["Nomor Kontrak Clean"].dropna().unique().tolist()) if not df_ref.empty else []
+    if not list_kontrak_ref:
+        list_kontrak_ref = ["7207250142", "7203250036", "7201250141"]
+
+    # Ambil list Nomor PO dari transaksi atau default
     transaksi_list = muat_data_transaksi_func()
     df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
-
-    list_kontrak_ref = []
-    list_po_ref = []
-
-    if not df_ref.empty and "Nomor Kontrak Clean" in df_ref.columns:
-        list_kontrak_ref = sorted(df_ref["Nomor Kontrak Clean"].dropna().unique().tolist())
-
-    if not list_kontrak_ref:
-        list_kontrak_ref = ["7207250142", "7201250141"]
-
-    if not df_tx.empty and "Nomor PO" in df_tx.columns:
-        list_po_ref = sorted(df_tx["Nomor PO"].dropna().astype(str).str.strip().unique().tolist())
-    
-    if not list_po_ref:
-        list_po_ref = ["4500011739", "4500011740"]
+    list_po_ref = sorted(df_tx["Nomor PO"].dropna().astype(str).str.strip().unique().tolist()) if not df_tx.empty and "Nomor PO" in df_tx.columns else ["4500011739", "4500011740"]
 
     # --- TAB / SUB-MENU ---
     tab_pilih, tab_input = st.tabs(["📊 Lihat Rekapitulasi & Kontrol PO", "➕ Input / Kelola Master Plafon PO"])
 
     with tab_input:
-        st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Mutlak Excel Master)")
-        st.info("ℹ️ Pilih Nomor Kontrak, Kategori, dan Uraian. Satuan (UOM) dan Harga Satuan membaca mutlak secara otomatis dari baris file Excel master.")
+        st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Penuh Master Excel)")
+        st.info("ℹ️ Pilih Nomor Kontrak, Kategori, dan Uraian Pekerjaan. Seluruh data membaca langsung secara lengkap dari Master Kontrak Modul 0.")
 
         with st.form(key="form_input_master_po"):
             c_m1, c_m2 = st.columns(2)
@@ -122,7 +114,7 @@ def tampilkan_rekap_penyerapan_po(
             with c_m2:
                 in_po = st.selectbox("🔍 Pilih Nomor PO:", list_po_ref, key="input_master_po")
 
-            # --- 1. FILTER KONTRAK ---
+            # --- 3. FILTER KATEGORI SECARA LENGKAP BERDASARKAN KONTRAK TERPILIH ---
             df_ref_kontrak = df_ref[df_ref["Nomor Kontrak Clean"] == str(in_kontrak).strip()]
             if df_ref_kontrak.empty:
                 df_ref_kontrak = df_ref
@@ -140,7 +132,7 @@ def tampilkan_rekap_penyerapan_po(
             with c_m3:
                 in_kategori = st.selectbox("🏷️ Kategori Pekerjaan:", base_list_kat if base_list_kat else ["-"], key="input_master_kategori")
 
-            # --- 2. FILTER URAIAN PEKERJAAN BERDASARKAN KATEGORI ---
+            # --- 4. FILTER URAIAN PEKERJAAN SECARA LENGKAP BERDASARKAN KATEGORI ---
             kat_lower = str(in_kategori).lower()
             is_provisional = "provisional" in kat_lower or "professional" in kat_lower
 
@@ -161,7 +153,7 @@ def tampilkan_rekap_penyerapan_po(
                     selected_display_spek = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", spek_options_formatted if spek_options_formatted else ["-"], key="input_master_deskripsi")
                     in_deskripsi = spek_display_map.get(selected_display_spek, selected_display_spek)
 
-            # --- 3. AMBIL UNIT (UOM) & HARGA SATUAN MUTLAK DARI BARIS EXCEL ---
+            # --- 5. AMBIL UNIT (UOM) & HARGA SATUAN MUTLAK DARI BARIS EXCEL ---
             hs_otomatis = 0.0
             unit_otomatis = "Month"
             
@@ -178,7 +170,6 @@ def tampilkan_rekap_penyerapan_po(
                     unit_otomatis = str(row_m.get("Unit Clean", row_m.get("Unit", "Month")))
 
             with c_m5:
-                # Satuan kini diatur otomatis persis membaca kolom Unit dari Excel Master Kontrak
                 u_opts = [unit_otomatis] if is_provisional else sorted(list(set([unit_otomatis, "Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg"])))
                 idx_u = u_opts.index(unit_otomatis) if unit_otomatis in u_opts else 0
                 
