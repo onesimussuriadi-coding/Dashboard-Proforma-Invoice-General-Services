@@ -10,7 +10,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Purchase Order (PO) - Master Plafon & Multi-PI Tracking</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat (terhubung referensi master kontrak) vs penyerapan kumulatif.</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat (berelasi dependent dropdown master kontrak) vs penyerapan kumulatif.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -38,11 +38,10 @@ def tampilkan_rekap_penyerapan_po(
 
     df_master = muat_master_po()
 
-    # --- AMBIL REFERENSI DARI MODUL KONTRAK / TRANSAKSI (MODUL 0 / REFERENSI) ---
+    # --- AMBIL REFERENSI DARI MODUL KONTRAK / TRANSAKSI (STANDAR MODUL 2) ---
     transaksi_list = muat_data_transaksi_func()
     df_tx_ref = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
 
-    # Fallback membaca database referensi kontrak jika file tersedia langsung
     path_kontrak_excel = os.path.join("database_penyimpanan_aman", "database_kontrak.xlsx")
     if os.path.exists(path_kontrak_excel):
         try:
@@ -52,17 +51,29 @@ def tampilkan_rekap_penyerapan_po(
         except:
             pass
 
-    # Ekstrak daftar unik referensi dari master kontrak
-    ref_kategori_list = sorted(df_tx_ref["Kategori"].dropna().astype(str).unique().tolist()) if not df_tx_ref.empty and "Kategori" in df_tx_ref.columns else ["ADDITIONAL CAMP SERVICES", "PERSONEL ON CALL", "PROVISIONAL SUM"]
-    ref_deskripsi_list = sorted(df_tx_ref["Deskripsi Pekerjaan"].dropna().astype(str).unique().tolist()) if not df_tx_ref.empty and "Deskripsi Pekerjaan" in df_tx_ref.columns else ["Food & beverage, main course", "Food & beverage, snack coffee/ tea & desert"]
-    ref_uom_list = sorted(df_tx_ref["Unit"].dropna().astype(str).unique().tolist()) if not df_tx_ref.empty and "Unit" in df_tx_ref.columns else ["Day", "Unit", "AU", "Month", "Ls"]
+    # Pastikan kolom referensi utama tersedia
+    if df_tx_ref.empty or "Kategori" not in df_tx_ref.columns or "Deskripsi Pekerjaan" not in df_tx_ref.columns:
+        # Fallback data standar jika referensi kosong
+        df_tx_ref = pd.DataFrame([
+            {"Kategori": "ADDITIONAL CAMP SERVICES", "Deskripsi Pekerjaan": "Food & beverage, main course", "Unit": "Day", "Harga Satuan": 65000},
+            {"Kategori": "ADDITIONAL CAMP SERVICES", "Deskripsi Pekerjaan": "Food & beverage, snack coffee/ tea & desert", "Unit": "Day", "Harga Satuan": 33000},
+            {"Kategori": "HEAVY TRANSPORTATION & EQUIPMENT", "Deskripsi Pekerjaan": "Add Cost + Fee 15%", "Unit": "AU", "Harga Satuan": 10000}
+        ])
+
+    # Normalisasi kolom referensi
+    df_tx_ref["Kategori_Clean"] = df_tx_ref["Kategori"].dropna().astype(str).str.strip()
+    df_tx_ref["Deskripsi_Clean"] = df_tx_ref["Deskripsi Pekerjaan"].dropna().astype(str).str.strip()
+    df_tx_ref["Unit_Clean"] = df_tx_ref["Unit"].dropna().astype(str).str.strip() if "Unit" in df_tx_ref.columns else "Day"
+    df_tx_ref["Harga_Clean"] = pd.to_numeric(df_tx_ref["Harga Satuan"], errors='coerce').fillna(0.0) if "Harga Satuan" in df_tx_ref.columns else 0.0
+
+    ref_kategori_list = sorted(df_tx_ref["Kategori_Clean"].unique().tolist())
 
     # --- TAB / SUB-MENU ---
     tab_pilih, tab_input = st.tabs(["📊 Lihat Rekapitulasi & Kontrol PO", "➕ Input / Kelola Master Plafon PO"])
 
     with tab_input:
-        st.markdown("#### 📝 Form Input Master Plafon PO (Berbasis Dropdown Referensi Kontrak)")
-        st.info("ℹ️ Pilih kategori, deskripsi, dan satuan langsung dari dropdown referensi master kontrak untuk menjamin keseragaman data.")
+        st.markdown("#### 📝 Form Input Master Plafon PO (Dropdown Berjenjang Sesuai Standar Modul 2)")
+        st.info("ℹ️ Pilih Kategori terlebih dahulu; Uraian Pekerjaan, Satuan, dan Harga Satuan akan menyesuaikan secara otomatis.")
 
         with st.form(key="form_input_master_po"):
             c_m1, c_m2 = st.columns(2)
@@ -73,27 +84,28 @@ def tampilkan_rekap_penyerapan_po(
 
             c_m3, c_m4, c_m5 = st.columns(3)
             with c_m3:
-                in_kategori = st.selectbox("🏷️ Kategori (Referensi Kontrak):", ref_kategori_list)
-            with c_m4:
-                in_deskripsi = st.selectbox("📋 Deskripsi Uraian Pekerjaan (Referensi Kontrak):", ref_deskripsi_list)
-            with c_m5:
-                in_uom = st.selectbox("📏 Satuan / UOM (Referensi Kontrak):", ref_uom_list)
+                in_kategori = st.selectbox("🏷️ Kategori:", ref_kategori_list, key="input_master_kategori")
 
-            # Coba cari harga satuan otomatis berdasarkan deskripsi yang dipilih dari referensi
-            default_price_val = 65000.0
-            if not df_tx_ref.empty and "Deskripsi Pekerjaan" in df_tx_ref.columns and "Harga Satuan" in df_tx_ref.columns:
-                match_row = df_tx_ref[df_tx_ref["Deskripsi Pekerjaan"].astype(str).str.strip() == str(in_deskripsi).strip()]
-                if not match_row.empty:
-                    try:
-                        default_price_val = float(match_row.iloc[0]["Harga Satuan"])
-                    except:
-                        pass
+            # Filter Uraian Pekerjaan berdasarkan Kategori yang dipilih
+            df_filtered_desc = df_tx_ref[df_tx_ref["Kategori_Clean"] == str(in_kategori).strip()]
+            ref_deskripsi_list = sorted(df_filtered_desc["Deskripsi_Clean"].unique().tolist()) if not df_filtered_desc.empty else ["-"]
+
+            with c_m4:
+                in_deskripsi = st.selectbox("📋 Deskripsi Uraian Pekerjaan:", ref_deskripsi_list, key="input_master_deskripsi")
+
+            # Ambil Satuan (UOM) dan Harga Satuan otomatis berdasarkan Kategori & Deskripsi terpilih
+            matched_row = df_filtered_desc[df_filtered_desc["Deskripsi_Clean"] == str(in_deskripsi).strip()]
+            default_uom = str(matched_row.iloc[0]["Unit_Clean"]) if not matched_row.empty and "Unit_Clean" in matched_row.columns else "Day"
+            default_price = float(matched_row.iloc[0]["Harga_Clean"]) if not matched_row.empty and "Harga_Clean" in matched_row.columns else 0.0
+
+            with c_m5:
+                in_uom = st.text_input("📏 Satuan / UOM (Otomatis):", value=default_uom, disabled=True)
 
             c_m6, c_m7 = st.columns(2)
             with c_m6:
                 in_vol = st.number_input("📦 Quantity / Volume PO:", value=18300.0, step=1.0, format="%.2f")
             with c_m7:
-                in_price = st.number_input("💵 Unit Price / Harga Satuan (IDR - Otomatis dari Referensi):", value=default_price_val, step=1000.0, format="%.2f")
+                in_price = st.number_input("💵 Unit Price / Harga Satuan (IDR - Otomatis dari Referensi):", value=default_price, step=1000.0, format="%.2f")
 
             submit_master = st.form_submit_button("💾 Simpan Item ke Master Plafon PO", type="primary")
             if submit_master:
@@ -103,7 +115,7 @@ def tampilkan_rekap_penyerapan_po(
                     "Nomor PO": str(in_po).strip(),
                     "Kategori": str(in_kategori).strip(),
                     "Deskripsi Pekerjaan": str(in_deskripsi).strip(),
-                    "UOM": str(in_uom).strip(),
+                    "UOM": str(default_uom).strip(),
                     "Volume PO": float(in_vol),
                     "Unit Price": float(in_price),
                     "Total Plafon (IDR)": float(total_plafon_item)
@@ -111,7 +123,7 @@ def tampilkan_rekap_penyerapan_po(
                 
                 df_master = pd.concat([df_master, pd.DataFrame([new_row])], ignore_index=True)
                 if simpan_master_po(df_master):
-                    st.success(f"✅ Master Plafon untuk PO `{in_po}` berhasil disimpan berdasarkan referensi master kontrak!")
+                    st.success(f"✅ Master Plafon untuk PO `{in_po}` berhasil disimpan dengan rujukan referensi yang valid!")
                     st.rerun()
                 else:
                     st.error("⚠️ Gagal menyimpan ke file master PO.")
