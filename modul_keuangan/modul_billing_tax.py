@@ -345,7 +345,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             deskripsi_default = data_edit_aktif.get("Keterangan Invoice", "")
             is_prof_sum_default = bool(data_edit_aktif.get("Gunakan Professional Sum", False))
             is_estimasi_sum_default = bool(data_edit_aktif.get("Gunakan Estimasi Sum", False))
-            add_cost_default = float(data_edit_aktif.get("Add Cost", 0.0) or 0.0)
+            At_cost_default = float(data_edit_aktif.get("At Cost", 0.0) or 0.0)
             mgmt_fee_default = float(data_edit_aktif.get("Management Fee", 0.0) or 0.0)
         else:
             customer_default = matched_transaksi[0].get("Ditujukan Kepada", "") if matched_transaksi else ""
@@ -369,7 +369,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             if matched_transaksi and any("estimated" in str(t.get("Kategori", "")).lower() or "estimasi" in str(t.get("Kategori", "")).lower() for t in matched_transaksi):
                 is_estimasi_sum_default = True
 
-            add_cost_default = 0.0
+            At_cost_default = 0.0
             mgmt_fee_default = 0.0
 
         st.info(f"📌 **Kontrak Otomatis Terikat:** `{selected_kontrak_m3}`")
@@ -412,23 +412,23 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             
             col_met1, col_met2 = st.columns(2)
             with col_met1:
-                gunakan_prof_sum = st.checkbox("Professional Sum (Add Cost & Management Fee 15%)", value=is_prof_sum_default, disabled=is_management)
+                gunakan_prof_sum = st.checkbox("Professional Sum (At Cost & Management Fee 15%)", value=is_prof_sum_default, disabled=is_management)
             with col_met2:
                 gunakan_estimasi_sum = st.checkbox("Estimasi Sum (Skema Diskon 10% ESTIMATED SUM)", value=is_estimasi_sum_default, disabled=is_management)
             
-            input_add_cost = 0.0
+            input_At_cost = 0.0
             input_mgmt_fee = 0.0
             if gunakan_prof_sum:
-                def_ac = add_cost_default if add_cost_default > 0 else gross_subtotal_m2
+                def_ac = At_cost_default if At_cost_default > 0 else gross_subtotal_m2
                 def_mf = mgmt_fee_default if mgmt_fee_default > 0 else (def_ac * 0.15)
 
                 col_ps1, col_ps2 = st.columns(2)
                 with col_ps1:
-                    input_add_cost = st.number_input("Nilai Add Cost (Murni, Rp)", min_value=0.0, value=float(def_ac), step=1000.0, format="%.2f", disabled=is_management)
+                    input_At_cost = st.number_input("Nilai At Cost (Murni, Rp)", min_value=0.0, value=float(def_ac), step=1000.0, format="%.2f", disabled=is_management)
                 with col_ps2:
                     input_mgmt_fee = st.number_input("Nilai Management Fee 15% (Rp)", min_value=0.0, value=float(def_mf), step=1000.0, format="%.2f", disabled=is_management)
                 
-                gross_tagihan_akhir = input_add_cost + input_mgmt_fee
+                gross_tagihan_akhir = input_At_cost + input_mgmt_fee
                 diskon_nominal_akhir = 0.0
                 dpp_invoice_akhir = gross_tagihan_akhir
             elif gunakan_estimasi_sum:
@@ -513,7 +513,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         "Nilai Invoice": dpp_invoice_akhir,
                         "Gunakan Professional Sum": 1 if gunakan_prof_sum else 0,
                         "Gunakan Estimasi Sum": 1 if gunakan_estimasi_sum else 0,
-                        "Add Cost": input_add_cost if gunakan_prof_sum else 0.0,
+                        "At Cost": input_At_cost if gunakan_prof_sum else 0.0,
                         "Management Fee": input_mgmt_fee if gunakan_prof_sum else 0.0,
                         "PPN Nominal": ppn_nominal,
                         "PPh Nominal": pph_nominal,
@@ -646,7 +646,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     raw_est_sum = selected_record.get('Gunakan Estimasi Sum', False)
                     is_est_sum_akt = str(raw_est_sum).lower() in ['true', '1', 'yes', '1.0']
 
-                    val_add_cost = round(float(selected_record.get('Add Cost', 0) or 0))
+                    val_At_cost = round(float(selected_record.get('At Cost', 0) or 0))
                     val_mgmt_fee = round(float(selected_record.get('Management Fee', 0) or 0))
 
                     nomor_sa_wan_val = format_nomor_bersih(selected_record.get('Nomor SA / WAN', ''))
@@ -672,12 +672,12 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                         <tr>
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; font-weight: bold; background-color: #fafafa;">1</td>
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; vertical-align: top !important; word-break: break-word;">
-                                <div style="font-size: 11.5px; font-weight: bold; color: #0f172a; margin-bottom: 4px;">Add Cost</div>
+                                <div style="font-size: 11.5px; font-weight: bold; color: #0f172a; margin-bottom: 4px;">At Cost</div>
                                 <div style="font-size: 11px; color: #334155; line-height: 1.4;">{deskripsi_keterangan_inv}</div>
                             </td>
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; color: #64748b;">-</td>
-                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {val_add_cost:,.0f}</td>
+                            <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {val_At_cost:,.0f}</td>
                         </tr>
                         <tr>
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: center; vertical-align: top !important; font-size: 11.5px; font-weight: bold; background-color: #fafafa;">2</td>
@@ -690,7 +690,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                             <td style="border: 1px solid #94a3b8; padding: 12px 10px; text-align: right; vertical-align: top !important; font-size: 11.5px; font-weight: bold;">Rp {val_mgmt_fee:,.0f}</td>
                         </tr>
                         """
-                        total_amount_due = val_add_cost + val_mgmt_fee
+                        total_amount_due = val_At_cost + val_mgmt_fee
                         discount_10_nominal = 0.0
                     elif matched_items_m2:
                         tabel_item_html = ""
@@ -1039,7 +1039,7 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
             kolom_prioritas = [
                 "Nomor Invoice Resmi", "PI No.", "Customer", "Kontrak No.", "Nomor PO", "Nomor SA / WAN",
                 "Nilai Gross (Bruto)", "Diskon Nominal (10%)", "Nilai Invoice", 
-                "Gunakan Professional Sum", "Add Cost", "Management Fee", 
+                "Gunakan Professional Sum", "At Cost", "Management Fee", 
                 "PPN Nominal", "PPh Nominal", "Total Netto", "Update Terakhir"
             ]
             
