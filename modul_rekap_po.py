@@ -52,14 +52,17 @@ def tampilkan_rekap_penyerapan_po(
     list_kontrak_unik = sorted(df_tx["Kontrak Clean"].unique().tolist())
     selected_kontrak = st.selectbox("📂 Pilih Nomor Kontrak:", ["-- SEMUA KONTRAK --"] + list_kontrak_unik, key="rekap_kontrak_select")
 
+    # Filter berdasarkan kontrak terlebih dahulu
     if selected_kontrak != "-- SEMUA KONTRAK --":
         df_filtered_kontrak = df_tx[df_tx["Kontrak Clean"] == selected_kontrak]
     else:
         df_filtered_kontrak = df_tx
 
+    # Daftar PO yang tersedia sesuai kontrak yang dipilih
     list_po_unik = sorted(df_filtered_kontrak["PO Clean"].unique().tolist())
     selected_po = st.selectbox("🔍 Pilih Nomor PO:", ["-- SEMUA PO DALAM KONTRAK INI --"] + list_po_unik, key="rekap_po_select")
 
+    # Filter berdasarkan PO jika dipilih spesifik
     if selected_po != "-- SEMUA PO DALAM KONTRAK INI --":
         df_filtered = df_filtered_kontrak[df_filtered_kontrak["PO Clean"] == selected_po]
     else:
@@ -67,15 +70,17 @@ def tampilkan_rekap_penyerapan_po(
 
     st.markdown("---")
 
-    # KONDISI KHUSUS: Jika SEMUA KONTRAK dan SEMUA PO dipilih secara bersamaan
+    # KONDISI 1: Jika SEMUA KONTRAK dan SEMUA PO dipilih
     is_all_kontrak = (selected_kontrak == "-- SEMUA KONTRAK --")
     is_all_po = (selected_po == "-- SEMUA PO DALAM KONTRAK INI --")
 
     if is_all_kontrak and is_all_po:
         st.markdown("### 📑 Tabel Rekapitulasi Global Seluruh Kontrak & Purchase Order (PO)")
-        st.info("ℹ️ Menampilkan rangkuman total nilai plafon, penyerapan, dan sisa anggaran secara global karena mode **Semua Kontrak & Semua PO** dipilih.")
+        st.info("ℹ️ Menampilkan rangkuman total nilai plafon, penyerapan, dan sisa anggaran secara global.")
 
         global_summary_rows = []
+        tot_plafon_global, tot_serap_global, tot_sisa_global = 0.0, 0.0, 0.0
+
         for po_item in df_tx["PO Clean"].unique():
             df_sub = df_tx[df_tx["PO Clean"] == po_item]
             k_info = df_sub.get("Kontrak Clean", pd.Series([""])).iloc[0]
@@ -109,27 +114,79 @@ def tampilkan_rekap_penyerapan_po(
             sisa_val = p_po - t_serap
             rasio = (t_serap / p_po * 100) if p_po > 0 else 0.0
 
+            tot_plafon_global += p_po
+            tot_serap_global += t_serap
+            tot_sisa_global += sisa_val
+
             global_summary_rows.append({
                 "Nomor Kontrak": k_info,
                 "Nomor PO": po_item,
                 "Lingkup Pekerjaan": lingkup_info,
-                "Total Plafon PO (IDR)": f"Rp {p_po:,.2f}",
-                "Total Terserap (IDR)": f"Rp {t_serap:,.2f}",
-                "Sisa Anggaran (IDR)": f"Rp {sisa_val:,.2f}",
+                "Total Plafon PO (IDR)": p_po,
+                "Total Terserap (IDR)": t_serap,
+                "Sisa Anggaran (IDR)": sisa_val,
                 "Rasio (%)": f"{rasio:.2f}%"
             })
 
         df_global = pd.DataFrame(global_summary_rows)
-        st.dataframe(df_global, use_container_width=True)
+        
+        # Format angka rupiah untuk tampilan tabel
+        df_global_display = df_global.copy()
+        df_global_display["Total Plafon PO (IDR)"] = df_global_display["Total Plafon PO (IDR)"].apply(lambda x: f"Rp {x:,.2f}")
+        df_global_display["Total Terserap (IDR)"] = df_global_display["Total Terserap (IDR)"].apply(lambda x: f"Rp {x:,.2f}")
+        df_global_display["Sisa Anggaran (IDR)"] = df_global_display["Sisa Anggaran (IDR)"].apply(lambda x: f"Rp {x:,.2f}")
+
+        st.dataframe(df_global_display, use_container_width=True)
+
+        # TAMBAHAN: Baris Jumlah / Total di bawah tabel global
+        st.markdown("#### 📌 Total / Jumlah Keseluruhan Global")
+        rasio_global = (tot_serap_global / tot_plafon_global * 100) if tot_plafon_global > 0 else 0.0
+        
+        st.markdown("""
+            <style>
+            div[data-testid="metric-container"] label { font-size: 13px !important; color: #475569 !important; }
+            div[data-testid="metric-container"] div[data-testid="stMetricValue"] { font-size: 20px !important; font-weight: 700 !important; color: #0f172a !important; }
+            </style>
+        """, unsafe_allow_html=True)
+
+        gc1, gc2, gc3, gc4 = st.columns(4)
+        with gc1:
+            st.metric("Total Plafon Global", f"Rp {tot_plafon_global:,.2f}")
+        with gc2:
+            st.metric("Total Terserap Global", f"Rp {tot_serap_global:,.2f}", delta=f"{rasio_global:.1f}%")
+        with gc3:
+            st.metric("Total Sisa Anggaran", f"Rp {tot_sisa_global:,.2f}")
+        with gc4:
+            st.metric("Rasio Global", f"{rasio_global:.2f}%")
+
+        # Grafik Proporsi Global
+        st.markdown("##### 📉 Grafik Proporsi Penyerapan Anggaran Global")
+        chart_global = pd.DataFrame({
+            'Kategori': ['Sisa Anggaran', 'Sudah Terserap'],
+            'Nilai': [max(0.0, tot_sisa_global), max(0.0, tot_serap_global)]
+        }).set_index('Kategori')
+
+        st.altair_chart(
+            alt.Chart(chart_global.reset_index()).mark_arc(innerRadius=50).encode(
+                theta=alt.Theta(field="Nilai", type="quantitative"),
+                color=alt.Color(
+                    field="Kategori", 
+                    type="nominal", 
+                    scale=alt.Scale(domain=['Sisa Anggaran', 'Sudah Terserap'], range=["#10b981", "#cbd5e1"])
+                ),
+                tooltip=['Kategori', alt.Tooltip('Nilai:Q', format=',.2f')]
+            ).properties(width=400, height=300),
+            use_container_width=True
+        )
         return
 
-    # TAMPILAN DETAIL KONTROL (Jika Kontrak / PO spesifik dipilih)
-    st.markdown("### 📋 Tabel Kontrol Anggaran & Penyerapan PO (Base vs Realisasi)")
-
+    # KONDISI 2 & 3: Jika Kontrak dipilih (baik semua PO dalam kontrak tersebut, maupun PO spesifik)
     target_po_list = df_filtered["PO Clean"].unique().tolist()
     if not target_po_list:
         st.info("ℹ️ Tidak ada data PO yang sesuai dengan filter yang dipilih.")
         return
+
+    st.markdown(f"### 📋 Tabel Kontrol Anggaran & Penyerapan PO (Kontrak: `{selected_kontrak}`)")
 
     for po_item in target_po_list:
         df_sub_po = df_filtered[df_filtered["PO Clean"] == po_item]
