@@ -10,7 +10,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Mutasi Purchase Order (PO)</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Analisis berjenjang murni bersumber dari database opname parameter (Volume & Unit Price) vs realisasi transaksi.</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Analisis berjenjang murni bersumber dari database opname parameter (Volume & Unit Price terpisah Nomor PI & PO) vs realisasi transaksi.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -26,30 +26,39 @@ def tampilkan_rekap_penyerapan_po(
         st.error(f"⚠️ Gagal membaca file database opname parameter: {e}")
         return
 
-    if df_opname.empty or "doc_key" not in df_opname.columns:
-        st.warning("⚠️ Kolom 'doc_key' tidak ditemukan pada database opname parameter.")
+    if df_opname.empty:
+        st.warning("⚠️ Database opname parameter kosong.")
         return
 
-    # Ekstrak Nomor PO secara presisi dari doc_key (mengambil bagian setelah underscore terakhir atau pola PO)
-    def extract_po_from_dockey(key_str):
-        try:
-            parts = str(key_str).split('_')
-            if parts:
-                potential_po = parts[-1].strip()
-                if potential_po.isdigit():
-                    return potential_po
-        except:
-            pass
-        return "UNKNOWN"
+    # Normalisasi kolom Nomor PI dan Nomor PO
+    if "Nomor PO" in df_opname.columns:
+        df_opname["PO Clean"] = df_opname["Nomor PO"].astype(str).str.strip()
+    elif "doc_key" in df_opname.columns:
+        # Fallback ekstraksi dari doc_key jika kolom Nomor PO belum ada
+        def extract_po(key):
+            try:
+                parts = str(key).split('_')
+                if parts:
+                    p = parts[-1].strip()
+                    if p.isdigit(): return p
+            except: pass
+            return "UNKNOWN"
+        df_opname["PO Clean"] = df_opname["doc_key"].apply(extract_po)
+    else:
+        df_opname["PO Clean"] = "UNKNOWN"
 
-    df_opname["PO Clean"] = df_opname["doc_key"].apply(extract_po_from_dockey)
-    df_opname = df_opname[df_opname["PO Clean"] != "UNKNOWN"]
+    if "Nomor PI" in df_opname.columns:
+        df_opname["PI Clean"] = df_opname["Nomor PI"].astype(str).str.strip()
+    else:
+        df_opname["PI Clean"] = "-"
+
+    df_opname = df_opname[(df_opname["PO Clean"] != "") & (df_opname["PO Clean"] != "nan") & (df_opname["PO Clean"] != "UNKNOWN")]
 
     if df_opname.empty:
-        st.warning("⚠️ Tidak dapat mengekstrak Nomor PO dari kolom doc_key di database opname parameter.")
+        st.warning("⚠️ Tidak ada data Nomor PO yang valid di database opname parameter.")
         return
 
-    # 2. Muat data transaksi (Modul 2) untuk menghitung realisasi penyerapan aktual
+    # 2. Muat data transaksi (Modul 2) untuk pemetaan Nomor Kontrak
     transaksi_list = muat_data_transaksi_func()
     df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
     if not df_tx.empty and "Nomor PO" in df_tx.columns:
@@ -57,7 +66,6 @@ def tampilkan_rekap_penyerapan_po(
     else:
         df_tx["PO Clean"] = pd.Series(dtype=str)
 
-    # Petakan Nomor Kontrak dari transaksi ke setiap Nomor PO yang ada di opname parameter
     po_to_kontrak = {}
     if not df_tx.empty and "Nomor Kontrak" in df_tx.columns:
         for _, r in df_tx.iterrows():
@@ -92,10 +100,10 @@ def tampilkan_rekap_penyerapan_po(
     is_all_kontrak = (selected_kontrak == "-- SEMUA KONTRAK --")
     is_all_po = (selected_po == "-- SEMUA PO DALAM KONTRAK INI --")
 
-    # KONDISI 1: Jika SEMUA KONTRAK & SEMUA PO dipilih -> Tampilkan Tabel Rekap Global Murni dari Opname Parameter
+    # KONDISI 1: Jika SEMUA KONTRAK & SEMUA PO dipilih -> Tabel Rekap Global
     if is_all_kontrak and is_all_po:
         st.markdown("### 📑 Tabel Rekapitulasi Global Berdasarkan Database Opname Parameter")
-        st.info("ℹ️ Menampilkan rangkuman total plafon (bersumber murni dari file database opname parameter) dan penyerapan aktual.")
+        st.info("ℹ️ Menampilkan rangkuman total plafon (berdasarkan seluruh baris item di database opname parameter) dan penyerapan aktual.")
 
         global_summary_rows = []
         tot_plafon_global, tot_serap_global, tot_sisa_global = 0.0, 0.0, 0.0
@@ -104,14 +112,12 @@ def tampilkan_rekap_penyerapan_po(
             df_op_sub = df_opname[df_opname["PO Clean"] == po_item]
             k_info = df_op_sub["Kontrak Clean"].iloc[0]
             
-            # Ambil lingkup pekerjaan dari transaksi jika ada
             lingkup_info = "-"
             if not df_tx.empty:
                 df_tx_sub = df_tx[df_tx["PO Clean"] == po_item]
                 if not df_tx_sub.empty and "Deskripsi PO" in df_tx_sub.columns:
                     lingkup_info = df_tx_sub["Deskripsi PO"].iloc[0]
 
-            # Hitung total plafon PO murni dari opname parameter (Volume PO * Unit Price per baris item)
             p_po = 0.0
             for _, op_row in df_op_sub.iterrows():
                 try:
@@ -121,7 +127,6 @@ def tampilkan_rekap_penyerapan_po(
                 except:
                     pass
 
-            # Hitung total penyerapan aktual dari transaksi Modul 2
             t_serap = 0.0
             if not df_tx.empty:
                 df_tx_sub = df_tx[df_tx["PO Clean"] == po_item]
@@ -154,7 +159,6 @@ def tampilkan_rekap_penyerapan_po(
 
         st.dataframe(df_global_display, use_container_width=True)
 
-        # Baris Jumlah / Total Keseluruhan Global
         st.markdown("#### 📌 Total / Jumlah Keseluruhan Global")
         rasio_global = (tot_serap_global / tot_plafon_global * 100) if tot_plafon_global > 0 else 0.0
         
@@ -175,7 +179,6 @@ def tampilkan_rekap_penyerapan_po(
         with gc4:
             st.metric("Rasio Global", f"{rasio_global:.2f}%")
 
-        # Grafik Proporsi Global
         st.markdown("##### 📉 Grafik Proporsi Penyerapan Anggaran Global")
         chart_global = pd.DataFrame({
             'Kategori': ['Sisa Anggaran', 'Sudah Terserap'],
@@ -196,7 +199,7 @@ def tampilkan_rekap_penyerapan_po(
         )
         return
 
-    # KONDISI 2 & 3: Kontrak atau PO tertentu dipilih -> Tampilkan rincian item murni dari database opname parameter
+    # KONDISI 2 & 3: Kontrak atau PO tertentu dipilih
     target_po_list = df_filtered["PO Clean"].unique().tolist()
     if not target_po_list:
         st.info("ℹ️ Tidak ada data PO yang sesuai dengan filter yang dipilih.")
@@ -218,7 +221,6 @@ def tampilkan_rekap_penyerapan_po(
         if lingkup_info and lingkup_info != "-":
             st.caption(f"Lingkup Pekerjaan: {lingkup_info}")
 
-        # Ambil transaksi aktual untuk PO ini jika ada
         df_tx_sub = pd.DataFrame()
         if not df_tx.empty:
             df_tx_sub = df_tx[df_tx["PO Clean"] == po_item]
@@ -234,17 +236,12 @@ def tampilkan_rekap_penyerapan_po(
             unit_price = float(row.get("Unit Price", 0))
             total_price_po = vol_po * unit_price
 
-            # Cari realisasi aktual dari transaksi Modul 2 berdasarkan pencocokan item index / urutan
             vol_aktual = 0.0
             val_aktual = 0.0
             if not df_tx_sub.empty:
-                # Coba cocokkan baris jika ada informasi item atau ambil proporsi / akumulasi
                 if idx < len(df_tx_sub):
                     vol_aktual = float(df_tx_sub.iloc[idx].get("Qty", 0))
                     val_aktual = float(df_tx_sub.iloc[idx].get("Total Harga", 0))
-                else:
-                    vol_aktual = 0.0
-                    val_aktual = 0.0
 
             vol_sisa = vol_po - vol_aktual
             total_price_sisa = total_price_po - val_aktual
@@ -256,9 +253,10 @@ def tampilkan_rekap_penyerapan_po(
             tot_vol_sisa += vol_sisa
             tot_val_sisa += total_price_sisa
 
+            pi_asal = row.get("PI Clean", "-")
             tabel_rows.append({
                 "No.": item_idx,
-                "Item Description": f"Item Parameter #{item_idx} (PO {po_item})",
+                "Item Description": f"Item Parameter #{item_idx} (PI: {pi_asal})",
                 "UOM": "Day / Unit",
                 "Volume PO": f"{vol_po:,.2f}",
                 "Unit Price (IDR)": f"{unit_price:,.2f}",
@@ -272,7 +270,6 @@ def tampilkan_rekap_penyerapan_po(
         df_laporan = pd.DataFrame(tabel_rows)
         st.dataframe(df_laporan, use_container_width=True)
 
-        # --- KOTAK REKAPITULASI TOTAL PER PO ---
         st.markdown(f"#### 📌 Ringkasan Rekapitulasi Total untuk PO: `{po_item}`")
         
         pct_serap = (tot_val_serap / tot_val_po * 100) if tot_val_po > 0 else 0.0
@@ -295,7 +292,6 @@ def tampilkan_rekap_penyerapan_po(
         with c4:
             st.metric("Rasio Penyerapan", f"{pct_serap:.2f}%")
 
-        # --- DIAGRAM LINGKARAN (PIE CHART) ---
         st.markdown(f"##### 📉 Grafik Proporsi Penyerapan Anggaran PO `{po_item}`")
         
         chart_data = pd.DataFrame({
