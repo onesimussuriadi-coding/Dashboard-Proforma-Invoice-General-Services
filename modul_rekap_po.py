@@ -10,7 +10,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Modul Master Plafon PO — Sinkronisasi Sempurna Modul 0</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Hierarki Sempurna: Nomor Kontrak ➔ Kategori ➔ Uraian Pekerjaan ➔ Harga Satuan Otomatis.</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Hierarki Murni: Nomor Kontrak ➔ Kategori ➔ Uraian Pekerjaan ➔ Harga Satuan Final Otomatis.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -112,18 +112,18 @@ def tampilkan_rekap_penyerapan_po(
     df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
     list_po = sorted(df_tx["Nomor PO"].dropna().astype(str).str.strip().unique().tolist()) if not df_tx.empty and "Nomor PO" in df_tx.columns else ["4500011739", "4500011740", "4500010745", "4500010746"]
 
-    # --- 3. FORM INPUT HIERARKI KONTRAK ➔ KATEGORI ➔ URAIAN ➔ HARGA ---
+    # --- 3. FORM INPUT HIERARKI BERSIH ---
     st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Penuh Modul 0)")
-    st.info("ℹ️ Pilih Nomor Kontrak, Kategori, dan Uraian Pekerjaan. Data akan tersaring ketat secara hierarkis.")
+    st.info("ℹ️ Pilih Nomor Kontrak, Kategori, dan Uraian Pekerjaan. Data tersaring presisi tanpa duplikasi string.")
 
-    with st.form(key="form_master_po_final_v3"):
+    with st.form(key="form_master_po_final_v4"):
         c1, c2 = st.columns(2)
         with c1:
             in_kontrak = st.selectbox("📂 Pilih Nomor Kontrak:", list_kontrak if list_kontrak else [""], key="sel_kontrak_master")
         with c2:
             in_po = st.selectbox("🔍 Pilih Nomor PO:", list_po if list_po else [""], key="sel_po_master")
 
-        # FILTER LEVEL 1: Berdasarkan Nomor Kontrak Aktif
+        # FILTER LEVEL 1: Berdasarkan Nomor Kontrak Aktif Saja
         df_kontrak_aktif = df_clean[df_clean["Nomor Kontrak"] == in_kontrak]
         if df_kontrak_aktif.empty:
             df_kontrak_aktif = df_clean
@@ -140,15 +140,16 @@ def tampilkan_rekap_penyerapan_po(
 
         is_prov = "PROVISIONAL" in in_kategori or "PROFESSIONAL" in in_kategori
 
-        # FILTER LEVEL 2: Saring Ketat Uraian Berdasarkan Kontrak Aktif DAN Kategori Aktif
+        # FILTER LEVEL 2: Saring Murni Berdasarkan Kontrak Aktif DAN Kategori Aktif
         with c4:
             if is_prov:
                 in_deskripsi = st.text_input("📋 Uraian Pekerjaan / Spesifikasi (Manual):", value="At Cost + Fee 15%", key=f"desc_manual_{in_kontrak}")
                 df_uraian_aktif = pd.DataFrame()
             else:
+                # Pastikan penyaringan murni dari df_kontrak_aktif, bukan df_clean global agar tidak terbawa kategori lain
                 df_uraian_aktif = df_kontrak_aktif[df_kontrak_aktif["Kategori"] == in_kategori]
                 if df_uraian_aktif.empty:
-                    df_uraian_aktif = df_clean[df_clean["Kategori"] == in_kategori]
+                    df_uraian_aktif = df_clean[(df_clean["Nomor Kontrak"] == in_kontrak) & (df_clean["Kategori"] == in_kategori)]
 
                 list_uraian = sorted([u for u in df_uraian_aktif["Uraian Pekerjaan"].unique() if u and u != "NAN" and u != "-"])
                 if not list_uraian:
@@ -156,7 +157,7 @@ def tampilkan_rekap_penyerapan_po(
 
                 in_deskripsi = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", list_uraian, key=f"sel_uraian_{in_kontrak}_{in_kategori}")
 
-        # VLOOKUP PRESISI: HARGA SATUAN & UOM BERDASARKAN KONTRAK + KATEGORI + URAIAN
+        # VLOOKUP PRESISI: HARGA SATUAN & UOM
         harga_otomatis = 0.0
         unit_otomatis = "Month"
 
@@ -171,45 +172,58 @@ def tampilkan_rekap_penyerapan_po(
                     harga_otomatis = float(r_val.get("Harga Satuan Numeric", 0.0) or 0.0)
                 except:
                     harga_otomatis = 0.0
-                unit_otomatis = str(r_val.get("Unit", "Month"))
+                
+                # Ambil nilai string murni secara aman (menghindari objek Series/DataFrame)
+                raw_uom = r_val.get("Unit", "Month")
+                if isinstance(raw_uom, (pd.Series, pd.DataFrame)):
+                    unit_otomatis = str(raw_uom.iloc[0])
+                else:
+                    unit_otomatis = str(raw_uom).strip()
+                if not unit_otomatis or unit_otomatis == "nan":
+                    unit_otomatis = "Month"
 
         with c5:
-            list_uom = [unit_otomatis] if is_prov else sorted(list(set([unit_otomatis, "Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg"])))
-            idx_uom = list_uom.index(unit_otomatis) if unit_otomatis in list_uom else 0
-            in_uom = st.selectbox("📏 Satuan / UOM:", list_uom, index=idx_uom, key=f"sel_uom_{in_kontrak}")
+            in_uom = st.text_input("📏 Satuan / UOM (Otomatis Modul 0):", value=unit_otomatis if not is_prov else "AU", disabled=True, key=f"uom_text_{in_kontrak}")
 
         c6, c7 = st.columns(2)
         with c6:
-            in_vol = st.number_input("📦 Quantity / Volume PO:", value=1.0, step=1.0, format="%.2f", key=f"vol_{in_kontrak}")
+            # Quantity / Volume PO diset 0.0 sesuai permintaan untuk diisi manual
+            in_vol = st.number_input("📦 Quantity / Volume PO:", value=0.0, step=1.0, format="%.2f", key=f"vol_{in_kontrak}")
         with c7:
-            in_price = st.number_input("💵 Unit Price / Harga Satuan (IDR - Otomatis Modul 0):", value=harga_otomatis, step=1000.0, format="%.2f", key=f"price_{in_kontrak}")
+            # Harga satuan final dibaca langsung tanpa tombol plus/minus (ditampilkan sebagai teks format mata uang atau nomor bersih)
+            formatted_harga = f"Rp {harga_otomatis:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            st.markdown(f"<div style='font-size:13px; color:#475569; margin-bottom:5px;'>💵 Unit Price / Harga Satuan Final (Modul 0):</div><div style='background-color:#f1f5f9; padding:8px 12px; border-radius:6px; font-weight:700; color:#0f172a; border:1px solid #cbd5e1;'>{formatted_harga}</div>", unsafe_allow_html=True)
+            in_price = harga_otomatis # Nilai murni yang disimpan secara final
 
         submitted = st.form_submit_button("💾 Simpan Item Plafon PO", type="primary")
         if submitted:
-            total_plafon = in_vol * in_price
-            new_record = {
-                "Nomor Kontrak": str(in_kontrak).strip(),
-                "Nomor PO": str(in_po).strip(),
-                "Kategori": str(in_kategori).strip(),
-                "Deskripsi Pekerjaan": str(in_deskripsi).strip(),
-                "UOM": str(in_uom).strip(),
-                "Volume PO": float(in_vol),
-                "Unit Price": float(in_price),
-                "Total Plafon (IDR)": float(total_plafon)
-            }
-
-            df_master = pd.concat([df_master, pd.DataFrame([new_record])], ignore_index=True)
-            if simpan_master_po(df_master):
-                st.success(f"✅ Berhasil! Uraian [{in_deskripsi}] dengan Harga Rp {in_price:,.2f} tersimpan.")
-                st.rerun()
+            if in_vol <= 0:
+                st.warning("⚠️ Quantity / Volume PO harus diisi lebih besar dari 0.")
             else:
-                st.error("⚠️ Gagal menyimpan ke file database master PO.")
+                total_plafon = in_vol * in_price
+                new_record = {
+                    "Nomor Kontrak": str(in_kontrak).strip(),
+                    "Nomor PO": str(in_po).strip(),
+                    "Kategori": str(in_kategori).strip(),
+                    "Deskripsi Pekerjaan": str(in_deskripsi).strip(),
+                    "UOM": str(in_uom).strip(),
+                    "Volume PO": float(in_vol),
+                    "Unit Price": float(in_price),
+                    "Total Plafon (IDR)": float(total_plafon)
+                }
+
+                df_master = pd.concat([df_master, pd.DataFrame([new_record])], ignore_index=True)
+                if simpan_master_po(df_master):
+                    st.success(f"✅ Berhasil! Uraian [{in_deskripsi}] dengan Plafon Rp {total_plafon:,.2f} tersimpan.")
+                    st.rerun()
+                else:
+                    st.error("⚠️ Gagal menyimpan ke file database master PO.")
 
     st.markdown("---")
     st.markdown("#### 📂 Daftar Plafon PO Tersimpan")
     if not df_master.empty:
         st.dataframe(df_master, use_container_width=True)
-        if st.button("🗑️ Reset / Hapus Data Plafon PO", key="reset_plafon_final_v3"):
+        if st.button("🗑️ Reset / Hapus Data Plafon PO", key="reset_plafon_final_v4"):
             if os.path.exists(path_master_po_excel):
                 os.remove(path_master_po_excel)
             st.success("✅ Data berhasil direset!")
