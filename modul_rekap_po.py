@@ -9,8 +9,8 @@ def tampilkan_rekap_penyerapan_po(
 ):
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Mutasi Purchase Order (PO) - Clean Financial Summary</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Analisis rekapitulasi kuantitas & nilai anggaran berjenjang lintas Proforma Invoice (PI) tanpa bias ruang lingkup.</p>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Mutasi Purchase Order (PO) - Description-Based Multi-PI Tracking</h3>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Analisis kontrol anggaran akurat berbasis konsolidasi uraian deskripsi item lintas Proforma Invoice (PI).</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -30,7 +30,7 @@ def tampilkan_rekap_penyerapan_po(
         st.warning("⚠️ Database opname parameter kosong.")
         return
 
-    # Normalisasi kolom Nomor PI, Nomor PO, dan Item Index
+    # Normalisasi kolom Nomor PI, Nomor PO, dan Deskripsi
     if "Nomor PO" in df_opname.columns:
         df_opname["PO Clean"] = df_opname["Nomor PO"].astype(str).str.strip()
     else:
@@ -41,8 +41,10 @@ def tampilkan_rekap_penyerapan_po(
     else:
         df_opname["PI Clean"] = "-"
 
-    if "Item Index" not in df_opname.columns:
-        df_opname["Item Index"] = 1
+    if "Item Description" in df_opname.columns:
+        df_opname["Desc Clean"] = df_opname["Item Description"].astype(str).str.strip()
+    else:
+        df_opname["Desc Clean"] = "Item Tanpa Deskripsi"
 
     df_opname = df_opname[(df_opname["PO Clean"] != "") & (df_opname["PO Clean"] != "nan") & (df_opname["PO Clean"] != "UNKNOWN")]
 
@@ -50,7 +52,7 @@ def tampilkan_rekap_penyerapan_po(
         st.warning("⚠️ Tidak ada data Nomor PO yang valid di database opname parameter.")
         return
 
-    # 2. Muat data transaksi untuk pemetaan Nomor Kontrak & Realisasi Terserap
+    # 2. Muat data transaksi untuk pemetaan Nomor Kontrak
     transaksi_list = muat_data_transaksi_func()
     df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
     if not df_tx.empty and "Nomor PO" in df_tx.columns:
@@ -92,20 +94,19 @@ def tampilkan_rekap_penyerapan_po(
     is_all_kontrak = (selected_kontrak == "-- SEMUA KONTRAK --")
     is_all_po = (selected_po == "-- SEMUA PO DALAM KONTRAK INI --")
 
-    # KONDISI 1: TABEL REKAP GLOBAL (TANPA KOLOM LINGKUP PEKERJAAN)
+    # KONDISI 1: TABEL REKAP GLOBAL
     if is_all_kontrak and is_all_po:
         st.markdown("### 📑 Tabel Rekapitulasi Global Berdasarkan Database Opname Parameter")
         st.info("ℹ️ Menampilkan ringkasan total kuantitas, plafon nilai, penyerapan kumulatif, dan sisa saldo anggaran per PO.")
 
         global_summary_rows = []
         tot_plafon_global, tot_serap_global, tot_sisa_global = 0.0, 0.0, 0.0
-        tot_vol_po_global, tot_vol_serap_global, tot_vol_sisa_global = 0.0, 0.0, 0.0
 
         for po_item in df_opname["PO Clean"].unique():
             df_op_sub = df_opname[df_opname["PO Clean"] == po_item]
             k_info = df_op_sub["Kontrak Clean"].iloc[0]
 
-            df_items_master = df_op_sub.drop_duplicates(subset=["Item Index"])
+            df_items_master = df_op_sub.drop_duplicates(subset=["Desc Clean"])
             p_po, total_vol_po = 0.0, 0.0
             for _, m_row in df_items_master.iterrows():
                 try:
@@ -116,11 +117,9 @@ def tampilkan_rekap_penyerapan_po(
                 except:
                     pass
 
-            # Hitung total penyerapan kumulatif volume & nilai dari data opname/transaksi
             t_serap_val = 0.0
-            t_serap_vol = 0.0
-            for item_idx in df_items_master["Item Index"].unique():
-                df_item_all_pi = df_op_sub[df_op_sub["Item Index"] == item_idx]
+            for desc_text in df_items_master["Desc Clean"].unique():
+                df_item_all_pi = df_op_sub[df_op_sub["Desc Clean"] == desc_text]
                 u_prc_item = float(df_item_all_pi.iloc[0].get("Unit Price", 0)) if not df_item_all_pi.empty else 0.0
                 
                 v_cum = 0.0
@@ -129,28 +128,21 @@ def tampilkan_rekap_penyerapan_po(
                         v_cum += float(sub_row.get("Volume Previous", 0)) + float(sub_row.get("Volume Aktual", 0))
                     except: pass
                 
-                t_serap_vol += v_cum
                 t_serap_val += v_cum * u_prc_item
 
-            sisa_vol = total_vol_po - t_serap_vol
             sisa_val = p_po - t_serap_val
             rasio = (t_serap_val / p_po * 100) if p_po > 0 else 0.0
 
             tot_plafon_global += p_po
             tot_serap_global += t_serap_val
             tot_sisa_global += sisa_val
-            tot_vol_po_global += total_vol_po
-            tot_vol_serap_global += t_serap_vol
-            tot_vol_sisa_global += sisa_vol
 
             global_summary_rows.append({
                 "Nomor Kontrak": k_info,
                 "Nomor PO": po_item,
                 "Total Qty PO": f"{total_vol_po:,.2f}",
                 "Total Plafon PO (IDR)": p_po,
-                "Qty Terserap": f"{t_serap_vol:,.2f}",
                 "Total Terserap (IDR)": t_serap_val,
-                "Qty Sisa": f"{sisa_vol:,.2f}",
                 "Sisa Anggaran (IDR)": sisa_val,
                 "Rasio (%)": f"{rasio:.2f}%"
             })
@@ -204,7 +196,7 @@ def tampilkan_rekap_penyerapan_po(
         )
         return
 
-    # KONDISI 2 & 3: KONTRAK / PO TERTENTU DIPILIH (DETAIL BREAKDOWN MULTI-PI)
+    # KONDISI 2 & 3: KONTRAK / PO TERTENTU DIPILIH (DETAIL BREAKDOWN BERBASIS DESKRIPSI)
     target_po_list = df_filtered["PO Clean"].unique().tolist()
     if not target_po_list:
         st.info("ℹ️ Tidak ada data PO yang sesuai dengan filter yang dipilih.")
@@ -218,21 +210,22 @@ def tampilkan_rekap_penyerapan_po(
 
         st.markdown(f"#### 📁 Nomor PO: `{po_item}` | Kontrak: `{kontrak_info}`")
 
-        df_master_items = df_op_sub.drop_duplicates(subset=["Item Index"]).sort_values("Item Index")
+        # Ambil master item unik berdasarkan kesamaan Deskripsi Teks
+        df_master_items = df_op_sub.drop_duplicates(subset=["Desc Clean"]).sort_values("Desc Clean")
 
         tabel_rows = []
         tot_vol_po, tot_val_po = 0.0, 0.0
         tot_vol_cum, tot_val_cum = 0.0, 0.0
         tot_vol_sisa, tot_val_sisa = 0.0, 0.0
 
-        for _, m_row in df_master_items.iterrows():
-            item_idx = int(m_row.get("Item Index", 1))
+        for idx, (_, m_row) in enumerate(df_master_items.iterrows(), start=1):
+            desc_text = str(m_row.get("Desc Clean", f"Item #{idx}"))
             vol_po = float(m_row.get("Volume PO", 0))
             unit_price = float(m_row.get("Unit Price", 0))
             total_price_po = vol_po * unit_price
-            desc_text = str(m_row.get("Item Description", f"Item Parameter #{item_idx}"))
 
-            df_item_all_pi = df_op_sub[df_op_sub["Item Index"] == item_idx]
+            # Ambil semua baris opname lintas PI yang memiliki deskripsi teks yang sama persis
+            df_item_all_pi = df_op_sub[df_op_sub["Desc Clean"] == desc_text]
             list_pi_used = df_item_all_pi["PI Clean"].unique().tolist()
             pi_str_note = ", ".join(list_pi_used) if list_pi_used else "-"
 
@@ -260,7 +253,7 @@ def tampilkan_rekap_penyerapan_po(
             tot_val_sisa += sisa_val
 
             tabel_rows.append({
-                "No.": item_idx,
+                "No.": idx,
                 "Item Description": f"{desc_text}<br><span style='font-size:10px; color:#64748b;'>Ditagih via PI: {pi_str_note}</span>",
                 "UOM": "Day / Unit",
                 "Volume PO": f"{vol_po:,.2f}",
