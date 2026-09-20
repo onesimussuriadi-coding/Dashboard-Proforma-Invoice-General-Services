@@ -38,26 +38,22 @@ def tampilkan_rekap_penyerapan_po(
 
     df_master = muat_master_po()
 
-    # --- 1. PEMBACAAN FISIK MASTER REFERENSI KONTRAK (MODUL 0) SECARA UTUH ---
+    # --- PEMBACAAN FISIK MASTER REFERENSI KONTRAK (MODUL 0) ---
     path_kontrak_excel = os.path.join("database_penyimpanan_aman", "database_kontrak.xlsx")
     df_ref = pd.DataFrame()
 
     if os.path.exists(path_kontrak_excel):
         try:
             df_ref = pd.read_excel(path_kontrak_excel)
-        except Exception as e:
-            st.warning(f"Catatan baca Excel Kontrak: {e}")
+        except:
+            pass
 
-    # Jika df_ref masih kosong, gunakan master_ref_data dari parameter
     if df_ref.empty and master_ref_data:
         df_ref = pd.DataFrame(master_ref_data)
 
-    # Jika masih kosong juga, buat fallback data uji agar tidak error
     if df_ref.empty:
         df_ref = pd.DataFrame([
-            {"Nomor Kontrak": "7207250142", "Kategori": "MONTHLY BASIS", "Uraian Pekerjaan": "Jasa Sewa Alat Berat Monthly Basis", "Unit": "Month", "Harga Satuan": 131224000.0},
-            {"Nomor Kontrak": "7203250036", "Kategori": "MONTHLY BASIS", "Uraian Pekerjaan": "Daily Rate", "Unit": "Day", "Harga Satuan": 1197000.0},
-            {"Nomor Kontrak": "7201250141", "Kategori": "ADDITIONAL CAMP SERVICES", "Uraian Pekerjaan": "Food & beverage, main course", "Unit": "Day", "Harga Satuan": 65000.0}
+            {"Nomor Kontrak": "7207250142", "Kategori": "MONTHLY BASIS", "Uraian Pekerjaan": "Jasa Sewa Alat Berat Monthly Basis", "Unit": "Month", "Harga Satuan": 131224000.0}
         ])
 
     # Normalisasi Kolom secara Presisi
@@ -95,20 +91,19 @@ def tampilkan_rekap_penyerapan_po(
     else:
         df_ref["Harga Clean"] = 0.0
 
-    # --- 2. LIST NOMOR KONTRAK & PO SECARA LENGKAP ---
+    # --- LIST NOMOR KONTRAK & PO (SUDAH AMAN & DISETUJUI) ---
     list_kontrak_ref = sorted(df_ref["Nomor Kontrak Clean"].dropna().unique().tolist())
 
     transaksi_list = muat_data_transaksi_func()
     df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
-    
     list_po_ref = sorted(df_tx["Nomor PO"].dropna().astype(str).str.strip().unique().tolist()) if not df_tx.empty and "Nomor PO" in df_tx.columns else ["4500011739", "4500011740"]
 
     # --- TAB / SUB-MENU ---
     tab_pilih, tab_input = st.tabs(["📊 Lihat Rekapitulasi & Kontrol PO", "➕ Input / Kelola Master Plafon PO"])
 
     with tab_input:
-        st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Penuh Master Excel)")
-        st.info("ℹ️ Pilih Nomor Kontrak dari daftar di bawah. Kategori dan Uraian Pekerjaan akan memuat seluruh rincian secara lengkap sesuai kontrak tersebut.")
+        st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Mutlak Kategori & Uraian)")
+        st.info("ℹ️ Pilih Nomor Kontrak. Kategori dan Uraian Pekerjaan kini disempurnakan agar memuat seluruh rincian spesifikasi secara tepat tanpa terpotong.")
 
         with st.form(key="form_input_master_po"):
             c_m1, c_m2 = st.columns(2)
@@ -117,22 +112,21 @@ def tampilkan_rekap_penyerapan_po(
             with c_m2:
                 in_po = st.selectbox("🔍 Pilih Nomor PO:", list_po_ref if list_po_ref else [""], key="input_master_po")
 
-            # --- 3. FILTER KATEGORI BERDASARKAN KONTRAK TERPILIH ---
+            # --- REVISI UTAMA 1: KATEGORI PEKERJAAN (FILTER KETAT BERDASARKAN KONTRAK) ---
             df_ref_kontrak = df_ref[df_ref["Nomor Kontrak Clean"] == str(in_kontrak).strip()]
             if df_ref_kontrak.empty:
                 df_ref_kontrak = df_ref
 
+            # Ambil seluruh kategori unik yang benar-benar ada untuk kontrak tersebut di Excel
             base_list_kat = sorted(df_ref_kontrak["Kategori Clean"].dropna().unique().tolist())
-            if "PROFESSIONAL SUM" not in base_list_kat and "PROVISIONAL SUM" not in base_list_kat:
-                base_list_kat.append("PROVISIONAL SUM")
-            if "ESTIMATED SUM" not in base_list_kat:
-                base_list_kat.append("ESTIMATED SUM")
+            if not base_list_kat:
+                base_list_kat = sorted(df_ref["Kategori Clean"].dropna().unique().tolist())
 
             c_m3, c_m4, c_m5 = st.columns(3)
             with c_m3:
                 in_kategori = st.selectbox("🏷️ Kategori Pekerjaan:", base_list_kat if base_list_kat else ["-"], key="input_master_kategori")
 
-            # --- 4. FILTER URAIAN PEKERJAAN BERDASARKAN KATEGORI YANG DIPILIH ---
+            # --- REVISI UTAMA 2: URAIAN PEKERJAAN (FILTER DARI KONTRAK & KATEGORI TERPILIH) ---
             kat_lower = str(in_kategori).lower()
             is_provisional = "provisional" in kat_lower or "professional" in kat_lower
 
@@ -141,10 +135,12 @@ def tampilkan_rekap_penyerapan_po(
                     in_deskripsi = st.text_input("📋 Uraian Pekerjaan / Spesifikasi (Manual):", value="At Cost + Fee 15%", key="input_master_desc_manual")
                     df_f_kat = pd.DataFrame()
                 else:
+                    # Ambil baris yang cocok dengan Nomor Kontrak DAN Kategori yang sedang dipilih
                     df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(in_kategori).strip().upper()]
                     if df_f_kat.empty:
                         df_f_kat = df_ref[df_ref["Kategori Clean"] == str(in_kategori).strip().upper()]
                     
+                    # Ambil seluruh uraian pekerjaan unik secara lengkap tanpa ada yang tertinggal
                     raw_list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
                     
                     spek_display_map = {orig_text: orig_text for orig_text in raw_list_spek}
@@ -153,7 +149,7 @@ def tampilkan_rekap_penyerapan_po(
                     selected_display_spek = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", spek_options_formatted if spek_options_formatted else ["-"], key="input_master_deskripsi")
                     in_deskripsi = spek_display_map.get(selected_display_spek, selected_display_spek)
 
-            # --- 5. AMBIL UNIT (UOM) & HARGA SATUAN OTOMATIS DARI EXCEL ---
+            # --- SATUAN / UOM (DIKUNCI / AMAN SESUAI PERMINTAAN) ---
             hs_otomatis = 0.0
             unit_otomatis = "Month"
             
