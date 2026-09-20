@@ -15,7 +15,6 @@ def muat_parameter_dokumen_from_db(pi_no, po_no):
     if os.path.exists(PATH_EXCEL_OPNAME):
         try:
             df = pd.read_excel(PATH_EXCEL_OPNAME)
-            # Mendukung pemisahan kolom Nomor PI dan Nomor PO secara akurat
             if "Nomor PI" in df.columns and "Nomor PO" in df.columns:
                 matched = df[
                     (df["Nomor PI"].astype(str).str.strip() == str(pi_no).strip()) & 
@@ -35,11 +34,16 @@ def muat_parameter_dokumen_from_db(pi_no, po_no):
                         idx_item = int(row.get("Item Index", 1))
                     except:
                         idx_item = 1
+                    
+                    # Memuat deskripsi tersimpan untuk konsistensi rujukan
+                    desc_val = str(row.get("Item Description", f"Item Parameter #{idx_item}"))
+                    
                     items_dict[idx_item] = {
                         'po_vol': float(row.get("Volume PO", 0.0)),
                         'unit_price': float(row.get("Unit Price", 0.0)),
                         'prev_vol': float(row.get("Volume Previous", 0.0)),
-                        'current_vol': float(row.get("Volume Aktual", 0.0))
+                        'current_vol': float(row.get("Volume Aktual", 0.0)),
+                        'description': desc_val
                     }
                 
                 payload = {
@@ -58,7 +62,6 @@ def muat_parameter_dokumen_from_db(pi_no, po_no):
 
 def simpan_parameter_dokumen_to_db(pi_no, po_no, data_dict):
     try:
-        # Format tanggal bersih tanpa jam (YYYY-MM-DD)
         tgl_raw = data_dict.get('tanggal_opname', str(date.today()))
         if isinstance(tgl_raw, (datetime, date)):
             tgl_opn = tgl_raw.strftime("%Y-%m-%d")
@@ -76,6 +79,7 @@ def simpan_parameter_dokumen_to_db(pi_no, po_no, data_dict):
                 "Nomor PI": str(pi_no).strip(),
                 "Nomor PO": str(po_no).strip(),
                 "Item Index": idx_item,
+                "Item Description": str(item_val.get('description', f"Item Parameter #{idx_item}")).strip(),
                 "Lokasi Office": lokasi,
                 "Tanggal Opname": tgl_opn,
                 "Volume PO": item_val.get('po_vol', 0.0),
@@ -249,7 +253,7 @@ def tampilkan_opname(transaksi_list):
     st.markdown("---")
     
     with st.form(key=f"form_opname_params_{opname_storage_key}"):
-        st.markdown("#### ⚙️ Pengaturan Parameter & Rincian Baris Opname (Nomor PI & PO Terpisah)")
+        st.markdown("#### ⚙️ Pengaturan Parameter & Rincian Baris Opname (Menyimpan Uraian Deskripsi)")
         
         c_head1, c_head2 = st.columns(2)
         with c_head1:
@@ -311,7 +315,8 @@ def tampilkan_opname(transaksi_list):
                 'po_vol': po_vol,
                 'unit_price': unit_price,
                 'prev_vol': prev_vol,
-                'current_vol': current_vol
+                'current_vol': current_vol,
+                'description': item_label # Menyimpan uraian teks deskripsi secara eksplisit
             }
             st.markdown("<br>", unsafe_allow_html=True)
 
@@ -339,7 +344,7 @@ def tampilkan_opname(transaksi_list):
             }
             
             simpan_parameter_dokumen_to_db(pi_sekarang, po_sekarang, payload_to_save)
-            st.success("✅ Parameter opname berhasil disimpan dengan pemisahan kolom Nomor PI & PO serta format tanggal bersih ke Excel!")
+            st.success("✅ Parameter opname beserta uraian deskripsi pekerjaan berhasil disimpan ke Excel!")
 
     # --- PENGATURAN LOGO ---
     st.markdown("---")
