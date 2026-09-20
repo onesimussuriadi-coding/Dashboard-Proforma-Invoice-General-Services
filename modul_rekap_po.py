@@ -11,7 +11,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Purchase Order (PO) - Master Plafon & Multi-PI Tracking</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat (Sinkronisasi mutlak 100% selaras dengan mekanisme Modul 2).</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat (Sinkronisasi mutlak presisi selaras Modul 2).</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -108,12 +108,15 @@ def tampilkan_rekap_penyerapan_po(
             with c_m2:
                 in_po = st.selectbox("🔍 Pilih Nomor PO:", list_po_ref, key="input_master_po")
 
-            # --- LOGIKA FILTER KONTRAK & KATEGORI PERSIS MODUL 2 ---
+            # --- LANGKAH 1: FILTER KONTRAK & KATEGORI PERSIS MODUL 2 ---
             df_ref_kontrak = df_ref[df_ref["Nomor Kontrak Clean"] == str(in_kontrak).strip()]
             if df_ref_kontrak.empty:
                 df_ref_kontrak = df_ref 
 
             base_list_kat = sorted(df_ref_kontrak["Kategori Clean"].dropna().unique().tolist())
+            if not base_list_kat and not df_ref.empty:
+                base_list_kat = sorted(df_ref["Kategori Clean"].dropna().unique().tolist())
+
             if "PROFESSIONAL SUM" not in base_list_kat and "PROVISIONAL SUM" not in base_list_kat:
                 base_list_kat.append("PROVISIONAL SUM")
             if "ESTIMATED SUM" not in base_list_kat:
@@ -123,12 +126,14 @@ def tampilkan_rekap_penyerapan_po(
             with c_m3:
                 in_kategori = st.selectbox("🏷️ Kategori Pekerjaan:", base_list_kat if base_list_kat else ["-"], key="input_master_kategori")
 
+            # --- LANGKAH 2: FILTER URAIAN PEKERJAAN MURNI BERDASARKAN KATEGORI TERPILIH (PERSIS MODUL 2) ---
             kat_lower = str(in_kategori).lower()
             is_provisional = "provisional" in kat_lower or "professional" in kat_lower
 
             with c_m4:
                 if is_provisional:
                     in_deskripsi = st.text_input("📋 Uraian Pekerjaan / Spesifikasi (Manual):", value="At Cost + Fee 15%", key="input_master_desc_manual")
+                    df_f_kat = pd.DataFrame()
                 else:
                     df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(in_kategori).strip().upper()]
                     if df_f_kat.empty:
@@ -151,25 +156,20 @@ def tampilkan_rekap_penyerapan_po(
                     selected_display_spek = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", spek_options_formatted if spek_options_formatted else ["-"], key="input_master_deskripsi")
                     in_deskripsi = spek_display_map.get(selected_display_spek, selected_display_spek)
 
-            # --- AMBIL HARGA SATUAN & UNIT OTOMATIS PERSIS MODUL 2 ---
+            # --- LANGKAH 3: AMBIL HARGA SATUAN & UNIT OTOMATIS BERDASARKAN FILTER YANG AKTIF ---
             hs_otomatis = 0.0
             unit_otomatis = "Month"
-            if not is_provisional:
-                df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(in_kategori).strip().upper()]
-                if df_f_kat.empty:
-                    df_f_kat = df_ref[df_ref["Kategori Clean"] == str(in_kategori).strip().upper()]
-
-                if not df_f_kat.empty and in_deskripsi != "- (Tidak ada data uraian)":
-                    m_row = df_f_kat[df_f_kat["Uraian Clean"] == str(in_deskripsi).strip()]
-                    if m_row.empty:
-                        m_row = df_f_kat[df_f_kat["Uraian Clean"].str.lower() == str(in_deskripsi).strip().lower()]
-                    if not m_row.empty:
-                        row_m = m_row.iloc[0]
-                        try:
-                            hs_otomatis = float(row_m.get("Harga Clean", row_m.get("Harga Satuan", 0.0)) or 0.0)
-                        except:
-                            hs_otomatis = 0.0
-                        unit_otomatis = str(row_m.get("Unit Clean", row_m.get("Unit", "Month")))
+            if not is_provisional and not df_f_kat.empty and in_deskripsi != "- (Tidak ada data uraian)":
+                m_row = df_f_kat[df_f_kat["Uraian Clean"] == str(in_deskripsi).strip()]
+                if m_row.empty:
+                    m_row = df_f_kat[df_f_kat["Uraian Clean"].str.lower() == str(in_deskripsi).strip().lower()]
+                if not m_row.empty:
+                    row_m = m_row.iloc[0]
+                    try:
+                        hs_otomatis = float(row_m.get("Harga Clean", row_m.get("Harga Satuan", 0.0)) or 0.0)
+                    except:
+                        hs_otomatis = 0.0
+                    unit_otomatis = str(row_m.get("Unit Clean", row_m.get("Unit", "Month")))
 
             with c_m5:
                 default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg", "Pallet", "Ltr"]
