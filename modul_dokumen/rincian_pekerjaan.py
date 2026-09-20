@@ -230,7 +230,8 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 return str(v).strip()
         return fallback
 
-    nomor_wcc_full = get_induk(19, 'Nomor WCC', f"{t_data_ref.get('Nomor Kontrak', '')}-BSS-WCC-2026")
+    # PERBAIKAN: Menggunakan current_pi_no agar membaca nomor PI yang aktif (cth: 024/BSS-JOB/WS/VIII/2026)
+    nomor_wcc_full = current_pi_no
     terbilang_str = terbilang(grand_total).strip() + " Rupiah"
 
     rows_html = ""
