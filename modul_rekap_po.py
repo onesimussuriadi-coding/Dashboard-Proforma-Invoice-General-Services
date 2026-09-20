@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import altair as alt
 
 def tampilkan_rekap_penyerapan_po(
     muat_data_transaksi_func,
@@ -67,7 +68,6 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("---")
     st.markdown("### 📋 Tabel Kontrol Anggaran & Penyerapan PO (Base vs Realisasi)")
 
-    # PERBAIKAN LOGIKA: Ambil daftar PO yang sesuai dengan hasil filter (bisa satu PO atau banyak PO sekaligus)
     target_po_list = df_filtered["PO Clean"].unique().tolist()
     if not target_po_list:
         st.info("ℹ️ Tidak ada data PO yang sesuai dengan filter yang dipilih.")
@@ -173,14 +173,14 @@ def tampilkan_rekap_penyerapan_po(
         }).set_index('Kategori')
 
         st.altair_chart(
-            __import__('altair').Chart(chart_data.reset_index()).mark_arc(innerRadius=50).encode(
-                theta=__import__('altair'].Theta(field="Nilai", type="quantitative"),
-                color=__import__('altair').Color(
+            alt.Chart(chart_data.reset_index()).mark_arc(innerRadius=50).encode(
+                theta=alt.Theta(field="Nilai", type="quantitative"),
+                color=alt.Color(
                     field="Kategori", 
                     type="nominal", 
-                    scale=__import__('altair').Scale(domain=['Sisa Anggaran', 'Sudah Terserap'], range=["#10b981", "#cbd5e1"])
+                    scale=alt.Scale(domain=['Sisa Anggaran', 'Sudah Terserap'], range=["#10b981", "#cbd5e1"])
                 ),
-                tooltip=['Kategori', __import__('altair').Tooltip('Nilai:Q', format=',.2f')]
+                tooltip=['Kategori', alt.Tooltip('Nilai:Q', format=',.2f')]
             ).properties(width=400, height=300),
             use_container_width=True
         )
