@@ -9,8 +9,8 @@ def tampilkan_rekap_penyerapan_po(
 ):
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Mutasi Purchase Order (PO) - Multi-PI Tracking</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Analisis berjenjang konsolidasi lintas Proforma Invoice (PI) bersumber dari database opname parameter vs realisasi transaksi.</p>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Mutasi Purchase Order (PO) - Clean Financial Summary</h3>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Analisis rekapitulasi kuantitas & nilai anggaran berjenjang lintas Proforma Invoice (PI) tanpa bias ruang lingkup.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -50,7 +50,7 @@ def tampilkan_rekap_penyerapan_po(
         st.warning("⚠️ Tidak ada data Nomor PO yang valid di database opname parameter.")
         return
 
-    # 2. Muat data transaksi untuk pemetaan Nomor Kontrak
+    # 2. Muat data transaksi untuk pemetaan Nomor Kontrak & Realisasi Terserap
     transaksi_list = muat_data_transaksi_func()
     df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
     if not df_tx.empty and "Nomor PO" in df_tx.columns:
@@ -92,53 +92,65 @@ def tampilkan_rekap_penyerapan_po(
     is_all_kontrak = (selected_kontrak == "-- SEMUA KONTRAK --")
     is_all_po = (selected_po == "-- SEMUA PO DALAM KONTRAK INI --")
 
-    # KONDISI 1: TABEL REKAP GLOBAL
+    # KONDISI 1: TABEL REKAP GLOBAL (TANPA KOLOM LINGKUP PEKERJAAN)
     if is_all_kontrak and is_all_po:
         st.markdown("### 📑 Tabel Rekapitulasi Global Berdasarkan Database Opname Parameter")
-        st.info("ℹ️ Menampilkan rangkuman total plafon dan penyerapan konsolidasian per PO.")
+        st.info("ℹ️ Menampilkan ringkasan total kuantitas, plafon nilai, penyerapan kumulatif, dan sisa saldo anggaran per PO.")
 
         global_summary_rows = []
         tot_plafon_global, tot_serap_global, tot_sisa_global = 0.0, 0.0, 0.0
+        tot_vol_po_global, tot_vol_serap_global, tot_vol_sisa_global = 0.0, 0.0, 0.0
 
         for po_item in df_opname["PO Clean"].unique():
             df_op_sub = df_opname[df_opname["PO Clean"] == po_item]
             k_info = df_op_sub["Kontrak Clean"].iloc[0]
-            
-            lingkup_info = "-"
-            if not df_tx.empty:
-                df_tx_sub = df_tx[df_tx["PO Clean"] == po_item]
-                if not df_tx_sub.empty and "Deskripsi PO" in df_tx_sub.columns:
-                    lingkup_info = df_tx_sub["Deskripsi PO"].iloc[0]
 
             df_items_master = df_op_sub.drop_duplicates(subset=["Item Index"])
-            p_po = 0.0
+            p_po, total_vol_po = 0.0, 0.0
             for _, m_row in df_items_master.iterrows():
                 try:
                     v_po = float(m_row.get("Volume PO", 0))
                     u_prc = float(m_row.get("Unit Price", 0))
+                    total_vol_po += v_po
                     p_po += v_po * u_prc
                 except:
                     pass
 
-            t_serap = 0.0
-            if not df_tx.empty:
-                df_tx_sub = df_tx[df_tx["PO Clean"] == po_item]
-                if not df_tx_sub.empty and "Total Harga" in df_tx_sub.columns:
-                    t_serap = pd.to_numeric(df_tx_sub["Total Harga"], errors='coerce').sum()
+            # Hitung total penyerapan kumulatif volume & nilai dari data opname/transaksi
+            t_serap_val = 0.0
+            t_serap_vol = 0.0
+            for item_idx in df_items_master["Item Index"].unique():
+                df_item_all_pi = df_op_sub[df_op_sub["Item Index"] == item_idx]
+                u_prc_item = float(df_item_all_pi.iloc[0].get("Unit Price", 0)) if not df_item_all_pi.empty else 0.0
+                
+                v_cum = 0.0
+                for _, sub_row in df_item_all_pi.iterrows():
+                    try:
+                        v_cum += float(sub_row.get("Volume Previous", 0)) + float(sub_row.get("Volume Aktual", 0))
+                    except: pass
+                
+                t_serap_vol += v_cum
+                t_serap_val += v_cum * u_prc_item
 
-            sisa_val = p_po - t_serap
-            rasio = (t_serap / p_po * 100) if p_po > 0 else 0.0
+            sisa_vol = total_vol_po - t_serap_vol
+            sisa_val = p_po - t_serap_val
+            rasio = (t_serap_val / p_po * 100) if p_po > 0 else 0.0
 
             tot_plafon_global += p_po
-            tot_serap_global += t_serap
+            tot_serap_global += t_serap_val
             tot_sisa_global += sisa_val
+            tot_vol_po_global += total_vol_po
+            tot_vol_serap_global += t_serap_vol
+            tot_vol_sisa_global += sisa_vol
 
             global_summary_rows.append({
                 "Nomor Kontrak": k_info,
                 "Nomor PO": po_item,
-                "Lingkup Pekerjaan": lingkup_info,
+                "Total Qty PO": f"{total_vol_po:,.2f}",
                 "Total Plafon PO (IDR)": p_po,
-                "Total Terserap (IDR)": t_serap,
+                "Qty Terserap": f"{t_serap_vol:,.2f}",
+                "Total Terserap (IDR)": t_serap_val,
+                "Qty Sisa": f"{sisa_vol:,.2f}",
                 "Sisa Anggaran (IDR)": sisa_val,
                 "Rasio (%)": f"{rasio:.2f}%"
             })
@@ -192,27 +204,19 @@ def tampilkan_rekap_penyerapan_po(
         )
         return
 
-    # KONDISI 2 & 3: KONTRAK / PO TERTENTU DIPILIH (MULTI-PI AGGREGATION)
+    # KONDISI 2 & 3: KONTRAK / PO TERTENTU DIPILIH (DETAIL BREAKDOWN MULTI-PI)
     target_po_list = df_filtered["PO Clean"].unique().tolist()
     if not target_po_list:
         st.info("ℹ️ Tidak ada data PO yang sesuai dengan filter yang dipilih.")
         return
 
-    st.markdown(f"### 📋 Tabel Kontrol Anggaran & Penyerapan PO (Konsolidasi Multi-PI)")
+    st.markdown(f"### 📋 Detail Breakdown Kontrol Anggaran & Penyerapan PO (Multi-PI Tracking)")
 
     for po_item in target_po_list:
         df_op_sub = df_opname[df_opname["PO Clean"] == po_item]
         kontrak_info = df_op_sub["Kontrak Clean"].iloc[0]
-        
-        lingkup_info = "-"
-        if not df_tx.empty:
-            df_tx_sub = df_tx[df_tx["PO Clean"] == po_item]
-            if not df_tx_sub.empty and "Deskripsi PO" in df_tx_sub.columns:
-                lingkup_info = df_tx_sub["Deskripsi PO"].iloc[0]
 
         st.markdown(f"#### 📁 Nomor PO: `{po_item}` | Kontrak: `{kontrak_info}`")
-        if lingkup_info and lingkup_info != "-":
-            st.caption(f"Lingkup Pekerjaan: {lingkup_info}")
 
         df_master_items = df_op_sub.drop_duplicates(subset=["Item Index"]).sort_values("Item Index")
 
@@ -226,6 +230,7 @@ def tampilkan_rekap_penyerapan_po(
             vol_po = float(m_row.get("Volume PO", 0))
             unit_price = float(m_row.get("Unit Price", 0))
             total_price_po = vol_po * unit_price
+            desc_text = str(m_row.get("Item Description", f"Item Parameter #{item_idx}"))
 
             df_item_all_pi = df_op_sub[df_op_sub["Item Index"] == item_idx]
             list_pi_used = df_item_all_pi["PI Clean"].unique().tolist()
@@ -256,7 +261,7 @@ def tampilkan_rekap_penyerapan_po(
 
             tabel_rows.append({
                 "No.": item_idx,
-                "Item Description": f"Item Parameter #{item_idx}<br><span style='font-size:10px; color:#64748b;'>Ditagih via PI: {pi_str_note}</span>",
+                "Item Description": f"{desc_text}<br><span style='font-size:10px; color:#64748b;'>Ditagih via PI: {pi_str_note}</span>",
                 "UOM": "Day / Unit",
                 "Volume PO": f"{vol_po:,.2f}",
                 "Unit Price (IDR)": f"{unit_price:,.2f}",
@@ -276,13 +281,6 @@ def tampilkan_rekap_penyerapan_po(
         
         pct_serap = (tot_val_cum / tot_val_po * 100) if tot_val_po > 0 else 0.0
         pct_sisa = (tot_val_sisa / tot_val_po * 100) if tot_val_po > 0 else 0.0
-
-        st.markdown("""
-            <style>
-            div[data-testid="metric-container"] label { font-size: 13px !important; color: #475569 !important; }
-            div[data-testid="metric-container"] div[data-testid="stMetricValue"] { font-size: 20px !important; font-weight: 700 !important; color: #0f172a !important; }
-            </style>
-        """, unsafe_allow_html=True)
 
         c1, c2, c3, c4 = st.columns(4)
         with c1:
