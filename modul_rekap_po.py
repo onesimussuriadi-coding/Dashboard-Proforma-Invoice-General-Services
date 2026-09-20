@@ -9,7 +9,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Mutasi Purchase Order (PO)</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Analisis perbandingan Base on CTR/PO (dari Parameter Opname) vs Akumulasi Penyerapan & Sisa Anggaran (Deviasi).</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Analisis berjenjang (Kontrak &rarr; PO), tabel kontrol anggaran, rekapitulasi total, dan grafik diagram lingkaran persentase penyerapan.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -20,15 +20,20 @@ def tampilkan_rekap_penyerapan_po(
         return
 
     df_tx = pd.DataFrame(transaksi_list)
-    if df_tx.empty or "Nomor PO" not in df_tx.columns:
-        st.warning("⚠️ Kolom Nomor PO tidak ditemukan pada data transaksi.")
+    if df_tx.empty or "Nomor PO" not in df_tx.columns or "Nomor Kontrak" not in df_tx.columns:
+        st.warning("⚠️ Kolom Nomor PO atau Nomor Kontrak tidak ditemukan pada data transaksi.")
         return
 
     df_tx["PO Clean"] = df_tx["Nomor PO"].astype(str).str.strip()
-    df_tx = df_tx[(df_tx["PO Clean"] != "") & (df_tx["PO Clean"] != "-") & (df_tx["PO Clean"] != "nan")]
+    df_tx["Kontrak Clean"] = df_tx["Nomor Kontrak"].astype(str).str.strip()
+    
+    df_tx = df_tx[
+        (df_tx["PO Clean"] != "") & (df_tx["PO Clean"] != "-") & (df_tx["PO Clean"] != "nan") &
+        (df_tx["Kontrak Clean"] != "") & (df_tx["Kontrak Clean"] != "-") & (df_tx["Kontrak Clean"] != "nan")
+    ]
 
     if df_tx.empty:
-        st.warning("⚠️ Tidak ada Nomor PO yang valid pada data transaksi.")
+        st.warning("⚠️ Tidak ada data transaksi dengan Nomor Kontrak dan PO yang valid.")
         return
 
     # 2. Muat data parameter opname untuk mengambil Volume PO & Unit Price awal
@@ -40,14 +45,24 @@ def tampilkan_rekap_penyerapan_po(
         except:
             pass
 
-    # Ambil daftar unik Nomor PO
-    list_po_unik = sorted(df_tx["PO Clean"].unique().tolist())
-    selected_po = st.selectbox("🔍 Pilih / Filter Berdasarkan Nomor PO:", ["-- SEMUA PO --"] + list_po_unik, key="rekap_po_select")
+    st.markdown("---")
+    
+    # 3. Filter Berjenjang: Pilih Kontrak dulu, baru Pilih PO
+    list_kontrak_unik = sorted(df_tx["Kontrak Clean"].unique().tolist())
+    selected_kontrak = st.selectbox("📂 Pilih Nomor Kontrak:", ["-- SEMUA KONTRAK --"] + list_kontrak_unik, key="rekap_kontrak_select")
 
-    if selected_po != "-- SEMUA PO --":
-        df_filtered = df_tx[df_tx["PO Clean"] == selected_po]
+    if selected_kontrak != "-- SEMUA KONTRAK --":
+        df_filtered_kontrak = df_tx[df_tx["Kontrak Clean"] == selected_kontrak]
     else:
-        df_filtered = df_tx
+        df_filtered_kontrak = df_tx
+
+    list_po_unik = sorted(df_filtered_kontrak["PO Clean"].unique().tolist())
+    selected_po = st.selectbox("🔍 Pilih Nomor PO:", ["-- SEMUA PO DALAM KONTRAK INI --"] + list_po_unik, key="rekap_po_select")
+
+    if selected_po != "-- SEMUA PO DALAM KONTRAK INI --":
+        df_filtered = df_filtered_kontrak[df_filtered_kontrak["PO Clean"] == selected_po]
+    else:
+        df_filtered = df_filtered_kontrak
 
     st.markdown("---")
     st.markdown("### 📋 Tabel Kontrol Anggaran & Penyerapan PO (Base vs Realisasi)")
@@ -55,23 +70,21 @@ def tampilkan_rekap_penyerapan_po(
     for po_item in df_filtered["PO Clean"].unique():
         df_sub_po = df_filtered[df_filtered["PO Clean"] == po_item]
         
-        kontrak_info = df_sub_po.get("Nomor Kontrak", pd.Series([""])).iloc[0]
+        kontrak_info = df_sub_po.get("Kontrak Clean", pd.Series([""])).iloc[0]
         lingkup_info = df_sub_po.get("Deskripsi PO", pd.Series([""])).iloc[0]
 
         st.markdown(f"#### 📁 Nomor PO: `{po_item}` | Kontrak: `{kontrak_info}`")
         if lingkup_info and lingkup_info != "-":
             st.caption(f"Lingkup Pekerjaan: {lingkup_info}")
 
-        # Filter data opname yang bersesuaian dengan nomor PO ini jika ada
         df_opname_sub = pd.DataFrame()
         if not df_opname.empty and "doc_key" in df_opname.columns:
             df_opname_sub = df_opname[df_opname["doc_key"].astype(str).str.contains(str(po_item))]
 
-        # Grouping transaksi berdasarkan Kategori & Uraian Pekerjaan untuk akumulasi aktual
         grouped_aktual = df_sub_po.groupby(["Kategori", "Deskripsi Pekerjaan", "Unit"]).agg(
             Volume_Aktual=('Qty', 'sum'),
             Total_Aktual=('Total Harga', 'sum'),
-            Harga_Satuan=('Harga_Satuan', 'mean') if 'Harga_Satuan' in df_sub_po.columns else ('Harga Satuan', 'mean')
+            Harga_Satuan=('Harga Satuan', 'mean')
         ).reset_index()
 
         tabel_rows = []
@@ -87,8 +100,7 @@ def tampilkan_rekap_penyerapan_po(
             val_aktual = row["Total_Aktual"]
             unit_price = row["Harga_Satuan"]
 
-            # Cari data dasar PO dari opname parameter jika tersedia, jika tidak estimasi dari data transaksi
-            vol_po = vol_aktual * 2 # Default fallback jika parameter opname belum terikat spesifik baris
+            vol_po = vol_aktual * 2
             if not df_opname_sub.empty and idx < len(df_opname_sub):
                 try:
                     vol_po = float(df_opname_sub.iloc[idx].get("Volume PO", vol_aktual))
@@ -123,13 +135,38 @@ def tampilkan_rekap_penyerapan_po(
         df_laporan = pd.DataFrame(tabel_rows)
         st.dataframe(df_laporan, use_container_width=True)
 
-        # Kotak Ringkasan Total
-        c1, c2, c3 = st.columns(3)
+        # --- KOTAK REKAPITULASI TOTAL PER PO ---
+        st.markdown(f"#### 📌 Ringkasan Rekapitulasi Total untuk PO: `{po_item}`")
+        
+        pct_serap = (tot_val_serap / tot_val_po * 100) if tot_val_po > 0 else 0.0
+        pct_sisa = (tot_val_sisa / tot_val_po * 100) if tot_val_po > 0 else 0.0
+
+        c1, c2, c3, c4 = st.columns(4)
         with c1:
             st.metric("Total Plafon PO", f"Rp {tot_val_po:,.2f}")
         with c2:
-            st.metric("Total Akumulasi Penyerapan", f"Rp {tot_val_serap:,.2f}")
+            st.metric("Total Terserap", f"Rp {tot_val_serap:,.2f}", delta=f"{pct_serap:.1f}% dari PO")
         with c3:
-            st.metric("Sisa Anggaran (Deviasi)", f"Rp {tot_val_sisa:,.2f}")
+            st.metric("Sisa Anggaran", f"Rp {tot_val_sisa:,.2f}", delta=f"-{pct_sisa:.1f}% sisa", delta_color="inverse")
+        with c4:
+            st.metric("Rasio Penyerapan", f"{pct_serap:.2f}%")
+
+        # --- DIAGRAM LINGKARAN (PIE CHART) PERSENTASE PENYERAPAN ---
+        st.markdown(f"##### 📉 Grafik Proporsi Penyerapan Anggaran PO `{po_item}`")
+        
+        chart_data = pd.DataFrame({
+            'Kategori': ['Sudah Terserap', 'Sisa Anggaran'],
+            'Nilai': [max(0.0, tot_val_serap), max(0.0, tot_val_sisa)]
+        }).set_index('Kategori')
+
+        # Menampilkan bar chart / chart bawaan Streamlit (atau pie chart via altair/streamlit native)
+        st.altair_chart(
+            __import__('altair').Chart(chart_data.reset_index()).mark_arc(innerRadius=50).encode(
+                theta=__import__('altair').Theta(field="Nilai", type="quantitative"),
+                color=__import__('altair').Color(field="Kategori", type="nominal", scale=__import__('altair').Scale(range=["#10b981", "#cbd5e1"])),
+                tooltip=['Kategori', __import__('altair').Tooltip('Nilai:Q', format=',.2f')]
+            ).properties(width=400, height=300),
+            use_container_width=True
+        )
 
         st.markdown("---")
