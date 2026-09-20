@@ -9,8 +9,8 @@ def tampilkan_rekap_penyerapan_po(
 ):
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Modul Master Plafon PO — Sinkronisasi Modul 0 (Kontrak, Kategori, Uraian & Harga)</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Fokus penyempurnaan hierarki: Nomor Kontrak ➔ Kategori ➔ Uraian Pekerjaan ➔ Harga Satuan Otomatis.</p>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Modul Master Plafon PO — Sinkronisasi Bersih Modul 0</h3>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Struktur pembacaan modular murni langsung dari Database Master Kontrak Modul 0.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -37,170 +37,149 @@ def tampilkan_rekap_penyerapan_po(
 
     df_master = muat_master_po()
 
-    # --- 2. PEMBACAAN & NORMALISASI MASTER REFERENSI KONTRAK (MODUL 0) ---
-    path_kontrak_excel = os.path.join("database_penyimpanan_aman", "database_kontrak.xlsx")
-    df_ref = pd.DataFrame()
-
-    # Prioritas 1: Baca langsung dari parameter master_ref_data yang dikirim dari aplikasi utama
-    if master_ref_data:
-        try:
-            df_ref = pd.DataFrame(master_ref_data)
-        except:
-            pass
-
-    # Prioritas 2: Jika kosong, baca dari file fisik database_kontrak.xlsx
-    if df_ref.empty and os.path.exists(path_kontrak_excel):
-        try:
-            df_ref = pd.read_excel(path_kontrak_excel)
-        except:
-            pass
-
-    # Fallback terakhir jika benar-benar kosong
-    if df_ref.empty:
-        df_ref = pd.DataFrame([
-            {"Nomor Kontrak": "7207250142", "Kategori": "MONTHLY BASIS", "Uraian Pekerjaan": "Jasa Sewa Alat Berat Monthly Basis", "Unit": "Month", "Harga Satuan": 131224000.0}
-        ])
-
-    # Normalisasi Kolom Presisi Sesuai Standar Modul 0
-    col_mapping = {}
-    for c in df_ref.columns:
-        c_lower = str(c).strip().lower()
-        if "kontrak" in c_lower:
-            col_mapping[c] = "Nomor Kontrak"
-        elif "kategori" in c_lower:
-            col_mapping[c] = "Kategori"
-        elif "uraian" in c_lower or "deskripsi" in c_lower:
-            col_mapping[c] = "Uraian Pekerjaan"
-        elif c_lower in ["unit", "uom"]:
-            col_mapping[c] = "Unit"
-        elif "harga" in c_lower:
-            col_mapping[c] = "Harga Satuan"
-
-    df_ref = df_ref.rename(columns=col_mapping)
-
-    # Pembersihan Data (Clean Columns)
-    df_ref["Nomor Kontrak Clean"] = df_ref["Nomor Kontrak"].astype(str).str.strip() if "Nomor Kontrak" in df_ref.columns else ""
-    df_ref["Kategori Clean"] = df_ref["Kategori"].astype(str).str.strip().str.upper() if "Kategori" in df_ref.columns else ""
-    
-    if "Uraian Pekerjaan" in df_ref.columns:
-        df_ref["Uraian Clean"] = df_ref["Uraian Pekerjaan"].astype(str).str.strip()
-    else:
-        df_ref["Uraian Clean"] = ""
+    # --- 2. LOADER MANDIRI MODUL 0 (BERSIH & TERSTANDAR) ---
+    def muat_data_modul_0():
+        # Cek parameter fungsi utama terlebih dahulu
+        if master_ref_data:
+            try:
+                df_temp = pd.DataFrame(master_ref_data)
+                if not df_temp.empty:
+                    return df_temp
+            except:
+                pass
         
-    if "Unit" in df_ref.columns:
-        df_ref["Unit Clean"] = df_ref["Unit"].astype(str).str.strip()
-    else:
-        df_ref["Unit Clean"] = "Month"
+        # Cek file fisik di folder aman
+        path_file = os.path.join("database_penyimpanan_aman", "database_kontrak.xlsx")
+        if os.path.exists(path_file):
+            try:
+                return pd.read_excel(path_file)
+            except:
+                pass
         
-    if "Harga Satuan" in df_ref.columns:
-        df_ref["Harga Clean"] = pd.to_numeric(df_ref["Harga Satuan"], errors='coerce').fillna(0.0)
-    else:
-        df_ref["Harga Clean"] = 0.0
+        return pd.DataFrame()
 
-    # Ambil Seluruh Daftar Nomor Kontrak Unik secara Lengkap dari Modul 0
-    list_kontrak_ref = sorted(df_ref["Nomor Kontrak Clean"].dropna().unique().tolist())
-    list_kontrak_ref = [k for k in list_kontrak_ref if k and k != 'nan' and k != '-']
+    df_raw = muat_data_modul_0()
 
+    if df_raw.empty:
+        st.warning("⚠️ File Master Referensi Modul 0 (`database_kontrak.xlsx`) belum ditemukan atau kosong. Pastikan data sudah diinput di Modul 0.")
+        return
+
+    # Normalisasi Kolom Universal
+    col_map = {}
+    for col in df_raw.columns:
+        c_low = str(col).strip().lower()
+        if any(k in c_low for k in ["kontrak", "no kontrak"]):
+            col_map[col] = "Nomor Kontrak"
+        elif any(k in c_low for k in ["kategori", "jenis"]):
+            col_map[col] = "Kategori"
+        elif any(k in c_low for k in ["uraian", "deskripsi", "pekerjaan", "spesifikasi"]):
+            col_map[col] = "Uraian Pekerjaan"
+        elif any(k in c_low for k in ["unit", "uom", "satuan"]):
+            col_map[col] = "Unit"
+        elif any(k in c_low for k in ["harga", "satuan harga", "rate"]):
+            col_map[col] = "Harga Satuan"
+
+    df_clean = df_raw.rename(columns=col_map)
+
+    # Pastikan kolom esensial terbentuk
+    required_cols = ["Nomor Kontrak", "Kategori", "Uraian Pekerjaan", "Unit", "Harga Satuan"]
+    for rc in required_cols:
+        if rc not in df_clean.columns:
+            df_clean[rc] = "-"
+
+    # Pembersihan tipe data string & numerik
+    df_clean["Nomor Kontrak"] = df_clean["Nomor Kontrak"].astype(str).str.strip()
+    df_clean["Kategori"] = df_clean["Kategori"].astype(str).str.strip().str.upper()
+    df_clean["Uraian Pekerjaan"] = df_clean["Uraian Pekerjaan"].astype(str).str.strip()
+    df_clean["Unit"] = df_clean["Unit"].astype(str).str.strip()
+    df_clean["Harga Satuan Numeric"] = pd.to_numeric(df_clean["Harga Satuan"], errors='coerce').fillna(0.0)
+
+    # Ambil list Nomor Kontrak unik secara bersih
+    list_kontrak_bersih = sorted([k for k in df_clean["Nomor Kontrak"].unique() if k and k != "nan" and k != "-"])
+
+    # Ambil list Nomor PO dari transaksi
     transaksi_list = muat_data_transaksi_func()
     df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
     list_po_ref = sorted(df_tx["Nomor PO"].dropna().astype(str).str.strip().unique().tolist()) if not df_tx.empty and "Nomor PO" in df_tx.columns else ["4500011739", "4500011740"]
 
-    # --- 3. FORM INPUT & HIERARKI KONTRAK ➔ KATEGORI ➔ URAIAN ➔ HARGA ---
-    st.markdown("#### 📝 Form Input & Validasi Master Plafon PO (Hierarki Modul 0)")
-    st.info("ℹ️ Pilih Nomor Kontrak untuk memuat daftar kategori dan uraian pekerjaan yang sesuai secara spesifik.")
+    # --- 3. FORM INPUT BERBASIS HIERARKI BERSIH ---
+    st.markdown("#### 📝 Form Input Master Plafon PO (Struktur Modular Bersih)")
+    st.info("ℹ️ Silakan pilih Nomor Kontrak. Kategori dan Uraian Pekerjaan akan tersinkronisasi otomatis dari database Modul 0.")
 
-    with st.form(key="form_input_master_po_hierarki"):
-        c_m1, c_m2 = st.columns(2)
-        with c_m1:
-            in_kontrak = st.selectbox("📂 Pilih Nomor Kontrak:", list_kontrak_ref if list_kontrak_ref else [""], key="input_master_kontrak")
-        with c_m2:
-            in_po = st.selectbox("🔍 Pilih Nomor PO:", list_po_ref if list_po_ref else [""], key="input_master_po")
+    with st.form(key="form_input_master_po_modular"):
+        c1, c2 = st.columns(2)
+        with c1:
+            in_kontrak = st.selectbox("📂 Pilih Nomor Kontrak:", list_kontrak_bersih if list_kontrak_bersih else [""], key="mod_kontrak")
+        with c2:
+            in_po = st.selectbox("🔍 Pilih Nomor PO:", list_po_ref if list_po_ref else [""], key="mod_po")
 
-        # FILTER HIERARKI 1: Filter Berdasarkan Nomor Kontrak yang Dipilih
-        df_ref_kontrak = df_ref[df_ref["Nomor Kontrak Clean"] == str(in_kontrak).strip()]
-        if df_ref_kontrak.empty:
-            df_ref_kontrak = df_ref  # Fallback jika nomor kontrak spesifik tidak ada barisnya
+        # Filter baris berdasarkan Nomor Kontrak yang dipilih
+        df_k = df_clean[df_clean["Nomor Kontrak"] == in_kontrak]
+        if df_k.empty:
+            df_k = df_clean
 
-        base_list_kat = sorted(df_ref_kontrak["Kategori Clean"].dropna().unique().tolist())
-        base_list_kat = [k for k in base_list_kat if k and k != 'nan']
+        # Ambil Kategori unik untuk kontrak tersebut
+        list_kat = sorted([cat for cat in df_k["Kategori"].unique() if cat and cat != "NAN"])
+        if "PROVISIONAL SUM" not in list_kat:
+            list_kat.append("PROVISIONAL SUM")
+        if "ESTIMATED SUM" not in list_kat:
+            list_kat.append("ESTIMATED SUM")
 
-        if "PROFESSIONAL SUM" not in base_list_kat and "PROVISIONAL SUM" not in base_list_kat:
-            base_list_kat.append("PROVISIONAL SUM")
-        if "ESTIMATED SUM" not in base_list_kat:
-            base_list_kat.append("ESTIMATED SUM")
+        c3, c4, c5 = st.columns(3)
+        with c3:
+            in_kategori = st.selectbox("🏷️ Kategori Pekerjaan:", list_kat if list_kat else ["-"], key=f"mod_kat_{in_kontrak}")
 
-        c_m3, c_m4, c_m5 = st.columns(3)
-        with c_m3:
-            in_kategori = st.selectbox("🏷️ Kategori Pekerjaan:", base_list_kat if base_list_kat else ["-"], key="input_master_kategori")
+        # Deteksi Kategori Khusus
+        is_prov = "PROVISIONAL" in in_kategori or "PROFESSIONAL" in in_kategori
 
-        # Deteksi Kategori Khusus (Provisional/Professional Sum)
-        kat_lower = str(in_kategori).lower()
-        is_provisional = "provisional" in kat_lower or "professional" in kat_lower
-
-        # FILTER HIERARKI 2: Filter Uraian Pekerjaan Murni Berdasarkan Kontrak & Kategori yang Aktif
-        with c_m4:
-            if is_provisional:
-                in_deskripsi = st.text_input("📋 Uraian Pekerjaan / Spesifikasi (Manual):", value="At Cost + Fee 15%", key="input_master_desc_manual")
-                df_f_kat = pd.DataFrame()
+        with c4:
+            if is_prov:
+                in_deskripsi = st.text_input("📋 Uraian Pekerjaan / Spesifikasi (Manual):", value="At Cost + Fee 15%", key=f"mod_desc_manual_{in_kontrak}")
+                df_u = pd.DataFrame()
             else:
-                # Saring data spesifik berdasarkan Kontrak DAN Kategori yang dipilih
-                df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(in_kategori).strip().upper()]
-                if df_f_kat.empty:
-                    df_f_kat = df_ref[df_ref["Kategori Clean"] == str(in_kategori).strip().upper()]
-                
-                raw_list_spek = sorted(df_f_kat["Uraian Clean"].dropna().unique().tolist()) if not df_f_kat.empty else ["- (Tidak ada data uraian)"]
-                raw_list_spek = [s for s in raw_list_spek if s and s != 'nan']
-                if not raw_list_spek:
-                    raw_list_spek = ["- (Tidak ada data uraian)"]
+                # Filter baris berdasarkan Kategori yang aktif
+                df_u = df_k[df_k["Kategori"] == in_kategori]
+                if df_u.empty:
+                    df_u = df_clean[df_clean["Kategori"] == in_kategori]
 
-                spek_display_map = {}
-                spek_options_formatted = []
-                for orig_text in raw_list_spek:
-                    if "BBM & " in orig_text:
-                        parts = orig_text.split("BBM & ")
-                        unique_part = parts[-1].strip() if len(parts) > 1 else orig_text
-                        display_text = f"⭐ [{unique_part}] — ({orig_text})"
-                    else:
-                        display_text = orig_text
-                    spek_display_map[display_text] = orig_text
-                    spek_options_formatted.append(display_text)
+                list_uraian = sorted([uraian for uraian in df_u["Uraian Pekerjaan"].unique() if uraian and uraian != "NAN"])
+                if not list_uraian:
+                    list_uraian = ["- (Tidak ada data uraian)"]
 
-                selected_display_spek = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", spek_options_formatted, key="input_master_deskripsi")
-                in_deskripsi = spek_display_map.get(selected_display_spek, selected_display_spek)
+                in_deskripsi = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", list_uraian, key=f"mod_uraian_{in_kontrak}_{in_kategori}")
 
-        # --- PENGAMBILAN OTOMATIS: HARGA SATUAN & UNIT MENGACU PADA URAIAN PEKERJAAN ---
-        hs_otomatis = 0.0
+        # Ambil Harga Satuan & Unit secara presisi mengacu pada Uraian Pekerjaan yang dipilih
+        harga_otomatis = 0.0
         unit_otomatis = "Month"
-        
-        if not is_provisional and not df_f_kat.empty and in_deskripsi != "- (Tidak ada data uraian)":
-            # Cari baris yang Uraian Clean-nya sama persis dengan in_deskripsi
-            m_row = df_f_kat[df_f_kat["Uraian Clean"] == str(in_deskripsi).strip()]
-            if m_row.empty:
-                m_row = df_f_kat[df_f_kat["Uraian Clean"].str.lower() == str(in_deskripsi).strip().lower()]
+
+        if not is_prov and not df_u.empty and in_deskripsi != "- (Tidak ada data uraian)":
+            row_match = df_u[df_u["Uraian Pekerjaan"] == in_deskripsi]
+            if row_match.empty:
+                row_match = df_u[df_u["Uraian Pekerjaan"].str.lower() == in_deskripsi.lower()]
             
-            if not m_row.empty:
-                row_m = m_row.iloc[0]
+            if not row_match.empty:
+                r_val = row_match.iloc[0]
                 try:
-                    hs_otomatis = float(row_m.get("Harga Clean", row_m.get("Harga Satuan", 0.0)) or 0.0)
+                    harga_otomatis = float(r_val.get("Harga Satuan Numeric", 0.0) or 0.0)
                 except:
-                    hs_otomatis = 0.0
-                unit_otomatis = str(row_m.get("Unit Clean", row_m.get("Unit", "Month")))
+                    harga_otomatis = 0.0
+                unit_otomatis = str(r_val.get("Unit", "Month"))
 
-        with c_m5:
-            u_opts = [unit_otomatis] if is_provisional else sorted(list(set([unit_otomatis, "Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg"])))
-            idx_u = u_opts.index(unit_otomatis) if unit_otomatis in u_opts else 0
-            in_uom = st.selectbox("📏 Satuan / UOM (Otomatis Modul 0):", u_opts, index=idx_u, key="input_master_uom")
+        with c5:
+            list_uom = [unit_otomatis] if is_prov else sorted(list(set([unit_otomatis, "Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg"])))
+            idx_uom = list_uom.index(unit_otomatis) if unit_otomatis in list_uom else 0
+            in_uom = st.selectbox("📏 Satuan / UOM:", list_uom, index=idx_uom, key=f"mod_uom_{in_kontrak}")
 
-        c_m6, c_m7 = st.columns(2)
-        with c_m6:
-            in_vol = st.number_input("📦 Quantity / Volume PO:", value=1.0, step=1.0, format="%.2f")
-        with c_m7:
-            in_price = st.number_input("💵 Unit Price / Harga Satuan (IDR - Mengacu ke Uraian):", value=hs_otomatis, step=1000.0, format="%.2f")
+        c6, c7 = st.columns(2)
+        with c6:
+            in_vol = st.number_input("📦 Quantity / Volume PO:", value=1.0, step=1.0, format="%.2f", key=f"mod_vol_{in_kontrak}")
+        with c7:
+            in_price = st.number_input("💵 Unit Price / Harga Satuan (IDR - Otomatis Modul 0):", value=harga_otomatis, step=1000.0, format="%.2f", key=f"mod_price_{in_kontrak}")
 
-        submit_master = st.form_submit_button("💾 Simpan Item Plafon PO", type="primary")
-        if submit_master:
-            total_plafon_item = in_vol * in_price
-            new_row = {
+        submitted = st.form_submit_button("💾 Simpan Item Plafon PO", type="primary")
+        if submitted:
+            total_plafon = in_vol * in_price
+            new_record = {
                 "Nomor Kontrak": str(in_kontrak).strip(),
                 "Nomor PO": str(in_po).strip(),
                 "Kategori": str(in_kategori).strip(),
@@ -208,24 +187,24 @@ def tampilkan_rekap_penyerapan_po(
                 "UOM": str(in_uom).strip(),
                 "Volume PO": float(in_vol),
                 "Unit Price": float(in_price),
-                "Total Plafon (IDR)": float(total_plafon_item)
+                "Total Plafon (IDR)": float(total_plafon)
             }
-            
-            df_master = pd.concat([df_master, pd.DataFrame([new_row])], ignore_index=True)
+
+            df_master = pd.concat([df_master, pd.DataFrame([new_record])], ignore_index=True)
             if simpan_master_po(df_master):
-                st.success(f"✅ Berhasil! Uraian [{in_deskripsi}] dengan Harga Satuan Rp {in_price:,.2f} tersimpan.")
+                st.success(f"✅ Berhasil! Uraian [{in_deskripsi}] dengan Harga Rp {in_price:,.2f} berhasil disimpan.")
                 st.rerun()
             else:
-                st.error("⚠️ Gagal menyimpan data.")
+                st.error("⚠️ Gagal menyimpan ke file database master PO.")
 
     st.markdown("---")
-    st.markdown("#### 📂 Daftar Plafon PO yang Tersimpan")
+    st.markdown("#### 📂 Daftar Plafon PO Tersimpan")
     if not df_master.empty:
         st.dataframe(df_master, use_container_width=True)
-        if st.button("🗑️ Hapus / Reset Data Plafon PO"):
+        if st.button("🗑️ Reset / Hapus Data Plafon PO", key="reset_plafon_btn"):
             if os.path.exists(path_master_po_excel):
                 os.remove(path_master_po_excel)
             st.success("✅ Data berhasil direset!")
             st.rerun()
     else:
-        st.info("Belum ada data tersimpan.")
+        st.info("Belum ada data Plafon PO tersimpan.")
