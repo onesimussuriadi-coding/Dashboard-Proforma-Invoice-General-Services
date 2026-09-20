@@ -9,8 +9,8 @@ def tampilkan_rekap_penyerapan_po(
 ):
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Modul Master Plafon PO — Sinkronisasi Standar Modul 2</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Menggunakan pola arsitektur hierarki referensi murni yang identik dengan Modul 2.</p>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Modul Master Plafon PO — Sinkronisasi Sempurna Standar Modul 2</h3>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Vlookup Harga Satuan & Uraian Pekerjaan disamakan 100% presisi dengan Logika Modul 2.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -54,7 +54,6 @@ def tampilkan_rekap_penyerapan_po(
     # Normalisasi DataFrame Referensi Sesuai Pola Modul 2 dengan Pengaman Series
     df_ref = pd.DataFrame(master_ref_data)
     
-    # Deteksi kolom secara aman
     col_map = {}
     for c in df_ref.columns:
         c_low = str(c).strip().lower()
@@ -63,11 +62,11 @@ def tampilkan_rekap_penyerapan_po(
         elif "kategori" in c_low:
             col_map[c] = "Kategori"
         elif any(k in c_low for k in ["uraian", "deskripsi", "pekerjaan"]):
-            col_map[col] = "Uraian Pekerjaan"
+            col_map[c] = "Uraian Pekerjaan"
         elif any(k in c_low for k in ["unit", "uom", "satuan"]):
-            col_map[col] = "Unit"
+            col_map[c] = "Unit"
         elif "harga" in c_low:
-            col_map[col] = "Harga Satuan"
+            col_map[c] = "Harga Satuan"
 
     df_ref = df_ref.rename(columns=col_map)
 
@@ -100,26 +99,23 @@ def tampilkan_rekap_penyerapan_po(
     else:
         df_ref["Harga Clean"] = 0.0
 
-    # Ambil list Nomor Kontrak unik
     list_kontrak = sorted(list(set([str(k).strip() for k in df_ref["Nomor Kontrak Clean"].unique() if k and k != "nan" and k != "-"])))
 
-    # Ambil list Nomor PO dari transaksi
     transaksi_list = muat_data_transaksi_func()
     df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
     list_po = sorted(df_tx["Nomor PO"].dropna().astype(str).str.strip().unique().tolist()) if not df_tx.empty and "Nomor PO" in df_tx.columns else ["4500011739", "4500011740", "4500010745"]
 
-    # --- 3. FORM INPUT BERBASIS POLA HIERARKI MODUL 2 ---
-    st.markdown("#### 📝 Form Input Master Plafon PO (Pola Standar Modul 2)")
-    st.info("ℹ️ Pilih Nomor Kontrak, Kategori, dan Uraian Pekerjaan. Vlookup harga dan UOM aktif mengacu presisi seperti Modul 2.")
+    # --- 3. FORM INPUT BERBASIS POLA MODUL 2 ---
+    st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Modul 2)")
+    st.info("ℹ️ Pilih Nomor Kontrak, Kategori, dan Uraian Pekerjaan. Vlookup harga dijamin identik dengan Modul 2.")
 
-    with st.form(key="form_master_po_modul2_style"):
+    with st.form(key="form_master_po_modul2_sync"):
         c_top1, c_top2 = st.columns(2)
         with c_top1:
             selected_kontrak = st.selectbox("📂 Pilih Nomor Kontrak", list_kontrak if list_kontrak else [""], key="po_sel_kontrak")
         with c_top2:
             selected_po = st.selectbox("🔍 Pilih Nomor PO", list_po if list_po else [""], key="po_sel_nomor_po")
 
-        # Filter Referensi Berdasarkan Kontrak Aktif (Sesuai Pola Modul 2)
         df_ref_kontrak = df_ref[df_ref["Nomor Kontrak Clean"] == str(selected_kontrak).strip()]
         if df_ref_kontrak.empty:
             df_ref_kontrak = df_ref 
@@ -164,7 +160,7 @@ def tampilkan_rekap_penyerapan_po(
                 selected_display_spek = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi", spek_options_formatted if spek_options_formatted else ["-"], key="po_spek_pilih")
                 spek_pilih = spek_display_map.get(selected_display_spek, selected_display_spek)
 
-        # VLOOKUP OTOMATIS HARGA & UOM (Sesuai Logika Modul 2)
+        # --- VLOOKUP PRESISI PERSIS SEPERTI MODUL 2 ---
         hs_otomatis = 0.0
         unit_otomatis = "Month"
         if not is_provisional:
@@ -232,7 +228,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("#### 📂 Daftar Master Plafon PO Tersimpan")
     if not df_master.empty:
         st.dataframe(df_master, use_container_width=True)
-        if st.button("🗑️ Reset / Hapus Data Plafon PO", key="reset_plafon_modul2_style"):
+        if st.button("🗑️ Reset / Hapus Data Plafon PO", key="reset_plafon_modul2_sync"):
             if os.path.exists(path_master_po_excel):
                 os.remove(path_master_po_excel)
             st.success("✅ Data berhasil direset!")
