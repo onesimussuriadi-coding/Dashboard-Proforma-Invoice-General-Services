@@ -51,7 +51,7 @@ def tampilkan_rekap_penyerapan_po(
         st.warning("⚠️ Belum ada data di Master Referensi Harga (Modul 0 / database_master_referensi.xlsx).")
         return
 
-    # Normalisasi DataFrame Referensi Sesuai Pola Modul 2
+    # Normalisasi DataFrame Referensi Sesuai Pola Modul 2 dengan Pengaman Series
     df_ref = pd.DataFrame(master_ref_data)
     
     # Deteksi kolom secara aman
@@ -63,31 +63,40 @@ def tampilkan_rekap_penyerapan_po(
         elif "kategori" in c_low:
             col_map[c] = "Kategori"
         elif any(k in c_low for k in ["uraian", "deskripsi", "pekerjaan"]):
-            col_map[c] = "Uraian Pekerjaan"
+            col_map[col] = "Uraian Pekerjaan"
         elif any(k in c_low for k in ["unit", "uom", "satuan"]):
-            col_map[c] = "Unit"
+            col_map[col] = "Unit"
         elif "harga" in c_low:
-            col_map[c] = "Harga Satuan"
+            col_map[col] = "Harga Satuan"
 
     df_ref = df_ref.rename(columns=col_map)
 
-    df_ref["Nomor Kontrak Clean"] = df_ref["Nomor Kontrak"].astype(str).str.strip() if "Nomor Kontrak" in df_ref.columns else ""
-    df_ref["Kategori Clean"] = df_ref["Kategori"].astype(str).str.strip().str.upper() if "Kategori" in df_ref.columns else ""
+    def safe_s(col_name, default_val=""):
+        if col_name in df_ref.columns:
+            s = df_ref[col_name]
+            if isinstance(s, pd.DataFrame):
+                s = s.iloc[:, 0]
+            return s.astype(str).str.strip()
+        else:
+            return pd.Series([default_val] * len(df_ref))
+
+    df_ref["Nomor Kontrak Clean"] = safe_s("Nomor Kontrak")
+    df_ref["Kategori Clean"] = safe_s("Kategori").str.upper()
     
     if "Uraian Pekerjaan" in df_ref.columns:
-        df_ref["Uraian Clean"] = df_ref["Uraian Pekerjaan"].astype(str).str.strip()
+        df_ref["Uraian Clean"] = safe_s("Uraian Pekerjaan")
     elif "Deskripsi Pekerjaan" in df_ref.columns:
-        df_ref["Uraian Clean"] = df_ref["Deskripsi Pekerjaan"].astype(str).str.strip()
+        df_ref["Uraian Clean"] = safe_s("Deskripsi Pekerjaan")
     else:
-        df_ref["Uraian Clean"] = ""
+        df_ref["Uraian Clean"] = safe_s("Uraian", "")
 
-    if "Unit" in df_ref.columns:
-        df_ref["Unit Clean"] = df_ref["Unit"].astype(str).str.strip()
-    else:
-        df_ref["Unit Clean"] = "Month"
+    df_ref["Unit Clean"] = safe_s("Unit", "Month")
 
     if "Harga Satuan" in df_ref.columns:
-        df_ref["Harga Clean"] = pd.to_numeric(df_ref["Harga Satuan"], errors='coerce').fillna(0.0)
+        hs_col = df_ref["Harga Satuan"]
+        if isinstance(hs_col, pd.DataFrame):
+            hs_col = hs_col.iloc[:, 0]
+        df_ref["Harga Clean"] = pd.to_numeric(hs_col, errors='coerce').fillna(0.0)
     else:
         df_ref["Harga Clean"] = 0.0
 
