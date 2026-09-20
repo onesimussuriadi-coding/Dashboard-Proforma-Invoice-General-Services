@@ -11,7 +11,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Rekapitulasi & Kontrol Penyerapan Purchase Order (PO) - Master Plafon & Multi-PI Tracking</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat (Sinkronisasi mutlak presisi selaras Modul 2).</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Kontrol anggaran berbasis Master Plafon PO terpusat (Sinkronisasi mutlak presisi merujuk Excel Master Referensi Kontrak).</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -52,11 +52,6 @@ def tampilkan_rekap_penyerapan_po(
         if "Nomor PO" in df_tx.columns:
             list_po_ref = sorted(df_tx["Nomor PO"].dropna().astype(str).str.strip().unique().tolist())
 
-    if not list_kontrak_ref:
-        list_kontrak_ref = ["7201250141"]
-    if not list_po_ref:
-        list_po_ref = ["4500011739"]
-
     if not master_ref_data:
         path_kontrak_excel = os.path.join("database_penyimpanan_aman", "database_kontrak.xlsx")
         if os.path.exists(path_kontrak_excel):
@@ -66,7 +61,7 @@ def tampilkan_rekap_penyerapan_po(
             except:
                 master_ref_data = []
 
-    # --- STANDAR PEMBACAAN DF_REF 100% IDENTIK MODUL 2 ---
+    # --- STANDAR PEMBACAAN DF_REF SESUAI STRUKTUR EXCEL MASTER ---
     df_ref = pd.DataFrame(master_ref_data) if master_ref_data else pd.DataFrame()
     if not df_ref.empty:
         df_ref["Nomor Kontrak Clean"] = df_ref["Nomor Kontrak"].astype(str).str.strip() if "Nomor Kontrak" in df_ref.columns else ""
@@ -90,16 +85,24 @@ def tampilkan_rekap_penyerapan_po(
             df_ref["Harga Clean"] = 0.0
     else:
         df_ref = pd.DataFrame([
-            {"Nomor Kontrak Clean": "7201250141", "Kategori Clean": "ADDITIONAL CAMP SERVICES", "Uraian Clean": "Food & beverage, main course", "Unit Clean": "Day", "Harga Clean": 65000.0},
-            {"Nomor Kontrak Clean": "7201250141", "Kategori Clean": "HEAVY TRANSPORTATION & EQUIPMENT RENTAL", "Uraian Clean": "Heavy Equipment Unit", "Unit Clean": "Month", "Harga Clean": 15000000.0}
+            {"Nomor Kontrak Clean": "7207250142", "Kategori Clean": "MONTHLY BASIS", "Uraian Clean": "Jasa Sewa Alat Berat Monthly Basis", "Unit Clean": "Month", "Harga Clean": 131224000.0}
         ])
+
+    # Ambil juga nomor kontrak dari master referensi jika list dari transaksi kosong
+    if not list_kontrak_ref and not df_ref.empty:
+        list_kontrak_ref = sorted(df_ref["Nomor Kontrak Clean"].dropna().unique().tolist())
+    if not list_kontrak_ref:
+        list_kontrak_ref = ["7207250142", "7201250141"]
+
+    if not list_po_ref:
+        list_po_ref = ["4500011739"]
 
     # --- TAB / SUB-MENU ---
     tab_pilih, tab_input = st.tabs(["📊 Lihat Rekapitulasi & Kontrol PO", "➕ Input / Kelola Master Plafon PO"])
 
     with tab_input:
-        st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Mutlak Modul 2)")
-        st.info("ℹ️ Pilih Nomor Kontrak dan PO. Kategori dan Uraian Pekerjaan membaca secara presisi persis seperti standar input Modul 2.")
+        st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Berjenjang Kontrak & Kategori)")
+        st.info("ℹ️ Pilih Nomor Kontrak dan PO. Kategori dan Uraian Pekerjaan membaca secara presisi langsung dari database Master Referensi Excel.")
 
         with st.form(key="form_input_master_po"):
             c_m1, c_m2 = st.columns(2)
@@ -108,10 +111,10 @@ def tampilkan_rekap_penyerapan_po(
             with c_m2:
                 in_po = st.selectbox("🔍 Pilih Nomor PO:", list_po_ref, key="input_master_po")
 
-            # --- LANGKAH 1: FILTER KONTRAK & KATEGORI PERSIS MODUL 2 ---
+            # --- LANGKAH 1: FILTER MASTER REF STRICTLY BERDASARKAN NOMOR KONTRAK TERPILIH ---
             df_ref_kontrak = df_ref[df_ref["Nomor Kontrak Clean"] == str(in_kontrak).strip()]
             if df_ref_kontrak.empty:
-                df_ref_kontrak = df_ref 
+                df_ref_kontrak = df_ref # Fallback aman
 
             base_list_kat = sorted(df_ref_kontrak["Kategori Clean"].dropna().unique().tolist())
             if not base_list_kat and not df_ref.empty:
@@ -126,7 +129,7 @@ def tampilkan_rekap_penyerapan_po(
             with c_m3:
                 in_kategori = st.selectbox("🏷️ Kategori Pekerjaan:", base_list_kat if base_list_kat else ["-"], key="input_master_kategori")
 
-            # --- LANGKAH 2: FILTER URAIAN PEKERJAAN MURNI BERDASARKAN KATEGORI TERPILIH (PERSIS MODUL 2) ---
+            # --- LANGKAH 2: FILTER URAIAN PEKERJAAN MURNI BERDASARKAN KONTRAK & KATEGORI TERPILIH ---
             kat_lower = str(in_kategori).lower()
             is_provisional = "provisional" in kat_lower or "professional" in kat_lower
 
@@ -135,6 +138,7 @@ def tampilkan_rekap_penyerapan_po(
                     in_deskripsi = st.text_input("📋 Uraian Pekerjaan / Spesifikasi (Manual):", value="At Cost + Fee 15%", key="input_master_desc_manual")
                     df_f_kat = pd.DataFrame()
                 else:
+                    # Filter mutlak dari df_ref_kontrak berdasarkan Kategori yang diklik
                     df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(in_kategori).strip().upper()]
                     if df_f_kat.empty:
                         df_f_kat = df_ref[df_ref["Kategori Clean"] == str(in_kategori).strip().upper()]
@@ -144,19 +148,14 @@ def tampilkan_rekap_penyerapan_po(
                     spek_display_map = {}
                     spek_options_formatted = []
                     for orig_text in raw_list_spek:
-                        if "BBM & " in orig_text:
-                            parts = orig_text.split("BBM & ")
-                            unique_part = parts[-1].strip() if len(parts) > 1 else orig_text
-                            display_text = f"⭐ [{unique_part}] — ({orig_text})"
-                        else:
-                            display_text = orig_text
+                        display_text = orig_text
                         spek_display_map[display_text] = orig_text
                         spek_options_formatted.append(display_text)
 
                     selected_display_spek = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", spek_options_formatted if spek_options_formatted else ["-"], key="input_master_deskripsi")
                     in_deskripsi = spek_display_map.get(selected_display_spek, selected_display_spek)
 
-            # --- LANGKAH 3: AMBIL HARGA SATUAN & UNIT OTOMATIS BERDASARKAN FILTER YANG AKTIF ---
+            # --- LANGKAH 3: AMBIL UNIT & HARGA SATUAN OTOMATIS DARI BARIS EXCEL ---
             hs_otomatis = 0.0
             unit_otomatis = "Month"
             if not is_provisional and not df_f_kat.empty and in_deskripsi != "- (Tidak ada data uraian)":
@@ -181,13 +180,13 @@ def tampilkan_rekap_penyerapan_po(
                     u_opts.insert(0, def_unit_val)
                 idx_u = u_opts.index(def_unit_val) if def_unit_val in u_opts else 0
                 
-                in_uom = st.selectbox("📏 Satuan / UOM (Otomatis Modul 0):", u_opts, index=idx_u, key="input_master_uom")
+                in_uom = st.selectbox("📏 Satuan / UOM (Otomatis Excel):", u_opts, index=idx_u, key="input_master_uom")
 
             c_m6, c_m7 = st.columns(2)
             with c_m6:
                 in_vol = st.number_input("📦 Quantity / Volume PO (Isi Manual):", value=0.0, step=1.0, format="%.2f")
             with c_m7:
-                in_price = st.number_input("💵 Unit Price / Harga Satuan (IDR - Otomatis dari Referensi Kontrak):", value=hs_otomatis, step=1000.0, format="%.2f")
+                in_price = st.number_input("💵 Unit Price / Harga Satuan (IDR - Otomatis dari Excel):", value=hs_otomatis, step=1000.0, format="%.2f")
 
             submit_master = st.form_submit_button("💾 Simpan Item ke Master Plafon PO", type="primary")
             if submit_master:
@@ -452,7 +451,7 @@ def tampilkan_rekap_penyerapan_po(
             }).set_index('Kategori')
 
             st.altair_chart(
-                alt.Chart(chart_data.reset_index()).mark_arc(innerRadius=50).encode(
+                alt.Chart(chart_global.reset_index()).mark_arc(innerRadius=50).encode(
                     theta=alt.Theta(field="Nilai", type="quantitative"),
                     color=alt.Color(
                         field="Kategori", 
