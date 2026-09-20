@@ -76,9 +76,11 @@ def tampilkan_modul_2_rincian(
                 
                 matched_tx_items = [t for t in existing_tx_list if bersih_angka_func(t.get("PI No.")) == pi_target]
                 if matched_tx_items:
-                    st.session_state["num_rows"] = len(matched_tx_items)
+                    st.session_state.row_indices = list(range(len(matched_tx_items)))
+                    st.session_state.next_row_id = len(matched_tx_items)
                 else:
-                    st.session_state["num_rows"] = 1
+                    st.session_state.row_indices = [0]
+                    st.session_state.next_row_id = 1
                 st.rerun()
 
     loaded_tx_items = []
@@ -228,15 +230,18 @@ def tampilkan_modul_2_rincian(
     if "ESTIMATED SUM" not in base_list_kat:
         base_list_kat.append("ESTIMATED SUM")
 
-    if "num_rows" not in st.session_state:
-        st.session_state.num_rows = len(loaded_tx_items) if loaded_tx_items else 1
+    # PENGELOLAAN INDEKS BARIS DINAMIS (Mendukung hapus baris spesifik)
+    if "row_indices" not in st.session_state:
+        initial_len = len(loaded_tx_items) if loaded_tx_items else 1
+        st.session_state.row_indices = list(range(initial_len))
+        st.session_state.next_row_id = initial_len
 
     items_data_input = []
     
-    for i in range(st.session_state.num_rows):
-        default_item_data = loaded_tx_items[i] if loaded_tx_items and i < len(loaded_tx_items) else {}
+    # Render setiap baris berdasarkan list row_indices yang aktif
+    for loop_idx, i in enumerate(st.session_state.row_indices):
+        default_item_data = loaded_tx_items[loop_idx] if loaded_tx_items and loop_idx < len(loaded_tx_items) else {}
         
-        # PERBAIKAN KATEGORI & URAIAN DARI DATA TERSIMPAN JIKA ADA
         def_kat_item = str(default_item_data.get("Kategori", "")).strip().upper()
         list_kat = list(base_list_kat)
         if def_kat_item and def_kat_item not in list_kat:
@@ -245,12 +250,22 @@ def tampilkan_modul_2_rincian(
             list_kat.remove(def_kat_item)
             list_kat.insert(0, def_kat_item)
 
+        # Header Baris & Tombol Hapus Spesifik (Kecuali Direksi / Sisa 1 Baris)
+        col_hdr1, col_hdr2 = st.columns([4, 1])
+        with col_hdr1:
+            st.markdown(f"#### 🔹 Item Pekerjaan #{loop_idx + 1}")
+        with col_hdr2:
+            if not is_management and len(st.session_state.row_indices) > 1:
+                if st.button(f"🗑️ Hapus Baris #{loop_idx + 1}", key=f"del_row_{i}"):
+                    st.session_state.row_indices.remove(i)
+                    st.rerun()
+
         c_k1, c_k2 = st.columns(2)
         with c_k1:
             idx_kat = 0 if list_kat else 0
             if def_kat_item in list_kat:
                 idx_kat = list_kat.index(def_kat_item)
-            kat_pilih = st.selectbox(f"Kategori Pekerjaan {i+1}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}", disabled=is_management)
+            kat_pilih = st.selectbox(f"Kategori Pekerjaan {i}", list_kat if list_kat else ["-"], index=idx_kat, key=f"kat_{i}", disabled=is_management)
         
         kat_lower = str(kat_pilih).lower()
         is_provisional = "provisional" in kat_lower or "professional" in kat_lower
@@ -264,7 +279,7 @@ def tampilkan_modul_2_rincian(
                 else:
                     default_desc_final = current_desc_val
 
-                spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i+1} (Manual)", value=default_desc_final, key=f"spek_manual_{i}", disabled=is_management)
+                spek_pilih = st.text_input(f"Uraian Pekerjaan / Spesifikasi {i} (Manual)", value=default_desc_final, key=f"spek_manual_{i}", disabled=is_management)
             else:
                 df_f_kat = df_ref_kontrak[df_ref_kontrak["Kategori Clean"] == str(kat_pilih).strip().upper()]
                 if df_f_kat.empty:
@@ -298,7 +313,7 @@ def tampilkan_modul_2_rincian(
                                 idx_spek = 0
                             break
 
-                selected_display_spek = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i+1}", spek_options_formatted if spek_options_formatted else ["-"], index=idx_spek, key=f"spek_{i}", disabled=is_management)
+                selected_display_spek = st.selectbox(f"Uraian Pekerjaan / Spesifikasi {i}", spek_options_formatted if spek_options_formatted else ["-"], index=idx_spek, key=f"spek_{i}", disabled=is_management)
                 spek_pilih = spek_display_map.get(selected_display_spek, selected_display_spek)
 
         hs_otomatis = 0.0
@@ -327,7 +342,7 @@ def tampilkan_modul_2_rincian(
                 def_qty = float(default_item_data.get("Qty", 1.0) or 1.0)
             except:
                 def_qty = 1.0
-            q_val = st.number_input(f"Qty {i+1}", value=def_qty, key=f"qty_{i}", disabled=is_management)
+            q_val = st.number_input(f"Qty {i}", value=def_qty, key=f"qty_{i}", disabled=is_management)
         with c_item2:
             default_u_opts = ["Month", "Day", "Ls", "Unit", "Trip", "Jam", "EA", "AU", "Kg", "Pallet", "Ltr"]
             existing_u_from_master = df_ref["Unit"].dropna().astype(str).unique().tolist() if "Unit" in df_ref.columns else []
@@ -337,13 +352,11 @@ def tampilkan_modul_2_rincian(
             if def_unit not in u_opts and def_unit:
                 u_opts.insert(0, def_unit)
             idx_u = u_opts.index(def_unit) if def_unit in u_opts else 0
-            u_val = st.selectbox(f"Unit {i+1}", u_opts, index=idx_u, key=f"unit_{i}", disabled=is_management)
+            u_val = st.selectbox(f"Unit {i}", u_opts, index=idx_u, key=f"unit_{i}", disabled=is_management)
 
         with c_item3:
-            # PULL TANGGAL MULAI TERSIMPAN (TIDAK MERESET KE HARI INI)
             def_tm_str = str(default_item_data.get("Tanggal Mulai", ""))
             try:
-                # Coba parse berbagai format tanggal (mendukung string bersih atau format lama dengan waktu)
                 clean_tm_str = def_tm_str.split()[0] if def_tm_str else ""
                 def_tm = datetime.strptime(clean_tm_str, "%Y-%m-%d").date()
             except:
@@ -351,10 +364,9 @@ def tampilkan_modul_2_rincian(
                     def_tm = datetime.strptime(clean_tm_str, "%d %b %Y").date()
                 except:
                     def_tm = date.today()
-            tm_val = st.date_input(f"Tanggal Mulai {i+1}", value=def_tm, key=f"tm_{i}", disabled=is_management)
+            tm_val = st.date_input(f"Tanggal Mulai {i}", value=def_tm, key=f"tm_{i}", disabled=is_management)
 
         with c_item4:
-            # PULL TANGGAL SELESAI TERSIMPAN (TIDAK MERESET KE HARI INI)
             def_ts_str = str(default_item_data.get("Tanggal Selesai", ""))
             try:
                 clean_ts_str = def_ts_str.split()[0] if def_ts_str else ""
@@ -364,17 +376,16 @@ def tampilkan_modul_2_rincian(
                     def_ts = datetime.strptime(clean_ts_str, "%d %b %Y").date()
                 except:
                     def_ts = date.today()
-            ts_val = st.date_input(f"Tanggal Selesai {i+1}", value=def_ts, key=f"ts_{i}", disabled=is_management)
+            ts_val = st.date_input(f"Tanggal Selesai {i}", value=def_ts, key=f"ts_{i}", disabled=is_management)
 
         if is_provisional:
             try:
                 def_harga_manual = float(default_item_data.get("Harga Satuan", 0.0) or 0.0)
             except:
                 def_harga_manual = 0.0
-            hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i+1} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}", disabled=is_management)
+            hs_manual = st.number_input(f"Harga At Cost / Nilai Dasar {i} (Rp)", min_value=0.0, value=def_harga_manual, step=1000.0, format="%.2f", key=f"hs_prov_{i}", disabled=is_management)
             hs_final = hs_manual
         else:
-            # AMBIL HARGA DARI DATA TERSIMPAN JIKA KATEGORI & SPESIFIKASI SAMA, ATAU DARI MASTER
             try:
                 def_saved_hs = float(default_item_data.get("Harga Satuan", 0.0) or 0.0)
             except:
@@ -411,7 +422,7 @@ def tampilkan_modul_2_rincian(
                 st.markdown(f"📊 **Estimasi Total Harga:** `{formatted_total}`")
 
         def_ket = str(default_item_data.get("Keterangan", ""))
-        ket_val = st.text_input(f"Keterangan Tambahan {i+1}", value=def_ket, key=f"ket_{i}", disabled=is_management)
+        ket_val = st.text_input(f"Keterangan Tambahan {i}", value=def_ket, key=f"ket_{i}", disabled=is_management)
         st.markdown("---")
 
         items_data_input.append({
@@ -419,7 +430,6 @@ def tampilkan_modul_2_rincian(
             "deskripsi": spek_pilih,
             "qty": q_val,
             "unit": u_val,
-            # FORMAT TANGGAL DISIMPAN MURNI TANPA JAM (YYYY-MM-DD)
             "tgl_mulai": tm_val.strftime("%Y-%m-%d"),
             "tgl_selesai": ts_val.strftime("%Y-%m-%d"),
             "harga_satuan": hs_final,
@@ -464,11 +474,13 @@ def tampilkan_modul_2_rincian(
             st.info("ℹ️ Tombol manajemen baris, penyimpanan, dan distribusi data dinonaktifkan untuk akun Direksi.")
 
         if submit_tambah_baris:
-            st.session_state.num_rows += 1
+            new_id = st.session_state.get("next_row_id", len(st.session_state.row_indices))
+            st.session_state.row_indices.append(new_id)
+            st.session_state.next_row_id = new_id + 1
             st.rerun()
 
-        if submit_kurang_baris and st.session_state.num_rows > 1:
-            st.session_state.num_rows -= 1
+        if submit_kurang_baris and len(st.session_state.row_indices) > 1:
+            st.session_state.row_indices.pop()
             st.rerun()
 
         if submit_simpan_sementara:
@@ -590,6 +602,7 @@ def tampilkan_modul_2_rincian(
                 existing_tx.append(data_transaksi)
 
             if simpan_data_transaksi_func(existing_tx):
-                st.session_state.num_rows = 1
+                st.session_state.row_indices = [0]
+                st.session_state.next_row_id = 1
                 st.success(f"🎉 Berhasil mendistribusikan data secara permanen ke file lokal Excel untuk Proforma Invoice [{pi_baru}]!")
             st.rerun()
