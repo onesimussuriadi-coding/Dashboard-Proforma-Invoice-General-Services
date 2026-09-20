@@ -671,7 +671,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     terbilang_str = terbilang(grand_total)
 
     # =========================================================================
-    # --- PERBAIKAN PEMBACAAN TKDN (FOKUS UTAMA: MENGAMBIL NILAI ABSOLUT RUPIAH) ---
+    # --- PEMBACAAN DINAMIS & KOMPLIT SELURUH DATA TKDN DARI ARSIP EXCEL ---
     # =========================================================================
     excel_file_tkdn_rekap = os.path.join("database_penyimpanan_aman", "database_tkdn_tersimpan.xlsx")
     tkdn_record_match = {}
@@ -689,33 +689,62 @@ def tampilkan_paket_lengkap(transaksi_list):
     if tkdn_total_tagihan <= 0:
         tkdn_total_tagihan = grand_total
 
-    # BACA NILAI NOMINAL ABSOLUT RUPIAH LANGSUNG DARI ARSIP EXCEL TKDN
+    # 1. Komponen Biaya Bahan (Material) - Rupiah & USD Dinamis
     kdn_1 = float(tkdn_record_match.get('Nilai KDN Bahan', 0.0))
     kln_1 = float(tkdn_record_match.get('Nilai KLN Bahan', 0.0))
     tot_biaya_1 = kdn_1 + kln_1
 
+    usd_kdn_1 = float(tkdn_record_match.get('USD Nilai KDN Bahan', 0.0))
+    usd_kln_1 = float(tkdn_record_match.get('USD Nilai KLN Bahan', 0.0))
+    usd_tot_biaya_1 = usd_kdn_1 + usd_kln_1
+
+    # 2. Komponen Biaya Tenaga Kerja & Konsultan - Rupiah & USD Dinamis
     kdn_2 = float(tkdn_record_match.get('Nilai KDN Tenaga Kerja', 0.0))
     kln_2 = float(tkdn_record_match.get('Nilai KLN Tenaga Kerja', 0.0))
     tot_biaya_2 = kdn_2 + kln_2
 
-    kdn_3 = float(tkdn_record_match.get('Nilai KDN Alat', 0.0))
-    kln_3 = float(tkdn_record_match.get('Nilai KLN Alat', 0.0))
+    usd_kdn_2 = float(tkdn_record_match.get('USD Nilai KDN Tenaga Kerja', 0.0))
+    usd_kln_2 = float(tkdn_record_match.get('USD Nilai KLN Tenaga Kerja', 0.0))
+    usd_tot_biaya_2 = usd_kdn_2 + usd_kln_2
+
+    # 3. Komponen Biaya Alat Kerja / Fasilitas Kerja - Rupiah & USD Dinamis
+    kdn_3 = float(tkdn_record_match.get('Nilai KDN Alat', tkdn_record_match.get('Nilai KDN Alat Kerja', 0.0)))
+    kln_3 = float(tkdn_record_match.get('Nilai KLN Alat', tkdn_record_match.get('Nilai KLN Alat Kerja', 0.0)))
     tot_biaya_3 = kdn_3 + kln_3
 
-    kdn_4 = float(tkdn_record_match.get('Nilai KDN Jasa', 0.0))
-    kln_4 = float(tkdn_record_match.get('Nilai KLN Jasa', 0.0))
+    usd_kdn_3 = float(tkdn_record_match.get('USD Nilai KDN Alat', tkdn_record_match.get('USD Nilai KDN Alat Kerja', 0.0)))
+    usd_kln_3 = float(tkdn_record_match.get('USD Nilai KLN Alat', tkdn_record_match.get('USD Nilai KLN Alat Kerja', 0.0)))
+    usd_tot_biaya_3 = usd_kdn_3 + usd_kln_3
+
+    # 4. Komponen Biaya Jasa Umum - Rupiah & USD Dinamis
+    kdn_4 = float(tkdn_record_match.get('Nilai KDN Jasa', tkdn_record_match.get('Nilai KDN Jasa Umum', 0.0)))
+    kln_4 = float(tkdn_record_match.get('Nilai KLN Jasa', tkdn_record_match.get('Nilai KLN Jasa Umum', 0.0)))
     tot_biaya_4 = kdn_4 + kln_4
 
+    usd_kdn_4 = float(tkdn_record_match.get('USD Nilai KDN Jasa', tkdn_record_match.get('USD Nilai KDN Jasa Umum', 0.0)))
+    usd_kln_4 = float(tkdn_record_match.get('USD Nilai KLN Jasa', tkdn_record_match.get('USD Nilai KLN Jasa Umum', 0.0)))
+    usd_tot_biaya_4 = usd_kdn_4 + usd_kln_4
+
+    # Total Biaya Rupiah & USD
     tot_kdn_biaya = kdn_1 + kdn_2 + kdn_3 + kdn_4
     tot_kln_biaya = kln_1 + kln_2 + kln_3 + kln_4
     jumlah_biaya_total = tot_biaya_1 + tot_biaya_2 + tot_biaya_3 + tot_biaya_4
 
+    usd_tot_kdn_biaya = usd_kdn_1 + usd_kdn_2 + usd_kdn_3 + usd_kdn_4
+    usd_tot_kln_biaya = usd_kln_1 + usd_kln_2 + usd_kln_3 + usd_kln_4
+    usd_jumlah_biaya_total = usd_tot_biaya_1 + usd_tot_biaya_2 + usd_tot_biaya_3 + usd_tot_biaya_4
+
+    # 5. Komponen Bukan Biaya (Non-cost Component) - Rupiah & USD Dinamis
     komponen_bukan_biaya = float(tkdn_record_match.get('Komponen Bukan Biaya', 0.0))
+    usd_komponen_bukan_biaya = float(tkdn_record_match.get('USD Komponen Bukan Biaya', 0.0))
+
     jumlah_nilai_total = jumlah_biaya_total + komponen_bukan_biaya
     if jumlah_nilai_total <= 0:
         jumlah_nilai_total = tkdn_total_tagihan
 
-    persen_tkdn_akhir = (tot_kdn_biaya / jumlah_nilai_total) * 100 if jumlah_nilai_total > 0 else 95.0
+    usd_jumlah_nilai_total = usd_jumlah_biaya_total + usd_komponen_bukan_biaya
+
+    persen_tkdn_akhir = (tot_kdn_biaya / jumlah_nilai_total) * 100 if jumlah_nilai_total > 0 else (100.0 if jumlah_nilai_total == 0 else 0.0)
 
     raw_tkdn_date = tkdn_record_match.get('Tanggal Dokumen', datetime.now())
     try:
@@ -1364,7 +1393,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # --- 3. FORMAT TKDN (MENGGUNAKAN NILAI ABSOLUT RUPIAH DARI ARSIP EXCEL) ---
+    # --- 3. FORMAT TKDN (DINAMIS MENGAMBIL SELURUH KOMPONEN DARI ARSIP EXCEL) ---
     tkdn_html = f"""
     <div class="page-break portrait-page">
         {kop_bss_html}
@@ -1410,11 +1439,11 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: left;"></td>
                 <td style="text-align: center;">US$</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">0.00</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">0.00</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
-                <td style="text-align: center;">0.00%</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">{usd_kdn_1:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">{usd_kln_1:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_tot_biaya_1:,.2f}</td>
+                <td style="text-align: center;">{(usd_kdn_1/usd_tot_biaya_1*100) if usd_tot_biaya_1>0 else 0:.2f}%</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_kdn_1:,.2f}</td>
             </tr>
             <tr>
                 <td style="text-align: left;">II. Biaya Tenaga Kerja & Konsultan<br><span style="font-size:8px; color:#555;">(personnel & consultant cost)</span></td>
@@ -1428,11 +1457,11 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: left;"></td>
                 <td style="text-align: center;">US$</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">0.00</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">0.00</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
-                <td style="text-align: center;">0.00%</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">{usd_kdn_2:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">{usd_kln_2:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_tot_biaya_2:,.2f}</td>
+                <td style="text-align: center;">{(usd_kdn_2/usd_tot_biaya_2*100) if usd_tot_biaya_2>0 else 0:.2f}%</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_kdn_2:,.2f}</td>
             </tr>
             <tr>
                 <td style="text-align: left;">III. Biaya Alat Kerja / Fasilitas Kerja<br><span style="font-size:8px; color:#555;">(equipment & work facility cost)</span></td>
@@ -1446,11 +1475,11 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: left;"></td>
                 <td style="text-align: center;">US$</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">0.00</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">0.00</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
-                <td style="text-align: center;">0.00%</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">{usd_kdn_3:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">{usd_kln_3:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_tot_biaya_3:,.2f}</td>
+                <td style="text-align: center;">{(usd_kdn_3/usd_tot_biaya_3*100) if usd_tot_biaya_3>0 else 0:.2f}%</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_kdn_3:,.2f}</td>
             </tr>
             <tr>
                 <td style="text-align: left;">IV. Biaya Jasa Umum<br><span style="font-size:8px; color:#555;">(other services cost)</span></td>
@@ -1464,11 +1493,11 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: left;"></td>
                 <td style="text-align: center;">US$</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">0.00</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">0.00</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
-                <td style="text-align: center;">0.00%</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">{usd_kdn_4:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">{usd_kln_4:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_tot_biaya_4:,.2f}</td>
+                <td style="text-align: center;">{(usd_kdn_4/usd_tot_biaya_4*100) if usd_tot_biaya_4>0 else 0:.2f}%</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_kdn_4:,.2f}</td>
             </tr>
             <tr style="font-weight: bold; background: #f8fafc;">
                 <td style="text-align: left;">V. JUMLAH BIAYA (&Sigma; I s/d IV)<br><span style="font-size:8px; color:#555;">(Total Cost)</span></td>
@@ -1482,11 +1511,11 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr style="font-weight: bold; background: #f8fafc;">
                 <td style="text-align: left;"></td>
                 <td style="text-align: center;">US$</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
-                <td style="text-align: center;">0.00%</td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_tot_kdn_biaya:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_tot_kln_biaya:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_jumlah_biaya_total:,.2f}</td>
+                <td style="text-align: center;">{(usd_tot_kdn_biaya/usd_jumlah_biaya_total*100) if usd_jumlah_biaya_total>0 else 0:.2f}%</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_tot_kdn_biaya:,.2f}</td>
             </tr>
             <tr>
                 <td style="text-align: left; font-weight: bold;">B. KOMPONEN BUKAN BIAYA<br><span style="font-size:8px; color:#555;">(Non-cost Component)</span></td>
@@ -1499,7 +1528,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: left;"></td>
                 <td style="text-align: center;">US$</td>
                 <td colspan="2" style="background-color: #fef08a;"></td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">0.00</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">{usd_komponen_bukan_biaya:,.2f}</td>
                 <td colspan="2"></td>
             </tr>
             <tr style="font-weight: bold; background: #f1f5f9;">
@@ -1513,7 +1542,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: left;"></td>
                 <td style="text-align: center;">US$</td>
                 <td colspan="2"></td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
+                <td style="text-align: right; padding-right: 5px;">{usd_jumlah_nilai_total:,.2f}</td>
                 <td colspan="2"></td>
             </tr>
             <tr style="font-weight: bold; background: #e2e8f0; font-size: 11.5px; color: #065f46;">
