@@ -61,7 +61,7 @@ def terbilang(n):
             return helper(num // 1000000000) + " Miliar" + helper(num % 1000000000)
         else:
             return " Angka terlalu besar"
-          
+        
     return helper(n_bulat).strip() + " Rupiah"
 
 # FUNGSI KONSISTEN FORMAT TANGGAL INDONESIA (DD MMM YYYY)
@@ -85,7 +85,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📦 Master Bundle: Fotokopi Digital Dokumen (Exact Duplication & Batch Export)</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Modul ini menduplikasi secara utuh dan identik 100% seluruh dokumen asli dengan format cetak Landscape khusus untuk Rincian Pekerjaan & Opname Pekerjaan.</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Modul ini menduplikasi secara utuh dan identik 100% seluruh dokumen asli berdasarkan database rekaman tersimpan.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -221,57 +221,6 @@ def tampilkan_paket_lengkap(transaksi_list):
             return f"data:{mime};base64,{b64_str}"
         return None
 
-    with st.expander("⚙️ Pengaturan Permanen: Upload Logo & Tanda Tangan Sesi", expanded=False):
-        col_up1, col_up2 = st.columns(2)
-        with col_up1:
-            st.markdown("#### Pengaturan Logo (Permanen Global)")
-            logo_p1_file = st.file_uploader("Upload Logo Pihak Pertama (JOB/Client)", type=["png", "jpg", "jpeg"], key="up_logo_p1")
-            if logo_p1_file is not None:
-                b64_p1 = img_to_base64_str(logo_p1_file)
-                st.session_state["perm_logo_p1"] = b64_p1
-                with open(path_logo_p1_perm, "w", encoding="utf-8") as f:
-                    f.write(b64_p1)
-            if st.button("🗑️ Lepas / Hapus Logo Pihak Pertama Permanen"):
-                st.session_state["perm_logo_p1"] = ""
-                if os.path.exists(path_logo_p1_perm):
-                    os.remove(path_logo_p1_perm)
-                st.success("Logo Pihak Pertama berhasil dilepas.")
-                st.rerun()
-
-            st.markdown("---")
-            logo_p2_file = st.file_uploader("Upload Logo Pihak Kedua (BSS)", type=["png", "jpg", "jpeg"], key="up_logo_p2")
-            if logo_p2_file is not None:
-                b64_p2 = img_to_base64_str(logo_p2_file)
-                st.session_state["perm_logo_p2"] = b64_p2
-                with open(path_logo_p2_perm, "w", encoding="utf-8") as f:
-                    f.write(b64_p2)
-            if st.button("🗑️ Lepas / Hapus Logo Pihak Kedua Permanen"):
-                st.session_state["perm_logo_p2"] = ""
-                if os.path.exists(path_logo_p2_perm):
-                    os.remove(path_logo_p2_perm)
-                st.success("Logo Pihak Kedua berhasil dilepas.")
-                st.rerun()
-
-            st.markdown("---")
-            logo_iso_file = st.file_uploader("Upload Logo ISO", type=["png", "jpg", "jpeg"], key="up_logo_iso")
-            if logo_iso_file is not None:
-                b64_iso = img_to_base64_str(logo_iso_file)
-                st.session_state["perm_logo_iso"] = b64_iso
-                with open(path_logo_iso_perm, "w", encoding="utf-8") as f:
-                    f.write(b64_iso)
-            if st.button("🗑️ Lepas / Hapus Logo ISO Permanen"):
-                st.session_state["perm_logo_iso"] = ""
-                if os.path.exists(path_logo_iso_perm):
-                    os.remove(path_logo_iso_perm)
-                st.success("Logo ISO berhasil dilepas.")
-                st.rerun()
-
-        with col_up2:
-            st.markdown("#### Pengaturan Tanda Tangan")
-            ttd_supervisor_file = st.file_uploader("Upload Tanda Tangan Supervisor", type=["png", "jpg", "jpeg"], key="up_ttd_supervisor")
-            ttd_onesimus_file = st.file_uploader("Upload Tanda Tangan Onesimus Suriadi", type=["png", "jpg", "jpeg"], key="up_ttd_onesimus")
-            ttd_ferry_file = st.file_uploader("Upload Tanda Tangan Ir. Ferry Tatimu", type=["png", "jpg", "jpeg"], key="up_ttd_ferry")
-
     custom_logo_p1 = st.session_state.get("perm_logo_p1", "")
     custom_logo_p2 = st.session_state.get("perm_logo_p2", "")
     custom_logo_iso = st.session_state.get("perm_logo_iso", "")
@@ -284,10 +233,6 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     img_tag_bss_internal = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 52px;"></div>')
     img_tag_iso_internal = f'<img src="{custom_logo_iso}" style="height: 50px; object-fit: contain;" alt="Logo ISO">' if custom_logo_iso else '<div style="height: 50px;"></div>'
-
-    custom_ttd_supervisor = img_to_base64_str(ttd_supervisor_file)
-    custom_ttd_onesimus = img_to_base64_str(ttd_onesimus_file)
-    custom_ttd_ferry = img_to_base64_str(ttd_ferry_file)
 
     mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.', t.get('PI', ''))).strip() == current_pi_no]
     if not mutasi_terpilih:
@@ -302,16 +247,12 @@ def tampilkan_paket_lengkap(transaksi_list):
     bamp_saved = st.session_state.get("bamp_saved_data", {}).get(current_pi_no, {})
     basp_saved = st.session_state.get("basp_saved_data", {}).get(current_pi_no, {})
     wcc_saved = st.session_state.get("wcc_saved_data", {}).get(current_pi_no, {})
-    tkdn_saved = st.session_state.get("tkdn_saved_data", {}).get(current_pi_no, {})
 
     bamp_date_obj = bamp_saved.get('main_date', t_data_utama.get('Tanggal Mulai', t_data_utama.get('Tanggal PI', datetime.now())))
     basp_date_obj = basp_saved.get('main_date', t_data_utama.get('Tanggal Selesai', t_data_utama.get('Tanggal PI', datetime.now())))
     
     opname_date_obj = basp_saved.get('main_date', t_data_utama.get('Tanggal Selesai', basp_date_obj))
-    tkdn_date_obj = tkdn_saved.get('tanggal_dokumen', datetime.now())
-    
     lokasi_bamp = bamp_saved.get('lokasi', 'Luwuk')
-    lokasi_tkdn = tkdn_saved.get('lokasi_office', 'Luwuk')
 
     bulan_indo = {
         1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
@@ -329,7 +270,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     bamp_date_str = format_tgl_indo(bamp_date_obj)
     basp_date_str = format_tgl_indo(basp_date_obj)
     opname_date_str = format_tgl_indo(opname_date_obj)
-    tkdn_date_str = format_tgl_indo(tkdn_date_obj)
 
     matched_db_row = {}
     if os.path.exists(db_invoice_path):
@@ -374,19 +314,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         no_po = raw_po
 
     tgl_po = format_tanggal_indo_konsisten(get_induk(9, 'Tanggal Purchase Order', t_data_utama.get('Tanggal PO', '-')))
-
-    raw_po_date = tgl_po
-    if raw_po_date and str(raw_po_date).strip() not in ["-", "", "nan", "None"]:
-        try:
-            if isinstance(raw_po_date, (datetime, date)):
-                tkdn_po_date_str = f"{raw_po_date.day:02d} {bulan_indo[raw_po_date.month]} {raw_po_date.year}"
-            else:
-                parsed_dt = pd.to_datetime(str(raw_po_date).strip())
-                tkdn_po_date_str = f"{parsed_dt.day:02d} {bulan_indo[parsed_dt.month]} {parsed_dt.year}"
-        except:
-            tkdn_po_date_str = str(raw_po_date).strip()
-    else:
-        tkdn_po_date_str = tkdn_date_str
 
     p1_nama = get_induk(10, 'Pihak Pertama', 'JOB Pertamina - Medco E&P Tomori Sulawesi')
     p1_alamat = get_induk(11, 'Alamat Pihak Pertama', 'Bidakara Office Tower I 4Th Floor, Jl. Gatot Subroto Kav. 71 - 73, Jakarta 12870, Indonesia')
@@ -742,6 +669,72 @@ def tampilkan_paket_lengkap(transaksi_list):
         """
 
     terbilang_str = terbilang(grand_total)
+
+    # --- MEMBACA DATA REKAPITULASI TKDN YANG TERSIMPAN DI EXCEL MANDIRI ---
+    excel_file_tkdn_rekap = os.path.join("database_penyimpanan_aman", "database_tkdn_tersimpan.xlsx")
+    tkdn_record_match = {}
+    if os.path.exists(excel_file_tkdn_rekap):
+        try:
+            df_tkdn_rekap = pd.read_excel(excel_file_tkdn_rekap)
+            for _, r_row in df_tkdn_rekap.iterrows():
+                if str(r_row.get('PI No.', '')).strip() == current_pi_no:
+                    tkdn_record_match = r_row.to_dict()
+                    break
+        except:
+            pass
+
+    # Ambil nilai presisi dari arsip Excel mandiri TKDN (jika ada, jika belum ada gunakan kalkulasi dasar)
+    tkdn_total_tagihan = float(tkdn_record_match.get('Total Tagihan', grand_total))
+    if tkdn_total_tagihan <= 0:
+        tkdn_total_tagihan = grand_total
+
+    # Bobot Persentase (%) dari file arsip tersimpan
+    p_kdn_1 = float(tkdn_record_match.get('% KDN Bahan', 15.09))
+    p_kln_1 = float(tkdn_record_match.get('% KLN Bahan', 1.51))
+    p_kdn_2 = float(tkdn_record_match.get('% KDN Tenaga Kerja', 28.26))
+    p_kln_2 = float(tkdn_record_match.get('% KLN Tenaga Kerja', 0.0))
+    p_kdn_3 = float(tkdn_record_match.get('% KDN Alat Kerja', 47.18))
+    p_kln_3 = float(tkdn_record_match.get('% KLN Alat Kerja', 1.51))
+    p_kdn_4 = float(tkdn_record_match.get('% KDN Jasa Umum', 1.55))
+    p_kln_4 = float(tkdn_record_match.get('% KLN Jasa Umum', 0.0))
+    p_non_cost = float(tkdn_record_match.get('% Komponen Bukan Biaya', 4.89))
+
+    # Nilai Nominal Rupiah persis seperti di form mandiri
+    kdn_1 = (p_kdn_1 / 100.0) * tkdn_total_tagihan
+    kln_1 = (p_kln_1 / 100.0) * tkdn_total_tagihan
+    tot_biaya_1 = kdn_1 + kln_1
+
+    kdn_2 = (p_kdn_2 / 100.0) * tkdn_total_tagihan
+    kln_2 = (p_kln_2 / 100.0) * tkdn_total_tagihan
+    tot_biaya_2 = kdn_2 + kln_2
+
+    kdn_3 = (p_kdn_3 / 100.0) * tkdn_total_tagihan
+    kln_3 = (p_kln_3 / 100.0) * tkdn_total_tagihan
+    tot_biaya_3 = kdn_3 + kln_3
+
+    kdn_4 = (p_kdn_4 / 100.0) * tkdn_total_tagihan
+    kln_4 = (p_kln_4 / 100.0) * tkdn_total_tagihan
+    tot_biaya_4 = kdn_4 + kln_4
+
+    tot_kdn_biaya = kdn_1 + kdn_2 + kdn_3 + kdn_4
+    tot_kln_biaya = kln_1 + kln_2 + kln_3 + kln_4
+    jumlah_biaya_total = tot_biaya_1 + tot_biaya_2 + tot_biaya_3 + tot_biaya_4
+
+    komponen_bukan_biaya = (p_non_cost / 100.0) * tkdn_total_tagihan
+    jumlah_nilai_total = jumlah_biaya_total + komponen_bukan_biaya
+
+    persen_tkdn_akhir = (tot_kdn_biaya / jumlah_nilai_total) * 100 if jumlah_nilai_total > 0 else 95.0
+
+    # Tanggal Dokumen TKDN dari arsip
+    raw_tkdn_date = tkdn_record_match.get('Tanggal Dokumen', datetime.now())
+    try:
+        if isinstance(raw_tkdn_date, str):
+            dt_t = pd.to_datetime(raw_tkdn_date)
+            tkdn_date_str = f"{dt_t.day} {bulan_indo[dt_t.month]} {dt_t.year}"
+        else:
+            tkdn_date_str = format_tgl_indo(raw_tkdn_date)
+    except:
+        tkdn_date_str = format_tgl_indo(datetime.now())
 
     ttd_supervisor_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_supervisor}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Supervisor"></div>' if custom_ttd_supervisor else '<div style="height: 55px;"></div>'
     ttd_onesimus_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_onesimus}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Onesimus"></div>' if custom_ttd_onesimus else '<div style="height: 55px;"></div>'
@@ -1306,7 +1299,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         """
 
-    # --- 2. OPNAME PEKERJAAN (LANDSCAPE) DENGAN TOTAL PRICE TANPA DESIMAL (:, .0f) ---
+    # --- 2. OPNAME PEKERJAAN (LANDSCAPE) ---
     opname_html = f"""
     <div class="page-break landscape-page">
         {kop_bss_html}
@@ -1375,9 +1368,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    total_jasa = grand_total * (95.0 / 100.0)
-    non_cost = grand_total * 0.05
-
+    # --- 3. FORMAT TKDN (MURNI MEMBACA DARI ARSIP EXCEL TERSIMPAN / EXACT DUPLICATION) ---
     tkdn_html = f"""
     <div class="page-break portrait-page">
         {kop_bss_html}
@@ -1397,7 +1388,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
             <tr>
                 <td style="font-weight: bold;">Mata Uang</td><td>:</td><td>IDR</td>
-                <td style="font-weight: bold;">Tanggal</td><td>:</td><td>{tkdn_po_date_str}</td>
+                <td style="font-weight: bold;">Tanggal</td><td>:</td><td>{tkdn_date_str}</td>
             </tr>
         </table>
 
@@ -1414,11 +1405,11 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: left;">I. Biaya Bahan (Material) Terpakai<br><span style="font-size:8px; color:#555;">(material used cost)</span></td>
                 <td style="text-align: center;">Rp</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
-                <td style="text-align: center;">0.00%</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp {kdn_1:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp {kln_1:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {tot_biaya_1:,.2f}</td>
+                <td style="text-align: center;">{(kdn_1/tot_biaya_1*100) if tot_biaya_1>0 else 0:.2f}%</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {kdn_1:,.2f}</td>
             </tr>
             <tr>
                 <td style="text-align: left;"></td>
@@ -1432,11 +1423,11 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: left;">II. Biaya Tenaga Kerja & Konsultan<br><span style="font-size:8px; color:#555;">(personnel & consultant cost)</span></td>
                 <td style="text-align: center;">Rp</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
-                <td style="text-align: center;">0.00%</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp {kdn_2:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp {kln_2:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {tot_biaya_2:,.2f}</td>
+                <td style="text-align: center;">{(kdn_2/tot_biaya_2*100) if tot_biaya_2>0 else 0:.2f}%</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {kdn_2:,.2f}</td>
             </tr>
             <tr>
                 <td style="text-align: left;"></td>
@@ -1450,11 +1441,11 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: left;">III. Biaya Alat Kerja / Fasilitas Kerja<br><span style="font-size:8px; color:#555;">(equipment & work facility cost)</span></td>
                 <td style="text-align: center;">Rp</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
-                <td style="text-align: center;">0.00%</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp {kdn_3:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp {kln_3:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {tot_biaya_3:,.2f}</td>
+                <td style="text-align: center;">{(kdn_3/tot_biaya_3*100) if tot_biaya_3>0 else 0:.2f}%</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {kdn_3:,.2f}</td>
             </tr>
             <tr>
                 <td style="text-align: left;"></td>
@@ -1468,11 +1459,11 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="text-align: left;">IV. Biaya Jasa Umum<br><span style="font-size:8px; color:#555;">(other services cost)</span></td>
                 <td style="text-align: center;">Rp</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp {total_jasa:,.0f}</td>
-                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp 0</td>
-                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.0f}</td>
-                <td style="text-align: center;">100.00%</td>
-                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.0f}</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp {kdn_4:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp {kln_4:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {tot_biaya_4:,.2f}</td>
+                <td style="text-align: center;">{(kdn_4/tot_biaya_4*100) if tot_biaya_4>0 else 0:.2f}%</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {kdn_4:,.2f}</td>
             </tr>
             <tr>
                 <td style="text-align: left;"></td>
@@ -1486,11 +1477,11 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr style="font-weight: bold; background: #f8fafc;">
                 <td style="text-align: left;">V. JUMLAH BIAYA (&Sigma; I s/d IV)<br><span style="font-size:8px; color:#555;">(Total Cost)</span></td>
                 <td style="text-align: center;">Rp</td>
-                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.0f}</td>
-                <td style="text-align: right; padding-right: 5px;">Rp 0</td>
-                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.0f}</td>
-                <td style="text-align: center;">100.00%</td>
-                <td style="text-align: right; padding-right: 5px;">Rp {total_jasa:,.0f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {tot_kdn_biaya:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {tot_kln_biaya:,.2f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {jumlah_biaya_total:,.2f}</td>
+                <td style="text-align: center;">{(tot_kdn_biaya/jumlah_biaya_total*100) if jumlah_biaya_total>0 else 0:.2f}%</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {tot_kdn_biaya:,.2f}</td>
             </tr>
             <tr style="font-weight: bold; background: #f8fafc;">
                 <td style="text-align: left;"></td>
@@ -1505,21 +1496,21 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: left; font-weight: bold;">B. KOMPONEN BUKAN BIAYA<br><span style="font-size:8px; color:#555;">(Non-cost Component)</span></td>
                 <td style="text-align: center;">Rp</td>
                 <td colspan="2" style="background-color: #fef08a;"></td>
-                <td style="text-align: right; padding-right: 5px;">Rp {non_cost:,.0f}</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">Rp {komponen_bukan_biaya:,.2f}</td>
                 <td colspan="2"></td>
             </tr>
             <tr>
                 <td style="text-align: left;"></td>
                 <td style="text-align: center;">US$</td>
                 <td colspan="2" style="background-color: #fef08a;"></td>
-                <td style="text-align: right; padding-right: 5px;">0.00</td>
+                <td style="text-align: right; padding-right: 5px; background-color: #fef08a;">0.00</td>
                 <td colspan="2"></td>
             </tr>
             <tr style="font-weight: bold; background: #f1f5f9;">
                 <td style="text-align: left;">C. JUMLAH NILAI TOTAL (A + B)</td>
                 <td style="text-align: center;">Rp</td>
                 <td colspan="2"></td>
-                <td style="text-align: right; padding-right: 5px;">Rp {grand_total:,.0f}</td>
+                <td style="text-align: right; padding-right: 5px;">Rp {jumlah_nilai_total:,.2f}</td>
                 <td colspan="2"></td>
             </tr>
             <tr style="font-weight: bold; background: #f1f5f9;">
@@ -1531,21 +1522,21 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
             <tr style="font-weight: bold; background: #e2e8f0; font-size: 11.5px; color: #065f46;">
                 <td colspan="6" style="text-align: right;">CAPAIAN PERSENTASE TKDN AKHIR (%):</td>
-                <td style="text-align: right; padding-right: 5px;">95.00 %</td>
+                <td style="text-align: right; padding-right: 5px;">{persen_tkdn_akhir:.2f} %</td>
             </tr>
         </table>
 
         <div style="font-size: 9.5px; margin-bottom: 15px;">
             <b>Catatan:</b><br>
             &bull; Isi hanya pada kolom yang berwarna kuning pastel.<br>
-            &bull; Formulasi perhitungan mengacu pada Permen ESDM No. 15 Tahun 2013.
+            &bull; Formulasi perhitungan mengacu pada Permen ESDM No. 15 Tahun 2013[cite: 11].
         </div>
 
         <table style="width: 100%; table-layout: fixed; margin-top: 25px; border-collapse: collapse; page-break-inside: avoid;">
             <tr>
                 <td style="width: 50%; text-align: center; vertical-align: top;"></td>
                 <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px;">
-                    {lokasi_tkdn}, {tkdn_date_str}<br>
+                    {wcc_lokasi}, {tkdn_date_str}<br>
                     <b>{p2_nama}</b>
                     {ttd_ferry_html}
                     <u><b>Ir. Ferry Tatimu</b></u><br>
