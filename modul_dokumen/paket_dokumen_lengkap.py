@@ -102,30 +102,14 @@ def tampilkan_paket_lengkap(transaksi_list):
     if not os.path.exists(DIR_LOGO_AMAN):
         os.makedirs(DIR_LOGO_AMAN)
 
-    path_logo_p1_perm = os.path.join(DIR_LOGO_AMAN, "logo_p1_perm.txt")
-    path_logo_p2_perm = os.path.join(DIR_LOGO_AMAN, "logo_p2_perm.txt")
-    path_logo_iso_perm = os.path.join(DIR_LOGO_AMAN, "logo_iso_perm.txt")
-
-    if "perm_logo_p1" not in st.session_state:
-        if os.path.exists(path_logo_p1_perm):
-            with open(path_logo_p1_perm, "r", encoding="utf-8") as f:
-                st.session_state["perm_logo_p1"] = f.read().strip()
-        else:
-            st.session_state["perm_logo_p1"] = ""
-
-    if "perm_logo_p2" not in st.session_state:
-        if os.path.exists(path_logo_p2_perm):
-            with open(path_logo_p2_perm, "r", encoding="utf-8") as f:
-                st.session_state["perm_logo_p2"] = f.read().strip()
-        else:
-            st.session_state["perm_logo_p2"] = ""
-
-    if "perm_logo_iso" not in st.session_state:
-        if os.path.exists(path_logo_iso_perm):
-            with open(path_logo_iso_perm, "r", encoding="utf-8") as f:
-                st.session_state["perm_logo_iso"] = f.read().strip()
-        else:
-            st.session_state["perm_logo_iso"] = ""
+    # Inisialisasi Variabel Tanda Tangan & Logo Aman
+    custom_logo_p1 = st.session_state.get("perm_logo_p1", "")
+    custom_logo_p2 = st.session_state.get("perm_logo_p2", "")
+    custom_logo_iso = st.session_state.get("perm_logo_iso", "")
+    
+    custom_ttd_supervisor = st.session_state.get("perm_ttd_supervisor", "")
+    custom_ttd_onesimus = st.session_state.get("perm_ttd_onesimus", "")
+    custom_ttd_ferry = st.session_state.get("perm_ttd_ferry", "")
 
     seen_pi_dd = set()
     unique_pi_list = []
@@ -211,10 +195,6 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     if f"force_regen_{current_pi_no}" in st.session_state:
         del st.session_state[f"force_regen_{current_pi_no}"]
-
-    custom_logo_p1 = st.session_state.get("perm_logo_p1", "")
-    custom_logo_p2 = st.session_state.get("perm_logo_p2", "")
-    custom_logo_iso = st.session_state.get("perm_logo_iso", "")
 
     img_tag_p1 = f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo P1">' if custom_logo_p1 else '<div style="height: 52px;"></div>'
     img_tag_p2 = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo P2">' if custom_logo_p2 else '<div style="height: 52px;"></div>'
@@ -667,13 +647,11 @@ def tampilkan_paket_lengkap(transaksi_list):
         except:
             pass
 
-    # Ambil Total Tagihan Arsip
     tkdn_total_tagihan = float(tkdn_record_match.get('Total Tagihan', grand_total))
     if tkdn_total_tagihan <= 0:
         tkdn_total_tagihan = grand_total
 
-    # --- BACA NILAI NOMINAL ABSOLUT RUPIAH DARI ARSIP EXCEL (KOLOM Q s/d AD) ---
-    # Jika kolom arsip tersedia, gunakan nilai absolutnya. Jika tidak ada, fallback ke 0.
+    # BACA NILAI NOMINAL ABSOLUT RUPIAH DARI ARSIP EXCEL
     kdn_1 = float(tkdn_record_match.get('Nilai KDN Bahan', 0.0))
     kln_1 = float(tkdn_record_match.get('Nilai KLN Bahan', 0.0))
     tot_biaya_1 = kdn_1 + kln_1
@@ -701,7 +679,6 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     persen_tkdn_akhir = (tot_kdn_biaya / jumlah_nilai_total) * 100 if jumlah_nilai_total > 0 else 95.0
 
-    # Tanggal Dokumen TKDN dari arsip
     raw_tkdn_date = tkdn_record_match.get('Tanggal Dokumen', datetime.now())
     try:
         if isinstance(raw_tkdn_date, str):
@@ -712,7 +689,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     except:
         tkdn_date_str = format_tgl_indo(datetime.now())
 
-    ttd_supervisor_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_supervisor}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Supervisor"></div>' if custom_ttd_supervisor else '<div style="height: 55px;"></div>'
     ttd_onesimus_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_onesimus}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Onesimus"></div>' if custom_ttd_onesimus else '<div style="height: 55px;"></div>'
     ttd_ferry_html = f'<div style="height: 55px; display: flex; align-items: center; justify-content: center;"><img src="{custom_ttd_ferry}" style="max-height: 52px; max-width: 140px; object-fit: contain;" alt="TTD Ferry"></div>' if custom_ttd_ferry else '<div style="height: 55px;"></div>'
 
@@ -734,7 +710,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
     """
 
-    # HTML Dokumen Rincian, PI, BAMP, BASP, BASTB, WCC, Opname...
     rincian_html = f"""
     <div class="page-break landscape-page">
         {kop_bss_html}
@@ -748,10 +723,6 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="font-weight: bold;">Nomor Kontrak</td><td>:</td><td>{nomor_kontrak}</td>
                 <td style="font-weight: bold;">Nomor Purchase Order</td><td>:</td><td><b>{no_po}</b></td>
-            </tr>
-            <tr>
-                <td style="font-weight: bold;">Nama Kontrak</td><td>:</td><td>{nama_kontrak}</td>
-                <td style="font-weight: bold;">Lingkup Pekerjaan</td><td>:</td><td>{lingkup_pekerjaan}</td>
             </tr>
         </table>
         <table class="doc-table" style="width:100%; border-collapse:collapse; margin-bottom: 15px; font-size: 10px; table-layout: fixed;">
@@ -828,7 +799,7 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     bamp_html = f"""
     <div class="page-break portrait-page" style="position: relative; min-height: 96vh; padding-bottom: 35px;">
-        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
+        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px;">
             <tr>
                 <td style="width: 25%; padding-left: 25px;">{img_tag_p1}</td>
                 <td style="width: 50%; text-align: center;"><h2 style="font-size: 15px; font-weight: bold; margin: 0;">BERITA ACARA MULAI PEKERJAAN (BAMP)</h2></td>
@@ -836,7 +807,6 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         </table>
         <div style="border-bottom: 2px solid #000; margin-bottom: 15px;"></div>
-        <p style="font-size: 10.5px;">Pada hari ini, tanggal <b>{bamp_date_str}</b>:</p>
         <table class="doc-table" style="width:100%; border-collapse:collapse; margin-top:10px; margin-bottom: 20px; font-size: 9.5px;">
             <thead><tr><th>NO</th><th style="text-align: left;">KETERANGAN PEKERJAAN</th><th>JUMLAH</th><th>SATUAN</th><th style="text-align: left;">CATATAN</th></tr></thead>
             <tbody>{bamp_rows_html}</tbody>
@@ -925,7 +895,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # --- 3. FORMAT TKDN (MENGGUNAKAN NILAI ABSOLUT RUPIAH DARI ARSIP EXCEL) ---
+    # --- TABEL TKDN (MENGGUNAKAN NILAI ABSOLUT RUPIAH DARI EXCEL ARSIP) ---
     tkdn_html = f"""
     <div class="page-break portrait-page">
         {kop_bss_html}
