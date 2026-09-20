@@ -10,7 +10,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("""
         <div class="dashboard-card">
             <h3 style="margin-top:0; color:#065f46; font-size:18px;">📊 Modul Master Plafon PO — Sinkronisasi Sempurna Modul 0</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Pembacaan langsung dari database_master_referensi.xlsx dengan hierarki Kontrak ➔ Kategori ➔ Uraian ➔ Harga Satuan.</p>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Hierarki Sempurna: Nomor Kontrak ➔ Kategori ➔ Uraian Pekerjaan ➔ Harga Satuan Otomatis.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -54,7 +54,6 @@ def tampilkan_rekap_penyerapan_po(
                 except:
                     pass
         
-        # Fallback jika parameter utama terisi
         if master_ref_data:
             try:
                 return pd.DataFrame(master_ref_data)
@@ -86,12 +85,10 @@ def tampilkan_rekap_penyerapan_po(
 
     df_clean = df_raw.rename(columns=col_map)
 
-    # Pastikan kolom esensial ada
     for rc in ["Nomor Kontrak", "Kategori", "Uraian Pekerjaan", "Unit", "Harga Satuan"]:
         if rc not in df_clean.columns:
             df_clean[rc] = "-"
 
-    # Pembersihan Data yang Aman dari konflik DataFrame/Series
     def clean_s(s):
         if isinstance(s, pd.DataFrame):
             s = s.iloc[:, 0]
@@ -110,28 +107,28 @@ def tampilkan_rekap_penyerapan_po(
     # Ambil Daftar Nomor Kontrak Unik
     list_kontrak = sorted([k for k in df_clean["Nomor Kontrak"].unique() if k and k != "nan" and k != "-"])
 
-    # Ambil Daftar Nomor PO dari Transaksi (atau fallback list PO yang ada)
+    # Ambil Daftar Nomor PO dari Transaksi
     transaksi_list = muat_data_transaksi_func()
     df_tx = pd.DataFrame(transaksi_list) if transaksi_list else pd.DataFrame()
     list_po = sorted(df_tx["Nomor PO"].dropna().astype(str).str.strip().unique().tolist()) if not df_tx.empty and "Nomor PO" in df_tx.columns else ["4500011739", "4500011740", "4500010745", "4500010746"]
 
     # --- 3. FORM INPUT HIERARKI KONTRAK ➔ KATEGORI ➔ URAIAN ➔ HARGA ---
     st.markdown("#### 📝 Form Input Master Plafon PO (Sinkronisasi Penuh Modul 0)")
-    st.info("ℹ️ Pilih Nomor Kontrak untuk memuat kategori dan uraian pekerjaan secara lengkap dan akurat.")
+    st.info("ℹ️ Pilih Nomor Kontrak, Kategori, dan Uraian Pekerjaan. Data akan tersaring ketat secara hierarkis.")
 
-    with st.form(key="form_master_po_final_v2"):
+    with st.form(key="form_master_po_final_v3"):
         c1, c2 = st.columns(2)
         with c1:
             in_kontrak = st.selectbox("📂 Pilih Nomor Kontrak:", list_kontrak if list_kontrak else [""], key="sel_kontrak_master")
         with c2:
             in_po = st.selectbox("🔍 Pilih Nomor PO:", list_po if list_po else [""], key="sel_po_master")
 
-        # FILTER LEVEL 1: Berdasarkan Nomor Kontrak
-        df_filtered_kontrak = df_clean[df_clean["Nomor Kontrak"] == in_kontrak]
-        if df_filtered_kontrak.empty:
-            df_filtered_kontrak = df_clean
+        # FILTER LEVEL 1: Berdasarkan Nomor Kontrak Aktif
+        df_kontrak_aktif = df_clean[df_clean["Nomor Kontrak"] == in_kontrak]
+        if df_kontrak_aktif.empty:
+            df_kontrak_aktif = df_clean
 
-        list_kat = sorted([c for c in df_filtered_kontrak["Kategori"].unique() if c and c != "NAN" and c != "-"])
+        list_kat = sorted([c for c in df_kontrak_aktif["Kategori"].unique() if c and c != "NAN" and c != "-"])
         if "PROVISIONAL SUM" not in list_kat:
             list_kat.append("PROVISIONAL SUM")
         if "ESTIMATED SUM" not in list_kat:
@@ -143,30 +140,30 @@ def tampilkan_rekap_penyerapan_po(
 
         is_prov = "PROVISIONAL" in in_kategori or "PROFESSIONAL" in in_kategori
 
-        # FILTER LEVEL 2: Berdasarkan Kategori yang Dipilih
+        # FILTER LEVEL 2: Saring Ketat Uraian Berdasarkan Kontrak Aktif DAN Kategori Aktif
         with c4:
             if is_prov:
                 in_deskripsi = st.text_input("📋 Uraian Pekerjaan / Spesifikasi (Manual):", value="At Cost + Fee 15%", key=f"desc_manual_{in_kontrak}")
-                df_filtered_uraian = pd.DataFrame()
+                df_uraian_aktif = pd.DataFrame()
             else:
-                df_filtered_uraian = df_filtered_kontrak[df_filtered_kontrak["Kategori"] == in_kategori]
-                if df_filtered_uraian.empty:
-                    df_filtered_uraian = df_clean[df_clean["Kategori"] == in_kategori]
+                df_uraian_aktif = df_kontrak_aktif[df_kontrak_aktif["Kategori"] == in_kategori]
+                if df_uraian_aktif.empty:
+                    df_uraian_aktif = df_clean[df_clean["Kategori"] == in_kategori]
 
-                list_uraian = sorted([u for u in df_filtered_uraian["Uraian Pekerjaan"].unique() if u and u != "NAN" and u != "-"])
+                list_uraian = sorted([u for u in df_uraian_aktif["Uraian Pekerjaan"].unique() if u and u != "NAN" and u != "-"])
                 if not list_uraian:
                     list_uraian = ["- (Tidak ada data uraian)"]
 
                 in_deskripsi = st.selectbox("📋 Uraian Pekerjaan / Spesifikasi:", list_uraian, key=f"sel_uraian_{in_kontrak}_{in_kategori}")
 
-        # PENGAMBILAN OTOMATIS HARGA SATUAN & UOM MENGACU TEPAT PADA URAIAN PEKERJAAN
+        # VLOOKUP PRESISI: HARGA SATUAN & UOM BERDASARKAN KONTRAK + KATEGORI + URAIAN
         harga_otomatis = 0.0
         unit_otomatis = "Month"
 
-        if not is_prov and not df_filtered_uraian.empty and in_deskripsi != "- (Tidak ada data uraian)":
-            row_match = df_filtered_uraian[df_filtered_uraian["Uraian Pekerjaan"] == in_deskripsi]
+        if not is_prov and not df_uraian_aktif.empty and in_deskripsi != "- (Tidak ada data uraian)":
+            row_match = df_uraian_aktif[df_uraian_aktif["Uraian Pekerjaan"] == in_deskripsi]
             if row_match.empty:
-                row_match = df_filtered_uraian[df_filtered_uraian["Uraian Pekerjaan"].str.lower() == in_deskripsi.lower()]
+                row_match = df_uraian_aktif[df_uraian_aktif["Uraian Pekerjaan"].str.lower() == in_deskripsi.lower()]
             
             if not row_match.empty:
                 r_val = row_match.iloc[0]
@@ -212,7 +209,7 @@ def tampilkan_rekap_penyerapan_po(
     st.markdown("#### 📂 Daftar Plafon PO Tersimpan")
     if not df_master.empty:
         st.dataframe(df_master, use_container_width=True)
-        if st.button("🗑️ Reset / Hapus Data Plafon PO", key="reset_plafon_final"):
+        if st.button("🗑️ Reset / Hapus Data Plafon PO", key="reset_plafon_final_v3"):
             if os.path.exists(path_master_po_excel):
                 os.remove(path_master_po_excel)
             st.success("✅ Data berhasil direset!")
