@@ -635,10 +635,18 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                 persistent_ttd_dir_b64 = load_persistent_image_base64(PATH_TTD_DIR)
 
                 if selected_record:
-                    val_inv = round(float(selected_record.get('Nilai Invoice', 0) or 0))
-                    val_ppn = round(float(selected_record.get('PPN Nominal', 0) or 0))
-                    val_pph = round(float(selected_record.get('PPh Nominal', 0) or 0))
-                    val_netto = round(float(selected_record.get('Total Netto', 0) or 0))
+                    # AMAN DARI ERROR NAN KARENA DIBUNGKUS VALIDASI PD.NOTNULL / FLOAT SAFETY
+                    raw_inv = selected_record.get('Nilai Invoice', 0)
+                    val_inv = round(float(raw_inv)) if pd.notnull(raw_inv) and str(raw_inv).strip() != '' and str(raw_inv).lower() != 'nan' else 0
+
+                    raw_ppn = selected_record.get('PPN Nominal', 0)
+                    val_ppn = round(float(raw_ppn)) if pd.notnull(raw_ppn) and str(raw_ppn).strip() != '' and str(raw_ppn).lower() != 'nan' else 0
+
+                    raw_pph = selected_record.get('PPh Nominal', 0)
+                    val_pph = round(float(raw_pph)) if pd.notnull(raw_pph) and str(raw_pph).strip() != '' and str(raw_pph).lower() != 'nan' else 0
+
+                    raw_netto = selected_record.get('Total Netto', 0)
+                    val_netto = round(float(raw_netto)) if pd.notnull(raw_netto) and str(raw_netto).strip() != '' and str(raw_netto).lower() != 'nan' else 0
 
                     raw_prof_sum = selected_record.get('Gunakan Professional Sum', False)
                     is_prof_sum_akt = str(raw_prof_sum).lower() in ['true', '1', 'yes', '1.0']
@@ -646,8 +654,11 @@ def tampilkan_billing_tax(transaksi_list, menu_pilihan):
                     raw_est_sum = selected_record.get('Gunakan Estimasi Sum', False)
                     is_est_sum_akt = str(raw_est_sum).lower() in ['true', '1', 'yes', '1.0']
 
-                    val_At_cost = round(float(selected_record.get('At Cost', 0) or 0))
-                    val_mgmt_fee = round(float(selected_record.get('Management Fee', 0) or 0))
+                    raw_at_cost = selected_record.get('At Cost', 0)
+                    val_At_cost = round(float(raw_at_cost)) if pd.notnull(raw_at_cost) and str(raw_at_cost).strip() != '' and str(raw_at_cost).lower() != 'nan' else 0
+
+                    raw_mgmt_fee = selected_record.get('Management Fee', 0)
+                    val_mgmt_fee = round(float(raw_mgmt_fee)) if pd.notnull(raw_mgmt_fee) and str(raw_mgmt_fee).strip() != '' and str(raw_mgmt_fee).lower() != 'nan' else 0
 
                     nomor_sa_wan_val = format_nomor_bersih(selected_record.get('Nomor SA / WAN', ''))
                     nomor_po_val = format_nomor_bersih(selected_record.get('Nomor PO', selected_record.get('Nomor PO Rujukan', '-')))

@@ -168,6 +168,10 @@ except ImportError: pass
 try: from modul_keuangan.modul_billing_tax import tampilkan_billing_tax
 except ImportError: pass
 
+# --- IMPORT MODUL ARSIP DOKUMEN KEUANGAN (TAMBAHAN BARU) ---
+try: from modul_keuangan.arsip_dokumen_keuangan import tampilkan_arsip_dokumen_keuangan
+except ImportError: pass
+
 # --- IMPORT MODUL KEAMANAN (AUTENTIKASI & PANEL MANAJEMEN) ---
 try:
     from modul_keamanan.autentikasi import (
@@ -452,7 +456,8 @@ if form_login_sistem():
                 "Input & Cetak Faktur Pajak", 
                 "Pemantauan Proses Pembayaran", 
                 "Pratinjau, Cetak & Download PDF Invoice", 
-                "Lihat Daftar Invoice & Pajak Tersimpan"
+                "Lihat Daftar Invoice & Pajak Tersimpan",
+                "Arsip Dokumen Pendukung Keuangan"
             ]
             url_menu = st.query_params.get("menu", None)
             def_idx = list_menu_fin.index(url_menu) if url_menu in list_menu_fin else 0
@@ -474,7 +479,7 @@ if form_login_sistem():
             menu = st.sidebar.selectbox("Pilih Menu:", list_menu_pm2, key="nav_menu_pm_m2")
             st.query_params["menu"] = menu
         elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
-            list_menu_pm3 = ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan"]
+            list_menu_pm3 = ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan", "Arsip Dokumen Pendukung Keuangan"]
             url_menu = st.query_params.get("menu", None)
             def_idx = list_menu_pm3.index(url_menu) if url_menu in list_menu_pm3 else 0
             if "nav_menu_pm_m3" not in st.session_state:
@@ -485,7 +490,7 @@ if form_login_sistem():
             menu = "Arsip Dokumen Customer & Pendukung"
     elif is_management:
         if modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
-            list_menu_mg3 = ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan"]
+            list_menu_mg3 = ["Pemantauan Proses Pembayaran", "Lihat Daftar Invoice & Pajak Tersimpan", "Arsip Dokumen Pendukung Keuangan"]
             url_menu = st.query_params.get("menu", None)
             def_idx = list_menu_mg3.index(url_menu) if url_menu in list_menu_mg3 else 0
             if "nav_menu_mg_m3" not in st.session_state:
@@ -520,7 +525,7 @@ if form_login_sistem():
             menu = st.sidebar.radio("Pilih Menu:", list_menu_m1, key="nav_menu_m1")
             st.query_params["menu"] = menu
         elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management": 
-            list_menu_m3 = ["Input Data Invoice Resmi", "Input & Cetak Faktur Pajak", "Pemantauan Proses Pembayaran", "Pratinjau, Cetak & Download PDF Invoice", "Lihat Daftar Invoice & Pajak Tersimpan"]
+            list_menu_m3 = ["Input Data Invoice Resmi", "Input & Cetak Faktur Pajak", "Pemantauan Proses Pembayaran", "Pratinjau, Cetak & Download PDF Invoice", "Lihat Daftar Invoice & Pajak Tersimpan", "Arsip Dokumen Pendukung Keuangan"]
             url_menu = st.query_params.get("menu", None)
             def_idx = list_menu_m3.index(url_menu) if url_menu in list_menu_m3 else 0
             if "nav_menu_m3" not in st.session_state:
@@ -588,7 +593,11 @@ if form_login_sistem():
 
     elif modul_pilihan == "💰 Modul 3: Invoice & Tax Management":
         tx = muat_data_transaksi()
-        if is_management or is_project_manager:
+        billing_records = st.session_state.get("db_billing", [])
+        
+        if menu == "Arsip Dokumen Pendukung Keuangan":
+            tampilkan_arsip_dokumen_keuangan(billing_records, is_management)
+        elif is_management or is_project_manager:
             if menu == "Pemantauan Proses Pembayaran":
                 tampilkan_pemantauan_pembayaran()
             else:
@@ -652,7 +661,6 @@ if form_login_sistem():
                 sel_pi = st.selectbox("Pilih PI:", pi_list)
                 target_tx = [t for t in tx_data if t.get("Nomor Kontrak") == sel_k and t.get("PI No.") == sel_pi]
                 
-                # --- KOREKSI LOGIKA PENENTUAN BASTP / BASTB & BAMP / BASP ---
                 t_data_utama = target_tx[0] if target_tx else {}
                 jenis_bastp_utama = str(t_data_utama.get('Jenis BASTP', '')).lower()
                 
@@ -666,7 +674,6 @@ if form_login_sistem():
                     ada_item_barang = True
                     ada_item_jasa = False
                 else:
-                    # Default fallback jika campuran / gabungan
                     ada_item_barang = True
                     ada_item_jasa = True
 
