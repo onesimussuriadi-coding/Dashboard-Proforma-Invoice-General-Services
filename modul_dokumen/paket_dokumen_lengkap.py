@@ -1393,7 +1393,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # --- 3. FORMAT TKDN (DINAMIS MENGAMBIL SELURUH KOMPONEN DARI ARSIP EXCEL) ---
+    # --- 3. FORMAT TKDN (TANGGAL ATAS: tgl_po, TANGGAL BAWAH: tgl_pi) ---
     tkdn_html = f"""
     <div class="page-break portrait-page">
         {kop_bss_html}
@@ -1413,7 +1413,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
             <tr>
                 <td style="font-weight: bold;">Mata Uang</td><td>:</td><td>IDR</td>
-                <td style="font-weight: bold;">Tanggal</td><td>:</td><td>{tkdn_date_str}</td>
+                <td style="font-weight: bold;">Tanggal</td><td>:</td><td>{tgl_po}</td>
             </tr>
         </table>
 
@@ -1561,7 +1561,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             <tr>
                 <td style="width: 50%; text-align: center; vertical-align: top;"></td>
                 <td style="width: 50%; text-align: center; vertical-align: top; font-size: 10px;">
-                    {wcc_lokasi}, {tkdn_date_str}<br>
+                    {wcc_lokasi}, {tgl_pi}<br>
                     <b>{p2_nama}</b>
                     {ttd_ferry_html}
                     <u><b>Ir. Ferry Tatimu</b></u><br>

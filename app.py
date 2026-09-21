@@ -652,16 +652,23 @@ if form_login_sistem():
                 sel_pi = st.selectbox("Pilih PI:", pi_list)
                 target_tx = [t for t in tx_data if t.get("Nomor Kontrak") == sel_k and t.get("PI No.") == sel_pi]
                 
+                # --- KOREKSI LOGIKA PENENTUAN BASTP / BASTB & BAMP / BASP ---
+                t_data_utama = target_tx[0] if target_tx else {}
+                jenis_bastp_utama = str(t_data_utama.get('Jenis BASTP', '')).lower()
+                
                 ada_item_jasa = False
                 ada_item_barang = False
 
-                for t in target_tx:
-                    kategori_str = str(t.get('Kategori', '')).lower()
-                    excluded_keywords = ["material", "barang", "safety equipment", "pengadaan", "alat", "sparepart", "tools"]
-                    if any(kw in kategori_str for kw in excluded_keywords):
-                        ada_item_barang = True
-                    else:
-                        ada_item_jasa = True
+                if "jasa" in jenis_bastp_utama and "barang" not in jenis_bastp_utama:
+                    ada_item_jasa = True
+                    ada_item_barang = False
+                elif "barang" in jenis_bastp_utama or "material" in jenis_bastp_utama or "provisional" in jenis_bastp_utama:
+                    ada_item_barang = True
+                    ada_item_jasa = False
+                else:
+                    # Default fallback jika campuran / gabungan
+                    ada_item_barang = True
+                    ada_item_jasa = True
 
                 daftar_dokumen_tersedia = ["Rincian Pekerjaan", "Proforma Invoice"]
                 if ada_item_jasa: daftar_dokumen_tersedia.extend(["BAMP", "BASP", "WCC"])

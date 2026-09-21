@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import base64
 import os
+from datetime import datetime
 
 def terbilang(n):
     n = int(n)
@@ -28,6 +29,23 @@ def terbilang(n):
         return terbilang(n // 1000000000) + " Miliar" + terbilang(n % 1000000000)
     else:
         return " Angka terlalu besar"
+
+# FUNGSI FORMAT TANGGAL INDONESIA (DD MMM YYYY)
+def format_tanggal_indo_konsisten(tanggal_val):
+    if not tanggal_val or str(tanggal_val).strip() in ["-", "nan", "None", ""]:
+        return "-"
+    clean_str = str(tanggal_val).strip().split()[0]
+    bulan_indo_map = {
+        1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
+        7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+    }
+    for fmt in ("%Y-%m-%d", "%d %b %Y", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"):
+        try:
+            dt_obj = datetime.strptime(clean_str, fmt)
+            return f"{dt_obj.day:02d} {bulan_indo_map[dt_obj.month]} {dt_obj.year}"
+        except:
+            continue
+    return str(tanggal_val)
 
 def tampilkan_proforma_invoice(transaksi_list):
     st.markdown("""
@@ -158,6 +176,10 @@ def tampilkan_proforma_invoice(transaksi_list):
     else:
         ttd_html_element = "<br><br><br><br>"
 
+    # --- FORMAT TANGGAL PI KONSISTEN URUTAN TANGGAL, BULAN, TAHUN ---
+    raw_tgl_pi = str(t_data_utama.get('Tanggal PI', ''))
+    tanggal_pi_bersih = format_tanggal_indo_konsisten(raw_tgl_pi)
+
     # Hitung Grand Total secara mandiri per baris dengan mendukung Provisional Sum & Estimated Sum (Diskon 10%)
     grand_total_pi = 0.0
     for m in mutasi_terpilih:
@@ -184,11 +206,10 @@ def tampilkan_proforma_invoice(transaksi_list):
     for idx, m in enumerate(mutasi_terpilih, start=1):
         kategori_str = str(m.get('Kategori', '')).lower()
         qty_val = float(m.get('Qty', 0.0))
-        unit_price = float(m.get('Harga Satuan', 0.0))  # Harga satuan murni sesuai kontrak
+        unit_price = float(m.get('Harga Satuan', 0.0))
         percent_val = float(m.get('Percent', 100.0))
         kategori_awal = str(m.get('Kategori', 'MONTHLY BASIS'))
 
-        # Perhitungan mandiri per baris Total Harga Proforma Invoice
         if "provisional" in kategori_str or "professional" in kategori_str:
             total_item = (qty_val * unit_price) * 1.15 * (percent_val / 100.0)
             kategori_display = kategori_awal
@@ -287,7 +308,7 @@ def tampilkan_proforma_invoice(transaksi_list):
                         <tr>
                             <td style="border: none; font-weight: bold;">Tanggal Performa Invoice</td>
                             <td style="border: none; text-align: center;">:</td>
-                            <td style="border: none;">{t_data_utama['Tanggal PI']}</td>
+                            <td style="border: none;">{tanggal_pi_bersih}</td>
                         </tr>
                         <tr>
                             <td style="border: none; font-weight: bold;">Nomor Kontrak</td>

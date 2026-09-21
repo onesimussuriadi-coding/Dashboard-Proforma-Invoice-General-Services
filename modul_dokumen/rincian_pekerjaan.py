@@ -30,17 +30,51 @@ def terbilang(n):
     else:
         return " Angka terlalu besar"
 
-# FUNGSI BANTUAN FORMAT TANGGAL KONSISTEN VERSI INDONESIA (DD MMM YYYY)
-def format_tanggal_indo(tanggal_str):
-    if not tanggal_str or str(tanggal_str).strip() in ["-", "nan", "None"]:
+# FUNGSI FORMAT TANGGAL INDONESIA YANG MENANGANI DATA UTUH MAUPUN TERPOTONG (ANTI-POTONG)
+def format_tanggal_indo(tanggal_str, fallback_context_str=""):
+    if not tanggal_str or str(tanggal_str).strip() in ["-", "nan", "None", ""]:
         return "-"
+    
     clean_str = str(tanggal_str).strip().split()[0]
-    for fmt in ("%Y-%m-%d", "%d %b %Y", "%d-%m-%Y", "%d/%m/%Y"):
+    
+    # Jika data terpotong hanya berupa angka hari (misal "31" atau "03"),
+    # kita ambil bulan & tahun dari konteks PI No atau fallback string (misal dari nomor PI: .../VIII/2026 -> Agustus 2026)
+    bulan_indo_map = {
+        1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
+        7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"
+    }
+    
+    romawi_bulan = {
+        "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6,
+        "VII": 7, "VIII": 8, "IX": 9, "X": 10, "XI": 11, "XII": 12
+    }
+
+    if clean_str.isdigit() and len(clean_str) <= 2:
+        hari = int(clean_str)
+        bulan_num = 8  # Default Agustus jika tidak ditemukan
+        tahun_num = 2026 # Default 2026
+        
+        # Cari petunjuk bulan romawi dan tahun di nomor PI atau konteks
+        combined_ctx = f"{fallback_context_str}".upper()
+        for rom, b_val in romawi_bulan.items(	):
+            if f"/{rom}/" in combined_ctx or f"-{rom}-" in combined_ctx:
+                bulan_num = b_val
+                break
+        
+        for t_val in ["2024", "2025", "2026", "2027"]:
+            if t_val in combined_ctx:
+                tahun_num = int(t_val)
+                break
+                
+        return f"{hari:02d} {bulan_indo_map[bulan_num]} {tahun_num}"
+
+    for fmt in ("%Y-%m-%d", "%d %b %Y", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"):
         try:
             dt_obj = datetime.strptime(clean_str, fmt)
-            return dt_obj.strftime("%d %b %Y")
+            return f"{dt_obj.day:02d} {bulan_indo_map[dt_obj.month]} {dt_obj.year}"
         except:
             continue
+            
     return str(tanggal_str)
 
 def tampilkan_rincian_pekerjaan(transaksi_list):
@@ -137,25 +171,30 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 'sig_diperiksa': sig2_final
             }
 
-            # --- PROSES SIMPAN OTOMATIS KE FILE EXCEL HISTORI ---
+            # --- PROSES SIMPAN OTOMATIS KE FILE EXCEL HISTORI (TANGGAL UTUH LENGKAP) ---
             matching_mutasi_to_save = [item for item in transaksi_list if str(item.get('PI No.', '')).strip() == current_pi_no]
             existing_excel_records = muat_database_rincian_excel()
             
             filtered_existing = [r for r in existing_excel_records if str(r.get('PI No.', '')).strip() != current_pi_no]
             
             waktu_simpan_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            tgl_pi_db_bersih = format_tanggal_indo(t_data_ref.get('Tanggal PI', ''), current_pi_no)
+            tgl_po_db_bersih = format_tanggal_indo(t_data_ref.get('Tanggal PO', ''), current_pi_no)
+
             for m in matching_mutasi_to_save:
                 rekaman_baris = {
                     "Waktu Simpan": waktu_simpan_str,
                     "Nomor Kontrak": str(t_data_ref.get('Nomor Kontrak', '')),
                     "PI No.": current_pi_no,
+                    "Tanggal PI": tgl_pi_db_bersih,
                     "Nomor PO": str(t_data_ref.get('Nomor PO', '')),
+                    "Tanggal PO": tgl_po_db_bersih,
                     "Kategori": m.get('Kategori', ''),
                     "Uraian Pekerjaan": m.get('Deskripsi Pekerjaan', ''),
                     "Qty": float(m.get('Qty', 0.0)),
                     "Satuan": m.get('Unit', ''),
-                    "Tanggal Mulai": format_tanggal_indo(m.get('Tanggal Mulai', '')),
-                    "Tanggal Selesai": format_tanggal_indo(m.get('Tanggal Selesai', '')),
+                    "Tanggal Mulai": format_tanggal_indo(m.get('Tanggal Mulai', ''), current_pi_no),
+                    "Tanggal Selesai": format_tanggal_indo(m.get('Tanggal Selesai', ''), current_pi_no),
                     "Harga Satuan (IDR)": float(m.get('Harga Satuan', 0.0)),
                     "Percent (%)": float(m.get('Percent', 100.0)),
                     "Keterangan": m.get('Keterangan', '-')
@@ -163,7 +202,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 filtered_existing.append(rekaman_baris)
 
             if simpan_database_rincian_excel(filtered_existing):
-                st.success(f"✅ Sukses! Data rincian pekerjaan untuk PI [{current_pi_no}] berhasil disimpan ke file Excel histori (`database_rincian_pekerjaan_tersimpan.xlsx`) dan dikunci secara permanen!")
+                st.success(f"✅ Sukses! Data rincian pekerjaan untuk PI [{current_pi_no}] berhasil disimpan ke file Excel dengan tanggal lengkap (Hari, Bulan, Tahun).")
             else:
                 st.warning("⚠️ Konfigurasi terkunci di sesi, tetapi gagal menulis ke file Excel.")
 
@@ -211,26 +250,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         except:
             saved_db_induk = []
 
-    matched_item = {}
-    for item in saved_db_induk:
-        if isinstance(item, dict):
-            val_pi_0 = str(item.get(0, item.get('Proforma Invoice No.', ''))).strip().lower()
-            if val_pi_0 == current_pi_no.lower():
-                matched_item = item
-                break
-
-    def get_induk(idx_num, text_key, fallback="-"):
-        if idx_num in matched_item:
-            v = matched_item[idx_num]
-            if v is not None and str(v).strip() != "" and str(v).strip().lower() != "nan":
-                return str(v).strip()
-        if text_key in matched_item:
-            v = matched_item[text_key]
-            if v is not None and str(v).strip() != "" and str(v).strip().lower() != "nan":
-                return str(v).strip()
-        return fallback
-
-    # PERBAIKAN: Menggunakan current_pi_no agar membaca nomor PI yang aktif (cth: 024/BSS-JOB/WS/VIII/2026)
     nomor_wcc_full = current_pi_no
     terbilang_str = terbilang(grand_total).strip() + " Rupiah"
 
@@ -243,8 +262,8 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         kategori_awal = str(m.get('Kategori', '-'))
         keterangan_murni = str(m.get('Keterangan', '-'))
 
-        tgl_mulai_formatted = format_tanggal_indo(m.get('Tanggal Mulai', '-'))
-        tgl_selesai_formatted = format_tanggal_indo(m.get('Tanggal Selesai', '-'))
+        tgl_mulai_formatted = format_tanggal_indo(m.get('Tanggal Mulai', '-'), current_pi_no)
+        tgl_selesai_formatted = format_tanggal_indo(m.get('Tanggal Selesai', '-'), current_pi_no)
 
         if "estimated" in kategori_str or "estimasi" in kategori_str:
             total_harga_val = (qty_val * harga_satuan_val * 0.9) * (percent_val / 100.0)
@@ -271,6 +290,9 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <td>{keterangan_murni}</td>
             </tr>
         """
+
+    tgl_po_bersih_tampil = format_tanggal_indo(t_data_ref.get('Tanggal PO', ''), current_pi_no)
+    tgl_pi_bersih_tampil = format_tanggal_indo(t_data_ref.get('Tanggal PI', ''), current_pi_no)
 
     html_content = f"""
     <!DOCTYPE html>
@@ -371,12 +393,12 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <td>{t_data_ref.get('Nomor Tender', '')}</td>
                 <td class="label-col">Tanggal Purchase Order</td>
                 <td class="colon-col">:</td>
-                <td>{format_tanggal_indo(t_data_ref.get('Tanggal PO', ''))}</td>
+                <td>{tgl_po_bersih_tampil}</td>
             </tr>
             <tr>
                 <td class="label-col">Tanggal Proforma</td>
                 <td class="colon-col">:</td>
-                <td>{format_tanggal_indo(t_data_ref.get('Tanggal PI', ''))}</td>
+                <td>{tgl_pi_bersih_tampil}</td>
                 <td class="label-col">Mata Uang</td>
                 <td class="colon-col">:</td>
                 <td>{t_data_ref.get('Mata Uang', 'IDR')}</td>
