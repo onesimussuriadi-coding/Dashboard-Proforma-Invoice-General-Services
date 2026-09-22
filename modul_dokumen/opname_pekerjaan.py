@@ -316,7 +316,7 @@ def tampilkan_opname(transaksi_list):
                 'unit_price': unit_price,
                 'prev_vol': prev_vol,
                 'current_vol': current_vol,
-                'description': item_label # Menyimpan uraian teks deskripsi secara eksplisit
+                'description': item_label
             }
             st.markdown("<br>", unsafe_allow_html=True)
 
@@ -472,6 +472,15 @@ def tampilkan_opname(transaksi_list):
         sum_sisa_vol_tot += sisa_vol
 
         actual_unit = str(m.get('Unit', 'AU' if is_prov_sum else 'Day'))
+        
+        # --- PENERAPAN BREAKDOWN UNIT PRICE (AT COST + FEE 15%) ---
+        if is_prov_sum:
+            base_at_cost = raw_hs * (percent_val / 100.0)
+            fee_15 = base_at_cost * 0.15
+            unit_price_display = f"Rp {base_at_cost:,.2f}<br><span style='font-size: 7.5px; font-weight: normal; color: #334155;'>+ 15% Fee (Rp {fee_15:,.2f})</span>"
+        else:
+            unit_price_display = f"{unit_price:,.2f}"
+
         desc_full = f"<b>{kategori_m}</b><br>{deskripsi_m}"
         if ket_m:
             desc_full += f"<br><span style='font-size: 8.5px; color: #334155;'>{ket_m}</span>"
@@ -482,7 +491,7 @@ def tampilkan_opname(transaksi_list):
                 <td class="text-left">{desc_full}</td>
                 <td>{actual_unit}</td>
                 <td>{po_vol:,.2f}</td>
-                <td class="text-right">{unit_price:,.2f}</td>
+                <td class="text-right">{unit_price_display}</td>
                 <td class="text-right">{base_price:,.2f}</td>
                 <td>{prev_vol:,.2f}</td>
                 <td class="text-right">{prev_tot:,.2f}</td>

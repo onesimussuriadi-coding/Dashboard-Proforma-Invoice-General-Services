@@ -37,8 +37,6 @@ def format_tanggal_indo(tanggal_str, fallback_context_str=""):
     
     clean_str = str(tanggal_str).strip().split()[0]
     
-    # Jika data terpotong hanya berupa angka hari (misal "31" atau "03"),
-    # kita ambil bulan & tahun dari konteks PI No atau fallback string (misal dari nomor PI: .../VIII/2026 -> Agustus 2026)
     bulan_indo_map = {
         1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
         7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember"
@@ -51,12 +49,11 @@ def format_tanggal_indo(tanggal_str, fallback_context_str=""):
 
     if clean_str.isdigit() and len(clean_str) <= 2:
         hari = int(clean_str)
-        bulan_num = 8  # Default Agustus jika tidak ditemukan
-        tahun_num = 2026 # Default 2026
+        bulan_num = 8  
+        tahun_num = 2026 
         
-        # Cari petunjuk bulan romawi dan tahun di nomor PI atau konteks
         combined_ctx = f"{fallback_context_str}".upper()
-        for rom, b_val in romawi_bulan.items(	):
+        for rom, b_val in romawi_bulan.items():
             if f"/{rom}/" in combined_ctx or f"-{rom}-" in combined_ctx:
                 bulan_num = b_val
                 break
@@ -171,7 +168,6 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 'sig_diperiksa': sig2_final
             }
 
-            # --- PROSES SIMPAN OTOMATIS KE FILE EXCEL HISTORI (TANGGAL UTUH LENGKAP) ---
             matching_mutasi_to_save = [item for item in transaksi_list if str(item.get('PI No.', '')).strip() == current_pi_no]
             existing_excel_records = muat_database_rincian_excel()
             
@@ -269,11 +265,17 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
             total_harga_val = (qty_val * harga_satuan_val * 0.9) * (percent_val / 100.0)
             harga_diskon_val = harga_satuan_val * 0.9
             kategori_display = f"{kategori_awal}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {harga_satuan_val:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
+            harga_satuan_display = f"{harga_satuan_val:,.2f}"
         elif "provisional" in kategori_str or "professional" in kategori_str:
-            total_harga_val = (qty_val * harga_satuan_val) * 1.15 * (percent_val / 100.0)
+            base_at_cost = qty_val * harga_satuan_val * (percent_val / 100.0)
+            fee_15 = base_at_cost * 0.15
+            total_harga_val = base_at_cost * 1.15
+            # Breakdown gabungan di kolom Harga Satuan
+            harga_satuan_display = f"Rp {base_at_cost:,.2f}<br><span style='font-size: 8px; font-weight: normal; color: #334155;'>+ 15% Fee (Rp {fee_15:,.2f})</span>"
             kategori_display = kategori_awal
         else:
             total_harga_val = (qty_val * harga_satuan_val) * (percent_val / 100.0)
+            harga_satuan_display = f"{harga_satuan_val:,.2f}"
             kategori_display = kategori_awal
 
         rows_html += f"""
@@ -285,7 +287,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
                 <td style="text-align: center;">{m.get('Unit', '-')}</td>
                 <td style="text-align: center; white-space: nowrap;">{tgl_mulai_formatted}</td>
                 <td style="text-align: center; white-space: nowrap;">{tgl_selesai_formatted}</td>
-                <td style="text-align: right;">{harga_satuan_val:,.2f}</td>
+                <td style="text-align: right;">{harga_satuan_display}</td>
                 <td style="text-align: right;">{total_harga_val:,.2f}</td>
                 <td>{keterangan_murni}</td>
             </tr>

@@ -179,7 +179,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         if st.session_state.get(f"loaded_saved_{current_pi_no}", False):
             with open(file_saved_path, "r", encoding="utf-8") as f:
                 master_html = f.read()
-          
+        
             st.info("📌 Menampilkan dokumen dalam mode **Final Tersimpan (Fotokopi Identik)**.")
             st.markdown('<div class="document-preview">', unsafe_allow_html=True)
             st.components.v1.html(master_html, height=750, scrolling=True)
@@ -212,14 +212,6 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     if f"force_regen_{current_pi_no}" in st.session_state:
         del st.session_state[f"force_regen_{current_pi_no}"]
-
-    def img_to_base64_str(uploaded_file):
-        if uploaded_file is not None:
-            bytes_data = uploaded_file.getvalue()
-            b64_str = base64.b64encode(bytes_data).decode()
-            mime = uploaded_file.type
-            return f"data:{mime};base64,{b64_str}"
-        return None
 
     custom_logo_p1 = st.session_state.get("perm_logo_p1", "")
     custom_logo_p2 = st.session_state.get("perm_logo_p2", "")
@@ -441,6 +433,21 @@ def tampilkan_paket_lengkap(transaksi_list):
         tgl_selesai_item = format_tanggal_indo_konsisten(m.get('Tanggal Selesai', tgl_pi))
 
         kat_lower = kategori_m.lower()
+        
+        # --- PENERAPAN FORMAT BREAKDOWN (AT COST + FEE 15%) & DISKON PADA RINCIAN & PI ---
+        if is_prov_sum:
+            base_at_cost = raw_hs * (percent_val / 100.0)
+            fee_15 = base_at_cost * 0.15
+            unit_price_display_rinci = f"Rp {base_at_cost:,.2f}<br><span style='font-size: 7.5px; font-weight: normal; color: #334155;'>+ 15% Fee (Rp {fee_15:,.2f})</span>"
+            unit_price_display_pi = f"Rp {base_at_cost:,.2f}<br><span style='font-size: 7.5px; font-weight: normal; color: #334155;'>+ 15% Fee (Rp {fee_15:,.2f})</span>"
+        elif "estimated" in kat_lower or "estimasi" in kat_lower:
+            harga_diskon_val = unit_price * 0.9
+            unit_price_display_rinci = f"{unit_price:,.2f}"
+            unit_price_display_pi = f"{unit_price:,.2f}"
+        else:
+            unit_price_display_rinci = f"{unit_price:,.2f}"
+            unit_price_display_pi = f"{unit_price:,.2f}"
+
         if "estimated" in kat_lower or "estimasi" in kat_lower:
             harga_diskon_val = unit_price * 0.9
             kat_display = f"{kategori_m}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {unit_price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
@@ -456,7 +463,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: center; width: 4%;">{unit}</td>
                 <td style="text-align: center; width: 6%;">{tgl_mulai_item}</td>
                 <td style="text-align: center; width: 6%;">{tgl_selesai_item}</td>
-                <td style="text-align: right; padding-right: 6px; width: 8%;">{unit_price:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px; width: 8%;">{unit_price_display_rinci}</td>
                 <td style="text-align: right; padding-right: 6px; width: 9%;">{tot:,.0f}</td>
                 <td style="text-align: left; padding-left: 6px; word-wrap: break-word; width: 20%;">{ket_m}</td>
             </tr>
@@ -477,7 +484,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: left; padding-left: 6px; width: 46%;">{desc_full_pi}</td>
                 <td style="text-align: right; padding-right: 6px; width: 7%;">{current_vol:,.2f}</td>
                 <td style="text-align: center; width: 8%;">{unit}</td>
-                <td style="text-align: right; padding-right: 6px; width: 16%;">{unit_price:,.2f}</td>
+                <td style="text-align: right; padding-right: 6px; width: 16%;">{unit_price_display_pi}</td>
                 <td style="text-align: right; padding-right: 6px; width: 17%;">{tot:,.0f}</td>
             </tr>
         """
@@ -548,13 +555,21 @@ def tampilkan_paket_lengkap(transaksi_list):
         if ket_m:
             desc_full_opname += f"<br><span style='font-size: 8px; color: #334155;'>{ket_m}</span>"
         
+        # --- PENERAPAN BREAKDOWN UNIT PRICE DI OPNAME MASTER BUNDLE ---
+        if is_prov_sum:
+            base_at_cost = raw_hs * (percent_val / 100.0)
+            fee_15 = base_at_cost * 0.15
+            unit_price_display_opn = f"Rp {base_at_cost:,.2f}<br><span style='font-size: 7.5px; font-weight: normal; color: #334155;'>+ 15% Fee (Rp {fee_15:,.2f})</span>"
+        else:
+            unit_price_display_opn = f"{unit_price:,.2f}"
+
         opname_rows_html += f"""
             <tr>
                 <td style="text-align: center;">1.{idx}</td>
                 <td style="text-align: left; padding-left: 5px;">{desc_full_opname}</td>
                 <td style="text-align: center;">{actual_unit}</td>
                 <td style="text-align: right; padding-right: 4px;">{po_vol:,.2f}</td>
-                <td style="text-align: right; padding-right: 4px;">{unit_price:,.2f}</td>
+                <td style="text-align: right; padding-right: 4px;">{unit_price_display_opn}</td>
                 <td style="text-align: right; padding-right: 4px;">{base_price:,.0f}</td>
                 <td style="text-align: right; padding-right: 4px;">{prev_vol:,.2f}</td>
                 <td style="text-align: right; padding-right: 4px;">{prev_tot:,.0f}</td>
@@ -670,9 +685,6 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     terbilang_str = terbilang(grand_total)
 
-    # =========================================================================
-    # --- PEMBACAAN DINAMIS & KOMPLIT SELURUH DATA TKDN DARI ARSIP EXCEL ---
-    # =========================================================================
     excel_file_tkdn_rekap = os.path.join("database_penyimpanan_aman", "database_tkdn_tersimpan.xlsx")
     tkdn_record_match = {}
     if os.path.exists(excel_file_tkdn_rekap):
@@ -689,7 +701,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     if tkdn_total_tagihan <= 0:
         tkdn_total_tagihan = grand_total
 
-    # 1. Komponen Biaya Bahan (Material) - Rupiah & USD Dinamis
     kdn_1 = float(tkdn_record_match.get('Nilai KDN Bahan', 0.0))
     kln_1 = float(tkdn_record_match.get('Nilai KLN Bahan', 0.0))
     tot_biaya_1 = kdn_1 + kln_1
@@ -698,7 +709,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     usd_kln_1 = float(tkdn_record_match.get('USD Nilai KLN Bahan', 0.0))
     usd_tot_biaya_1 = usd_kdn_1 + usd_kln_1
 
-    # 2. Komponen Biaya Tenaga Kerja & Konsultan - Rupiah & USD Dinamis
     kdn_2 = float(tkdn_record_match.get('Nilai KDN Tenaga Kerja', 0.0))
     kln_2 = float(tkdn_record_match.get('Nilai KLN Tenaga Kerja', 0.0))
     tot_biaya_2 = kdn_2 + kln_2
@@ -707,7 +717,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     usd_kln_2 = float(tkdn_record_match.get('USD Nilai KLN Tenaga Kerja', 0.0))
     usd_tot_biaya_2 = usd_kdn_2 + usd_kln_2
 
-    # 3. Komponen Biaya Alat Kerja / Fasilitas Kerja - Rupiah & USD Dinamis
     kdn_3 = float(tkdn_record_match.get('Nilai KDN Alat', tkdn_record_match.get('Nilai KDN Alat Kerja', 0.0)))
     kln_3 = float(tkdn_record_match.get('Nilai KLN Alat', tkdn_record_match.get('Nilai KLN Alat Kerja', 0.0)))
     tot_biaya_3 = kdn_3 + kln_3
@@ -716,7 +725,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     usd_kln_3 = float(tkdn_record_match.get('USD Nilai KLN Alat', tkdn_record_match.get('USD Nilai KLN Alat Kerja', 0.0)))
     usd_tot_biaya_3 = usd_kdn_3 + usd_kln_3
 
-    # 4. Komponen Biaya Jasa Umum - Rupiah & USD Dinamis
     kdn_4 = float(tkdn_record_match.get('Nilai KDN Jasa', tkdn_record_match.get('Nilai KDN Jasa Umum', 0.0)))
     kln_4 = float(tkdn_record_match.get('Nilai KLN Jasa', tkdn_record_match.get('Nilai KLN Jasa Umum', 0.0)))
     tot_biaya_4 = kdn_4 + kln_4
@@ -725,7 +733,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     usd_kln_4 = float(tkdn_record_match.get('USD Nilai KLN Jasa', tkdn_record_match.get('USD Nilai KLN Jasa Umum', 0.0)))
     usd_tot_biaya_4 = usd_kdn_4 + usd_kln_4
 
-    # Total Biaya Rupiah & USD
     tot_kdn_biaya = kdn_1 + kdn_2 + kdn_3 + kdn_4
     tot_kln_biaya = kln_1 + kln_2 + kln_3 + kln_4
     jumlah_biaya_total = tot_biaya_1 + tot_biaya_2 + tot_biaya_3 + tot_biaya_4
@@ -734,7 +741,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     usd_tot_kln_biaya = usd_kln_1 + usd_kln_2 + usd_kln_3 + usd_kln_4
     usd_jumlah_biaya_total = usd_tot_biaya_1 + usd_tot_biaya_2 + usd_tot_biaya_3 + usd_tot_biaya_4
 
-    # 5. Komponen Bukan Biaya (Non-cost Component) - Rupiah & USD Dinamis
     komponen_bukan_biaya = float(tkdn_record_match.get('Komponen Bukan Biaya', 0.0))
     usd_komponen_bukan_biaya = float(tkdn_record_match.get('USD Komponen Bukan Biaya', 0.0))
 
@@ -755,7 +761,6 @@ def tampilkan_paket_lengkap(transaksi_list):
             tkdn_date_str = format_tgl_indo(raw_tkdn_date)
     except:
         tkdn_date_str = format_tgl_indo(datetime.now())
-    # =========================================================================
 
     custom_ttd_supervisor = st.session_state.get("perm_ttd_supervisor", "")
     custom_ttd_onesimus = st.session_state.get("perm_ttd_onesimus", "")
@@ -1393,7 +1398,7 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # --- 3. FORMAT TKDN (TANGGAL ATAS: tgl_po, TANGGAL BAWAH: tgl_pi) ---
+    # --- 3. FORMAT TKDN ---
     tkdn_html = f"""
     <div class="page-break portrait-page">
         {kop_bss_html}
@@ -1554,7 +1559,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         <div style="font-size: 9.5px; margin-bottom: 15px;">
             <b>Catatan:</b><br>
             &bull; Isi hanya pada kolom yang berwarna kuning pastel.<br>
-            &bull; Formulasi perhitungan mengacu pada Permen ESDM No. 15 Tahun 2013[cite: 11].
+            &bull; Formulasi perhitungan mengacu pada Permen ESDM No. 15 Tahun 2013.
         </div>
 
         <table style="width: 100%; table-layout: fixed; margin-top: 25px; border-collapse: collapse; page-break-inside: avoid;">
