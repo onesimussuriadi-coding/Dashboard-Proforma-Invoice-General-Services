@@ -64,7 +64,6 @@ def terbilang(n):
         
     return helper(n_bulat).strip() + " Rupiah"
 
-# FUNGSI KONSISTEN FORMAT TANGGAL INDONESIA (DD MMM YYYY)
 def format_tanggal_indo_konsisten(tanggal_val):
     if not tanggal_val or str(tanggal_val).strip() in ["-", "nan", "None", ""]:
         return "-"
@@ -241,9 +240,9 @@ def tampilkan_paket_lengkap(transaksi_list):
     wcc_saved = st.session_state.get("wcc_saved_data", {}).get(current_pi_no, {})
 
     bamp_date_obj = bamp_saved.get('main_date', t_data_utama.get('Tanggal Mulai', t_data_utama.get('Tanggal PI', datetime.now())))
-    basp_date_obj = basp_saved.get('main_date', t_data_utama.get('Tanggal Selesai', t_data_utama.get('Tanggal PI', datetime.now())))
+    basp_date_obj = basp_saved.get('main_date', t_data_utama.get('Tanggal Selesai', datetime(2026, 8, 31)))
     
-    opname_date_obj = basp_saved.get('main_date', t_data_utama.get('Tanggal Selesai', basp_date_obj))
+    opname_date_obj = basp_date_obj
     lokasi_bamp = bamp_saved.get('lokasi', 'Luwuk')
 
     bulan_indo = {
@@ -391,6 +390,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         bastb_th_desc = "SPESIFIKASI BARANG / MATERIAL"
         bastb_th_cond = "KONDISI / KETERANGAN"
 
+    opname_storage_key = f"opname_{current_pi_no}_{selected_po_bundle}".replace("/", "_")
     opname_saved_dict = st.session_state.get("opname_saved_data", {}).get(opname_storage_key, {})
     saved_opname_items = opname_saved_dict.get('items', {})
 
@@ -434,7 +434,6 @@ def tampilkan_paket_lengkap(transaksi_list):
 
         kat_lower = kategori_m.lower()
         
-        # --- PENERAPAN FORMAT BREAKDOWN (AT COST + FEE 15%) & DISKON PADA RINCIAN & PI ---
         if is_prov_sum:
             base_at_cost = raw_hs * (percent_val / 100.0)
             fee_15 = base_at_cost * 0.15
@@ -555,7 +554,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         if ket_m:
             desc_full_opname += f"<br><span style='font-size: 8px; color: #334155;'>{ket_m}</span>"
         
-        # --- PENERAPAN BREAKDOWN UNIT PRICE DI OPNAME MASTER BUNDLE ---
         if is_prov_sum:
             base_at_cost = raw_hs * (percent_val / 100.0)
             fee_15 = base_at_cost * 0.15
@@ -629,19 +627,27 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
-    # --- KOREKSI PRESISI: MEMBACA CATATAN / TANGGAL SPESIFIK BASP DARI FORMAT MANDIRI ---
+    # =========================================================================
+    # --- PERBAIKAN MUTLAK: TANGGAL SELESAI BARIS DIPREPEND WALAUPUN CATATAN ADA ---
+    # =========================================================================
     basp_rows_html = ""
-    basp_saved_container = st.session_state.get("basp_saved_data", {}).get(current_pi_no, {})
+    all_basp_store = st.session_state.get("basp_saved_data", {})
+    basp_saved_container = all_basp_store.get(current_pi_no, {})
+    
     saved_basp_items_map = {}
     if isinstance(basp_saved_container, dict):
         saved_basp_items_map = basp_saved_container.get('items', basp_saved_container.get('rincian_items', {}))
+        if not saved_basp_items_map:
+            saved_basp_items_map = basp_saved_container
     elif isinstance(basp_saved_container, list):
         saved_basp_items_map = {idx + 1: item for idx, item in enumerate(basp_saved_container)}
 
     for idx, m in enumerate(mutasi_jasa, start=1):
         saved_basp_row = {}
         if isinstance(saved_basp_items_map, dict):
-            saved_basp_row = saved_basp_items_map.get(idx, saved_basp_items_map.get(str(idx), {}))
+            saved_basp_rows_data = saved_basp_items_map.get(idx, saved_basp_items_map.get(str(idx), {}))
+            if isinstance(saved_basp_rows_data, dict):
+                saved_basp_row = saved_basp_rows_data
         elif isinstance(saved_basp_items_map, list) and (idx - 1) < len(saved_basp_items_map):
             saved_basp_row = saved_basp_items_map[idx - 1]
 
@@ -649,13 +655,26 @@ def tampilkan_paket_lengkap(transaksi_list):
         desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
         qty = float(m.get('Qty', m.get('Qty PO', 1.0)))
         unit = str(m.get('Unit', 'AU'))
+        
+        # Ambil keterangan dasar atau catatan yang tersimpan
+        ket_mentah = str(saved_basp_row.get('catatan', saved_basp_row.get('keterangan', saved_basp_row.get('catatan_item', '')))).strip()
+        if not ket_mentah:
+            ket_mentah = str(m.get('Keterangan', '')).strip()
 
-        ket_mentah = str(m.get('Keterangan', '')).strip()
-        default_catatan_basp = f"Selesai Pelaksanaan Pekerjaan Tanggal {basp_date_str}"
+        # Ambil tanggal selesai spesifik dari data baris transaksi (m)
+        tgl_selesai_baris_raw = m.get('Tanggal Selesai', '')
+        tgl_selesai_baris_str = format_tanggal_indo_konsisten(tgl_selesai_baris_raw)
+        if tgl_selesai_baris_str == "-" or not tgl_selesai_baris_str:
+            tgl_selesai_baris_str = basp_date_str
+
+        # Format teks tanggal selesai per baris
+        base_teks_tgl = f"Selesai Pelaksanaan Pekerjaan Tanggal {tgl_selesai_baris_str}"
+        
+        # Gabungkan secara pasti (Tanggal Selesai di atas, diikuti keterangan/catatan personil di bawahnya)
         if ket_mentah:
-            default_catatan_basp = f"{default_catatan_basp}<br>{ket_mentah}"
-
-        row_catatan_basp = str(saved_basp_row.get('catatan', saved_basp_row.get('keterangan', default_catatan_basp))).strip()
+            row_catatan_basp = f"{base_teks_tgl}<br>{ket_mentah}"
+        else:
+            row_catatan_basp = base_teks_tgl
 
         basp_rows_html += f"""
             <tr>
@@ -666,7 +685,7 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: left; padding-left: 5px; width: 34%;"><b>{row_catatan_basp}</b></td>
             </tr>
         """
-    # --------------------------------------------------------------------------------
+    # =========================================================================
 
     bastb_saved_container = st.session_state.get("bastb_saved_data", {}).get(opname_storage_key, {})
     saved_items_map = bastb_saved_container.get('items', {})
@@ -806,7 +825,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
     """
 
-    # --- 1. RINCIAN PEKERJAAN (LANDSCAPE) ---
     rincian_html = f"""
     <div class="page-break landscape-page">
         {kop_bss_html}
@@ -1347,7 +1365,6 @@ def tampilkan_paket_lengkap(transaksi_list):
         </table>
         """
 
-    # --- 2. OPNAME PEKERJAAN (LANDSCAPE) ---
     opname_html = f"""
     <div class="page-break landscape-page">
         {kop_bss_html}
@@ -1416,7 +1433,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     </div>
     """
 
-    # --- 3. FORMAT TKDN ---
     tkdn_html = f"""
     <div class="page-break portrait-page">
         {kop_bss_html}
