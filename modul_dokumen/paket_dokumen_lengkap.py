@@ -629,26 +629,44 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
+    # --- KOREKSI PRESISI: MEMBACA CATATAN / TANGGAL SPESIFIK BASP DARI FORMAT MANDIRI ---
     basp_rows_html = ""
+    basp_saved_container = st.session_state.get("basp_saved_data", {}).get(current_pi_no, {})
+    saved_basp_items_map = {}
+    if isinstance(basp_saved_container, dict):
+        saved_basp_items_map = basp_saved_container.get('items', basp_saved_container.get('rincian_items', {}))
+    elif isinstance(basp_saved_container, list):
+        saved_basp_items_map = {idx + 1: item for idx, item in enumerate(basp_saved_container)}
+
     for idx, m in enumerate(mutasi_jasa, start=1):
+        saved_basp_row = {}
+        if isinstance(saved_basp_items_map, dict):
+            saved_basp_row = saved_basp_items_map.get(idx, saved_basp_items_map.get(str(idx), {}))
+        elif isinstance(saved_basp_items_map, list) and (idx - 1) < len(saved_basp_items_map):
+            saved_basp_row = saved_basp_items_map[idx - 1]
+
         kat = str(m.get('Kategori', '')).strip()
         desc = str(m.get('Deskripsi Pekerjaan', '')).strip()
-        ket = str(m.get('Keterangan', '')).strip()
         qty = float(m.get('Qty', m.get('Qty PO', 1.0)))
         unit = str(m.get('Unit', 'AU'))
 
-        catatan_basp = f"Selesai Pelaksanaan Pekerjaan Tanggal {basp_date_str}"
-        if ket:
-            catatan_basp = f"{catatan_basp}<br>{ket}"
+        ket_mentah = str(m.get('Keterangan', '')).strip()
+        default_catatan_basp = f"Selesai Pelaksanaan Pekerjaan Tanggal {basp_date_str}"
+        if ket_mentah:
+            default_catatan_basp = f"{default_catatan_basp}<br>{ket_mentah}"
+
+        row_catatan_basp = str(saved_basp_row.get('catatan', saved_basp_row.get('keterangan', default_catatan_basp))).strip()
+
         basp_rows_html += f"""
             <tr>
                 <td style="text-align: center; width: 6%;">{idx}</td>
                 <td style="text-align: left; padding-left: 5px; width: 42%;"><b>{kat}</b><br>{desc}</td>
                 <td style="text-align: right; padding-right: 6px; width: 8%;">{qty:,.2f}</td>
                 <td style="text-align: center; width: 10%;">{unit}</td>
-                <td style="text-align: left; padding-left: 5px; width: 34%;">{catatan_basp}</td>
+                <td style="text-align: left; padding-left: 5px; width: 34%;"><b>{row_catatan_basp}</b></td>
             </tr>
         """
+    # --------------------------------------------------------------------------------
 
     bastb_saved_container = st.session_state.get("bastb_saved_data", {}).get(opname_storage_key, {})
     saved_items_map = bastb_saved_container.get('items', {})
