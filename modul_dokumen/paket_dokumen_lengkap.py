@@ -136,9 +136,9 @@ def tampilkan_paket_lengkap(transaksi_list):
     col_set1, col_set2 = st.columns(2)
     with col_set1:
         st.markdown("**🖼️ Upload Logo Perusahaan**")
-        up_l1 = st.file_uploader("Upload Logo Pihak Pertama (PT BSS / Kiri)", type=["png", "jpg", "jpeg"], key="master_logo_p1")
-        up_l2 = st.file_uploader("Upload Logo Pihak Kedua (JOB Pertamina / Kanan)", type=["png", "jpg", "jpeg"], key="master_logo_p2")
-        up_l_iso = st.file_uploader("Upload Logo ISO / Pendukung", type=["png", "jpg", "jpeg"], key="master_logo_iso")
+        up_l1 = st.file_uploader("Upload Logo Pihak Pertama (JOB Pertamina / Kiri di BAMP/BASP)", type=["png", "jpg", "jpeg"], key="master_logo_p1")
+        up_l2 = st.file_uploader("Upload Logo Pihak Kedua (PT BSS / Kiri di Rincian, PI, TKDN, WCC, Opname)", type=["png", "jpg", "jpeg"], key="master_logo_p2")
+        up_l_iso = st.file_uploader("Upload Logo ISO / Pendukung (Kanan di Rincian, PI, TKDN)", type=["png", "jpg", "jpeg"], key="master_logo_iso")
         
         if up_l1 is not None:
             st.session_state["perm_logo_p1"] = f"data:image/png;base64,{base64.b64encode(up_l1.getvalue()).decode()}"
@@ -148,7 +148,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             st.session_state["perm_logo_iso"] = f"data:image/png;base64,{base64.b64encode(up_l_iso.getvalue()).decode()}"
 
     with col_set2:
-        st.markdown("**✍️️ Upload Tanda Tangan Digital**")
+        st.markdown("**✍ Upload Tanda Tangan Digital**")
         up_t_sup = st.file_uploader("Upload TTD Supervisor / Pembuat", type=["png", "jpg", "jpeg"], key="master_ttd_sup")
         up_t_one = st.file_uploader("Upload TTD Onesimus Suriadi", type=["png", "jpg", "jpeg"], key="master_ttd_one")
         up_t_fer = st.file_uploader("Upload TTD Direktur (Ir. Ferry Tatimu)", type=["png", "jpg", "jpeg"], key="master_ttd_fer")
@@ -220,17 +220,20 @@ def tampilkan_paket_lengkap(transaksi_list):
     if f"force_regen_{current_pi_no}" in st.session_state:
         del st.session_state[f"force_regen_{current_pi_no}"]
 
-    custom_logo_p1 = st.session_state.get("perm_logo_p1", "")
-    custom_logo_p2 = st.session_state.get("perm_logo_p2", "")
-    custom_logo_iso = st.session_state.get("perm_logo_iso", "")
+    custom_logo_p1 = st.session_state.get("perm_logo_p1", "") # Pertamina
+    custom_logo_p2 = st.session_state.get("perm_logo_p2", "") # BSS
+    custom_logo_iso = st.session_state.get("perm_logo_iso", "") # ISO
 
-    img_tag_p1 = f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo P1">' if custom_logo_p1 else '<div style="height: 52px;"></div>'
-    img_tag_p2 = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo P2">' if custom_logo_p2 else '<div style="height: 52px;"></div>'
+    # 1. BAMP & BASP: Pertamina di Kiri (p1), BSS di Kanan (p2)
+    img_tag_p1 = f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo Pertamina">' if custom_logo_p1 else '<div style="height: 52px;"></div>'
+    img_tag_p2 = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else '<div style="height: 52px;"></div>'
 
-    img_tag_reversed_left = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 52px;"></div>')
-    img_tag_reversed_right = f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo JOB">' if custom_logo_p1 else '<div style="height: 52px;"></div>'
+    # 2. WCC & Opname: BSS di Kiri (p2), Pertamina di Kanan (p1)
+    img_tag_reversed_left = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else '<div style="height: 52px;"></div>'
+    img_tag_reversed_right = f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo Pertamina">' if custom_logo_p1 else '<div style="height: 52px;"></div>'
 
-    img_tag_bss_internal = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 52px;"></div>')
+    # 3. Rincian, PI, TKDN: BSS di Kiri (p2), ISO di Kanan (ISO)
+    img_tag_bss_internal = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else '<div style="height: 52px;"></div>'
     img_tag_iso_internal = f'<img src="{custom_logo_iso}" style="height: 50px; object-fit: contain;" alt="Logo ISO">' if custom_logo_iso else '<div style="height: 50px;"></div>'
 
     mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.', t.get('PI', ''))).strip() == current_pi_no]
@@ -1361,10 +1364,20 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     opname_html = f"""
     <div class="page-break landscape-page">
-        {kop_bss_html}
+        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
+            <tr>
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 25px;">
+                    {img_tag_reversed_left}
+                </td>
+                <td style="width: 50%; text-align: center; vertical-align: middle;">
+                    <h2 style="font-size: 15px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">BERITA ACARA PEKERJAAN / OPNAME</h2>
+                </td>
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 25px;">
+                    {img_tag_reversed_right}
+                </td>
+            </tr>
+        </table>
         <div style="border-bottom: 2px solid #000; margin-bottom: 12px;"></div>
-        
-        <h2 style="text-align: center; font-size: 15px; font-weight: bold; text-transform: uppercase; margin-bottom: 12px;">BERITA ACARA PEKERJAAN / OPNAME</h2>
 
         <table style="width: 100%; font-size: 11px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 20%; font-weight: bold;">JOB TITLE / WO / PO</td><td>: {lingkup_pekerjaan}</td></tr>
