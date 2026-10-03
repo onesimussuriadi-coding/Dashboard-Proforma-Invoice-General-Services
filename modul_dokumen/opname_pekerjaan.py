@@ -35,7 +35,6 @@ def muat_parameter_dokumen_from_db(pi_no, po_no):
                     except:
                         idx_item = 1
                     
-                    # Memuat deskripsi tersimpan untuk konsistensi rujukan
                     desc_val = str(row.get("Item Description", f"Item Parameter #{idx_item}"))
                     
                     items_dict[idx_item] = {
@@ -215,6 +214,29 @@ def tampilkan_opname(transaksi_list):
 
     saved_global = st.session_state.opname_saved_data[opname_storage_key]
 
+    # --- TOMBOL RESET / PEMBAHARUAN DATA ---
+    st.markdown("---")
+    col_info_reset, col_btn_reset = st.columns([3, 1])
+    with col_info_reset:
+        st.info("ℹ️ Jika Anda baru saja memperbarui data di Excel dan ingin menarik data terbaru, klik tombol **Reset / Perbarui Data** di samping.")
+    with col_btn_reset:
+        if st.button("🔄 Reset / Perbarui Data", use_container_width=True, help="Menghapus cache dan memuat ulang data terbaru"):
+            if opname_storage_key in st.session_state.opname_saved_data:
+                del st.session_state.opname_saved_data[opname_storage_key]
+            
+            # Hapus juga file excel parameter opname lokal jika ingin benar-benar bersih dari file
+            if os.path.exists(PATH_EXCEL_OPNAME):
+                try:
+                    df_ex = pd.read_excel(PATH_EXCEL_OPNAME)
+                    if "doc_key" in df_ex.columns:
+                        df_ex = df_ex[df_ex["doc_key"].astype(str).str.strip() != opname_storage_key]
+                        df_ex.to_excel(PATH_EXCEL_OPNAME, index=False)
+                except:
+                    pass
+
+            st.success("✅ Data opname berhasil di-reset ke data terbaru!")
+            st.rerun()
+
     mutasi_terpilih = transaksi_by_pi
     if selected_po != "-":
         filtered_po = [t for t in transaksi_by_pi if str(t.get('Nomor PO', t.get('No PO', ''))).strip() == str(selected_po).strip()]
@@ -365,7 +387,7 @@ def tampilkan_opname(transaksi_list):
         if uploaded_logo_2 is not None:
             saved_global['logo_2'] = uploaded_logo_2.getvalue()
         if saved_global.get('logo_2') is not None:
-            if st.button("🗑️ Hapus Logo Pihak Kedua", key=f"btn_del_opn_l2_{opname_storage_key}"):
+            if st.button("🗑️️ Hapus Logo Pihak Kedua", key=f"btn_del_opn_l2_{opname_storage_key}"):
                 saved_global['logo_2'] = None
                 st.success("✅ Logo Pihak Kedua berhasil dihapus!")
                 st.rerun()
@@ -473,7 +495,6 @@ def tampilkan_opname(transaksi_list):
 
         actual_unit = str(m.get('Unit', 'AU' if is_prov_sum else 'Day'))
         
-        # --- PENERAPAN BREAKDOWN UNIT PRICE (AT COST + FEE / DISKON 10%) ---
         if is_prov_sum:
             base_at_cost = raw_hs * (percent_val / 100.0)
             fee_15 = base_at_cost * 0.15
@@ -735,7 +756,7 @@ def tampilkan_opname(transaksi_list):
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
         b64_html = base64.b64encode(html_content.encode()).decode()
-        st.components.v1.html(f'<script>function printDoc(){{var win=window.open("about:blank","_blank");win.document.write(atob("{b64_html}"));win.document.close();win.print();}}</script><button onclick="printDoc()" style="width: 100%; background-color: #10b981; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">🖨️ Cetak Dokumen Opname</button>', height=50)
+        st.components.v1.html(f'<script>function printDoc(){{var win=window.open("about:blank","_blank");win.document.write(atob("{b64_html}"));win.document.close();win.print();}}</script><button onclick="printDoc()" style="width: 100%; background-color: #10b981; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">🖨 Cetak Dokumen Opname</button>', height=50)
     with col_btn2:
         b64_pdf = base64.b64encode(html_content.encode()).decode()
         st.markdown(f'<a href="data:text/html;base64,{b64_pdf}" download="Opname_{pi_sekarang.replace("/", "-")}.html" style="text-decoration: none;"><button style="width: 100%; background-color: #3b82f6; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">📥 Download File Opname</button></a>', unsafe_allow_html=True)
