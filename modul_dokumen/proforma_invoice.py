@@ -214,14 +214,15 @@ def tampilkan_proforma_invoice(transaksi_list):
             base_at_cost = qty_val * unit_price * (percent_val / 100.0)
             fee_15 = base_at_cost * 0.15
             total_item = base_at_cost * 1.15
-            # Breakdown gabungan di kolom Unit Price
+            # Format At Cost yang konsisten
             unit_price_display = f"Rp {base_at_cost:,.2f}<br><span style='font-size: 8px; font-weight: normal; color: #334155;'>+ 15% Fee (Rp {fee_15:,.2f})</span>"
             kategori_display = kategori_awal
         elif "estimated" in kategori_str or "estimasi" in kategori_str:
             total_item = (qty_val * unit_price * 0.9) * (percent_val / 100.0)
-            harga_diskon_val = unit_price * 0.9
-            kategori_display = f"{kategori_awal}<br><span style='font-size: 8.5px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {unit_price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
-            unit_price_display = f"{unit_price:,.2f}"
+            nominal_diskon = unit_price * 0.1
+            kategori_display = kategori_awal
+            # Format ringkas konsisten: menampilkan diskon 10% langsung nilai tanpa kata "jadi"
+            unit_price_display = f"{unit_price:,.2f}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 2px;'>- 10% Diskon (Rp {nominal_diskon:,.2f})</span>"
         else:
             total_item = (qty_val * unit_price) * (percent_val / 100.0)
             unit_price_display = f"{unit_price:,.2f}"

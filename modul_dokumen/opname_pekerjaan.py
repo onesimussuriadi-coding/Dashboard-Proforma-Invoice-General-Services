@@ -269,7 +269,7 @@ def tampilkan_opname(transaksi_list):
             deskripsi_m = str(m.get('Deskripsi Pekerjaan', '')).strip()
             ket_m = str(m.get('Keterangan', '')).strip()
             
-            item_label = f"{kategori_m} - {deskripsi_m}"
+            item_label = f"{kategori_m}\n{deskripsi_m}"
             if ket_m:
                 item_label += f" ({ket_m})"
 
@@ -473,11 +473,14 @@ def tampilkan_opname(transaksi_list):
 
         actual_unit = str(m.get('Unit', 'AU' if is_prov_sum else 'Day'))
         
-        # --- PENERAPAN BREAKDOWN UNIT PRICE (AT COST + FEE 15%) ---
+        # --- PENERAPAN BREAKDOWN UNIT PRICE (AT COST + FEE / DISKON 10%) ---
         if is_prov_sum:
             base_at_cost = raw_hs * (percent_val / 100.0)
             fee_15 = base_at_cost * 0.15
             unit_price_display = f"Rp {base_at_cost:,.2f}<br><span style='font-size: 7.5px; font-weight: normal; color: #334155;'>+ 15% Fee (Rp {fee_15:,.2f})</span>"
+        elif is_est_sum:
+            nominal_diskon = unit_price * 0.1
+            unit_price_display = f"{unit_price:,.2f}<br><span style='font-size: 7.5px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 2px;'>- 10% Diskon (Rp {nominal_diskon:,.2f})</span>"
         else:
             unit_price_display = f"{unit_price:,.2f}"
 
