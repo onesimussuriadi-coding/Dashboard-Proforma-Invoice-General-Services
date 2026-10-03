@@ -142,7 +142,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     with col_sig1:
         uploaded_sig_dibuat = st.file_uploader("Upload Gambar Tanda Tangan (DIBUAT OLEH)", type=["png", "jpg", "jpeg"], key=f"sig_dibuat_{current_pi_no}")
         if saved_rincian_item.get('sig_dibuat') is not None:
-            if st.button("🗑️ Hapus Tanda Tangan Dibuat Oleh", key=f"btn_del_sig1_{current_pi_no}"):
+            if st.button("🗑️️ Hapus Tanda Tangan Dibuat Oleh", key=f"btn_del_sig1_{current_pi_no}"):
                 saved_rincian_item['sig_dibuat'] = None
                 st.success("✅ Tanda Tangan Dibuat Oleh berhasil dihapus!")
                 st.rerun()
@@ -150,7 +150,7 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
     with col_sig2:
         uploaded_sig_diperiksa = st.file_uploader("Upload Gambar Tanda Tangan (DIPERIKSA)", type=["png", "jpg", "jpeg"], key=f"sig_diperiksa_{current_pi_no}")
         if saved_rincian_item.get('sig_diperiksa') is not None:
-            if st.button("🗑️ Hapus Tanda Tangan Diperiksa", key=f"btn_del_sig2_{current_pi_no}"):
+            if st.button("🗑️️ Hapus Tanda Tangan Diperiksa", key=f"btn_del_sig2_{current_pi_no}"):
                 saved_rincian_item['sig_diperiksa'] = None
                 st.success("✅ Tanda Tangan Diperiksa berhasil dihapus!")
                 st.rerun()
@@ -264,9 +264,9 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         if "estimated" in kategori_str or "estimasi" in kategori_str:
             total_harga_val = (qty_val * harga_satuan_val * 0.9) * (percent_val / 100.0)
             harga_diskon_val = harga_satuan_val * 0.9
-            # Kolom Kategori tetap bersih, rincian diskon dipindah ke bawah Harga Satuan
-            kategori_display = kategori_awal
-            harga_satuan_display = f"Rp {harga_satuan_val:,.2f}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {harga_satuan_val:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
+            # Kolom Kategori dibersihkan, rincian diskon dipindah ke bawah Harga Satuan
+            kategori_display = kategori_awal.split("<br>")[0].strip()
+            harga_satuan_display = f"{harga_satuan_val:,.2f}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {harga_satuan_val:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
         elif "provisional" in kategori_str or "professional" in kategori_str:
             base_at_cost = qty_val * harga_satuan_val * (percent_val / 100.0)
             fee_15 = base_at_cost * 0.15
