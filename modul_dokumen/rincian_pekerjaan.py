@@ -264,13 +264,13 @@ def tampilkan_rincian_pekerjaan(transaksi_list):
         if "estimated" in kategori_str or "estimasi" in kategori_str:
             total_harga_val = (qty_val * harga_satuan_val * 0.9) * (percent_val / 100.0)
             harga_diskon_val = harga_satuan_val * 0.9
-            kategori_display = f"{kategori_awal}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {harga_satuan_val:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
-            harga_satuan_display = f"{harga_satuan_val:,.2f}"
+            # Kolom Kategori tetap bersih, rincian diskon dipindah ke bawah Harga Satuan
+            kategori_display = kategori_awal
+            harga_satuan_display = f"Rp {harga_satuan_val:,.2f}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {harga_satuan_val:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
         elif "provisional" in kategori_str or "professional" in kategori_str:
             base_at_cost = qty_val * harga_satuan_val * (percent_val / 100.0)
             fee_15 = base_at_cost * 0.15
             total_harga_val = base_at_cost * 1.15
-            # Breakdown gabungan di kolom Harga Satuan
             harga_satuan_display = f"Rp {base_at_cost:,.2f}<br><span style='font-size: 8px; font-weight: normal; color: #334155;'>+ 15% Fee (Rp {fee_15:,.2f})</span>"
             kategori_display = kategori_awal
         else:
