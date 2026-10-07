@@ -61,7 +61,7 @@ def terbilang(n):
             return helper(num // 1000000000) + " Miliar" + helper(num % 1000000000)
         else:
             return " Angka terlalu besar"
-        
+            
     return helper(n_bulat).strip() + " Rupiah"
 
 def format_tanggal_indo_konsisten(tanggal_val):
@@ -83,8 +83,8 @@ def format_tanggal_indo_konsisten(tanggal_val):
 def tampilkan_paket_lengkap(transaksi_list):
     st.markdown("""
         <div class="dashboard-card">
-            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📦 Master Bundle: Fotokopi Digital Dokumen (Exact Duplication & Batch Export)</h3>
-            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Modul ini menduplikasi secara utuh dan identik 100% seluruh dokumen asli berdasarkan database rekaman tersimpan.</p>
+            <h3 style="margin-top:0; color:#065f46; font-size:18px;">📦 Master Bundle: Fotokopi Digital Dokumen & Pengaturan Atribut (Logo & TTD)</h3>
+            <p style="margin-bottom:0; font-size:12px; color:#4b5563;">Modul ini menduplikasi secara utuh seluruh dokumen asli serta menyediakan kontrol penuh untuk upload logo dan tanda tangan digital.</p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -101,31 +101,6 @@ def tampilkan_paket_lengkap(transaksi_list):
     DIR_LOGO_AMAN = os.path.join("database_penyimpanan_aman", "pengaturan_logo_permanen")
     if not os.path.exists(DIR_LOGO_AMAN):
         os.makedirs(DIR_LOGO_AMAN)
-
-    path_logo_p1_perm = os.path.join(DIR_LOGO_AMAN, "logo_p1_perm.txt")
-    path_logo_p2_perm = os.path.join(DIR_LOGO_AMAN, "logo_p2_perm.txt")
-    path_logo_iso_perm = os.path.join(DIR_LOGO_AMAN, "logo_iso_perm.txt")
-
-    if "perm_logo_p1" not in st.session_state:
-        if os.path.exists(path_logo_p1_perm):
-            with open(path_logo_p1_perm, "r", encoding="utf-8") as f:
-                st.session_state["perm_logo_p1"] = f.read().strip()
-        else:
-            st.session_state["perm_logo_p1"] = ""
-
-    if "perm_logo_p2" not in st.session_state:
-        if os.path.exists(path_logo_p2_perm):
-            with open(path_logo_p2_perm, "r", encoding="utf-8") as f:
-                st.session_state["perm_logo_p2"] = f.read().strip()
-        else:
-            st.session_state["perm_logo_p2"] = ""
-
-    if "perm_logo_iso" not in st.session_state:
-        if os.path.exists(path_logo_iso_perm):
-            with open(path_logo_iso_perm, "r", encoding="utf-8") as f:
-                st.session_state["perm_logo_iso"] = f.read().strip()
-        else:
-            st.session_state["perm_logo_iso"] = ""
 
     seen_pi_dd = set()
     unique_pi_list = []
@@ -153,6 +128,39 @@ def tampilkan_paket_lengkap(transaksi_list):
     selected_po_bundle = unique_po_list[0] if unique_po_list else "-"
     opname_storage_key = f"opname_{current_pi_no}_{selected_po_bundle}".replace("/", "_")
     pi_storage_key = f"pi_{current_pi_no}".replace("/", "_")
+
+    # --- PENGEMBALIAN FITUR UPLOAD LOGO & TANDA TANGAN DIGITAL ---
+    st.markdown("---")
+    st.markdown("#### ⚙️ Pengaturan Atribut Dokumen (Logo & Tanda Tangan Digital)")
+    
+    col_set1, col_set2 = st.columns(2)
+    with col_set1:
+        st.markdown("**🖼️ Upload Logo Perusahaan**")
+        up_l1 = st.file_uploader("Upload Logo Pihak Pertama (JOB Pertamina / Kiri di BAMP/BASP)", type=["png", "jpg", "jpeg"], key="master_logo_p1")
+        up_l2 = st.file_uploader("Upload Logo Pihak Kedua (PT BSS / Kiri di Rincian, PI, TKDN, WCC, Opname)", type=["png", "jpg", "jpeg"], key="master_logo_p2")
+        up_l_iso = st.file_uploader("Upload Logo ISO / Pendukung (Kanan di Rincian, PI, TKDN)", type=["png", "jpg", "jpeg"], key="master_logo_iso")
+        
+        if up_l1 is not None:
+            st.session_state["perm_logo_p1"] = f"data:image/png;base64,{base64.b64encode(up_l1.getvalue()).decode()}"
+        if up_l2 is not None:
+            st.session_state["perm_logo_p2"] = f"data:image/png;base64,{base64.b64encode(up_l2.getvalue()).decode()}"
+        if up_l_iso is not None:
+            st.session_state["perm_logo_iso"] = f"data:image/png;base64,{base64.b64encode(up_l_iso.getvalue()).decode()}"
+
+    with col_set2:
+        st.markdown("**✍ Upload Tanda Tangan Digital**")
+        up_t_sup = st.file_uploader("Upload TTD Supervisor / Pembuat", type=["png", "jpg", "jpeg"], key="master_ttd_sup")
+        up_t_one = st.file_uploader("Upload TTD Onesimus Suriadi", type=["png", "jpg", "jpeg"], key="master_ttd_one")
+        up_t_fer = st.file_uploader("Upload TTD Direktur (Ir. Ferry Tatimu)", type=["png", "jpg", "jpeg"], key="master_ttd_fer")
+
+        if up_t_sup is not None:
+            st.session_state["perm_ttd_supervisor"] = f"data:image/png;base64,{base64.b64encode(up_t_sup.getvalue()).decode()}"
+        if up_t_one is not None:
+            st.session_state["perm_ttd_onesimus"] = f"data:image/png;base64,{base64.b64encode(up_t_one.getvalue()).decode()}"
+        if up_t_fer is not None:
+            st.session_state["perm_ttd_ferry"] = f"data:image/png;base64,{base64.b64encode(up_t_fer.getvalue()).decode()}"
+
+    st.markdown("---")
 
     file_saved_path = os.path.join(DIR_PAKET_SAVED, f"paket_{current_pi_no.replace('/', '_')}.html")
     
@@ -212,17 +220,20 @@ def tampilkan_paket_lengkap(transaksi_list):
     if f"force_regen_{current_pi_no}" in st.session_state:
         del st.session_state[f"force_regen_{current_pi_no}"]
 
-    custom_logo_p1 = st.session_state.get("perm_logo_p1", "")
-    custom_logo_p2 = st.session_state.get("perm_logo_p2", "")
-    custom_logo_iso = st.session_state.get("perm_logo_iso", "")
+    custom_logo_p1 = st.session_state.get("perm_logo_p1", "") # Pertamina
+    custom_logo_p2 = st.session_state.get("perm_logo_p2", "") # BSS
+    custom_logo_iso = st.session_state.get("perm_logo_iso", "") # ISO
 
-    img_tag_p1 = f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo P1">' if custom_logo_p1 else '<div style="height: 52px;"></div>'
-    img_tag_p2 = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo P2">' if custom_logo_p2 else '<div style="height: 52px;"></div>'
+    # 1. BAMP & BASP: Pertamina di Kiri (p1), BSS di Kanan (p2)
+    img_tag_p1 = f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo Pertamina">' if custom_logo_p1 else '<div style="height: 52px;"></div>'
+    img_tag_p2 = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else '<div style="height: 52px;"></div>'
 
-    img_tag_reversed_left = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 52px;"></div>')
-    img_tag_reversed_right = f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo JOB">' if custom_logo_p1 else '<div style="height: 52px;"></div>'
+    # 2. WCC & Opname: BSS di Kiri (p2), Pertamina di Kanan (p1)
+    img_tag_reversed_left = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else '<div style="height: 52px;"></div>'
+    img_tag_reversed_right = f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo Pertamina">' if custom_logo_p1 else '<div style="height: 52px;"></div>'
 
-    img_tag_bss_internal = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else (f'<img src="{custom_logo_p1}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p1 else '<div style="height: 52px;"></div>')
+    # 3. Rincian, PI, TKDN: BSS di Kiri (p2), ISO di Kanan (ISO)
+    img_tag_bss_internal = f'<img src="{custom_logo_p2}" style="height: 52px; object-fit: contain;" alt="Logo BSS">' if custom_logo_p2 else '<div style="height: 52px;"></div>'
     img_tag_iso_internal = f'<img src="{custom_logo_iso}" style="height: 50px; object-fit: contain;" alt="Logo ISO">' if custom_logo_iso else '<div style="height: 50px;"></div>'
 
     mutasi_terpilih = [t for t in transaksi_list if str(t.get('PI No.', t.get('PI', ''))).strip() == current_pi_no]
@@ -440,18 +451,14 @@ def tampilkan_paket_lengkap(transaksi_list):
             unit_price_display_rinci = f"Rp {base_at_cost:,.2f}<br><span style='font-size: 7.5px; font-weight: normal; color: #334155;'>+ 15% Fee (Rp {fee_15:,.2f})</span>"
             unit_price_display_pi = f"Rp {base_at_cost:,.2f}<br><span style='font-size: 7.5px; font-weight: normal; color: #334155;'>+ 15% Fee (Rp {fee_15:,.2f})</span>"
         elif "estimated" in kat_lower or "estimasi" in kat_lower:
-            harga_diskon_val = unit_price * 0.9
-            unit_price_display_rinci = f"{unit_price:,.2f}"
-            unit_price_display_pi = f"{unit_price:,.2f}"
+            nominal_diskon = unit_price * 0.1
+            unit_price_display_rinci = f"{unit_price:,.2f}<br><span style='font-size: 7.5px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 2px;'>- 10% Diskon (Rp {nominal_diskon:,.2f})</span>"
+            unit_price_display_pi = f"{unit_price:,.2f}<br><span style='font-size: 7.5px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 2px;'>- 10% Diskon (Rp {nominal_diskon:,.2f})</span>"
         else:
             unit_price_display_rinci = f"{unit_price:,.2f}"
             unit_price_display_pi = f"{unit_price:,.2f}"
 
-        if "estimated" in kat_lower or "estimasi" in kat_lower:
-            harga_diskon_val = unit_price * 0.9
-            kat_display = f"{kategori_m}<br><span style='font-size: 8px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 3px;'>(Diskon 10% dari harga penawaran Rp {unit_price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span>"
-        else:
-            kat_display = kategori_m
+        kat_display = kategori_m
 
         rincian_rows_html += f"""
             <tr>
@@ -468,12 +475,7 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
-        if "estimated" in kat_lower or "estimasi" in kat_lower:
-            harga_diskon_val = unit_price * 0.9
-            desc_full_pi = f"<b>{kategori_m}</b><br><span style='font-size: 8.5px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 2px;'>(Diskon 10% dari harga penawaran Rp {unit_price:,.2f} menjadi Rp {harga_diskon_val:,.2f})</span><br>{deskripsi_m}"
-        else:
-            desc_full_pi = f"<b>{kategori_m}</b><br>{deskripsi_m}"
-            
+        desc_full_pi = f"<b>{kategori_m}</b><br>{deskripsi_m}"
         if ket_m:
             desc_full_pi += f"<br>{ket_m}"
             
@@ -558,6 +560,9 @@ def tampilkan_paket_lengkap(transaksi_list):
             base_at_cost = raw_hs * (percent_val / 100.0)
             fee_15 = base_at_cost * 0.15
             unit_price_display_opn = f"Rp {base_at_cost:,.2f}<br><span style='font-size: 7.5px; font-weight: normal; color: #334155;'>+ 15% Fee (Rp {fee_15:,.2f})</span>"
+        elif is_est_sum:
+            nominal_diskon = unit_price * 0.1
+            unit_price_display_opn = f"{unit_price:,.2f}<br><span style='font-size: 7.5px; font-weight: normal; color: #334155; line-height: 1.2; display: inline-block; margin-top: 2px;'>- 10% Diskon (Rp {nominal_diskon:,.2f})</span>"
         else:
             unit_price_display_opn = f"{unit_price:,.2f}"
 
@@ -627,9 +632,6 @@ def tampilkan_paket_lengkap(transaksi_list):
             </tr>
         """
 
-    # =========================================================================
-    # --- PERBAIKAN MUTLAK: TANGGAL SELESAI BARIS DIPREPEND WALAUPUN CATATAN ADA ---
-    # =========================================================================
     basp_rows_html = ""
     all_basp_store = st.session_state.get("basp_saved_data", {})
     basp_saved_container = all_basp_store.get(current_pi_no, {})
@@ -656,21 +658,17 @@ def tampilkan_paket_lengkap(transaksi_list):
         qty = float(m.get('Qty', m.get('Qty PO', 1.0)))
         unit = str(m.get('Unit', 'AU'))
         
-        # Ambil keterangan dasar atau catatan yang tersimpan
         ket_mentah = str(saved_basp_row.get('catatan', saved_basp_row.get('keterangan', saved_basp_row.get('catatan_item', '')))).strip()
         if not ket_mentah:
             ket_mentah = str(m.get('Keterangan', '')).strip()
 
-        # Ambil tanggal selesai spesifik dari data baris transaksi (m)
         tgl_selesai_baris_raw = m.get('Tanggal Selesai', '')
         tgl_selesai_baris_str = format_tanggal_indo_konsisten(tgl_selesai_baris_raw)
         if tgl_selesai_baris_str == "-" or not tgl_selesai_baris_str:
             tgl_selesai_baris_str = basp_date_str
 
-        # Format teks tanggal selesai per baris
         base_teks_tgl = f"Selesai Pelaksanaan Pekerjaan Tanggal {tgl_selesai_baris_str}"
         
-        # Gabungkan secara pasti (Tanggal Selesai di atas, diikuti keterangan/catatan personil di bawahnya)
         if ket_mentah:
             row_catatan_basp = f"{base_teks_tgl}<br>{ket_mentah}"
         else:
@@ -685,7 +683,6 @@ def tampilkan_paket_lengkap(transaksi_list):
                 <td style="text-align: left; padding-left: 5px; width: 34%;"><b>{row_catatan_basp}</b></td>
             </tr>
         """
-    # =========================================================================
 
     bastb_saved_container = st.session_state.get("bastb_saved_data", {}).get(opname_storage_key, {})
     saved_items_map = bastb_saved_container.get('items', {})
@@ -1367,10 +1364,20 @@ def tampilkan_paket_lengkap(transaksi_list):
 
     opname_html = f"""
     <div class="page-break landscape-page">
-        {kop_bss_html}
+        <table style="width: 100%; margin-top: 5px; margin-bottom: 12px; border-collapse: collapse;">
+            <tr>
+                <td style="width: 25%; text-align: left; vertical-align: middle; padding-left: 25px;">
+                    {img_tag_reversed_left}
+                </td>
+                <td style="width: 50%; text-align: center; vertical-align: middle;">
+                    <h2 style="font-size: 15px; font-weight: bold; text-transform: uppercase; margin: 0; padding: 0;">BERITA ACARA PEKERJAAN / OPNAME</h2>
+                </td>
+                <td style="width: 25%; text-align: right; vertical-align: middle; padding-right: 25px;">
+                    {img_tag_reversed_right}
+                </td>
+            </tr>
+        </table>
         <div style="border-bottom: 2px solid #000; margin-bottom: 12px;"></div>
-        
-        <h2 style="text-align: center; font-size: 15px; font-weight: bold; text-transform: uppercase; margin-bottom: 12px;">BERITA ACARA PEKERJAAN / OPNAME</h2>
 
         <table style="width: 100%; font-size: 11px; margin-bottom: 10px; border-collapse: collapse;">
             <tr><td style="width: 20%; font-weight: bold;">JOB TITLE / WO / PO</td><td>: {lingkup_pekerjaan}</td></tr>

@@ -61,7 +61,7 @@ def terbilang(n):
             return helper(num // 1000000000) + " Miliar" + helper(num % 1000000000)
         else:
             return " Angka terlalu besar"
-            
+        
     return helper(n_bulat).strip() + " Rupiah"
 
 def format_tanggal_indo_konsisten(tanggal_val):
@@ -307,13 +307,15 @@ def tampilkan_paket_lengkap(transaksi_list):
     tgl_pi = format_tanggal_indo_konsisten(get_induk(6, 'Tanggal Performa Invoice', format_tgl_indo(datetime.now())))
     lingkup_pekerjaan = get_induk(3, 'Lingkup Pekerjaan', t_data_utama.get('Deskripsi PO', t_data_utama.get('Kategori', '-')))
     
-    raw_po = str(get_induk(8, 'Nomor Purchase Order', t_data_utama.get('Nomor PO', current_pi_no)))
-    if not raw_po or raw_po.lower() == 'nan' or raw_po == '-':
-        raw_po = current_pi_no
-    if raw_po.endswith('.0'):
-        no_po = raw_po[:-2]
+    # --- PERBAIKAN PO KOSONG (TIDAK FALLBACK KE NOMOR PI) ---
+    raw_po = str(get_induk(8, 'Nomor Purchase Order', t_data_utama.get('Nomor PO', '')))
+    if not raw_po or raw_po.lower() in ['nan', 'none', '']:
+        no_po = ""
     else:
-        no_po = raw_po
+        if raw_po.endswith('.0'):
+            no_po = raw_po[:-2]
+        else:
+            no_po = raw_po
 
     tgl_po = format_tanggal_indo_konsisten(get_induk(9, 'Tanggal Purchase Order', t_data_utama.get('Tanggal PO', '-')))
 
@@ -349,7 +351,7 @@ def tampilkan_paket_lengkap(transaksi_list):
         default_wo = "S25051FLD-TOMORI-WO-006"
         default_ctr = "006-TOMORI-FLD-BSS- CTR-2025"
     else:
-        default_wo = no_po if no_po and no_po != current_pi_no else "S25051FLD-TOMORI-WO-006"
+        default_wo = no_po if no_po else "S25051FLD-TOMORI-WO-006"
         default_ctr = f"006-TOMORI-FLD-BSS- CTR-2025"
 
     wcc_wo_no = curr_wcc_dict.get('wo_no', default_wo)
