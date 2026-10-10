@@ -307,15 +307,19 @@ def tampilkan_paket_lengkap(transaksi_list):
     tgl_pi = format_tanggal_indo_konsisten(get_induk(6, 'Tanggal Performa Invoice', format_tgl_indo(datetime.now())))
     lingkup_pekerjaan = get_induk(3, 'Lingkup Pekerjaan', t_data_utama.get('Deskripsi PO', t_data_utama.get('Kategori', '-')))
     
-    # --- PERBAIKAN PO KOSONG (TIDAK FALLBACK KE NOMOR PI) ---
-    raw_po = str(get_induk(8, 'Nomor Purchase Order', t_data_utama.get('Nomor PO', '')))
-    if not raw_po or raw_po.lower() in ['nan', 'none', '']:
+    # --- PERBAIKAN MUTLAK NOMOR PO KOSONG (TIDAK MEMBACA PI) ---
+    raw_po_db = get_induk(8, 'Nomor Purchase Order', '')
+    raw_po_transaksi = str(t_data_utama.get('Nomor PO', t_data_utama.get('No PO', ''))).strip()
+    
+    final_po_candidate = raw_po_db if raw_po_db and raw_po_db.lower() not in ['nan', 'none', '-'] else raw_po_transaksi
+    
+    if not final_po_candidate or final_po_candidate.lower() in ['nan', 'none', '-'] or final_po_candidate == current_pi_no:
         no_po = ""
     else:
-        if raw_po.endswith('.0'):
-            no_po = raw_po[:-2]
+        if final_po_candidate.endswith('.0'):
+            no_po = final_po_candidate[:-2]
         else:
-            no_po = raw_po
+            no_po = final_po_candidate
 
     tgl_po = format_tanggal_indo_konsisten(get_induk(9, 'Tanggal Purchase Order', t_data_utama.get('Tanggal PO', '-')))
 
